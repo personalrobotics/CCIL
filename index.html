@@ -166,6 +166,7 @@
       </div>
   </section>
 
+  <hr>
   <section class="section">
     <div class="container is-max-desktop">
       <div class="columns is-centered has-text-centered">
@@ -227,7 +228,7 @@
     </div>
   </section>
 
-
+  <hr>
   <section class="section">
     <div class="container has-text-centered">
       <!-- Animation. -->
@@ -413,26 +414,94 @@
             </table>
           </div>
         </div>
-        <div class="column is-four-fifths">
-          <h3 class="title is-4">Real Robot</h3>
-          <h4 class="subtitle is-5">CCIL improves imitation learning for real-world fine-manipulation tasks, especially in low-data scenarios.</h4>
-          <img src="./static/images/IROS_figures/grasp_cube_ablation_line_plot.png" alt="Cube data ablation">
-          <img src="./static/images/IROS_figures/lego_insert_ablation_bar_chart.png" alt="Lego data ablation">
-          <img src="./static/images/IROS_figures/coin_ablation_line_plot.png" alt="Coin data ablation">
-          <h4 class="subtitle is-5">Real-world tasks with complex dynamics maintain local Lipschitz continuity, supporting CCIL's assumptions.</h4>
-          <img src="./static/images/IROS_figures/local_L.png" alt="Local Lipchitz vs. Lipschitz Constraints">
-          <img src="./static/images/IROS_figures/error_scatter.png" alt="Error scatter plot">
-          <img src="./static/images/IROS_figures/cluster_ablation.png" alt="Cluster ablation">
-          <h4 class="subtitle is-5">CCIL's performance is sensitive to the label rejection hyperparameter, affecting the acceptable error bound for labels.</h4>
-          <img src="./static/images/IROS_figures/err_quantile_line_plot.png" alt="Error quantile line plot">
-          <h4 class="subtitle is-5">CCIL also shows relative robustness to variations in the local Lipschitz constraint during dynamics model training.</h4>
-          <img src="./static/images/IROS_figures/hparam_grid.png" alt="Hyperparameter ablation grid">
-        </div>
       </div>
     </div>
   </section>
 
+<hr>
 
+<section class="section">
+  <div class="container has-text-centered">
+    <div class="columns is-centered has-text-centered is-multiline">
+      <div class="column is-four-fifths">
+        <h3 class="title is-3">Real Robot</h3>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img class="no_outline" src="./static/images/coin.JPEG" alt="Grasp coin task" style="max-width: 100%; max-height: 100%;">
+          </span>
+          <span class="list_image">
+            <img class="no_outline" src="./static/images/cube.JPEG" alt="Grasp cube task" style="max-width: 100%; max-height: 100%;">
+          </span>
+          <span class="list_image">
+            <img class="no_outline" src="./static/images/lego.JPEG" alt="Lego insert task" style="max-width: 100%; max-height: 100%;">
+          </span>
+        </div>
+        <h4 class="subtitle is-4"><strong>H.1 </strong>CCIL improves imitation learning for real-world fine-manipulation tasks, especially in low-data scenarios.</h4>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/grasp_cube_ablation_line_plot.png" alt="Cube data ablation" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/lego_insert_ablation_line_plot.png" alt="Lego data ablation" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+        </div>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/coin_ablation_line_plot.png" alt="Coin data ablation" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <p class="list_image image_caption description">
+            Across our three main tasks, we show that CCIL consistently out-performers standard Behavior Cloning. This performance boost is made especially clear in low-data regions, like in our Cube Grasping task with about a 60% improvement in success at 20% demonstrations
+          </p>
+        </div>
+        <h4 class="subtitle is-4"><strong>H.2 </strong>Real-world tasks with complex dynamics maintain local Lipschitz continuity, supporting CCIL's assumptions.</h4>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/error_scatter.png" alt="Error scatter plot" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/cluster_ablation.png" alt="Local Lipchitz vs. Lipschitz Constraints" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+        </div>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/local_L.png" alt="Cluster ablation" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <p class="list_image image_caption description">
+            Tasks containing local Lipschitz continuity can be realized by learning dynamics models. This model and the generated labels have varying continuity that correlate with the real world dynamics. For example, the green cluster of labels correspond with cube grasping, and the blue represents free space motion.
+          </p>
+        </div>
+        <h4 class="subtitle is-4"><strong>H.3 </strong>CCIL's performance is sensitive to the label rejection hyperparameter, affecting the acceptable error bound for labels.</h4>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/err_quantile_line_plot.png" alt="Error quantile line plot" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <p class="list_image image_caption description">
+            Label filtration thresholds are crucial to understand and tune propertly, and a balance must be struck between label accuracy and usefulness to maximize CCIL's performance.
+          </p>
+        </div>
+        <h4 class="subtitle is-4"><strong>H.4 </strong>CCIL also shows relative robustness to variations in the local Lipschitz constraint during dynamics model training.</h4>
+        <div class="horizontal_list">
+          <span class="list_image">
+            <img src="./static/images/IROS_figures/hparam_grid.png" alt="Hyperparameter ablation grid" style="max-width: 100%; max-height: 100%;">
+            <!-- <p class="image_caption"></p> -->
+          </span>
+          <p class="list_image image_caption description">
+            CCIL is robust to different Lipschitz constraints. We see that for each Lipschitz constraint, there is a label rejection quantile that achieves a significant boost in performance over BC. CCIL can also work well with an unconstrained dynamics model. As seen in hypothesis 2, even when a Lipschitz constraint is infinite, CCIL still achieves good performance.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+  <hr>
   <section class="section" id="BibTeX">
     <div class="container is-max-desktop content">
       <h2 class="title">BibTeX</h2>
