@@ -8,6 +8,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CCIL: Continuity-based Data Augmentation for Corrective Imitation Learning</title>
 
+  <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$','$'], ['\\(','\\)']],
+            displayMath: [['$$','$$'], ['\\[','\\]']],
+            processEscapes: true,
+            processEnvironments: true,
+        }
+    }
+  </script>
+
   <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
 
   <link rel="stylesheet" href="./static/css/bulma.min.css">
@@ -16,8 +27,13 @@
   <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
   <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pseudocode@latest/build/pseudocode.min.css">
   <link rel="icon" href="./static/images/favicon.svg" type="image/svg">
 
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml-full.js"
+          integrity="sha256-kbAFUDxdHwlYv01zraGjvjNZayxKtdoiJ38bDTFJtaQ="
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pseudocode@latest/build/pseudocode.min.js"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script defer src="./static/js/fontawesome.all.min.js"></script>
   <script src="./static/js/bulma-carousel.min.js"></script>
@@ -171,7 +187,7 @@
     <div class="container is-max-desktop">
       <div class="columns is-centered has-text-centered">
         <div class="column is-four-fifths">
-          <h2 class="title is-3">The Problem</h2>
+          <h2 class="title is-2">The Problem</h2>
           <div class="content has-text-justified">
             <p>
               Imitation learning in robotics demands extensive data coverage, often necessitating
@@ -193,9 +209,11 @@
 
       <div class="columns is-centered has-text-centered">
         <div class="column is-four-fifths">
-          <h2 class="title is-3">CCIL</h2>
+          <h2 class="title is-2">CCIL</h2>
+          <div class="content has-text-centered">
+            <img src="./static/images/ccil_overview.png" alt="CCIL Overview" style="max-width: 90%;"/>
+          </div>
           <div class="content has-text-justified">
-            <img src="./static/images/ccil_overview.png" alt="CCIL Overview" />
             <p>
               Our approach focuses on synthesizing corrective labels to guide an agent encountering unfamiliar states
               back to the distribution of expert states, ensuring safety and familiarity. Leveraging local continuity in
@@ -207,6 +225,45 @@
               corrective labels, introducing the practical CCIL algorithm, providing theoretical guarantees on model
               quality and label generation, and validating our approach across several tasks in multiple robotic domains
               through extensive simulation experiments, as well as in fine manipulation on a real robotic platform.
+            </p>
+          </div>
+          <div class="content has-text-justified">
+            <pre class="pseudocode">
+              \begin{algorithm}
+              \caption{Our Instantiation of CCIL: \textbf{C}ontinuity-based \textbf{C}orrective labels for \textbf{I}mitation \textbf{L}earning}
+              \begin{algorithmic}
+                \STATE \textbf{Input:} $\mathcal{D^*}=(s^*_i, a^*_i, s^*_{i+1})$
+                \STATE \textbf{Initialize:} $D^\mathcal{G} \leftarrow \varnothing$
+                \STATE \texttt{// Learn Dynamics}
+                \STATE $MSE\leftarrow\mathbb{E}_{(s^*_i,a^*_i,s^*_{i+1})\sim \mathcal{D}^*}\left[\hat{f}(s^*_i, a^*_i) + s^*_i - s^*_{i+1}\right]$
+                \STATE $\hat{f}\leftarrow\arg\min_{\hat{f}} MSE \mkern9mu\text{s.t.}\mkern9mu \|W\|_2\leq L$
+                \STATE \texttt{// Generate Labels}
+                \FOR{$i=1 .. n$}
+                  \STATE $(s^\mathcal{G}_i, a^\mathcal{G}_i) \leftarrow$ \CALL{GenLabels}{$s^*_i, a^*_i, s^*_\text{i+1}$}
+                  \IF{$||J_{\hat{f}}(s^*_i, a^*_i)||_2\cdot||s^\mathcal{G}_i - s^*_i || < \epsilon$}
+                  \STATE $\mathcal{D^G} \leftarrow \mathcal{D^G} \cup (s^\mathcal{G}_i, a^\mathcal{G}_i)$
+                  \ENDIF
+                \ENDFOR
+                \STATE $\mathcal{D}\leftarrow\mathcal{D}^* \cup \mathcal{D}^\mathcal{G}$
+                \STATE \texttt{// Learn Policy}
+                \STATE $\pi \leftarrow$ \CALL{LearnPolicy}{}
+                \PROCEDURE{GenLabels}{$s^*_i, a^*_i, s^*_\text{i+1}$}
+                  \STATE $a^\mathcal{G}_i \leftarrow a^*_i$
+                  \STATE $s^\mathcal{G}_i \leftarrow s^*_i - \hat{f}(s^*_i,a^*_i)$
+                \ENDPROCEDURE
+                \PROCEDURE{LearnPolicy}{}
+                  \STATE $L(a,\hat{a})\leftarrow$ policy loss function (see paper)
+                  \STATE $\pi=\arg\min_{\pi}\mathbb{E}_{(s_i,a_i)\sim\mathcal{D}}\left[L(a_i, \pi(s_i))\right]$
+                \ENDPROCEDURE
+              \end{algorithmic}
+              \end{algorithm}
+            </pre>
+          </div>
+          <h3 class="title is-3">Label Generation</h3>
+          <div class="content has-text-justified">
+            <p>
+              We do cool stuff to generate labels.
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
             </p>
           </div>
         </div>
@@ -545,6 +602,9 @@
     </div>
   </footer>
 
+  <script>
+    pseudocode.renderClass("pseudocode");
+  </script>
 </body>
 
 </html>
