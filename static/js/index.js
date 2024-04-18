@@ -40,4 +40,21 @@ $(document).ready(function() {
 
     bulmaSlider.attach();
 
+    $("#accordion").accordion({
+      collapsible: true,
+      active: false,
+      beforeActivate: function(event, ui) {
+        if (ui.newPanel.text() !== "") {
+          $("#accordion .collapsed-text").addClass("display-none");
+          $("#accordion .collapsed-icon").addClass("display-none");
+          $("#accordion .expanded-text").removeClass("display-none");
+          $("#accordion .expanded-icon").removeClass("display-none");
+        } else {
+          $("#accordion .expanded-text").addClass("display-none");
+          $("#accordion .expanded-icon").addClass("display-none");
+          $("#accordion .collapsed-text").removeClass("display-none");
+          $("#accordion .collapsed-icon").removeClass("display-none");
+        }
+      }
+    });
 })
