@@ -289,83 +289,18 @@
     <div class="container is-max-desktop">
       <div class="columns is-centered has-text-centered">
         <div class="column is-four-fifths">
-          <h2 class="title is-2">The Problem</h2>
+          <h2 class="title is-2">Abstract</h2>
           <div class="content has-text-justified">
             <p>
-              Imitation learning in robotics demands extensive data coverage, often necessitating
-              exhaustive datasets for successful behavior cloning. However, the reliance on expert
-              demonstrations can lead to unpredictable behavior when encountering unfamiliar states
-              due to various factors like sensor noise, stochastic environments, and covariate shift.
-              Addressing this challenge involves augmenting training datasets, typically requiring
-              interactive experts or knowledge of system invariances, which can be impractical and
-              costly across diverse domains. Despite efforts to enhance robustness by generating
-              corrective labels for data augmentation, the prevailing approach remains behavior cloning
-              due to its simplicity and accessibility. To improve robustness, a technique leveraging
-              the continuity inherent in dynamic systems is proposed, exploiting the fact that small
-              changes in actions or states result in small changes in transitions, despite potential
-              discontinuities in certain areas of the state space.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="columns is-centered has-text-centered">
-        <div class="column is-four-fifths">
-          <h2 class="title is-2">CCIL</h2>
-          <div class="content has-text-centered">
-            <img src="./static/images/ccil_overview.png" alt="CCIL Overview" style="max-width: 90%;"/>
-          </div>
-          <div class="content has-text-justified">
-            <p>
-              Our approach focuses on synthesizing corrective labels to guide an agent encountering unfamiliar states
-              back to the distribution of expert states, ensuring safety and familiarity. Leveraging local continuity in
-              dynamic systems, we utilize a learned Lipschitz continuous dynamics model to navigate the agent from
-              out-of-distribution states to in-distribution expert trajectories, facilitating the generation of
-              corrective labels. Through our proposed algorithm, CCIL (Continuity-based Corrective labels for Imitation
-              Learning), we learn dynamics models with local continuity from expert data and generate corrective labels
-              to mitigate compounding errors in various robotic problems. Our contributions include formally defining
-              corrective labels, introducing the practical CCIL algorithm, providing theoretical guarantees on model
-              quality and label generation, and validating our approach across several tasks in multiple robotic domains
-              through extensive simulation experiments, as well as in fine manipulation on a real robotic platform.
-            </p>
-          </div>
-          <div class="content has-text-justified">
-            <pre class="pseudocode">
-              \begin{algorithm}
-              \caption{Our Instantiation of CCIL: \textbf{C}ontinuity-based \textbf{C}orrective labels for \textbf{I}mitation \textbf{L}earning}
-              \begin{algorithmic}
-                \STATE \textbf{Input:} $\mathcal{D^*}=(s^*_i, a^*_i, s^*_{i+1})$
-                \STATE \textbf{Initialize:} $D^\mathcal{G} \leftarrow \varnothing$
-                \STATE \texttt{// Learn Dynamics}
-                \STATE $MSE\leftarrow\mathbb{E}_{(s^*_i,a^*_i,s^*_{i+1})\sim \mathcal{D}^*}\left[\hat{f}(s^*_i, a^*_i) + s^*_i - s^*_{i+1}\right]$
-                \STATE $\hat{f}\leftarrow\arg\min_{\hat{f}} MSE \mkern9mu\text{s.t.}\mkern9mu \|W\|_2\leq L$
-                \STATE \texttt{// Generate Labels}
-                \FOR{$i=1 .. n$}
-                  \STATE $(s^\mathcal{G}_i, a^\mathcal{G}_i) \leftarrow$ \CALL{GenLabels}{$s^*_i, a^*_i, s^*_\text{i+1}$}
-                  \IF{$||J_{\hat{f}}(s^*_i, a^*_i)||_2\cdot||s^\mathcal{G}_i - s^*_i || < \epsilon$}
-                  \STATE $\mathcal{D^G} \leftarrow \mathcal{D^G} \cup (s^\mathcal{G}_i, a^\mathcal{G}_i)$
-                  \ENDIF
-                \ENDFOR
-                \STATE $\mathcal{D}\leftarrow\mathcal{D}^* \cup \mathcal{D}^\mathcal{G}$
-                \STATE \texttt{// Learn Policy}
-                \STATE $\pi \leftarrow$ \CALL{LearnPolicy}{}
-                \PROCEDURE{GenLabels}{$s^*_i, a^*_i, s^*_\text{i+1}$}
-                  \STATE $a^\mathcal{G}_i \leftarrow a^*_i$
-                  \STATE $s^\mathcal{G}_i \leftarrow s^*_i - \hat{f}(s^*_i,a^*_i)$
-                \ENDPROCEDURE
-                \PROCEDURE{LearnPolicy}{}
-                  \STATE $L(a,\hat{a})\leftarrow$ policy loss function (see paper)
-                  \STATE $\pi=\arg\min_{\pi}\mathbb{E}_{(s_i,a_i)\sim\mathcal{D}}\left[L(a_i, \pi(s_i))\right]$
-                \ENDPROCEDURE
-              \end{algorithmic}
-              \end{algorithm}
-            </pre>
-          </div>
-          <h3 class="title is-3">Label Generation</h3>
-          <div class="content has-text-justified">
-            <p>
-              We do cool stuff to generate labels.
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+              In the domain of Imitation Learning, we seek to learn a policy only from expert demonstrations. A
+              significant problem in this domain is the lack of data coverage and compounding error during
+              evaluation, which can lead to unpredictable behavior when encountering unfamiliar states. To address
+              this challenge, we propose a technique that leverages the continuity inherent in dynamic systems to
+              generate corrective labels for data augmentation. Our approach, CCIL, learns a dynamics model from
+              the expert data and uses it to synthesize corrective labels to guide an agent back to the
+              distribution of expert states. By exploiting local continuity in the dynamics, we derive provable bounds
+              on the correctness of the generated labels, and demonstrate CCIL's effectiveness in improving robustness
+              across various robotic tasks in simulation and on a real robotic platform.
             </p>
           </div>
         </div>
@@ -384,6 +319,64 @@
         </div>
       </div>
       <!--/ Paper video. -->
+
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-four-fifths">
+          <h2 class="title is-2">CCIL</h2>
+          <div class="content has-text-centered">
+            <img src="./static/images/ccil_overview.png" alt="CCIL Overview" style="max-width: 90%;"/>
+          </div>
+          <div class="content has-text-justified">
+            <p>
+              Our label generation algorithm consists of three steps: learning a dynamics model,
+              generating corrective labels, and filtering out high-error labels.
+            </p>
+          </div>
+          <h4 class="title is-4">Learning a Dynamics Model</h4>
+          <div class="content has-text-justified">
+            <p>
+              We learn a dynamics model by minimizing the following loss:
+
+              $$\mathbb{E}_{(s_t^*,a_t^*,s_{t+1}^*)\sim\mathcal{D}^*}\left[\hat{f}(s_t^*,a_t^*)+s_t^*-s_{t+1}^*\right]$$
+
+              Notably, a learned dynamics model can only yield reliable predictions near its data support - but not on arbitrary states and actions.
+              CCIL decides where to query the learned dynamics models by leveraging the presence of local Lipschitz continuity in the system dynamics.
+              CCIL encourages the learned dynamics function to exhibit
+              local Lipschitz continuity by modifying the training objective, specifically by regularizing the continuity of the learned model with spectral normalization.
+              Concretely, to train a dynamics model $\hat{f}$ using a neural network of $n$-layers
+              with weight matrices $W_1,\ldots,W_n$, one can iteratively minimize the above training objective while regularizing
+              the model by setting
+
+              $$W_i\leftarrow \frac{W_i}{\max\left(\|W_i\|_2,K^{-n}\right)}\cdot K^{-n}$$
+
+              for every $W_i$, where $K$ is the Lipschitz constraint hyperparameter.
+            </p>
+          </div>
+          <h4 class="title is-4">Generating Corrective Labels</h4>
+          <div class="content has-text-justified">
+            <p>
+              With a learned dynamics model $\hat{f}$, we can generate a corrective label
+              $(s_t^\mathcal{G}, a_t^\mathcal{G})$ for every expert data point $(s_t^*, a_t^*)$ such that 
+              $s_t^\mathcal{G}+\hat{f}(s_t^\mathcal{G},a_t^\mathcal{G})\approx s_t^*$. One of our label generation
+              methods is <tt>BackTrack</tt>, inspired by the backwards Euler method used in modern simulators:
+
+              \begin{align*}
+                s_t^\mathcal{G} &\leftarrow s_t^* - \hat{f}(s_t^*, a_t^*) \\
+                a_t^\mathcal{G} &\leftarrow a_t^*
+              \end{align*}
+            </p>
+          </div>
+          <h4 class="title is-4">Filtering High-Error Labels</h4>
+          <div class="content has-text-justified">
+            <p>
+              By leveraging the local continuity in the environment dynamics, we can derive provable bounds on the correctness of the generated labels.
+              Armed with this error bound, we can filter out high-error labels and only use the ones that are likely to be correct. Concretely,
+              we set a maximum allowable error, which naturally creates a maximum allowable distance between the generated state and the expert state.
+              This can be viewed as a trust region around each expert data point, within which we can trust the generated labels to be accurate.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
