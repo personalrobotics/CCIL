@@ -40,6 +40,7 @@
   <script src="./static/js/bulma-carousel.min.js"></script>
   <script src="./static/js/bulma-slider.min.js"></script>
   <script src="./static/js/index.js"></script>
+  <script src="./static/js/sync_vids.js"></script>
 </head>
 
 <body>
@@ -67,10 +68,10 @@
         <div id="accordion" class="has-text-centered">
           <h4 class="button is-normal is-rounded is-dark">
             <span class="collapsed-text">
-              More Info
+              Show Publication Info
             </span>
             <span class="expanded-text display-none">
-              Less Info
+              Hide Publication Info
             </span>
             <span class="icon">
               <svg class="collapsed-icon svg-inline--fa fa-file-pdf fa-w-12" aria-hidden="true" focusable="false" data-prefix="fas" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/></svg>
@@ -193,93 +194,14 @@
           </div>
         </div>
 
-        <div class="columns is-centered has-text-centered">
-          <div class="column is-half">
-            <h3 class="title is-3">Ours</h3>
-            <div class="columns has-text-centered is-centered">
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
-            <div class="columns has-text-centered is-centered">
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
+        <div class="columns is-centered">
+          <div class="column is-9 has-text-centered">
+            <video autoplay muted loop>
+              <source src="./static/videos/ccil_coin_cinematic.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
           </div>
-          <div class="column is-half">
-            <h3 class="title is-3">BC</h3>
-            <div class="columns has-text-centered is-centered">
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
-            <div class="columns has-text-centered is-centered">
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-              <div class="column is-3">
-                <video autoplay muted loop>
-                  <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
-          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -302,6 +224,95 @@
               on the correctness of the generated labels, and demonstrate CCIL's effectiveness in improving robustness
               across various robotic tasks in simulation and on a real robotic platform.
             </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-half">
+          <h3 class="title is-3">With Corrective Labels</h3>
+          <div class="columns has-text-centered is-centered">
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_coin_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+          <div class="columns has-text-centered is-centered">
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_coin_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/ccil_cube_success.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+        </div>
+        <div class="column is-half">
+          <h3 class="title is-3">Without Corrective Labels</h3>
+          <div class="columns has-text-centered is-centered">
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_coin_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+          <div class="columns has-text-centered is-centered">
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_coin_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-3">
+              <video class="synced" autoplay muted>
+                <source src="./static/videos/bc_cube_failure.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </div>
         </div>
       </div>
@@ -449,9 +460,9 @@
     <div class="container has-text-centered">
       <!-- Animation. -->
       <h2 class="title is-3">Simulation Experiments</h2>
-      <div class="columns is-centered has-text-centered is-multiline">
+      <h3 class="title is-4">Mujoco and Metaworld</h3>
+      <div class="columns is-centered has-text-centered">
         <div class="column is-four-fifths">
-          <h3 class="title is-4">Mujoco and Metaworld</h3>
           <div class="table-container">
             <table class="results-table">
               <tr>
@@ -539,8 +550,13 @@
             </table>
           </div>
         </div>
+      </div>
+      <h3 class="title is-4">Drone</h3>
+      <div class="columns is-centered has-text-centered is-vcentered">
         <div class="column is-two-fifths">
-          <h3 class="title is-4">Drone</h3>
+          <img src="static/images/drone_all_tasks.png" alt="Drone tasks" />
+        </div>
+        <div class="column is-two-fifths">
           <div class="table-container">
             <table class="results-table">
               <tr>
@@ -588,8 +604,16 @@
             </table>
           </div>
         </div>
-        <div class="column is-two-fifths">
-          <h3 class="title is-4">F1Tenth</h3>
+      </div>
+      <h3 class="title is-4">F1Tenth</h3>
+      <div class="columns is-centered has-text-centered is-vcentered">
+        <div class="column is-3">
+          <img src="static/images/f1.png" alt="F1Tenth graphic" style="max-height: 100%;" />
+        </div>
+        <div class="column is-3">
+          <img src="static/images/f1_lidar.png" alt="F1Tenth LiDAR" style="max-height: 100%;"/>
+        </div>
+        <div class="column is-4">
           <div class="table-container">
             <table class="results-table">
               <tr>
