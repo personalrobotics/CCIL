@@ -460,6 +460,110 @@
     <div class="container has-text-centered">
       <!-- Animation. -->
       <h2 class="title is-3">Simulation Experiments</h2>
+      <h3 class="title is-4">F1Tenth</h3>
+      <div class="columns is-centered has-text-centered is-vcentered">
+        <div class="column is-3">
+          <img src="static/images/f1.png" alt="F1Tenth graphic" style="max-height: 100%;" />
+        </div>
+        <div class="column is-3">
+          <img src="static/images/f1_lidar.png" alt="F1Tenth LiDAR" style="max-height: 100%;"/>
+        </div>
+        <div class="column is-4">
+          <div class="table-container">
+            <table class="results-table">
+              <tr>
+                <th>Method</th>
+                <th>Success Rate</th>
+                <th>Avg. Score</th>
+              </tr>
+              <tr class="results-expert-row">
+                <td>Expert</td>
+                <td>100.0%</td>
+                <td>1.00</td>
+              </tr>
+              <tr>
+                <td>BC</td>
+                <td>31.9%</td>
+                <td>0.58 ± 0.25</td>
+              </tr>
+              <tr>
+                <td>MOReL</td>
+                <td>0.0%</td>
+                <td>0.001 ± 0.001</td>
+              </tr>
+              <tr>
+                <td>MILO</td>
+                <td>0.0%</td>
+                <td>0.21 ± 0.003</td>
+              </tr>
+              <tr>
+                <td>NoiseBC</td>
+                <td>39.3%</td>
+                <td>0.62 ± 0.28</td>
+              </tr>
+              <tr>
+                <td><b>CCIL</b></td>
+                <td><strong>56.4</strong>%</td>
+                <td><strong>0.75</strong> ± 0.25</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <h3 class="title is-4">Drone</h3>
+      <div class="columns is-centered has-text-centered is-vcentered">
+        <div class="column is-two-fifths">
+          <img src="static/images/drone_all_tasks.png" alt="Drone tasks" />
+        </div>
+        <div class="column is-two-fifths">
+          <div class="table-container">
+            <table class="results-table">
+              <tr>
+                <th>Method</th>
+                <th>Hover</th>
+                <th>Circle</th>
+                <th>FlyThrough</th>
+              </tr>
+              <tr class="results-expert-row">
+                <td>Expert</td>
+                <td>-1104</td>
+                <td>-10</td>
+                <td>-4351</td>
+              </tr>
+              <tr>
+                <td>BC</td>
+                <td>-1.08 &times; 10<sup>8</sup></td>
+                <td>-9.56 &times; 10<sup>7</sup></td>
+                <td>-1.06 &times; 10<sup>8</sup></td>
+              </tr>
+              <tr>
+                <td>MOReL</td>
+                <td>-1.25 &times; 10<sup>8</sup></td>
+                <td>-1.24 &times; 10<sup>8</sup></td>
+                <td>-1.25 &times; 10<sup>8</sup></td>
+              </tr>
+              <tr>
+                <td>MILO</td>
+                <td>-1.26 &times; 10<sup>8</sup></td>
+                <td>-1.25 &times; 10<sup>8</sup></td>
+                <td>-1.25 &times; 10<sup>8</sup></td>
+              </tr>
+              <tr>
+                <td>NoiseBC</td>
+                <td>-1.13 &times; 10<sup>8</sup></td>
+                <td>-9.88 &times; 10<sup>7</sup></td>
+                <td>-1.07 &times; 10<sup>8</sup></td>
+              </tr>
+              <tr>
+                <td><b>CCIL</b></td>
+                <td>-0.96 &times; 10<sup>8</sup></td>
+                <td>-8.03 &times; 10<sup>7</sup></td>
+                <td>-0.78 &times; 10<sup>8</sup></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
       <h3 class="title is-4">Mujoco and Metaworld</h3>
       <div class="columns is-centered has-text-centered">
         <div class="column is-four-fifths">
@@ -551,110 +655,7 @@
           </div>
         </div>
       </div>
-      <h3 class="title is-4">Drone</h3>
-      <div class="columns is-centered has-text-centered is-vcentered">
-        <div class="column is-two-fifths">
-          <img src="static/images/drone_all_tasks.png" alt="Drone tasks" />
-        </div>
-        <div class="column is-two-fifths">
-          <div class="table-container">
-            <table class="results-table">
-              <tr>
-                <th>Method</th>
-                <th>Hover</th>
-                <th>Circle</th>
-                <th>FlyThrough</th>
-              </tr>
-              <tr class="results-expert-row">
-                <td>Expert</td>
-                <td>-1104</td>
-                <td>-10</td>
-                <td>-4351</td>
-              </tr>
-              <tr>
-                <td>BC</td>
-                <td>-1.08 &times; 10<sup>8</sup></td>
-                <td>-9.56 &times; 10<sup>7</sup></td>
-                <td>-1.06 &times; 10<sup>8</sup></td>
-              </tr>
-              <tr>
-                <td>MOReL</td>
-                <td>-1.25 &times; 10<sup>8</sup></td>
-                <td>-1.24 &times; 10<sup>8</sup></td>
-                <td>-1.25 &times; 10<sup>8</sup></td>
-              </tr>
-              <tr>
-                <td>MILO</td>
-                <td>-1.26 &times; 10<sup>8</sup></td>
-                <td>-1.25 &times; 10<sup>8</sup></td>
-                <td>-1.25 &times; 10<sup>8</sup></td>
-              </tr>
-              <tr>
-                <td>NoiseBC</td>
-                <td>-1.13 &times; 10<sup>8</sup></td>
-                <td>-9.88 &times; 10<sup>7</sup></td>
-                <td>-1.07 &times; 10<sup>8</sup></td>
-              </tr>
-              <tr>
-                <td><b>CCIL</b></td>
-                <td>-0.96 &times; 10<sup>8</sup></td>
-                <td>-8.03 &times; 10<sup>7</sup></td>
-                <td>-0.78 &times; 10<sup>8</sup></td>
-              </tr>
-            </table>
-          </div>
-        </div>
-      </div>
-      <h3 class="title is-4">F1Tenth</h3>
-      <div class="columns is-centered has-text-centered is-vcentered">
-        <div class="column is-3">
-          <img src="static/images/f1.png" alt="F1Tenth graphic" style="max-height: 100%;" />
-        </div>
-        <div class="column is-3">
-          <img src="static/images/f1_lidar.png" alt="F1Tenth LiDAR" style="max-height: 100%;"/>
-        </div>
-        <div class="column is-4">
-          <div class="table-container">
-            <table class="results-table">
-              <tr>
-                <th>Method</th>
-                <th>Success Rate</th>
-                <th>Avg. Score</th>
-              </tr>
-              <tr class="results-expert-row">
-                <td>Expert</td>
-                <td>100.0%</td>
-                <td>1.00</td>
-              </tr>
-              <tr>
-                <td>BC</td>
-                <td>31.9%</td>
-                <td>0.58 ± 0.25</td>
-              </tr>
-              <tr>
-                <td>MOReL</td>
-                <td>0.0%</td>
-                <td>0.001 ± 0.001</td>
-              </tr>
-              <tr>
-                <td>MILO</td>
-                <td>0.0%</td>
-                <td>0.21 ± 0.003</td>
-              </tr>
-              <tr>
-                <td>NoiseBC</td>
-                <td>39.3%</td>
-                <td>0.62 ± 0.28</td>
-              </tr>
-              <tr>
-                <td><b>CCIL</b></td>
-                <td><strong>56.4</strong>%</td>
-                <td><strong>0.75</strong> ± 0.25</td>
-              </tr>
-            </table>
-          </div>
-        </div>
-      </div>
+
     </div>
   </section>
 
