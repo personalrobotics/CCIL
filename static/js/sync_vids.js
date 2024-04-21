@@ -1,35 +1,44 @@
 $(document).ready(function() {
-    const syncedVids = document.querySelectorAll('video.synced');
+    const syncedGroups = ["synced-1", "synced-2"];
 
-    let vidsReady = 0;
-    let vidsEnded = 0;
+    let vidsReady = {};
+    let vidsEnded = {};
 
-    for (const vid of syncedVids) {
-        vid.oncanplay = () => {
-            vid.oncanplay = null;
-            vidsReady += 1;
-            console.log(`${vidsReady}/${syncedVids.length} videos ready`);
-            if (vidsReady === syncedVids.length) {
-                console.log("Starting all videos");
-                for (const v of syncedVids) {
-                    v.play();
+    for (const group of syncedGroups) {
+        vidsReady[group] = 0;
+        vidsEnded[group] = 0;
+
+        const syncedVids = document.querySelectorAll(`video.${group}`);
+
+        for (const vid of syncedVids) {
+            vid.oncanplay = () => {
+                vid.oncanplay = null;
+                vidsReady[group] += 1;
+                console.log(`${vidsReady[group]}/${syncedVids.length} videos ready in group ${group}`);
+                if (vidsReady[group] === syncedVids.length) {
+                    console.log(`Starting all videos in group ${group}`);
+                    for (const v of syncedVids) {
+                        v.play();
+                    }
+                }
+            }
+
+            vid.onended = () => {
+                vidsEnded[group] += 1;
+                console.log(`${vidsEnded[group]}/${syncedVids.length} videos finished in group ${group}`);
+                if (vidsEnded[group] === syncedVids.length) {
+                    console.log(`Restarting all videos in group ${group}`);
+                    setTimeout(() => {
+                        vidsEnded[group] = 0;
+                        for (const v of syncedVids) {
+                            v.currentTime = 0;
+                            v.play();
+                        }
+                    }, 1000);
                 }
             }
         }
-
-        vid.onended = () => {
-            vidsEnded += 1;
-            console.log(`${vidsEnded}/${syncedVids.length} videos finished`);
-            if (vidsEnded === syncedVids.length) {
-                console.log("Restarting all videos");
-                setTimeout(() => {
-                    vidsEnded = 0;
-                    for (const v of syncedVids) {
-                        v.currentTime = 0;
-                        v.play();
-                    }
-                }, 1000);
-            }
-        }
     }
+
+    
 });
