@@ -214,15 +214,7 @@
           <h2 class="title is-2">Abstract</h2>
           <div class="content has-text-justified">
             <p>
-              In the domain of Imitation Learning, we seek to learn a policy only from expert demonstrations. A
-              significant problem in this domain is the lack of data coverage and compounding error during
-              evaluation, which can lead to unpredictable behavior when encountering unfamiliar states. To address
-              this challenge, we propose a technique that leverages the continuity inherent in dynamic systems to
-              generate corrective labels for data augmentation. Our approach, CCIL, learns a dynamics model from
-              the expert data and uses it to synthesize corrective labels to guide an agent back to the
-              distribution of expert states. By exploiting local continuity in the dynamics, we derive provable bounds
-              on the correctness of the generated labels, and demonstrate CCIL's effectiveness in improving robustness
-              across various robotic tasks in simulation and on a real robotic platform.
+              We stuy imitation learning to teach robots from expert demonstrations. During robots' execution, compounding errors from hardware noise and external disturbances, coupled with incomplete data coverage, can drive the agent into unfamiliar states and cause unpredictable behaviors. To address this challenge, we propose a framework, CCIL: Continuity-based data augmentation for Corrective Imitation Learning. It leverages the local continuity inherent in dynamic systems to synthesize corrective labels. CCIL learns a dynamics model from the expert data and uses it to generate labels guiding the agent back to expert states. Our approach makes minimal assumptions, requiring neither expert re-labeling nor ground truth dynamics models. By exploiting local continuity, we derive provable bounds on the errors of the synthesized labels. Through evaluations across diverse robotic domains in simulation and the real world, we demonstrate CCIL's effectiveness in improving imitation learning performance.
             </p>
           </div>
         </div>
@@ -470,8 +462,8 @@
           <div class="columns is-centered">
             <div class="column is-9 has-text-centered insight">
               <p>
-                CCIL consistently out-performs standard Behavior Cloning. This boost is especially prominent in low-data regimes, showcasing
-                CCIL's data efficiency and robustness.
+                CCIL can bring in prominent performance boost in low-data regimes compared to using standard behavior cloning, showcasing
+                its data efficiency and robustness.
               </p>
             </div>
           </div>
@@ -487,13 +479,12 @@
           <div class="columns is-centered">
             <div class="column is-9 has-text-centered insight">
               <p>
-                CCIL is relatively robust to the Lipschitz constraint. We see that for a wide range of choices of the Lipschitz constraint,
-                there is a choice of label error threshold that yields a significant performance boost for CCIL.
+                CCIL makes a critical assumption that the system dynamics contain local continuity. In practice, however, its application is relatively insensitive to the hyper-parameter choice of Lipschitz constraint in learning the dynamics model. As long as we filter generated labels using appropriate label error threshold, CCIL could yield a significant performance boost.
               </p>
-              <p>
+              <!--<p>
                 This is corroborated by the observation that different Lipschitz constraints yield similar distributions of local Lipschitz constants,
                 indicating that the model is able to capture the environment's inherent continuity without strict regularization.
-              </p>
+              </p>-->
             </div>
           </div>
         </div>
