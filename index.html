@@ -441,20 +441,20 @@
 
   <section class="section">
     <div class="container has-text-centered is-max-desktop">
-      <div class="columns is-centered has-text-centered is-multiline">
+      <h2 class="title is-2">Real Robot Experiments</h3>
+      <div class="columns is-centered">
+        <div class="column is-3 has-text-centered">
+          <img class="no_outline" src="./static/images/cube.JPEG" alt="Grasp cube task" style="max-width: 100%; max-height: 100%;">
+        </div>
+        <div class="column is-3 has-text-centered">
+          <img class="no_outline" src="./static/images/lego.JPEG" alt="Lego insert task" style="max-width: 100%; max-height: 100%;">
+        </div>
+        <div class="column is-3 has-text-centered">
+          <img class="no_outline" src="./static/images/coin.JPEG" alt="Grasp coin task" style="max-width: 100%; max-height: 100%;">
+        </div>
+      </div>
+      <div class="columns is-centered has-text-centered mt-5">
         <div class="column is-four-fifths">
-          <h3 class="title is-3">Real Robot Experiments</h3>
-          <div class="columns is-centered">
-            <div class="column is-4 has-text-centered">
-              <img class="no_outline" src="./static/images/cube.JPEG" alt="Grasp cube task" style="max-width: 100%; max-height: 100%;">
-            </div>
-            <div class="column is-4 has-text-centered">
-              <img class="no_outline" src="./static/images/lego.JPEG" alt="Lego insert task" style="max-width: 100%; max-height: 100%;">
-            </div>
-            <div class="column is-4 has-text-centered">
-              <img class="no_outline" src="./static/images/coin.JPEG" alt="Grasp coin task" style="max-width: 100%; max-height: 100%;">
-            </div>
-          </div>
           <h4 class="title is-4">CCIL improves imitation learning, especially in low-data regimes</h4>
           <div class="columns is-centered">
             <div class="column is-4 has-text-centered">
@@ -475,6 +475,10 @@
               </p>
             </div>
           </div>
+        </div>
+      </div>
+      <div class="columns is-centered has-text-centered mt-6">
+        <div class="column is-four-fifths">
           <h4 class="title is-4">CCIL's Robustness to Lipschitz Constraint</h4>
           <div class="columns is-centered is-vcentered">
             <div class="column is-4 has-text-centered">
@@ -491,6 +495,35 @@
                 application is relatively insensitive to the hyper-parameter choice of Lipschitz constraint in learning the dynamics
                 model. As long as we filter generated labels using appropriate label error threshold, CCIL could yield a significant
                 performance boost.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="columns is-centered has-text-centered mt-6">
+        <div class="column is-four-fifths">
+          <h4 class="title is-4">CCIL's Robustness to Disturbance</h4>
+          <div class="columns is-centered is-vcentered">
+            <div class="column is-half has-text-centered">
+              <h5 class="title is-5 mb-1">With Corrective Labels</h5>
+              <video class="synced-3" muted>
+                <source src="./static/videos/ccil_cube_perturb.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div class="column is-half has-text-centered">
+              <h5 class="title is-5 mb-1">Without Corrective Labels</h5>
+              <video class="synced-3" muted>
+                <source src="./static/videos/bc_cube_perturb.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+          <div class="columns is-centered">
+            <div class="column is-9 has-text-centered insight">
+              <p>
+                CCIL's corrective labels expand the support of the demonstration data, allowing the policy to recover from significant
+                disturbances that push it outside of the original expert state distribution.
               </p>
             </div>
           </div>

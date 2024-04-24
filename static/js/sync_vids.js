@@ -1,5 +1,5 @@
 $(document).ready(function() {
-    const syncedGroups = ["synced-1", "synced-2"];
+    const syncedGroups = ["synced-1", "synced-2", "synced-3"];
 
     let vidsReady = {};
     let vidsEnded = {};
