@@ -22,6 +22,10 @@ $(document).ready(function() {
                     }
                 }
             }
+            // trigger callback if already ready
+            if (vid.readyState > 3) {
+                vid.oncanplay();
+            }
 
             vid.onended = () => {
                 vidsEnded[group] += 1;
@@ -38,7 +42,5 @@ $(document).ready(function() {
                 }
             }
         }
-    }
-
-    
+    }    
 });
