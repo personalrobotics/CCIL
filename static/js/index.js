@@ -43,6 +43,7 @@ $(document).ready(function() {
     $("#accordion").accordion({
       collapsible: true,
       active: false,
+      heightStyle: "content",
       beforeActivate: function(event, ui) {
         if (ui.newPanel.text() !== "") {
           $("#accordion .collapsed-text").addClass("display-none");
@@ -57,4 +58,6 @@ $(document).ready(function() {
         }
       }
     });
+    // unhide content that was collapsed into accordion
+    $("#accordion > div.display-none").removeClass("display-none");
 })
