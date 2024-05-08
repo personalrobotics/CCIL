@@ -1,0 +1,37 @@
+seed: 42
+no_gpu: False
+env: "circle-aviary-v0"
+output:
+  location: "output/"
+  folder_suffix: ""
+data:
+  expert: None
+  pkl: 'data/circle_50.pkl'
+dynamics:
+  lipschitz_type: slack
+  lipschitz_constraint: 2.0
+  soft_lipschitz_penalty_weight: 0.5
+  soft_lipschitz_sampling_eps: 0.0003
+  soft_lipschitz_n_samples: 5
+  lr: 0.001
+  weight_decay: 0.00001
+  layers: [512, 512]
+  activation: relu
+  train_epochs: 100
+  batch_size: 512
+  val_percentage: 1
+aug:
+  type: 'backward_euler_fast'
+  max_iter: 50
+  num_labels: 10
+  delta: 0.00001
+  epsilon:  100
+  use_expert_label: False
+policy:
+  naive: False
+  noise_bc: 0.0
+  lr: 0.001
+  batch_size: 512
+  train_epochs: 20
+eval:
+  noise: [0.0003]

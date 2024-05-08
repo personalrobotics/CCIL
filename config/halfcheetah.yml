@@ -1,0 +1,42 @@
+seed: 42
+no_gpu: False
+env: "halfcheetah-expert-v2"
+output:
+  location: "output/"
+  folder_suffix: ""
+data:
+  expert: None
+  pkl: 'data/halfcheetah-expert-v2_50.pkl'
+  num_traj: '...'
+  horizon: '...'
+  num_datapoints: '...'
+dynamics:
+  lipschitz_type: none
+  slack_weight: 1
+  lipschitz_constraint: 3.0
+  soft_lipschitz_penalty_weight: 0.001
+  soft_lipschitz_sampling_eps: 0.0003
+  soft_lipschitz_n_samples: 5
+  lr: 0.001
+  weight_decay: 0.00001
+  layers: [256, 256]
+  activation: relu
+  train_epochs: 500
+  batch_size: 2048
+  val_percentage: 1
+aug:
+  type: 'noisy_action'
+  max_iter: 50
+  num_labels: 20
+  delta: 0.00001
+  epsilon: 10.0
+  use_expert_label: False
+  balance_data: True
+policy:
+  naive: False
+  noise_bc: 0.0
+  lr: 0.001
+  batch_size: 512
+  train_epochs: 200
+eval:
+  noise: [0.005]

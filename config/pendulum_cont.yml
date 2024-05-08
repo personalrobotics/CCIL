@@ -1,0 +1,42 @@
+seed: 42
+no_gpu: False
+env: "PendulumSwingupCont-v0"
+output:
+  location: "output/"
+  folder_suffix: ""
+data:
+  expert: None
+  pkl: 'data/pendulum_cont_100.pkl'
+  num_traj: '...'
+  horizon: '...'
+  num_datapoints: '...'
+dynamics:
+  lipschitz_type: soft_sampling
+  lipschitz_constraint: 2.0
+  soft_lipschitz_penalty_weight: 0.001
+  soft_lipschitz_sampling_eps: 0.0003
+  soft_lipschitz_n_samples: 5
+  lr: 0.001
+  weight_decay: 0.00001
+  layers: [512, 512]
+  activation: relu
+  train_epochs: 100
+  batch_size: 512
+  val_percentage: 1
+aug:
+  type: 'noisy_action'
+  max_iter: 30
+  num_labels: 20
+  delta: 0.00001
+  epsilon:  1.0
+  balance_data: False
+  use_expert_label: False
+policy:
+  naive: False
+  noise_bc: 0.0
+  lr: 0.001
+  batch_size: 512
+  train_epochs: 100
+eval:
+  noise: [0.0]
+
