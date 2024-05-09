@@ -12,8 +12,8 @@ Tested with python `3.8.10`. Please note that we use our own forks of multiple p
 - [gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones) - added environments and fixed installation bugs
 
 ```bash
-git clone https://github.com/Kelym/CorrectiveIL.git # TODO replace with real repo
-cd CorrectiveIL
+git clone https://github.com/personalrobotics/CCIL.git
+cd CCIL
 pip install -r install_deps.txt
 pip install -e .
 ```
@@ -58,7 +58,7 @@ dimension and action dimension, respectively.
 
 For example, if `T` is the length of a trajectory, `o` is the observation dimension, and `a` is the action dimension:
 
-```json
+```
 [
     {
         "observations": np.ndarray of size `T x o`,
