@@ -8,8 +8,8 @@ Official repo for CCIL: Continuity-based Data Augmentation for Imitation Learnin
 ## Setup
 
 Tested with python `3.8.10`. Please note that we use our own forks of multiple packages:
-- [d3rlpy](https://github.com/personalrobotics/d3rlpy) - fixed normalization bug when training behavioral cloning
-- [gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones) - added environments and fixed installation bugs
+- [d3rlpy](https://github.com/personalrobotics/d3rlpy/tree/release/CCIL) - fixed normalization bug when training behavioral cloning
+- [gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones/tree/fix-install) - added environments and fixed installation bugs
 
 ```bash
 git clone https://github.com/personalrobotics/CCIL.git
