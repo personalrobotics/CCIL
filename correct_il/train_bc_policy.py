@@ -7,9 +7,14 @@ import os
 import d3rlpy
 import numpy as np
 import pickle
+import torch
+from torch import nn
 import torch.nn.functional as F
+from functools import partial
 
-from utils import seed, parse_config, save_config_yaml, load_demo_for_policy
+from d3rlpy.models.encoders import VectorEncoderFactory
+
+from utils import seed, parse_config, save_config_yaml, load_demo_for_policy, dataset_to_d3rlpy, load_data
 import CustomBC
 
 def construct_parser():
@@ -63,7 +68,7 @@ def main():
     d3rlpy.seed(config.seed)
 
     # Load Data
-    full_dataset, expert_dataset = load_demo_for_policy(config)
+    full_dataset, expert_dataset, num_selected, num_total = load_demo_for_policy(config)
 
     # Create Agent
     agent = CustomBC.CustomBC(
@@ -71,9 +76,9 @@ def main():
         learning_rate=p_config.lr,
         batch_size=p_config.batch_size,
         policy_type='deterministic',
+        encoder_factory=VectorEncoderFactory(hidden_units=p_config.layers) if p_config.layers else "default",
         scaler='standard',
-        action_scaler=None if config.env == 'tycho' else 'min_max',
-        loss_weights=[1.9, 1.9, 2.5, 0.01, 0.01, 0.01, 0.01, 10.0] if config.env == 'tycho' else None,
+        action_scaler='min_max',
         noise_cov=config.policy.noise_bc if config.policy.noise_bc else None)
 
     # Fit
@@ -87,8 +92,8 @@ def main():
               logdir=output_folder,
               verbose=False,
               show_progress=False,
-              eval_episodes=expert_dataset,
-              scorers={ # Eval on original
+              eval_episodes=val_dataset,
+              scorers={
                 'expert_data_error': scorer,
                 }
               )
@@ -104,10 +109,6 @@ def main():
             os.rename(f, os.path.join(output_folder, f_basename))
         else:
             os.remove(f)
-
-    # for f in sorted(glob.glob(os.path.join(output_folder, '*/'))):
-    #     os.rename(os.path.join(f, 'params.json'), os.path.join(output_folder, 'params.json'))
-    #     os.rmdir(f)
 
 
 if __name__ == '__main__':

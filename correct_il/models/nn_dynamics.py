@@ -100,29 +100,33 @@ class WorldModel:
             self.dynamics_net, X, Y, self.dynamics_opt, self.loss_fn,
             batch_size, train_epochs, max_steps=max_steps)
 
-    @torch.no_grad()
-    def eval_lipschitz_coeff(self, s, a, batch_size=None):
-        batch_size = batch_size if batch_size else len(s)
+    def local_lipschitz_coeff(self, s, a):
+        s_a = torch.cat([s, a], dim=-1)
         def predict_concat(state_action):
             obs = state_action[...,:s.shape[-1]]
             act = state_action[...,s.shape[-1]:]
             return self.predict(obs, act)
-        # compute batched jacobian with vectorization
         import functorch
         jac_fn = functorch.vmap(functorch.jacrev(predict_concat))
+        jacs = jac_fn(s_a)
+        assert jacs.shape == (s_a.shape[0], s.shape[-1], s_a.shape[-1])
+        local_L = torch.linalg.norm(jacs, ord=2, dim=(-2,-1))
+        return local_L
 
-        s_a = np.concatenate([s, a], axis=-1)
+    @torch.no_grad()
+    def eval_lipschitz_coeff(self, s, a, batch_size=None):
+        batch_size = batch_size if batch_size else len(s)
+
         lipschits_coeffs = []
         for i in tqdm(range(0, len(s), batch_size)):
-            batch = torch.as_tensor(s_a[i:i+batch_size], dtype=torch.float32, device=self.device)
-            jacs = jac_fn(batch)
-            assert jacs.shape == (batch.shape[0], s.shape[-1], batch.shape[-1])
-            local_L = torch.linalg.norm(jacs, ord=2, dim=(-2,-1)).cpu().numpy()
+            batch_s = torch.as_tensor(s[i:i+batch_size], dtype=torch.float32, device=self.device)
+            batch_a = torch.as_tensor(a[i:i+batch_size], dtype=torch.float32, device=self.device)
+            local_L = self.local_lipschitz_coeff(batch_s, batch_a).cpu().numpy()
             lipschits_coeffs.append(local_L)
         return np.concatenate(lipschits_coeffs, axis=0)
 
     @torch.no_grad()
-    def eval_prediction_error(self, s, a, s_next, batch_size):
+    def eval_prediction_error(self, s, a, s_next, batch_size, reduce_err=True):
         s_next = torch.as_tensor(s_next).float().to(self.device)
 
         transforms = self.dynamics_net.get_params()['transforms']
@@ -136,7 +140,7 @@ class WorldModel:
             error = (sp - s_next[i:i+batch_size]).norm(dim=-1)
             i += batch_size
             err_norms += error.cpu().tolist()
-        return np.mean(err_norms)
+        return np.mean(err_norms) if reduce_err else err_norms
 
 def construct_loss_fn(d_config, dynamics):
     if d_config.lipschitz_type == "soft_sampling":

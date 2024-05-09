@@ -68,8 +68,8 @@ class CustomBC(d3rlpy.algos.BC):
         scaler: ScalerArg = None,
         action_scaler: ActionScalerArg = None,
         impl: Optional[BCBaseImpl] = None,
-        loss_weights: None, # <------ Weight the loss at each dim differently
-        noise_cov: None, # <--------- Noise Injection at compute_loss
+        loss_weights = None, # <------ Weight the loss at each dim differently
+        noise_cov = None, # <--------- Noise Injection at compute_loss
         **kwargs: Any
     ):
         super().__init__(
@@ -151,12 +151,17 @@ class CustomBCImpl(BCImpl):
         )
         self.compute_loss = self.compute_loss_naive if loss_weights is None and noise_cov is None else None
         self.tensor_device = 'cpu' if not use_gpu else 'cuda'
-        if loss_weights:
-            self.loss_weights = torch.tensor(loss_weights, dtype=torch.float32,
-                device=self.tensor_device).reshape([len(loss_weights), 1])
+        if loss_weights is not None:
+            if callable(loss_weights):
+                self.weight_losses = loss_weights
+            else:
+                self.loss_weights = torch.tensor(loss_weights, dtype=torch.float32,
+                    device=self.tensor_device).reshape([len(loss_weights), 1])
+                self.weight_losses = self.linear_weight_losses
             self.compute_loss = self.compute_loss_weight
         else:
             self.loss_weights = None
+            self.weight_losses = self.linear_weight_losses
         if noise_cov:
             self.compute_loss = self.compute_loss_weight
         self.noise_cov = noise_cov
@@ -172,25 +177,20 @@ class CustomBCImpl(BCImpl):
         #     return F.mse_loss(self.forward(x), action)
         return F.mse_loss(self._imitator.forward(obs_t), act_t)
     
-    def weight_losses(self, losses: torch.Tensor):
+    def linear_weight_losses(self, act_pred, act_t):
+        losses = F.mse_loss(act_pred, act_t, reduction='none')
         return torch.matmul(losses, self.loss_weights).sum() / losses.numel() if self.loss_weights is not None else losses.mean()
     
     def compute_loss_weight(
         self, obs_t: torch.Tensor, act_t: torch.Tensor
     ) -> torch.Tensor:
         assert self._imitator is not None
-        #import pdb;pdb.set_trace()
-
-        # x = obs_t + self.noise_cov * torch.rand(obs_t.shape, device=self.tensor_device) if self.noise_cov else obs_t
-        # losses = F.mse_loss(self._imitator.forward(x), act_t, reduction='none')
-        # return torch.matmul(losses, self.loss_weights).sum() / losses.numel() if self.loss_weights else losses.mean()
 
         x = obs_t
         if self.noise_cov:
             mask = torch.rand(x.shape[:1], device=self.tensor_device) > 0.5
             noise = self.noise_cov * torch.rand(obs_t.shape, device=self.tensor_device)
             x[mask] = x[mask] + noise[mask]
-        losses = F.mse_loss(self._imitator.forward(x), act_t, reduction='none')
-        loss = self.weight_losses(losses)
+        loss = self.weight_losses(self._imitator.forward(x), act_t)
         return loss
     

@@ -7,11 +7,24 @@ import os
 import pickle
 
 from matplotlib import pyplot as plt
+from matplotlib.ticker import PercentFormatter
 import numpy as np
 
 from models.nn_dynamics import WorldModel
 from utils import seed, parse_config, load_data, save_config_yaml
 
+import math
+
+SMALL_SIZE = 5
+MEDIUM_SIZE = 6
+BIGGER_SIZE = 5
+plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
+plt.rc('axes', titlesize=SMALL_SIZE)
+plt.rc('axes', labelsize=MEDIUM_SIZE)
+plt.rc('xtick', labelsize=SMALL_SIZE)
+plt.rc('ytick', labelsize=SMALL_SIZE)
+plt.rc('legend', fontsize=SMALL_SIZE)
+plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
 
 def construct_parser():
     parser = argparse.ArgumentParser(description='Training Dynamic Functions.')
@@ -46,11 +59,26 @@ def plot_lipschitz_dist(lipschitz_coeff, folder_name, model_name=None, lipschitz
     model_name = f"{model_name}_" if model_name else ""
     fig = plt.figure()
     ax = fig.add_subplot()
-    fig.suptitle("Local Lipschitz Coefficient")
-    ax.hist(lipschitz_coeff, density=True, bins=50)
-    if lipschitz_constraint:
-        ax.axvline(lipschitz_constraint, linestyle="--", color="black")
-    path = os.path.join(folder_name, f"{model_name}train_local_lipschitz.png")
+    max_local_L = np.max(lipschitz_coeff)
+    fig.suptitle("Local Lipschitz Coefficient Distribution", x=0.62)
+    ax.set_xlim(1, math.ceil(max_local_L * 2) / 2)
+    ax.set_xticks([1, math.ceil(max_local_L * 2) / 2])
+    ax.set_xlabel("Local Lipschitz Coefficient", labelpad=-MEDIUM_SIZE)
+    ax.set_ylabel("Proportion of Labels")
+    ax.spines[['right', 'top']].set_visible(False)
+    ax.hist(lipschitz_coeff, bins=50, weights=np.ones(len(lipschitz_coeff)) / len(lipschitz_coeff))
+    fig.tight_layout(pad=0)
+    fig.savefig(os.path.join(folder_name, f"{model_name}train_local_lipschitz.png"), dpi=300)
+    fig.savefig(os.path.join(folder_name, f"{model_name}train_local_lipschitz.pdf"), format="pdf", transparent=True)
+
+def plot_err_dist(err_norms, folder_name, model_name=None):
+    model_name = f"{model_name}_" if model_name else ""
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    err_min, err_max = np.min(err_norms), np.max(err_norms)
+    fig.suptitle(f"Model Error Distribution (min={err_min:.3f}, max={err_max:.3f})")
+    ax.hist(err_norms, density=True, bins=50)
+    path = os.path.join(folder_name, f"{model_name}train_err_dist.png")
     fig.savefig(path)
 
 def exists_prev_output(output_folder, config):
@@ -99,14 +127,23 @@ def main():
         pickle.dump(dynamics, f)
 
     # Report Validation Loss
-    prediction_error = dynamics.eval_prediction_error(s, a, sp, d_config.batch_size)
+    pred_errs = dynamics.eval_prediction_error(s, a, sp, d_config.batch_size, reduce_err=False)
 
     # Save Training Loss
-    save_loss(train_loss, output_folder, prediction_error, eval_loss=None)
+    save_loss(train_loss, output_folder, np.mean(pred_errs), eval_loss=None)
+    plot_err_dist(pred_errs, output_folder)
 
     # Save distribution of local lipschitz coefficients over data
     local_L = dynamics.eval_lipschitz_coeff(s, a, batch_size=1024)
-    lipschitz_constraint = d_config.lipschitz_constraint**(1 + len(d_config.layers))
+    if d_config.lipschitz_type != "none":
+        if "spectral_normalization" in d_config.lipschitz_type:
+            lipschitz_constraint = d_config.lipschitz_constraint**(1 + len(d_config.layers))
+        else:
+            lipschitz_constraint = d_config.lipschitz_constraint
+    else:
+        lipschitz_constraint = None
+    # with open(os.path.join(output_folder, f"local_L_{lipschitz_constraint}.pkl"), "wb") as f:
+    #     pickle.dump(local_L, f)
     plot_lipschitz_dist(local_L, output_folder, lipschitz_constraint=lipschitz_constraint)
 
 if __name__ == "__main__":

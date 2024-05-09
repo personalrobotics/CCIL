@@ -20,9 +20,22 @@ import numpy as np
 from tqdm import tqdm
 import gym
 import matplotlib.pyplot as plt
+import math
+from models.nn_dynamics import WorldModel
 
 from utils import D3Agent, seed, parse_config, load_data, save_config_yaml, root_finder_s
 from envs import *
+
+SMALL_SIZE = 5
+MEDIUM_SIZE = 6
+BIGGER_SIZE = 7
+plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
+plt.rc('axes', titlesize=SMALL_SIZE)
+plt.rc('axes', labelsize=MEDIUM_SIZE)
+plt.rc('xtick', labelsize=SMALL_SIZE)
+plt.rc('ytick', labelsize=SMALL_SIZE)
+plt.rc('legend', fontsize=SMALL_SIZE)
+plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
 
 def construct_parser():
     parser = argparse.ArgumentParser(description='Generate Augmentation Labels.')
@@ -31,14 +44,40 @@ def construct_parser():
     return parser
 
 
-def pack_data(s, a, sp, device):
-    s_t = torch.as_tensor(s).float().to(device)
-    a_t = torch.as_tensor(a).float().to(device)
-    sp_t = torch.as_tensor(sp).float().to(device)
-    return (s_t, a_t, sp_t)
+def pack_data(device, *arrs):
+    return [torch.as_tensor(arr).float().to(device) for arr in arrs]
+
+@torch.no_grad()
+def label_error(model: WorldModel, s, a, original_s, original_a, batch_size=None):
+    is_batch = len(s.shape) > 1
+    s = s.reshape(-1, s.shape[-1])
+    a = a.reshape(-1, a.shape[-1])
+    original_s = original_s.reshape(-1, original_s.shape[-1])
+    original_a = original_a.reshape(-1, original_a.shape[-1])
+
+    batch_size = batch_size if batch_size else len(s)
+    local_L = []
+    for i in range(0, len(s), batch_size):
+        batch_os, batch_oa = pack_data('cuda', original_s[i:i+batch_size], original_a[i:i+batch_size])
+        L = model.local_lipschitz_coeff(batch_os, batch_oa)
+        local_L.append(L.detach().cpu().numpy())
+    local_L = np.concatenate(local_L, axis=0)
+    sa = np.concatenate([s, a], axis=-1)
+    original_sa = np.concatenate([original_s, original_a], axis=-1)
+    dist = np.linalg.norm(original_sa - sa, axis=-1)
+    approx_err = local_L * dist
+    if not is_batch:
+        dist = dist[0]
+        local_L = local_L[0]
+        approx_err = approx_err[0]
+    return {
+        "distance": dist,
+        "local_L": local_L,
+        "label_err": approx_err
+    }
 
 # TODO fix the count_fail
-def gen_forward_euler(max_iter, model, datapoint):
+def gen_forward_euler(max_iter, model: WorldModel, datapoint):
     # given s, a, sp
     # find s_prime that s_prime + (s_prime, a) -> s
     # s_prime + f(s_prime,a) - s = 0
@@ -47,15 +86,22 @@ def gen_forward_euler(max_iter, model, datapoint):
         return s + model.f(s, a) - next_s
 
     s, a, sp = datapoint
-    s_prime, is_success, count_fail = root_finder_s(
-        loss, s_next=s, a=a, init_s=s, max_iter=max_iter) # TODO maybe change initial guess
+    with torch.no_grad():
+        s_g = s
+        for _ in range(max_iter):
+            s_g = s - model.f(s_g, a)
+        is_success = torch.linalg.norm(s_g + model.f(s_g, a) - s).item() <= 1e-4
+    s_prime = s_g
+    # s_prime, is_success, count_fail = root_finder_s(
+    #     loss, s_next=s, a=a, init_s=s, max_iter=max_iter) # TODO maybe change initial guess
     if is_success:
         gen_data = (s_prime.cpu().numpy(), a.cpu().numpy(), s.cpu().numpy())
         distance = np.linalg.norm(s.cpu().numpy() - s_prime.cpu().numpy())
+        info = {'distance': [distance]}
     else:
         gen_data = (None, None, None)
-        distance = 0
-    return int(is_success), count_fail, gen_data, {'distance':[distance]}
+        info = None
+    return int(is_success), int(not is_success), gen_data, info
 
 def gen_backward_euler(max_iter, model, datapoint):
     # given s, a, sp
@@ -88,8 +134,7 @@ def gen_backward_euler_fast(max_iter, model, datapoint):
         gen_s = gen_s[0]
         distance = torch.norm(gen_s - s)
 
-        count_fail =  torch.count_nonzero(distance > 0.01).cpu().item()
-        count_success = 1 # - count_fail
+        count_success, count_fail = 1, 0
 
         gen_s = gen_s.cpu().numpy()
 
@@ -201,6 +246,12 @@ def exists_prev_output(output_folder, config):
     f2 = os.path.join(output_folder, "statistics.txt")
     return os.path.exists(f1) and os.path.exists(f2)
 
+def model_fits_data(model, s, a, sp, thresh):
+    if thresh:
+        sp_pred = s + model.f(s.unsqueeze(0), a.unsqueeze(0))[0]
+        return torch.linalg.norm(sp_pred - sp).item() < thresh
+    return True
+
 def main():
     arg_parser = construct_parser()
     config = parse_config(arg_parser)
@@ -217,7 +268,7 @@ def main():
     # Load Model
     model_basename = choose_model_basename(config.aug)
     model_fn = os.path.join(config.output.dynamics, model_basename)
-    model = pickle.load(open(model_fn, 'rb'))
+    model: WorldModel = pickle.load(open(model_fn, 'rb'))
 
     # Load Data
     np_s, np_a, np_sp = load_data(config.data)
@@ -231,11 +282,12 @@ def main():
         for i in range(data_size):
             np_a[i, :] = env.action_space.sample()
 
-    s, a, sp = pack_data(np_s, np_a, np_sp, 'cuda')
+    s, a, sp = pack_data('cuda', np_s, np_a, np_sp)
 
     generator = choose_augmentation(config.aug)
 
     original_states = []
+    original_actions = []
     new_states = []
     new_actions = []
     new_next_states = []
@@ -247,19 +299,26 @@ def main():
 
     distances = []
     for i in tqdm(range(data_size)):
-        _count_suc, _count_fail, gen_data, info = generator(model, (s[i], a[i], sp[i]))
+        if model_fits_data(model, s[i], a[i], sp[i], config.aug.model_err_thresh):
+            _count_suc, _count_fail, gen_data, info = generator(model, (s[i], a[i], sp[i]))
+        else:
+            _count_suc, _count_fail, gen_data, info = 0, 1, None, None
         if info is not None: distances.append(info['distance'])
         if _count_suc > 0:
             count_success += _count_suc
             s_prime, a_prime, s_next = gen_data
             original_states.append(np.tile(np_s[i], (_count_suc, 1)))
+            original_actions.append(np.tile(np_a[i], (_count_suc, 1)))
             new_states.append(s_prime)
             new_actions.append(a_prime)
             new_next_states.append(s_next)
         count_fail += _count_fail
 
+    print(f"Generated {count_success} new labels with {count_fail} failures")
+
     if count_success > 0:
         original_states = np.concatenate(original_states, axis=0).reshape(-1, state_dim)
+        original_actions = np.concatenate(original_actions, axis=0).reshape(-1, action_dim)
         new_states = np.concatenate(new_states, axis=0).reshape(-1, state_dim)
         new_actions = np.concatenate(new_actions, axis=0).reshape(-1, action_dim)
         new_next_states = np.concatenate(new_next_states, axis=0).reshape(-1, state_dim)
@@ -270,6 +329,7 @@ def main():
             'actions': new_actions,
             'next_obs': new_next_states,
             'original_states': original_states,
+            'original_actions': original_actions
         }
         pickle.dump(paths,
             open(os.path.join(output_folder, f'aug_data.pkl'), 'wb'))
@@ -293,16 +353,45 @@ def main():
         f.write(f'Success: {count_success}\n')
         f.write(f'Failure: {count_fail}\n')
         if len(distances) > 0: f.write(f'Avg norm distance: {np.average(np.concatenate(distances))}')
-    if len(distances) > 0:
+    if len(distances) > 0 and count_success > 0:
         pickle.dump({'distance':distances},
                 open(os.path.join(output_folder, f'distance.pkl'), 'wb'))
         cat_distances = np.concatenate(distances)
         fig = plt.figure()
         ax = fig.add_subplot()
         fig.suptitle("Generated Label Distance")
-        ax.hist(cat_distances, density=True, bins=50)
+        ax.hist(cat_distances, bins=100)
+        if config.aug.epsilon:
+            ax.axvline(config.aug.epsilon, color="black", linestyle="--")
         path = os.path.join(output_folder, "label_distance.png")
         fig.savefig(path)
+
+        err_info = label_error(model, new_states, new_actions, original_states, original_actions, 1024)
+        with open(os.path.join(output_folder, "label_err.pkl"), "wb") as f:
+            pickle.dump(err_info, f)
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        fig.suptitle("Generated Label Error")
+        ax.hist(err_info["label_err"], bins=100)
+        fig.savefig(os.path.join(output_folder, "label_err.png"))
+
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        fig.suptitle("Generated Label Error CDF")
+        max_error = np.max(err_info["label_err"])
+        ax.set_xlim(0, math.ceil(max_error * 1000) / 1000)
+        ax.set_ylim(0, 1.02)
+        ax.set_xticks([0, math.ceil(max_error * 1000) / 1000])
+        ax.set_yticks([0, 1])
+        ax.set_xlabel("Error", labelpad=-MEDIUM_SIZE)
+        ax.set_ylabel("Proportion of Labels \n (Cumulative)", labelpad=-MEDIUM_SIZE)
+        ax.spines[['right', 'top']].set_visible(False)
+        hist, bins, _ = ax.hist(err_info["label_err"], bins=10000, histtype="step", cumulative=True, density=True, alpha=0)
+        ax.plot(bins[:-1], hist, color="tab:blue")
+        fig.tight_layout(pad=0)
+        fig.savefig(os.path.join(output_folder, "label_err_cdf.png"), dpi=300)
+        fig.savefig(os.path.join(output_folder, "label_err_cdf.pdf"), format="pdf", transparent=True)
+
     if config.debug:
         print(distances)
         #import pdb;pdb.set_trace()
