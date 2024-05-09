@@ -58,7 +58,7 @@ def load_demo_for_policy(config):
     # Load Expert Data
     expert_dataset = dataset_to_d3rlpy(*load_data(config.data))
     if config.policy.naive:
-        return expert_dataset, expert_dataset
+        return expert_dataset, expert_dataset, 0, 0
 
     # if config.policy.noise_bc:
     #     full_dataset = dataset_to_d3rlpy(*load_data(config.data))
@@ -78,8 +78,22 @@ def load_demo_for_policy(config):
     aug_data = pickle.load(open(aug_pkl_fn, 'rb'))
     _s = aug_data['observations']
     _original_s = aug_data['original_states']
-    dis = np.linalg.norm(_s - _original_s, axis=1)
-    sel_bounded = (dis < config.aug.epsilon) if config.aug.epsilon else np.ones_like(dis, dtype=bool)
+
+    if config.aug.label_err_quantile or config.aug.max_label_err:
+        label_err_pkl = os.path.join(config.output.aug, "label_err.pkl")
+        with open(label_err_pkl, "rb") as f:
+            info = pickle.load(f)
+        if config.aug.label_err_quantile:
+            thresh = np.quantile(info["label_err"], config.aug.label_err_quantile)
+            print(f'\033[93m Choosing label error threshold: {thresh:.3g} \033[0m')
+            sel_bounded = info["label_err"] <= thresh
+        else:
+            sel_bounded = info["label_err"] <= config.aug.max_label_err
+    elif config.aug.epsilon:
+        sel_bounded = np.linalg.norm(_s - _original_s, axis=1) < config.aug.epsilon
+    else:
+        sel_bounded = np.ones(len(_s), dtype=bool)
+
     print(f'\033[93m Selected {sel_bounded.sum()} data points out of {len(_s)} \033[0m')
     aug_dataset = dataset_to_d3rlpy(
         aug_data['observations'][sel_bounded],
@@ -109,7 +123,8 @@ def load_demo_for_policy(config):
         for _ in range(config.aug.num_labels):
             aug_dataset.extend(expert_dataset)
 
-    return aug_dataset, expert_dataset
+    # Last two are the number of selected data points and the total number of data points
+    return aug_dataset, expert_dataset, sel_bounded.sum(), len(_s)
 
 def load_env(config):
 
