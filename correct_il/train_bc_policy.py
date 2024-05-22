@@ -68,7 +68,7 @@ def main():
     d3rlpy.seed(config.seed)
 
     # Load Data
-    full_dataset, expert_dataset, num_selected, num_total = load_demo_for_policy(config)
+    full_dataset, expert_dataset, _, _ = load_demo_for_policy(config)
 
     # Create Agent
     agent = CustomBC.CustomBC(
@@ -92,7 +92,7 @@ def main():
               logdir=output_folder,
               verbose=False,
               show_progress=False,
-              eval_episodes=val_dataset,
+              eval_episodes=expert_dataset,
               scorers={
                 'expert_data_error': scorer,
                 }

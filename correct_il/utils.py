@@ -79,6 +79,7 @@ def load_demo_for_policy(config):
     _s = aug_data['observations']
     _original_s = aug_data['original_states']
 
+    sel_bounded = np.ones(len(_s), dtype=bool)
     if config.aug.label_err_quantile or config.aug.max_label_err:
         label_err_pkl = os.path.join(config.output.aug, "label_err.pkl")
         with open(label_err_pkl, "rb") as f:
@@ -86,13 +87,11 @@ def load_demo_for_policy(config):
         if config.aug.label_err_quantile:
             thresh = np.quantile(info["label_err"], config.aug.label_err_quantile)
             print(f'\033[93m Choosing label error threshold: {thresh:.3g} \033[0m')
-            sel_bounded = info["label_err"] <= thresh
-        else:
-            sel_bounded = info["label_err"] <= config.aug.max_label_err
-    elif config.aug.epsilon:
-        sel_bounded = np.linalg.norm(_s - _original_s, axis=1) < config.aug.epsilon
-    else:
-        sel_bounded = np.ones(len(_s), dtype=bool)
+            sel_bounded &= info["label_err"] <= thresh
+        if config.aug.max_label_err:
+            sel_bounded &= info["label_err"] <= config.aug.max_label_err
+    if config.aug.epsilon:
+        sel_bounded &= np.linalg.norm(_s - _original_s, axis=1) < config.aug.epsilon
 
     print(f'\033[93m Selected {sel_bounded.sum()} data points out of {len(_s)} \033[0m')
     aug_dataset = dataset_to_d3rlpy(

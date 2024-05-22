@@ -77,7 +77,7 @@ def plot_err_dist(err_norms, folder_name, model_name=None):
     ax = fig.add_subplot()
     err_min, err_max = np.min(err_norms), np.max(err_norms)
     fig.suptitle(f"Model Error Distribution (min={err_min:.3f}, max={err_max:.3f})")
-    ax.hist(err_norms, density=True, bins=50)
+    ax.hist(err_norms, density=False, bins=50)
     path = os.path.join(folder_name, f"{model_name}train_err_dist.png")
     fig.savefig(path)
 

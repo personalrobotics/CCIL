@@ -11,7 +11,7 @@ data:
   horizon: '...'
   num_datapoints: '...'
 dynamics:
-  lipschitz_type: spectral_normalization # or soft_sampling with noisy_action
+  lipschitz_type: spectral_normalization
   slack_weight: 1
   lipschitz_constraint: 2.0
   soft_lipschitz_penalty_weight: 0.0005
@@ -25,11 +25,11 @@ dynamics:
   batch_size: 512
   val_percentage: 1
 aug:
-  type: 'backward_euler'
+  type: 'backward_euler_fast'
   max_iter: 50
   num_labels: 20
   delta: 0.00001
-  # epsilon:  10.0
+  label_err_quantile: 0.1
   use_expert_label: False
 policy:
   naive: False
