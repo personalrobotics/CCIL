@@ -15,16 +15,16 @@ from utils import seed, parse_config, load_data, save_config_yaml
 
 import math
 
-SMALL_SIZE = 5
-MEDIUM_SIZE = 6
-BIGGER_SIZE = 5
-plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
-plt.rc('axes', titlesize=SMALL_SIZE)
-plt.rc('axes', labelsize=MEDIUM_SIZE)
-plt.rc('xtick', labelsize=SMALL_SIZE)
-plt.rc('ytick', labelsize=SMALL_SIZE)
-plt.rc('legend', fontsize=SMALL_SIZE)
-plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
+# SMALL_SIZE = 5
+# MEDIUM_SIZE = 6
+# BIGGER_SIZE = 5
+# plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
+# plt.rc('axes', titlesize=SMALL_SIZE)
+# plt.rc('axes', labelsize=MEDIUM_SIZE)
+# plt.rc('xtick', labelsize=SMALL_SIZE)
+# plt.rc('ytick', labelsize=SMALL_SIZE)
+# plt.rc('legend', fontsize=SMALL_SIZE)
+# plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
 
 def construct_parser():
     parser = argparse.ArgumentParser(description='Training Dynamic Functions.')
@@ -63,7 +63,8 @@ def plot_lipschitz_dist(lipschitz_coeff, folder_name, model_name=None, lipschitz
     fig.suptitle("Local Lipschitz Coefficient Distribution", x=0.62)
     ax.set_xlim(1, math.ceil(max_local_L * 2) / 2)
     ax.set_xticks([1, math.ceil(max_local_L * 2) / 2])
-    ax.set_xlabel("Local Lipschitz Coefficient", labelpad=-MEDIUM_SIZE)
+    ax.set_xlabel("Local Lipschitz Coefficient")
+    # ax.set_xlabel("Local Lipschitz Coefficient", labelpad=-MEDIUM_SIZE)
     ax.set_ylabel("Proportion of Labels")
     ax.spines[['right', 'top']].set_visible(False)
     ax.hist(lipschitz_coeff, bins=50, weights=np.ones(len(lipschitz_coeff)) / len(lipschitz_coeff))
@@ -100,7 +101,7 @@ def main():
     seed(config.seed)
 
     # Load Data
-    s, a, sp = load_data(config.data)
+    s, a, sp = load_data(config)
 
     # Construct Dynamics Model
     d_config = config.dynamics

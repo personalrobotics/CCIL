@@ -24,11 +24,12 @@ dynamics:
   batch_size: 512
   val_percentage: 1
 aug:
-  type: 'backward_euler'
+  type: 'backward_euler_fast'
   max_iter: 30
   num_labels: 20
   delta: 0.00001
-  epsilon:  1
+  # epsilon:  1
+  label_err_quantile: 0.8
   use_expert_label: False
 policy:
   naive: False

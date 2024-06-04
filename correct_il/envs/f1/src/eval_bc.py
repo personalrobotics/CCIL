@@ -38,13 +38,13 @@ class D3Agent():
 def main():
     args = get_args()
 
-    # with open(args.config) as f:
-    #     config = yaml.load(f, Loader=yaml.FullLoader)
+    with open(args.config) as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
     
     device = "cpu" if args.cpu else "cuda"
 
-    # policy = torch.jit.load(os.path.join(config["output"]["policy"], "policy.pt")).to(device)
-    policy = torch.jit.load(os.path.join(args.config, "policy_final.pt")).to(device)
+    policy = torch.jit.load(os.path.join("/home/prl/dev/CCIL", config["output"]["policy"], "policy.pt")).to(device)
+    # policy = torch.jit.load(os.path.join(args.config, "policy_final.pt")).to(device)
     agent = D3Agent(policy, device)
 
     env = gym.make("f110_gym:f110-v0", num_agents=1, map=args.map)
@@ -54,6 +54,7 @@ def main():
 
     trajs = []
     rews = []
+    succs = []
     for _ in tqdm(range(args.n_traj)):
         done = False
         state = env.reset()
@@ -69,7 +70,8 @@ def main():
             traj["rewards"].append(rew)
         trajs.append(traj)
         rews.append(total_rew)
-    print(f"Avg return: {np.mean(rews):.3f}, std={np.std(rews):.3f}")
+        succs.append(1.0 if len(traj["actions"]) == 800 else 0.0)
+    print(f"Avg return: {np.mean(succs):.3f}, std={np.std(succs):.3f}")
     
     data = {
         "config": {
@@ -80,6 +82,9 @@ def main():
     }
     with open(args.save_path, "wb") as f:
         pickle.dump(data, f)
+    
+    # with open(args.save_path, "wb") as f:
+    #     pickle.dump(succs, f)
 
 if __name__ == "__main__":
     main()

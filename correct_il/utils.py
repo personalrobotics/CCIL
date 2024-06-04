@@ -31,11 +31,18 @@ def build_dataset(trajectories: list) -> Tuple[np.ndarray, np.ndarray, np.ndarra
     sp = np.concatenate([traj["observations"][1:] for traj in trajectories])
     return s, a, sp
 
-def load_data(config_data):
+def load_data(config):
     # TODO limit data number
-    data_path = config_data.pkl
+    data_path = config.data.pkl
     with open(data_path, "rb") as f:
         data = pickle.load(f)
+    if config.data.data_frac and config.data.data_frac < 1.0:
+        gen = np.random.default_rng(config.seed if isinstance(config.seed, int) else None)
+        idx = np.arange(len(data))
+        gen.shuffle(idx)
+        n_traj = round(len(data) * config.data.data_frac)
+        print(f"Sampling {n_traj} of {len(data)} trajectories")
+        data = [data[i] for i in idx[:n_traj]]
     return build_dataset(data)
 
 def dataset_to_d3rlpy(s, a, _):
@@ -56,7 +63,7 @@ def gen_noise_dataset(obs, noise):
 
 def load_demo_for_policy(config):
     # Load Expert Data
-    expert_dataset = dataset_to_d3rlpy(*load_data(config.data))
+    expert_dataset = dataset_to_d3rlpy(*load_data(config))
     if config.policy.naive:
         return expert_dataset, expert_dataset, 0, 0
 

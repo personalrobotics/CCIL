@@ -26,16 +26,16 @@ from models.nn_dynamics import WorldModel
 from utils import D3Agent, seed, parse_config, load_data, save_config_yaml, root_finder_s
 from envs import *
 
-SMALL_SIZE = 5
-MEDIUM_SIZE = 6
-BIGGER_SIZE = 7
-plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
-plt.rc('axes', titlesize=SMALL_SIZE)
-plt.rc('axes', labelsize=MEDIUM_SIZE)
-plt.rc('xtick', labelsize=SMALL_SIZE)
-plt.rc('ytick', labelsize=SMALL_SIZE)
-plt.rc('legend', fontsize=SMALL_SIZE)
-plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
+# SMALL_SIZE = 5
+# MEDIUM_SIZE = 6
+# BIGGER_SIZE = 7
+# plt.rc('font', size=SMALL_SIZE, family="Times New Roman")
+# plt.rc('axes', titlesize=SMALL_SIZE)
+# plt.rc('axes', labelsize=MEDIUM_SIZE)
+# plt.rc('xtick', labelsize=SMALL_SIZE)
+# plt.rc('ytick', labelsize=SMALL_SIZE)
+# plt.rc('legend', fontsize=SMALL_SIZE)
+# plt.rc('figure', titlesize=BIGGER_SIZE, figsize=(1.5, 0.75*1.5))
 
 def construct_parser():
     parser = argparse.ArgumentParser(description='Generate Augmentation Labels.')
@@ -271,7 +271,7 @@ def main():
     model: WorldModel = pickle.load(open(model_fn, 'rb'))
 
     # Load Data
-    np_s, np_a, np_sp = load_data(config.data)
+    np_s, np_a, np_sp = load_data(config)
     data_size, state_dim = np_s.shape
     _, action_dim = np_a.shape
 
@@ -383,8 +383,10 @@ def main():
         ax.set_ylim(0, 1.02)
         ax.set_xticks([0, math.ceil(max_error * 1000) / 1000])
         ax.set_yticks([0, 1])
-        ax.set_xlabel("Error", labelpad=-MEDIUM_SIZE)
-        ax.set_ylabel("Proportion of Labels \n (Cumulative)", labelpad=-MEDIUM_SIZE)
+        # ax.set_xlabel("Error", labelpad=-MEDIUM_SIZE)
+        # ax.set_ylabel("Proportion of Labels \n (Cumulative)", labelpad=-MEDIUM_SIZE)
+        ax.set_xlabel("Error")
+        ax.set_ylabel("Proportion of Labels \n (Cumulative)")
         ax.spines[['right', 'top']].set_visible(False)
         hist, bins, _ = ax.hist(err_info["label_err"], bins=10000, histtype="step", cumulative=True, density=True, alpha=0)
         ax.plot(bins[:-1], hist, color="tab:blue")
