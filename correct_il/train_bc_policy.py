@@ -14,7 +14,7 @@ from functools import partial
 
 from d3rlpy.models.encoders import VectorEncoderFactory
 
-from utils import seed, parse_config, save_config_yaml, load_demo_for_policy, dataset_to_d3rlpy, load_data
+from utils import seed, parse_config, save_config_yaml, load_demo_for_policy
 import CustomBC
 
 def construct_parser():

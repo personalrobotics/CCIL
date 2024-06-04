@@ -21,6 +21,7 @@ def main():
         name = os.path.basename(policy_dir)
         name = clean_name(name)
         config_path = os.path.join(policy_dir, "config.yml")
+        # save_path = os.path.join(policy_dir, f"rewards_noise_0.0.pkl")
         save_path = os.path.join(args.out_dir, f"{args.prefix}{name}.pkl")
         os.system(f"python src/eval_bc.py -n {args.n_traj} {config_path} {save_path} {' '.join(sub_args)}")
 
