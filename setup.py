@@ -13,7 +13,7 @@ setup(
         "gym==0.19.0",
         "matplotlib==3.7.2",
         "pygame==2.5.0",
-        "numpy==1.23.3"
+        "numpy==1.23.3",
         "PyYAML",
         "d4rl==1.1",
         "tensorboard",
