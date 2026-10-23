@@ -1,0 +1,481 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "valid_vector_round_trips",
+   "episodes": 2,
+   "modalities": [
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_multimodal_image_round_trips",
+   "episodes": 1,
+   "modalities": [
+    "image.top",
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_action_chunks_round_trips",
+   "episodes": 1,
+   "modalities": [
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_multi_reason_candidates_round_trip",
+   "pass": true,
+   "row_reasons": [
+    [],
+    [
+     "out_of_support"
+    ],
+    [
+     "out_of_support",
+     "action_out_of_bounds"
+    ],
+    [
+     "non_finite"
+    ]
+   ],
+   "section": "A"
+  },
+  {
+   "case": "nan_state",
+   "expected_rule": "non_finite",
+   "expected_where": "episode 1 (ep1), state, frame 4",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "observations[state*] has non-finite values",
+     "rule": "non_finite",
+     "where": "episode 1 (ep1), state, frame 4"
+    }
+   ]
+  },
+  {
+   "case": "wrong_rank",
+   "expected_rule": "rank",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "observations[state*] has shape (6,); expected rank 2 ('T', 'D')",
+     "rule": "rank",
+     "where": "episode 0 (ep0), state"
+    }
+   ]
+  },
+  {
+   "case": "integer_actions",
+   "expected_rule": "dtype",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "actions dtype int64 is not float",
+     "rule": "dtype",
+     "where": "episode 0 (ep0)"
+    }
+   ]
+  },
+  {
+   "case": "non_increasing_timestamps",
+   "expected_rule": "timestamps",
+   "expected_where": "frame 3",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "timestamps must strictly increase",
+     "rule": "timestamps",
+     "where": "episode 0 (cam0), frame 3"
+    }
+   ]
+  },
+  {
+   "case": "chunk_crosses_episode",
+   "expected_rule": "chunk_crosses_episode",
+   "expected_where": "frame 5",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action_chunk_mask marks entries past the episode end as valid",
+     "rule": "chunk_crosses_episode",
+     "where": "episode 0 (chunk0), frame 5"
+    }
+   ]
+  },
+  {
+   "case": "duplicate_episode_id",
+   "expected_rule": "episode_id",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "duplicate episode_id 'ep0'",
+     "rule": "episode_id",
+     "where": "episode 1"
+    }
+   ]
+  },
+  {
+   "case": "modality_shape_mismatch",
+   "expected_rule": "dimension_mismatch",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "shape (4,), other episodes have (3,)",
+     "rule": "dimension_mismatch",
+     "where": "episode 1 (ep1), state"
+    }
+   ]
+  },
+  {
+   "case": "bad_modality_name",
+   "expected_rule": "modality_name",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "modality 'rgb' must match state[.name] or image.<camera>",
+     "rule": "modality_name",
+     "where": "episode 0 (ep0)"
+    },
+    {
+     "detail": "modalities ['state'], others have ['rgb']",
+     "rule": "modality_mismatch",
+     "where": "episode 1 (ep1)"
+    }
+   ]
+  },
+  {
+   "case": "action_out_of_bounds",
+   "expected_rule": "action_out_of_bounds",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "actions [0.4116305410861969, 1.042513370513916] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 0"
+    },
+    {
+     "detail": "actions [-0.12853465974330902, 1.3664634227752686] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 1"
+    },
+    {
+     "detail": "actions [-0.6651946902275085, 0.35151007771492004] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 2"
+    },
+    {
+     "detail": "actions [0.9034701585769653, 0.0940122976899147] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 3"
+    },
+    {
+     "detail": "actions [-0.7434992790222168, -0.9217253923416138] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 4"
+    },
+    {
+     "detail": "actions [-0.4577258229255676, 0.22019512951374054] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 5"
+    },
+    {
+     "detail": "actions [1.8016349077224731, 1.3151037693023682] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 0"
+    },
+    {
+     "detail": "actions [0.3573804199695587, -1.2083185911178589] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 1"
+    },
+    {
+     "detail": "actions [-0.004454133100807667, 0.6564749479293823] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 2"
+    },
+    {
+     "detail": "actions [-1.2883614301681519, 0.39512205123901367] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 3"
+    },
+    {
+     "detail": "actions [0.42986369132995605, 0.6960427165031433] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 4"
+    },
+    {
+     "detail": "actions [-1.1841179132461548, -0.661702573299408] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 5"
+    }
+   ]
+  },
+  {
+   "case": "missing_source_identity",
+   "expected_rule": "source_identity",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "every row needs a source_episode_id",
+     "rule": "source_identity",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "source_frame_not_a_transition",
+   "expected_rule": "source_identity",
+   "expected_where": "row 0",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "source_frame 5 is not a transition of a 6-frame episode",
+     "rule": "source_identity",
+     "where": "row 0"
+    }
+   ]
+  },
+  {
+   "case": "accepted_row_with_reason",
+   "expected_rule": "accepted_reasons",
+   "expected_where": "row 0",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "accepted must be True exactly when the row has no reason",
+     "rule": "accepted_reasons",
+     "where": "row 0"
+    }
+   ]
+  },
+  {
+   "case": "rejected_row_weight",
+   "expected_rule": "weight",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "rejected rows must have weight 0",
+     "rule": "weight",
+     "where": "rejected rows"
+    }
+   ]
+  },
+  {
+   "case": "unknown_reason_code",
+   "expected_rule": "reason_codes",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "reason_codes must be distinct members of ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds']; got ['non_finite', 'out_of_support', 'generation_failed', 'too_far']",
+     "rule": "reason_codes",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "unknown_field_rejected",
+   "errors": [
+    "unknown field 'foo'"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "ext_field_ignored",
+   "errors": null,
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "unknown_major_version_rejected",
+   "errors": [
+    "major version 2 is not supported (this reader supports 1.x)"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "newer_minor_declared_optional_field_ignored",
+   "errors": null,
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "newer_minor_undeclared_field_rejected",
+   "errors": [
+    "unknown field 'future_field'"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "missing_required_field_rejected",
+   "errors": [
+    "missing required fields ['terminated']"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "accepted": 4,
+   "accepted_sources": [
+    [
+     "slow",
+     0
+    ],
+    [
+     "slow",
+     1
+    ],
+    [
+     "slow",
+     3
+    ],
+    [
+     "slow",
+     4
+    ]
+   ],
+   "case": "analytic_fixture_identity_and_measurements_survive",
+   "multi_reason_rows": 4,
+   "pass": true,
+   "section": "C",
+   "transitions": 9
+  },
+  {
+   "case": "shipped_datasets_convert_exactly",
+   "datasets": [
+    {
+     "dataset": "ant-expert-v2_10.npz",
+     "episodes": 10,
+     "exact": true,
+     "source_sha256": "37e25f7dcf47406ae3c92b50a4e22693ec40e6fc2c94d085b91a2d37c11dfcc5"
+    },
+    {
+     "dataset": "circle_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "2d36d6ea3083d07462306f748126d92e57fb58449ccbaf90cad3397cee06c15c"
+    },
+    {
+     "dataset": "f1.npz",
+     "episodes": 1,
+     "exact": true,
+     "source_sha256": "7e056a4b540300dc030aa04ac0aa07ef17f05d25a9a0e11bb0ca3c525ae5b30f"
+    },
+    {
+     "dataset": "flythrugate_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "4ce3481fe25c469070269ae94e2e42c935ba6c3966b3563816e123429d3156cb"
+    },
+    {
+     "dataset": "halfcheetah-expert-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "52bdf081a8e139d06f693892ab8b977a04ea3f2c9b340e9c91c0062efca95298"
+    },
+    {
+     "dataset": "hopper-expert-v2_25.npz",
+     "episodes": 25,
+     "exact": true,
+     "source_sha256": "3cd064bbe0085f93ccc8efaffa3fe48a4dfb7d6c387f097439de11316372bd46"
+    },
+    {
+     "dataset": "hover_5.npz",
+     "episodes": 5,
+     "exact": true,
+     "source_sha256": "2f9806793e40f6052242e0e232ea0b1f2cba020294c59d0902e91062252838af"
+    },
+    {
+     "dataset": "metaworld-button-press-top-down-v2.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "0e2775f8ff7b3ef4cbf5d0415a2f6dcd4c4ed8dc76deb7c8b6ea022dd0844ab7"
+    },
+    {
+     "dataset": "metaworld-coffee-pull-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "393e01e16b8a2289d3242c621d0cf21a5727a0871ea7287427087db87e3d84ba"
+    },
+    {
+     "dataset": "metaworld-coffee-push-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "39afc5e9197249748284d312cfd5c6c12812eca7bc7fd8905407b1374331d89a"
+    },
+    {
+     "dataset": "metaworld-drawer-close-v2.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "00dba5b95dbf1dc464a8b81d8c2db179deddfaa70a1c9ba6f83c1c6e5500f7c0"
+    },
+    {
+     "dataset": "pendulum_cont_100.npz",
+     "episodes": 100,
+     "exact": true,
+     "source_sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+    },
+    {
+     "dataset": "pendulum_disc_500.npz",
+     "episodes": 500,
+     "exact": true,
+     "source_sha256": "0b5b1c5ae473795a8a7278d976c7d18db8ffb512b01daaf2f009ffbfc828af95"
+    },
+    {
+     "dataset": "pendulumswingup-v0.npz",
+     "episodes": 25,
+     "exact": true,
+     "source_sha256": "b986161d6e083159f73c77ad39d1564e1575e8330987ebb81a162251de09b032"
+    },
+    {
+     "dataset": "walker2d-expert-v2_20.npz",
+     "episodes": 20,
+     "exact": true,
+     "source_sha256": "309b647355a1e9292c56abbe3a41948606d5da34e84de193824bb9e8092c9884"
+    }
+   ],
+   "pass": true,
+   "section": "D"
+  }
+ ],
+ "environment": {
+  "code_commit": "7f07462adadc70091c181abff6c48f199a69c1ea",
+  "code_dirty": false,
+  "numpy": "1.26.4",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
