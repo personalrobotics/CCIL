@@ -19,6 +19,7 @@ import subprocess
 import sys
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import torch
@@ -92,10 +93,15 @@ def main():
     record("A", "not_a_list", ok)
 
     # --- B: candidate level, through collect_labels -------------------------
+    class UnsupportedAugmentationError(ValueError):
+        pass
+
     impl = load_definitions({
-        "correct_il/gen_aug_label.py": ["_candidates", "_root_find_one", "gen_noisy_action_be", "gen_backward_euler_fast",
+        "correct_il/gen_aug_label.py": ["_candidates", "_root_find_one", "gen_noisy_action_be",
+                                        "gen_backward_euler_fast", "gen_backward_model", "choose_augmentation",
                                         "collect_labels"],
-        "correct_il/utils.py": ["root_finder_s", "build_dataset"]}, extra={"tqdm": lambda x: x})
+        "correct_il/utils.py": ["root_finder_s", "build_dataset"]},
+        extra={"tqdm": lambda x: x, "UnsupportedAugmentationError": UnsupportedAugmentationError})
     model = DoubleIntegrator(config["h"]).model()
     np_s, np_a, np_sp = impl["build_dataset"](clean)
     data = tuple(torch.as_tensor(x).float() for x in (np_s, np_a, np_sp))
@@ -123,6 +129,27 @@ def main():
     record("B", "non_finite_model_output_rejected_with_source", nf.any() and not labels["accepted"][nf].any()
            and set(labels["episode"][nf].tolist()) == {1}, counts=labels["counts"],
            rejected_frames=[[int(e), int(f)] for e, f in zip(labels["episode"][nf], labels["frame"][nf])])
+
+    class BackwardModel:
+        def f(self, s, a):
+            return torch.full_like(s, -0.25)
+
+    labels = impl["collect_labels"](partial(impl["gen_backward_model"], None), BackwardModel(), data, np_s, len(np_s),
+                                    transition_ids=ids)
+    expected = np_s - 0.25
+    record("B", "backward_model_uses_candidate_record_contract",
+           labels["counts"] == {"attempted": len(np_s), "accepted": len(np_s), "non_finite": 0,
+                                "out_of_support": 0, "generation_failed": 0, "action_out_of_bounds": 0}
+           and np.allclose(labels["s"], expected) and np.allclose(labels["s_next"], np_s)
+           and np.array_equal(labels["episode"], ids[0]) and np.array_equal(labels["frame"], ids[1]),
+           counts=labels["counts"])
+
+    try:
+        impl["choose_augmentation"](SimpleNamespace(type="backward_expert"))
+        ok, msg = False, "no error"
+    except UnsupportedAugmentationError as e:
+        ok, msg = "unsupported" in str(e) and "checkpoint" in str(e), str(e)
+    record("B", "backward_expert_rejected_before_artifact_creation", ok, error=msg)
 
     def bad_generator(model_, datapoint):
         rec = impl["gen_backward_euler_fast"](50, None, model_, datapoint)
