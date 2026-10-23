@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "description": "Reproducibility ledger schema for CCIL. scripts/check_ledger.py enforces it. Bump schema_version on any incompatible change.",
+  "enums": {
+    "kind": ["paper-result", "documented-example", "internal-result", "setup"],
+    "status": ["pending", "reproduced", "reproduced-with-correctness-change", "blocked", "out-of-scope"],
+    "parity": ["exact", "statistical", "qualitative", "not-applicable"],
+    "value_class": ["tunable", "derived", "invariant"],
+    "missing": ["artifact", "dependency", "license", "hardware", "knowledge", "decision"],
+    "target_command_status": ["provisional", "ratified"]
+  },
+  "definitions": {
+    "parity": {
+      "exact": "Same deterministic output, such as a dataset file or config, byte for byte.",
+      "statistical": "Per-seed results agree with the reported value under the predeclared comparison in the entry's evaluation protocol.",
+      "qualitative": "Only the direction or ranking of the reported effect is expected to hold.",
+      "not-applicable": "The entry has no numeric oracle, e.g. setup or tooling."
+    },
+    "value_class": {
+      "tunable": "A hyperparameter that may be retuned. A change must be reported with the result.",
+      "derived": "Computed from other values or from the data, such as output paths or dataset sizes.",
+      "invariant": "Defines the experiment itself, such as environment, dataset, seeds or evaluation protocol. It must match for a parity claim."
+    },
+    "status": {
+      "pending": "Not attempted yet.",
+      "reproduced": "Reproduced within the stated parity class. Requires evidence.",
+      "reproduced-with-correctness-change": "Reproduced after an explained correctness fix that changes behavior. Requires evidence and correctness_change.",
+      "blocked": "Cannot proceed. Requires blockers naming what is missing and a next action.",
+      "out-of-scope": "Intentionally not reproduced. Requires exclusion_rationale."
+    }
+  },
+  "entry_required": [
+    "id", "kind", "title", "claim", "origin", "configs", "seeds", "hardware",
+    "env_vars", "datasets", "checkpoints", "outputs", "evaluation", "target",
+    "status", "evidence", "blockers", "inventory_capabilities"
+  ],
+  "origin_required": ["repository", "ref", "commit", "working_directory", "commands"],
+  "evaluation_required": ["protocol", "metric"],
+  "target_required": ["command", "command_status", "parity"],
+  "blocker_required": ["missing", "detail", "next_action"],
+  "parameter_required": ["key", "class", "behavior_affecting", "where"]
+}

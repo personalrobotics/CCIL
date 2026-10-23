@@ -394,7 +394,7 @@
       "authors_of_record": ["Abhay Deshpande"],
       "owner": "unknown",
       "disposition": "reconcile",
-      "blockers": ["On main, coffee_pull.yml and coffee_push.yml set output.location to the literal string '$HOME/CorrectiveIL/output/'. YAML does not expand it."]
+      "blockers": ["On main, coffee_pull.yml and coffee_push.yml default output.location to $HOME/CorrectiveIL/output/, a machine-specific path. parse_config expands it, and train_ccil.sh overrides it."]
     },
     {
       "id": "pipeline-scripts",
