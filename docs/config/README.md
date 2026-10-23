@@ -14,8 +14,8 @@ Both files are generated from `src/ccil/config/params.py`, the one canonical
 source. Regenerate them, or check them for drift:
 
 ```bash
-PYTHONPATH=src python -m ccil config docs  [--check]
-PYTHONPATH=src python -m ccil config audit [--check]
+uv run ccil config docs  [--check]
+uv run ccil config audit [--check]
 ```
 
 ## Precedence
@@ -23,7 +23,7 @@ PYTHONPATH=src python -m ccil config audit [--check]
 Package defaults < recipe (`--recipe`, from `src/ccil/recipes/`) < user file
 (`--config`) < `--set key=value` < Python `resolve(overrides=...)`.
 
-`python -m ccil config show [--recipe R] [--config F] [--set k=v]` prints every
+`uv run ccil config show [--recipe R] [--config F] [--set k=v]` prints every
 effective value together with its source.
 
 ## Validation
@@ -55,7 +55,7 @@ Everything is checked before any output is written or any model is built:
 
 ## `data prepare`
 
-`python -m ccil data prepare --recipe pendulum_cont --set data.path=... --set run.output_dir=runs`
+`uv run ccil data prepare --recipe pendulum_cont --set data.path=... --set run.output_dir=runs`
 validates the dataset, splits it by episode, and writes a run directory
 containing `dataset.npz`, `split.json`, `config.json` and `manifest.json` (with
 SHA-256 hashes).
@@ -68,8 +68,7 @@ SHA-256 hashes).
 ## Evidence
 
 ```bash
-PYTHONPATH=src uv run --no-project --python 3.11 --with-requirements tools/m2_config/requirements.txt \
-  python tools/m2_config/check.py --out <new-dir>
+uv run python tools/m2_config/check.py --out <new-dir>
 ```
 
 [`../fixtures/evidence/m2-config/report.json`](../fixtures/evidence/m2-config/report.json)

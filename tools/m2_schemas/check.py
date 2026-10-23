@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Evidence for the ccil data schemas (#16).
 
-    PYTHONPATH=src python tools/m2_schemas/check.py --out DIR
+    uv run --group evidence python tools/m2_schemas/check.py --out DIR
 
 Valid examples (vector, multimodal image, action chunks, multi-reason
 candidates) round-trip exactly; one invalid example per rule fails with the
@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
-for p in (REPO / "src", REPO / "tools" / "analytic_fixture"):
+for p in (REPO / "tools" / "analytic_fixture",):
     sys.path.insert(0, str(p))
 from ccil.schema import (REASON_CODES, CandidateSet, Episode, SchemaError, TrajectoryDataset,  # noqa: E402
                          read_candidates, read_trajectories, write_candidates, write_trajectories)

@@ -1,0 +1,24 @@
+[project]
+name = "ccil"
+version = "0.1.0.dev0"
+description = "Continuity-based corrective labels for imitation learning"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+ccil = "ccil.__main__:main"
+
+[dependency-groups]
+# Evidence tools for the ccil core (tools/m2_*). The M1 legacy-harness tools pin
+# historical versions in their own requirements.txt and run with `uv run --no-project`.
+evidence = [
+    "torch>=2.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.14"]
+build-backend = "uv_build"

@@ -9,16 +9,22 @@ Official repo for CCIL: Continuity-based Data Augmentation for Imitation Learnin
 
 ## Setup
 
-Tested with python `3.8.10`. Please note that we use our own forks of multiple packages:
-- [d3rlpy](https://github.com/personalrobotics/d3rlpy/tree/release/CCIL) - fixed normalization bug when training behavioral cloning
-- [gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones/tree/fix-install) - added environments and fixed installation bugs
+The `ccil` core is managed with [uv](https://docs.astral.sh/uv/) and supports Python 3.10 and newer:
 
 ```bash
 git clone https://github.com/personalrobotics/CCIL.git
 cd CCIL
-pip install -r install_deps.txt
-pip install -e .
+uv sync                     # create .venv from uv.lock
+uv run ccil --help          # schema, config, and data commands
+uv run python correct_il/convert_legacy_dataset.py --shipped   # one-time: convert the shipped datasets
 ```
+
+The legacy `correct_il` scripts below targeted Python 3.8 and lab forks of
+[d3rlpy](https://github.com/personalrobotics/d3rlpy/tree/release/CCIL) and
+[gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones/tree/fix-install).
+Their installer (`setup.py`, `install_deps.txt`) was retired; it is preserved at the
+`archive/upstream-main-2026-10-22` tag, and the resolved legacy environment is recorded in
+[docs/artifacts/](docs/artifacts/README.md).
 
 ## Running experiments
 
