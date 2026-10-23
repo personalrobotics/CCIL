@@ -1,0 +1,502 @@
+{
+  "schema_version": 1,
+  "captured": "2026-10-22",
+  "scope": "personalrobotics/CCIL and its preserved forks. image_ccil is deferred.",
+  "history_manifest": "docs/history/branch-references.md",
+  "refs": {
+    "main": {
+      "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+      "preserved_by": "archive/upstream-main-2026-10-22",
+      "description": "Published CCIL code, tagged v1.0.0."
+    },
+    "label-filtering": {
+      "commit": "73d187dc233f73a0248c095da9d4b6fe3a48377a",
+      "preserved_by": "archive/upstream-label-filtering-2026-10-22",
+      "description": "Post-publication research: IROS changes, label-error filtering, action-chunking labels."
+    },
+    "abhaybd-image": {
+      "commit": "69aa85a37abf57421943f76cbcdb3922c55f3738",
+      "preserved_by": "archive/abhaybd-image-2026-10-22",
+      "description": "Fork-only early image-observation CCIL work, built on the fork's label-filtering."
+    },
+    "abhaybd-main": {
+      "commit": "a50f7922082c7aa4c0b9b1a57b2665900b5fecfa",
+      "preserved_by": "archive/abhaybd-main-2026-10-22",
+      "description": "Fork main plus a .gitignore."
+    },
+    "gh-pages": {
+      "commit": "0650df8ee4f295b993e0903d94f03a98828872f7",
+      "preserved_by": "refs/heads/gh-pages",
+      "description": "Project website."
+    }
+  },
+  "dispositions": {
+    "migrate": "Carry into the unified repository after the normal milestone review.",
+    "reconcile": "Divergent implementations exist. Choose or merge them with experiment evidence; no version is canonical yet.",
+    "evaluate": "Exists only on a non-default branch. Decide whether it belongs in the unified repository.",
+    "fix-then-migrate": "Migrate only after the listed correctness or portability problems are resolved.",
+    "deferred": "Tied to image CCIL, deferred with image_ccil integration.",
+    "archive-only": "Keep recoverable through history and archive tags; do not migrate.",
+    "exclude": "Machine-specific, generated, or obsolete; do not migrate."
+  },
+  "global_blockers": [
+    {
+      "id": "no-license-file",
+      "summary": "No LICENSE file exists on any branch. setup.py declares license='MIT' and the GitHub API reports no license.",
+      "owner": "unknown",
+      "action": "A maintainer confirms the intended license and adds a LICENSE file before any release (M6)."
+    },
+    {
+      "id": "no-designated-maintainers",
+      "summary": "No capability has a designated maintainer. Authors of record come from Git history and file headers only.",
+      "owner": "unknown",
+      "action": "Assign maintainers per capability area as part of #9."
+    },
+    {
+      "id": "experiment-to-implementation-mapping",
+      "summary": "No record says which branch or config produced each published result. The label-filtering commit 'Add changes from IROS' suggests IROS work, but that is unverified.",
+      "owner": "unknown",
+      "action": "Resolve in the reproducibility ledger (#7)."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "dynamics-model",
+      "name": "Learned dynamics model (WorldModel, DynamicsNet)",
+      "category": "model",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/models/nn_dynamics.py"]},
+        {"ref": "label-filtering", "paths": ["correct_il/models/nn_dynamics.py"], "difference": "Adds local_lipschitz_coeff() and unreduced prediction errors."},
+        {"ref": "abhaybd-image", "paths": ["correct_il/models/nn_dynamics.py"], "difference": "Drops data-driven input normalization and exposes parameters() for joint training with the image encoder."}
+      ],
+      "provenance": {"origin": "derived", "source": "https://github.com/aravindr93/mjrl/blob/15bf3c0ed0c97fef761a8924d1b22413beb79900/mjrl/algos/mbrl/nn_dynamics.py", "license": "unknown", "attribution": "File header: 'Inspired by' mjrl; modified by Abhay Deshpande, Kay Ke, and Yunchu Zhang."},
+      "authors_of_record": ["Abhay Deshpande", "Kay Ke", "Yunchu Zhang"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": ["Confirm the mjrl license and whether attribution is sufficient for derived code."]
+    },
+    {
+      "id": "lipschitz-regularization",
+      "name": "Lipschitz regularization variants for dynamics training",
+      "category": "algorithm",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/models/nn_dynamics.py"], "difference": "lipschitz_type in {spectral_normalization, slack, spectral_normalization_slack, soft_sampling, soft_sampling_slack, soft_jac, none}."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande", "Kay Ke", "Yunchu Zhang"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "spectral-norm",
+      "name": "Spectral normalization with a configurable Lipschitz bound",
+      "category": "model",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/models/spectral_norm.py"]}
+      ],
+      "provenance": {"origin": "derived", "source": "https://pytorch.org/docs/stable/_modules/torch/nn/utils/spectral_norm.html", "license": "BSD-3-Clause (PyTorch); license text not included", "attribution": "File header: 'Modified from Pytorch'."},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": ["Include the PyTorch BSD-3-Clause notice when redistributing."]
+    },
+    {
+      "id": "corrective-labels",
+      "name": "Corrective-label generation",
+      "category": "algorithm",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/gen_aug_label.py", "correct_il/utils.py"], "difference": "Types: forward_euler and backward_euler via root_finder_s, backward_euler_fast (alias random_backward), noisy_action, noisy_action_fe, backward_model, backward_expert."},
+        {"ref": "label-filtering", "paths": ["correct_il/gen_aug_label.py"], "difference": "forward_euler becomes fixed-point iteration instead of root finding; skips points where the model misfits (aug.model_err_thresh); records original actions."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": ["backward_expert loads output/expert_policy/pendulum.pt and requires CUDA; that file is not in any preserved ref."]
+    },
+    {
+      "id": "label-filtering",
+      "name": "Filtering of generated labels",
+      "category": "algorithm",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py"], "difference": "Keeps labels whose state distance is below aug.epsilon."},
+        {"ref": "label-filtering", "paths": ["correct_il/utils.py", "correct_il/gen_aug_label.py"], "difference": "Adds label-error estimate (local Lipschitz x distance), aug.label_err_quantile and aug.max_label_err, combined with epsilon."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": []
+    },
+    {
+      "id": "action-chunking-labels",
+      "name": "Corrective labels for action-chunking policies",
+      "category": "algorithm",
+      "implementations": [
+        {"ref": "label-filtering", "paths": ["correct_il/gen_aug_label_chunking.py"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "evaluate",
+      "blockers": ["The chunk_size branch is inverted: a configured value is ignored (8 is used), and an unset value yields None."]
+    },
+    {
+      "id": "bc-policy",
+      "name": "Behavior cloning policy training (CustomBC on d3rlpy)",
+      "category": "training",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/CustomBC.py", "correct_il/train_bc_policy.py"], "difference": "Hard-codes loss weights and disables action scaling when env == 'tycho', an environment not defined in this repository."},
+        {"ref": "label-filtering", "paths": ["correct_il/CustomBC.py", "correct_il/train_bc_policy.py"], "difference": "Removes the tycho special case; adds configurable encoder layers and callable loss weights."}
+      ],
+      "provenance": {"origin": "derived", "source": "https://github.com/personalrobotics/d3rlpy (subclasses d3rlpy BC)", "license": "d3rlpy is MIT", "attribution": "Subclass, not a copy."},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": ["On label-filtering, CustomBCImpl always overwrites weight_losses with linear_weight_losses, so a callable loss_weights is ignored."]
+    },
+    {
+      "id": "baseline-vanilla-bc",
+      "name": "Vanilla BC baseline (policy.naive)",
+      "category": "training",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py", "correct_il/train_bc_policy.py"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "baseline-noise-bc",
+      "name": "NoiseBC baseline (policy.noise_bc)",
+      "category": "training",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/CustomBC.py"], "difference": "Adds noise_cov * torch.rand (uniform on [0, 1), non-negative) to observations for a random half of each batch. A commented-out dataset-level variant remains in utils.py."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "fix-then-migrate",
+      "blockers": ["The noise is uniform and non-negative rather than zero-mean. Confirm the intended noise model in M1 before using this as a baseline."]
+    },
+    {
+      "id": "data-fraction-ablation",
+      "name": "Training-data fraction subsampling",
+      "category": "training",
+      "implementations": [
+        {"ref": "label-filtering", "paths": ["correct_il/utils.py", "scripts/data_ablation.sh"], "difference": "data.data_frac selects a seeded subset of trajectories."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "evaluate",
+      "blockers": []
+    },
+    {
+      "id": "image-state-encoder",
+      "name": "Image state encoder for dynamics and policy",
+      "category": "model",
+      "implementations": [
+        {"ref": "abhaybd-image", "paths": ["correct_il/encoder.py", "config/pendulum_img.yml"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "deferred",
+      "blockers": ["config/pendulum_img.yml expects data/pendulum_img_50_noised_fix.pkl, which is not in any preserved ref."]
+    },
+    {
+      "id": "diffusion-policy-eval",
+      "name": "Diffusion policy evaluation",
+      "category": "evaluation",
+      "implementations": [
+        {"ref": "abhaybd-image", "paths": ["correct_il/eval_dp_policy.py"]}
+      ],
+      "provenance": {"origin": "external", "source": "diffusion_policy package (undeclared dependency, version unknown)", "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "deferred",
+      "blockers": ["The diffusion_policy dependency is not declared or pinned."]
+    },
+    {
+      "id": "env-pendulum",
+      "name": "Pendulum swing-up environments (continuous and discontinuous)",
+      "category": "environment",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/envs/pendulum_env.py", "correct_il/envs/__init__.py"], "difference": "Registers PendulumSwingupCont-v0 and PendulumSwingupDisc-v0."},
+        {"ref": "abhaybd-image", "paths": ["correct_il/envs/pendulum_env.py", "correct_il/envs/__init__.py"], "difference": "Adds image observations (64x64 render) and PendulumSwingupContImg-v0."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "env-f1tenth",
+      "name": "F1TENTH racing environment, expert, featurizer, and maps",
+      "category": "environment",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/envs/f1/src/env_wrapper.py", "correct_il/envs/f1/src/run_expert.py", "correct_il/envs/f1/src/pure_pursuit.py", "correct_il/envs/f1/src/state_featurizer.py", "correct_il/envs/f1/src/state_samplers.py", "correct_il/envs/f1/src/rewards.py", "correct_il/envs/f1/src/dump_data.py", "correct_il/envs/f1/maps", "correct_il/envs/f1/requirements.txt"]}
+      ],
+      "provenance": {"origin": "unknown", "source": "Wraps f110_gym (https://github.com/f1tenth/f1tenth_gym@cd56335); no attribution for the wrapper, expert, or maps.", "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": ["Confirm the origin and license of the wrapper code and map assets.", "envs/f1/requirements.txt pins torch==2.0.1 while setup.py pins torch==2.1.0."]
+    },
+    {
+      "id": "env-mujoco-d4rl",
+      "name": "MuJoCo locomotion tasks via D4RL (ant, halfcheetah, hopper, walker2d)",
+      "category": "environment",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py", "config/ant.yml", "config/halfcheetah.yml", "config/hopper.yml", "config/walker2d.yml"]}
+      ],
+      "provenance": {"origin": "external", "source": "d4rl==1.1, mjrl@3871d93 (setup.py)", "license": "external packages"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "env-metaworld",
+      "name": "Meta-World manipulation tasks",
+      "category": "environment",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py", "config/button.yml", "config/coffee_pull.yml", "config/coffee_push.yml", "config/drawer_close.yml"]}
+      ],
+      "provenance": {"origin": "external", "source": "metaworld@84bda2c (setup.py)", "license": "external package"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "env-drones",
+      "name": "Quadrotor tasks via gym-pybullet-drones (hover, circle, flythrugate)",
+      "category": "environment",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py", "config/hover.yml", "config/circle.yml", "config/flythrugate.yml"]}
+      ],
+      "provenance": {"origin": "external", "source": "https://github.com/personalrobotics/gym-pybullet-drones@2d4f345 (lab fork; README: added environments, fixed installation)", "license": "external package"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": ["The lab fork is a separate repository whose history this manifest does not preserve."]
+    },
+    {
+      "id": "datasets",
+      "name": "Expert demonstration datasets",
+      "category": "dataset",
+      "implementations": [
+        {"ref": "main", "paths": ["data"], "difference": "15 pickles, about 177 MB, committed without LFS."}
+      ],
+      "provenance": {"origin": "unknown", "source": "No generation scripts on main except F1 (run_expert.py, dump_data.py). File names suggest D4RL expert subsets for MuJoCo. A pendulum generator exists only on abhaybd-image (correct_il/gen_pendulum_data.py).", "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": ["Generation provenance is unknown for MuJoCo, Meta-World, drone, and pendulum data; resolve in #8.", "data/pendulumswingup-v0.pkl is not referenced by any config."]
+    },
+    {
+      "id": "dynamics-training-tool",
+      "name": "Dynamics training entry point and diagnostics",
+      "category": "training",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/train_dynamics_model.py"]},
+        {"ref": "label-filtering", "paths": ["correct_il/train_dynamics_model.py"], "difference": "Paper-style plots (PDF), error distribution plot."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": []
+    },
+    {
+      "id": "policy-evaluation",
+      "name": "Policy evaluation in simulation",
+      "category": "evaluation",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/eval_bc_policy.py", "correct_il/utils.py"], "difference": "evaluate_on_environment: 100 trials, drone and Meta-World special cases."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "f1-evaluation",
+      "name": "F1TENTH policy evaluation",
+      "category": "evaluation",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/envs/f1/src/eval_bc.py", "correct_il/envs/f1/src/eval_all.py", "correct_il/envs/f1/eval_all_seeds.sh"], "difference": "Reports average return."},
+        {"ref": "label-filtering", "paths": ["correct_il/envs/f1/src/eval_bc.py", "correct_il/envs/f1/eval_sweep.sh"], "difference": "Reports success (episode reaches 800 steps) instead of return; loads policies from /home/prl/dev/CCIL."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": ["The two versions report different metrics under the same label ('Avg return').", "The label-filtering version hard-codes /home/prl/dev/CCIL."]
+    },
+    {
+      "id": "results-analysis",
+      "name": "Result tabulation and plotting",
+      "category": "analysis",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/tabulate_results.py", "correct_il/envs/f1/src/tabulate_performance.py", "correct_il/envs/f1/src/plot_performance.py"]},
+        {"ref": "label-filtering", "paths": ["correct_il/tabulate_sweep.py", "correct_il/plot_ablation.py"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "evaluate",
+      "blockers": []
+    },
+    {
+      "id": "rendering",
+      "name": "Rollout rendering and recording",
+      "category": "analysis",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/envs/f1/src/render_pov.py", "correct_il/envs/f1/src/render_recording.py", "correct_il/envs/f1/src/render_recording_img.py"]},
+        {"ref": "abhaybd-image", "paths": ["correct_il/envs/pendulum_env.py"], "difference": "Pendulum rgb_array render."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "evaluate",
+      "blockers": []
+    },
+    {
+      "id": "config-system",
+      "name": "YAML configuration loading and command-line overrides",
+      "category": "configuration",
+      "implementations": [
+        {"ref": "main", "paths": ["correct_il/utils.py"], "difference": "parse_config, parse_overrides, Namespace; '...' fields auto-populated."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "migrate",
+      "blockers": []
+    },
+    {
+      "id": "task-configs",
+      "name": "Per-task experiment configurations",
+      "category": "configuration",
+      "implementations": [
+        {"ref": "main", "paths": ["config"], "difference": "14 task configs."},
+        {"ref": "label-filtering", "paths": ["config"], "difference": "All 14 changed; e.g. pendulum_disc switches noisy_action to backward_euler_fast with label_err_quantile 0.3; ant switches slack to soft_sampling."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": ["On main, coffee_pull.yml and coffee_push.yml set output.location to the literal string '$HOME/CorrectiveIL/output/'. YAML does not expand it."]
+    },
+    {
+      "id": "pipeline-scripts",
+      "name": "End-to-end experiment scripts",
+      "category": "script",
+      "implementations": [
+        {"ref": "main", "paths": ["scripts/train_ccil.sh", "scripts/pendulum.sh", "scripts/mujoco.sh", "scripts/metaworld.sh", "scripts/drone.sh", "scripts/f1.sh"]},
+        {"ref": "label-filtering", "paths": ["scripts/train_ccil.sh"], "difference": "Adds an optional eval flag but comments out the BC, NoiseBC, and label-generation steps."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": []
+    },
+    {
+      "id": "cluster-sweeps",
+      "name": "Cluster parameter sweeps",
+      "category": "script",
+      "implementations": [
+        {"ref": "main", "paths": ["scripts/sweep.sh", "scripts/launch.slurm"]},
+        {"ref": "label-filtering", "paths": ["scripts/sweep.sh"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "exclude",
+      "blockers": ["Hard-codes /gscratch/weirdlab/tycho/..., $HOME/CorrectiveIL, and a conda env named torch. Keep for the ledger (#7), but do not migrate as is."]
+    },
+    {
+      "id": "pendulum-data-generation",
+      "name": "Pendulum demonstration generator",
+      "category": "dataset",
+      "implementations": [
+        {"ref": "abhaybd-image", "paths": ["correct_il/gen_pendulum_data.py"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "evaluate",
+      "blockers": ["Unknown whether it produced the pendulum datasets on main."]
+    },
+    {
+      "id": "packaging",
+      "name": "Package metadata and dependency pins",
+      "category": "packaging",
+      "implementations": [
+        {"ref": "main", "paths": ["setup.py", "install_deps.txt"], "difference": "distutils setup; pins torch 2.1.0, gym 0.19.0, d4rl 1.1, and Git commits for mjrl, d3rlpy, f110_gym, metaworld, gym-pybullet-drones."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "declares MIT; no LICENSE file"},
+      "authors_of_record": ["Abhay Deshpande", "Quinn Pfeifer"],
+      "owner": "unknown",
+      "disposition": "fix-then-migrate",
+      "blockers": ["distutils was removed in Python 3.12.", "Depends on lab forks (d3rlpy, gym-pybullet-drones) outside this manifest."]
+    },
+    {
+      "id": "repo-hygiene",
+      "name": ".gitignore",
+      "category": "tooling",
+      "implementations": [
+        {"ref": "label-filtering", "paths": [".gitignore"]},
+        {"ref": "abhaybd-main", "paths": [".gitignore"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": []
+    },
+    {
+      "id": "documentation",
+      "name": "README usage documentation",
+      "category": "documentation",
+      "implementations": [
+        {"ref": "main", "paths": ["README.md"]},
+        {"ref": "label-filtering", "paths": ["README.md"]}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande", "Quinn Pfeifer"],
+      "owner": "unknown",
+      "disposition": "reconcile",
+      "blockers": []
+    },
+    {
+      "id": "project-website",
+      "name": "Project website (GitHub Pages)",
+      "category": "documentation",
+      "implementations": [
+        {"ref": "gh-pages", "paths": ["index.html", "static"], "difference": "Static site with figures, videos, and the paper PDF (static/pdf/ke2025ccil.pdf)."}
+      ],
+      "provenance": {"origin": "project", "source": null, "license": "unknown"},
+      "authors_of_record": ["Abhay Deshpande", "Kay Ke"],
+      "owner": "unknown",
+      "disposition": "archive-only",
+      "blockers": []
+    }
+  ],
+  "do_not_migrate": [
+    {"ref": "main", "path": "correct_il/utils.py", "reason": "get_emd() is unused and calls pdb.set_trace() on failure."},
+    {"ref": "main", "path": "correct_il/utils.py", "reason": "Commented-out NoiseBC dataset variant and debugging blocks in load_demo_for_policy."},
+    {"ref": "main", "path": "scripts/sweep.sh", "reason": "Machine-specific output paths."},
+    {"ref": "main", "path": "scripts/launch.slurm", "reason": "Machine-specific paths and conda environment."},
+    {"ref": "label-filtering", "path": "correct_il/envs/f1/src/eval_bc.py", "reason": "Hard-coded /home/prl/dev/CCIL."}
+  ]
+}
