@@ -4,8 +4,10 @@ Captured **2026-10-22**. This maps each CCIL capability to its implementation on
 each preserved ref, its provenance, and a proposed disposition. The
 machine-readable source of truth is [`capabilities.json`](capabilities.json),
 and every ref links back to an archive tag in the
-[history manifest](../history/branch-references.md). `image_ccil` is out of
-scope; its integration is deferred.
+[history manifest](../history/branch-references.md). This is the M0 inventory
+for CCIL and its preserved forks. The actively changing `image_ccil` repository
+is deferred to M5 issue #31, which must capture its stable baseline before
+image code migrates.
 
 To check the inventory against history:
 

@@ -5,7 +5,7 @@ Official repo for CCIL: Continuity-based Data Augmentation for Imitation Learnin
 - Generate corrective labels using dynamics function
 - Train behavior cloning agents from demonstrations or augmented dataset
 
-> **Consolidation in progress.** This repository is being rebuilt around a maintained, state-based CCIL implementation. Scope, benchmarks and policies are set by the [migration contract](docs/migration-contract.md); history, inventory, reproducibility ledger and artifacts are under [docs/](docs/).
+> **Consolidation in progress.** This repository is being rebuilt around a maintained CCIL core. State-based workflows come first; end-to-end image integration is deferred to M5 while `image_ccil` remains in active development. Scope, benchmarks and policies are set by the [migration contract](docs/migration-contract.md); history, inventory, reproducibility ledger and artifacts are under [docs/](docs/).
 
 ## Setup
 

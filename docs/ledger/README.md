@@ -4,8 +4,10 @@ Captured **2026-10-22**. Every previously runnable example and every reported
 result has an entry here. Each entry records how to reproduce it, its current
 status, and what blocks it. The ledger is [`ledger.json`](ledger.json), and its
 versioned schema is [`schema.json`](schema.json). Refs and capability IDs come
-from the [capability inventory](../inventory/README.md). `image_ccil` is out of
-scope; its integration is deferred.
+from the [capability inventory](../inventory/README.md). This M0 ledger covers
+CCIL and its preserved forks. The actively changing `image_ccil` repository is
+deferred to M5 issue #31 and will receive its own baseline capture before image
+integration begins.
 
 To validate:
 
