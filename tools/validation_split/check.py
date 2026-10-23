@@ -95,6 +95,35 @@ def main():
     r2 = train(out / "val")
     record("rerun_reuses_split", r2.returncode == 0 and "Reusing split" in r2.stdout and sha(d / "split.json") == before)
 
+    # A persisted split is untrusted input. Duplicates, coercible values and
+    # other malformed partitions must fail instead of changing the training set.
+    valid_small = validation.make_split(4, 0.25, 0)
+    malformed = {
+        "duplicate": {**valid_small, "train": [0, 0, 1, 2], "validation": [3]},
+        "boolean_id": {**valid_small, "train": [0, 1, True], "validation": [3]},
+        "out_of_range": {**valid_small, "train": [0, 1, 4], "validation": [3]},
+        "unsorted": {**valid_small, "train": list(reversed(valid_small["train"]))},
+        "wrong_validation_count": {**valid_small, "validation_fraction": 0.5},
+        "missing_field": {k: v for k, v in valid_small.items() if k != "seed"},
+    }
+    rejected = {}
+    for name, bad in malformed.items():
+        try:
+            validation.check_disjoint(bad)
+            rejected[name] = None
+        except validation.SplitError as e:
+            rejected[name] = str(e)
+    broken_json = out / "broken-split.json"
+    broken_json.write_text("{not json\n")
+    try:
+        validation.load_or_create_split(broken_json, 4, 0.25, 0)
+        rejected["invalid_json"] = None
+    except validation.SplitError as e:
+        rejected["invalid_json"] = str(e)
+    record("malformed_persisted_splits_fail_before_reuse",
+           all(rejected.values()) and "duplicate" in rejected["duplicate"]
+           and "cannot read persisted split" in rejected["invalid_json"], errors=rejected)
+
     # C: an explicit configuration change produces a new split
     r3 = train(out / "val", "dynamics.validation_fraction", "0.3")
     split3 = json.loads((d / "split.json").read_text())

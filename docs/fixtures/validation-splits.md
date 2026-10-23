@@ -26,6 +26,11 @@ dynamics fit.
 - **Persistence.** The split is written atomically to `split.json` in the
   dynamics output folder (format `ccil-split/1`: seed, fraction, trajectory
   count, sorted train and validation indices).
+- **Validation on reuse.** A persisted split is untrusted input. Required
+  fields, scalar types, sorted integer IDs, uniqueness, bounds, disjointness,
+  exact coverage and the validation count implied by the fraction are checked
+  before reuse. Malformed JSON and malformed partitions raise `SplitError`;
+  values are never coerced.
 - **Reuse.** A rerun reuses `split.json` when the trajectory count, fraction
   and seed all match. Changing any of them writes a new split.
 - **Fail fast.** If either split would be empty, training stops *before* any
@@ -73,6 +78,8 @@ It checks:
 - aggregate consistency;
 - the honest `statistics.txt` wording;
 - split reuse, and a new split when the config changes;
+- rejection of malformed persisted splits, including duplicate, Boolean,
+  out-of-range, unsorted, incomplete and invalid-JSON cases;
 - that the label model has **byte-identical weights** with and without validation;
 - that a 1-trajectory dataset fails before training;
 - partial-batch error accounting.
