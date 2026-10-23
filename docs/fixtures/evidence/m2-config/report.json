@@ -1,0 +1,227 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "default_and_override_runs_record_provenance",
+   "changed_values": [
+    "data.validation_fraction"
+   ],
+   "default_manifest": {
+    "ccil_version": "0.1.0.dev0",
+    "config_hash": "db62b60a3d433b581e1e0cdc145c4fc3c1f9fe0245ebd8b7e1592ee113768088",
+    "episodes": 100,
+    "files": {
+     "config.json": "1058e4204e5a87003a7acd515e3aa14d2ebca30d0cf75fc156abf4264404e782",
+     "dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+     "split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb"
+    },
+    "run_id": "prepare-85dec61c77cd",
+    "schema": "ccil.run-manifest",
+    "seed": 42,
+    "source": {
+     "path": "data/pendulum_cont_100.npz",
+     "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+    },
+    "split": {
+     "train": 80,
+     "validation": 20
+    },
+    "version": "1.0",
+    "workflow": "data.prepare"
+   },
+   "default_run": "prepare-85dec61c77cd",
+   "default_value_sources": {
+    "compute.deterministic": "default",
+    "compute.device": "recipe:pendulum_cont",
+    "data.action_high": "default",
+    "data.action_low": "default",
+    "data.path": "recipe:pendulum_cont",
+    "data.validation_fraction": "recipe:pendulum_cont",
+    "environment.id": "recipe:pendulum_cont",
+    "evaluation.episodes": "default",
+    "evaluation.max_episode_steps": "default",
+    "evaluation.noise_levels": "recipe:pendulum_cont",
+    "evaluation.noise_model": "default",
+    "generation.action_noise_std": "recipe:pendulum_cont",
+    "generation.labels_per_transition": "recipe:pendulum_cont",
+    "generation.max_iterations": "recipe:pendulum_cont",
+    "generation.method": "recipe:pendulum_cont",
+    "generation.root_tolerance": "default",
+    "generation.support_radius": "recipe:pendulum_cont",
+    "policy.action_scaler": "default",
+    "policy.balance_noisy_labels": "recipe:pendulum_cont",
+    "policy.batch_size": "recipe:pendulum_cont",
+    "policy.epochs": "recipe:pendulum_cont",
+    "policy.learning_rate": "recipe:pendulum_cont",
+    "policy.method": "recipe:pendulum_cont",
+    "policy.noise_model": "default",
+    "policy.noise_scale": "default",
+    "run.output_dir": "cli",
+    "run.overwrite": "default",
+    "run.seed": "recipe:pendulum_cont",
+    "transition_model.activation": "recipe:pendulum_cont",
+    "transition_model.batch_size": "recipe:pendulum_cont",
+    "transition_model.direction": "default",
+    "transition_model.epochs": "recipe:pendulum_cont",
+    "transition_model.hidden_layers": "recipe:pendulum_cont",
+    "transition_model.learning_rate": "recipe:pendulum_cont",
+    "transition_model.lipschitz_constraint": "recipe:pendulum_cont",
+    "transition_model.lipschitz_type": "recipe:pendulum_cont",
+    "transition_model.slack_weight": "default",
+    "transition_model.soft_penalty_weight": "recipe:pendulum_cont",
+    "transition_model.soft_samples": "recipe:pendulum_cont",
+    "transition_model.soft_sampling_eps": "recipe:pendulum_cont",
+    "transition_model.weight_decay": "recipe:pendulum_cont"
+   },
+   "override_manifest": {
+    "ccil_version": "0.1.0.dev0",
+    "config_hash": "02d7b1c74596b7f5c3108912ab53ca85ac6de9cb0f436e7ede86146214b54f37",
+    "episodes": 100,
+    "files": {
+     "config.json": "2645fc5ef1513beba666d57a94cebd89057b9bc79d611e9886c6f77232122cab",
+     "dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+     "split.json": "0329abf1cc8576d8b3435972723c38ca8d6129ffd8575bb91bb4af477758af4e"
+    },
+    "run_id": "prepare-0c7e016b19f5",
+    "schema": "ccil.run-manifest",
+    "seed": 42,
+    "source": {
+     "path": "data/pendulum_cont_100.npz",
+     "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+    },
+    "split": {
+     "train": 70,
+     "validation": 30
+    },
+    "version": "1.0",
+    "workflow": "data.prepare"
+   },
+   "override_run": "prepare-0c7e016b19f5",
+   "override_source": "cli",
+   "pass": true,
+   "seed": 42,
+   "validation_episodes": [
+    20,
+    30
+   ]
+  },
+  {
+   "case": "replay_is_byte_identical",
+   "files": {
+    "config.json": "1058e4204e5a87003a7acd515e3aa14d2ebca30d0cf75fc156abf4264404e782",
+    "dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+    "manifest.json": "e3588b38a0794acebc0863a0db3a921d12ec44f1a3b4cef91c14a5ce8a2e0739",
+    "split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb"
+   },
+   "pass": true,
+   "run_id": "prepare-85dec61c77cd"
+  },
+  {
+   "case": "existing_run_refused_then_replaced_atomically",
+   "leftovers": [],
+   "pass": true,
+   "refused_stderr": "runs/prepare-85dec61c77cd exists; set run.overwrite=true to replace it"
+  },
+  {
+   "case": "fails_before_output[misspelled_key]",
+   "error": "invalid configuration:\n  unknown key 'data.validaton_fraction' (cli); did you mean 'data.validation_fraction'?",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[wrong_type]",
+   "error": "invalid configuration:\n  run.seed: 'abc' is not a valid integer (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[ambiguous_boolean]",
+   "error": "invalid configuration:\n  expected true or false, got 'yes' (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[wrong_unit]",
+   "error": "invalid configuration:\n  evaluation.max_episode_steps: unit 's' does not match the declared unit 'steps' (no conversion is applied) (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[out_of_range]",
+   "error": "invalid configuration:\n  data.validation_fraction: 1.5 is outside [0.0, 1.0) (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[incompatible_combination]",
+   "error": "invalid configuration:\n  data.action_low and data.action_high must be declared together [action_bounds; sources: data.action_low=cli, data.action_high=default]",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[noise_bc_without_scale]",
+   "error": "invalid configuration:\n  policy.method noise_bc requires a positive policy.noise_scale [noise_bc_scale; sources: policy.method=cli, policy.noise_scale=default]",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[unknown_recipe_value]",
+   "error": "invalid configuration:\n  generation.method: 'magic' is not one of ['backward_euler', 'backward_euler_fast', 'forward_euler', 'noisy_action', 'noisy_action_fe', 'backward_model'] (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[invalid_dataset]",
+   "error": "ccil.trajectories failed validation (non_finite=1):\n  non_finite at episode 7 (7), frame 123: actions has non-finite values",
+   "pass": true
+  },
+  {
+   "case": "typed_parsing",
+   "pass": true,
+   "values": {
+    "data.action_high": [
+     3.0,
+     3.0
+    ],
+    "data.action_low": [
+     -3.0,
+     -3.0
+    ],
+    "evaluation.max_episode_steps": 500,
+    "run.overwrite": false
+   }
+  },
+  {
+   "case": "python_interface_precedence",
+   "pass": true
+  },
+  {
+   "case": "legacy_config_replays_to_recipe_values",
+   "differing": [],
+   "migration_notes": 35,
+   "pass": true
+  },
+  {
+   "case": "unsupported_legacy_key_fails_with_guidance",
+   "errors": [
+    "aug.label_err_quantile has no supported equivalent: label-error filtering from label-filtering; ported in #22 (file:<out>/label_filtering.yml)"
+   ],
+   "pass": true
+  },
+  {
+   "case": "unknown_config_version_rejected",
+   "errors": [
+    "config_version 2 is not supported (this version reads 0 and 1) (file:<out>/future.yml)"
+   ],
+   "pass": true
+  },
+  {
+   "case": "generated_docs_match_sources",
+   "output": {
+    "audit": "docs/config/parameter-audit.md is up to date",
+    "parameters": "docs/config/parameters.md is up to date",
+    "schemas": "docs/schemas/reference.md is up to date"
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f3fd5122b5a28f3e37654834dc19d79c7b1695",
+  "code_dirty": false,
+  "numpy": "1.26.4",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

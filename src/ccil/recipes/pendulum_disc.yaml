@@ -1,0 +1,25 @@
+# Recipe migrated from the legacy config/pendulum_disc.yml by ccil.config.migrate (version 0 -> 1).
+# Values are the legacy task values; only keys and representation changed.
+config_version: 1
+run: {seed: 42, output_dir: output/}
+compute: {device: cuda}
+data: {path: data/pendulum_disc_500.npz, validation_fraction: 0.2}
+environment: {id: PendulumSwingupDisc-v0}
+transition_model:
+  lipschitz_type: slack
+  lipschitz_constraint: 2.0
+  soft_penalty_weight: 0.001
+  soft_sampling_eps: 0.0003
+  soft_samples: 5
+  slack_weight: 0.1
+  learning_rate: 0.001
+  weight_decay: 1.0e-05
+  hidden_layers: [256, 256]
+  activation: relu
+  epochs: 500
+  batch_size: 2048
+generation: {method: noisy_action, max_iterations: 30, labels_per_transition: 20,
+  action_noise_std: 0.0001, support_radius: 0.01}
+policy: {method: ccil, learning_rate: 0.001, batch_size: 512, epochs: 100, balance_noisy_labels: true}
+evaluation:
+  noise_levels: [0]
