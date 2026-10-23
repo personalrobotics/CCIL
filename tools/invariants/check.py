@@ -14,7 +14,6 @@ import argparse
 import copy
 import json
 import os
-import pickle
 import platform
 import subprocess
 import sys
@@ -23,12 +22,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 for p in (REPO, REPO / "correct_il", REPO / "tools" / "analytic_fixture"):
     sys.path.insert(0, str(p))
 import invariants as inv  # noqa: E402
+import trajectory_io as tio  # noqa: E402
 from legacy import load_definitions  # noqa: E402
 from run import trajectories as fixture_trajectories  # noqa: E402
 from system import DoubleIntegrator  # noqa: E402
@@ -140,14 +139,19 @@ def main():
     # --- C: real entry points on Pendulum -----------------------------------
     env = {**os.environ, "PYTHONPATH": f"{REPO}:{REPO / 'tools/legacy_harness/stubs'}"}
 
-    def run(script, cfg, outdir, *extra):
+    pend_npz = out / "pendulum_cont_100.npz"
+    sha = {a["path"]: a["sha256"] for a in json.loads((REPO / "docs/artifacts/manifest.json").read_text())["artifacts"]
+           if a.get("path")}["data/pendulum_cont_100.pkl"]
+    tio.convert_legacy_pickle(REPO / "data/pendulum_cont_100.pkl", pend_npz, expect_sha256=sha)
+
+    def run(script, cfg, outdir, data, *extra):
         return subprocess.run([sys.executable, f"correct_il/{script}", str(cfg), "no_gpu", "true", "output.location",
-                               str(outdir), "dynamics.train_epochs", "2", *extra],
+                               str(outdir), "dynamics.train_epochs", "2", "data.path", str(data), *extra],
                               cwd=REPO, env=env, capture_output=True, text=True)
 
     cfg = REPO / "config/pendulum_cont.yml"
-    r1 = run("train_dynamics_model.py", cfg, out / "e2e")
-    r2 = run("gen_aug_label.py", cfg, out / "e2e", "debug", "true")
+    r1 = run("train_dynamics_model.py", cfg, out / "e2e", pend_npz)
+    r2 = run("gen_aug_label.py", cfg, out / "e2e", pend_npz, "debug", "true")
     dec = list((out / "e2e").glob("seed*/*/data/*/label_decisions.npz"))
     ok = r1.returncode == 0 and r2.returncode == 0 and len(dec) == 1
     detail = {"train_stderr": r1.stderr[-600:], "gen_stderr": r2.stderr[-600:]}
@@ -159,19 +163,13 @@ def main():
                   "statistics": (dec[0].parent / "statistics.txt").read_text()}
     record("C", "pendulum_train_and_generate_end_to_end", ok, **detail)
 
-    with open(REPO / "data/pendulum_cont_100.pkl", "rb") as f:  # trusted repository data
-        pend = pickle.load(f)
+    pend = tio.read_trajectories(pend_npz)[0]
     pend[7]["actions"] = np.array(pend[7]["actions"], dtype=float)
     pend[7]["actions"][123] = np.nan
-    bad_pkl = out / "pendulum_cont_corrupt.pkl"
-    with open(bad_pkl, "wb") as f:
-        pickle.dump(pend, f)
-    bad_cfg = out / "pendulum_cont_corrupt.yml"
-    c = yaml.safe_load(cfg.read_text())
-    c["data"]["pkl"] = str(bad_pkl)
-    bad_cfg.write_text(yaml.safe_dump(c))
-    r3 = run("train_dynamics_model.py", bad_cfg, out / "corrupt")
-    r4 = run("gen_aug_label.py", bad_cfg, out / "e2e_gen_on_corrupt", "debug", "true")
+    bad_npz = out / "pendulum_cont_corrupt.npz"
+    tio.write_trajectories(pend, bad_npz, {"note": "NaN at episode 7, frame 123"}, validate=False)
+    r3 = run("train_dynamics_model.py", cfg, out / "corrupt", bad_npz)
+    r4 = run("gen_aug_label.py", cfg, out / "e2e_gen_on_corrupt", bad_npz, "debug", "true")
     named = "non_finite: episode 7, frame 123" in r3.stderr and "non_finite: episode 7, frame 123" in r4.stderr
     nothing_written = not list((out / "corrupt").glob("seed*/*/dynamics_*/dynamics.pt")) and \
         not list((out / "e2e_gen_on_corrupt").glob("seed*/*/data/*/aug_data.pkl"))

@@ -13,7 +13,6 @@ backward_model
 
 import argparse
 import os
-import pickle
 import torch
 from functools import partial
 import numpy as np
@@ -186,7 +185,7 @@ def choose_model_basename(aug_config):
     return checkpoint_name(backward=aug_config.type == "backward_model")
 
 def exists_prev_output(output_folder, config):
-    f1 = os.path.join(output_folder, "aug_data.pkl")
+    f1 = os.path.join(output_folder, "aug_data.npz")
     f2 = os.path.join(output_folder, "statistics.txt")
     return os.path.exists(f1) and os.path.exists(f2)
 
@@ -236,7 +235,7 @@ def main():
     accepted = labels['accepted']
     counts = labels['counts']
 
-    # aug_data.pkl holds accepted labels only. It is written even when no label is
+    # aug_data.npz holds accepted labels only. It is written even when no label is
     # valid, so a zero-label run leaves an explicit empty artifact instead of none.
     paths = {
         'observations': labels['s'][accepted].reshape(-1, state_dim),
@@ -244,8 +243,7 @@ def main():
         'next_obs': labels['s_next'][accepted].reshape(-1, state_dim),
         'original_states': labels['original_states'][accepted].reshape(-1, state_dim),
     }
-    pickle.dump(paths,
-        open(os.path.join(output_folder, f'aug_data.pkl'), 'wb'))
+    np.savez(os.path.join(output_folder, 'aug_data.npz'), **paths)
     save_config_yaml(config,
         os.path.join(output_folder, f'config.yml'))
     # Every attempted candidate with its decision; reason is '' for accepted labels.
@@ -280,8 +278,7 @@ def main():
         f.write(f'Rejected (action_out_of_bounds): {counts["action_out_of_bounds"]}\n')
         if len(distances) > 0: f.write(f'Avg norm distance (finite candidates): {np.average(distances)}')
     if len(distances) > 0:
-        pickle.dump({'distance': distances},
-                open(os.path.join(output_folder, f'distance.pkl'), 'wb'))
+        np.save(os.path.join(output_folder, 'distance.npy'), distances)
         fig = plt.figure()
         ax = fig.add_subplot()
         fig.suptitle("Generated Label Distance")

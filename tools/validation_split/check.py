@@ -12,7 +12,6 @@ import argparse
 import hashlib
 import json
 import os
-import pickle
 import platform
 import subprocess
 import sys
@@ -26,15 +25,17 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "correct_il"))
 import correct_il.models.nn_dynamics as nd  # noqa: E402
 import validation  # noqa: E402  (correct_il/validation.py)
+import trajectory_io as tio  # noqa: E402
 
 CONFIG = "config/pendulum_cont.yml"
 EPOCHS = "2"
+DATA = None  # converted Pendulum .npz, set in main()
 
 
 def train(out, *overrides):
     env = {**os.environ, "PYTHONPATH": f"{REPO}:{REPO / 'tools/legacy_harness/stubs'}"}
     cmd = [sys.executable, "correct_il/train_dynamics_model.py", CONFIG, "no_gpu", "true",
-           "dynamics.train_epochs", EPOCHS, "output.location", str(out), *overrides]
+           "dynamics.train_epochs", EPOCHS, "output.location", str(out), "data.path", str(DATA), *overrides]
     return subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True)
 
 
@@ -58,8 +59,12 @@ def main():
         cases.append({"case": name, "pass": bool(ok), **detail})
         print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else detail}")
 
-    with open(REPO / "data/pendulum_cont_100.pkl", "rb") as f:  # trusted repository data
-        trajectories = pickle.load(f)
+    global DATA
+    DATA = out / "pendulum_cont_100.npz"
+    pend_sha = {a["path"]: a["sha256"] for a in json.loads((REPO / "docs/artifacts/manifest.json").read_text())["artifacts"]
+                if a.get("path")}["data/pendulum_cont_100.pkl"]
+    tio.convert_legacy_pickle(REPO / "data/pendulum_cont_100.pkl", DATA, expect_sha256=pend_sha)
+    trajectories = tio.read_trajectories(DATA)[0]
 
     # A: validation on (config default 0.2)
     r = train(out / "val")
@@ -106,10 +111,9 @@ def main():
            no_validation_files=not (d4 / "validation.json").exists() and not (d4 / "split.json").exists())
 
     # E: a dataset too small to split fails before training, with an actionable message
-    one = out / "one_trajectory.pkl"
-    with open(one, "wb") as f:
-        pickle.dump(trajectories[:1], f)
-    r5 = train(out / "small", "data.pkl", str(one))
+    one = out / "one_trajectory.npz"
+    tio.write_trajectories(trajectories[:1], one, {"note": "first Pendulum episode"})
+    r5 = train(out / "small", "data.path", str(one))
     d5 = dynamics_dir(out / "small")
     record("small_dataset_fails_fast_with_diagnostic",
            r5.returncode != 0 and "each split needs at least one" in r5.stderr
