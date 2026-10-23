@@ -95,7 +95,7 @@ untested, and no GPU or driver model was ever recorded for the original runs.
 | Artifact | Needed by | Missing | Recovery action |
 |---|---|---|---|
 | `dataset:real-robot` | `real-*`, `internal-action-chunking-labels` | Demonstrations and trial logs for GraspCube, GearInsertion and GraspCoin | Ask the paper authors; check `image_ccil` when its integration resumes. |
-| `checkpoint:expert_policy_pendulum` | `aug.type: backward_expert` (no config uses it) | `output/expert_policy/pendulum.pt` | Ask the authors; otherwise mark the label type unsupported. |
+| `checkpoint:expert_policy_pendulum` | Historical `aug.type: backward_expert` (no config uses it) | `output/expert_policy/pendulum.pt` | The method is explicitly unsupported. Recover the checkpoint and define its device and candidate contracts before re-enabling it. |
 | `dataset:pendulum_img_50_noised_fix` | `deferred-image-pendulum` | The image pendulum dataset | Deferred with `image_ccil`. Regenerate with the fork's `gen_pendulum_data.py`. |
 
 ## Open verification

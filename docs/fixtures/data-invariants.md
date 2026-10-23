@@ -46,6 +46,8 @@ its input.
 | Non-finite candidate (from the model or the inputs) | Rejected with `non_finite` (#11). |
 | Accepted candidate whose action is outside the declared bounds | Rejected with `action_out_of_bounds`. Never clamped. |
 | Generator output whose shape isn't `(n, state_dim)`, `(n, act_dim)` or `(n,)` | `ValueError`. A programming defect, not a rejected label. |
+| Learned backward-model candidate | Uses the same per-candidate record and reconciled counts as every other supported generator. |
+| `backward_expert` | Rejected as unsupported before any output artifact is created. Its checkpoint and semantics are not defined. |
 
 `label_decisions.npz` records each candidate's `episode` and `frame`, along
 with `datapoint`, `accepted` and `reason`.
@@ -77,14 +79,15 @@ uv run --no-project --python 3.11 --with-requirements tools/invariants/requireme
 ```
 
 [`evidence/data-invariants/report.json`](evidence/data-invariants/report.json)
-has 18 cases, each with its accepted and rejected examples and reasons:
+has 20 cases, each with its accepted and rejected examples and reasons:
 
 - **A:** one malformed dataset per ingress invariant, each with the expected
   episode and frame and an unmodified input, plus a clean pass and a NaN
   confined to the unused last action.
 - **B:** through `collect_labels`, action-bound rejections (9 of 36 noisy
   candidates, none clamped), NaN model output rejected with its episode and
-  frame, and a malformed generator output raising an error.
+  frame, learned backward-model records, explicit rejection of the unsupported
+  backward-expert method, and malformed generator output raising an error.
 - **C:** the real `train_dynamics_model.py` and `gen_aug_label.py` on Pendulum
   (CPU, legacy-harness stubs). A clean run writes labels that carry their
   episode and frame. A copy with one NaN action stops both scripts at ingress

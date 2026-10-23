@@ -20,10 +20,15 @@ from tqdm import tqdm
 import gym
 import matplotlib.pyplot as plt
 
-from utils import D3Agent, seed, parse_config, load_trajectories, build_dataset, save_config_yaml, root_finder_s
+from utils import seed, parse_config, load_trajectories, build_dataset, save_config_yaml, root_finder_s
 from invariants import declared_action_bounds, transition_index, validate_trajectories
 from models.nn_dynamics import checkpoint_name, load_world_model
 from envs import *
+
+
+class UnsupportedAugmentationError(ValueError):
+    """The requested augmentation has no maintained implementation contract."""
+
 
 def construct_parser():
     parser = argparse.ArgumentParser(description='Generate Augmentation Labels.')
@@ -140,23 +145,12 @@ def gen_noisy_action_fe(num_labels, delta, epsilon, max_iter, model, datapoint):
                        epsilon=epsilon, failed=torch.tensor(failed))
 
 
-def gen_backward_model(model, datapoint):
-    s, a, sp = datapoint
-    prev_s = s + model.f(s, a)
-    data = (prev_s.detach().cpu().numpy(), a.detach().cpu().numpy(), s.detach().cpu().numpy())
-    return prev_s.shape[0], 0, data
-
-def gen_backward_expert(expert: D3Agent, max_iter, model, datapoint):
-    success, fail, data = gen_backward_euler(max_iter, model, datapoint)
-    if not success:
-        return success, fail, data
-
-    s, a, sp = data
+def gen_backward_model(epsilon, model, datapoint):
+    """Use a learned reverse transition model to generate the preceding state."""
     with torch.no_grad():
-        s_torch = torch.as_tensor(s).to(expert.device)
-        expert_a = expert.policy(s_torch).cpu().numpy().reshape(a.shape)
-        next_state = model.predict(s, expert_a).cpu().numpy().reshape(sp.shape)
-    return 1, 0, (s, expert_a, next_state)
+        s, a, _ = datapoint
+        prev_s = s[None] + model.f(s[None], a[None])
+        return _candidates(prev_s, a[None], s[None], s, epsilon=epsilon)
 
 def choose_augmentation(aug_config):
     if aug_config.type == 'forward_euler':
@@ -173,13 +167,12 @@ def choose_augmentation(aug_config):
             aug_config.num_labels, aug_config.delta, aug_config.epsilon,
             aug_config.max_iter)
     if aug_config.type == "backward_model":
-        return gen_backward_model
+        return partial(gen_backward_model, getattr(aug_config, "epsilon", None))
     if aug_config.type == "backward_expert":
-        expert = torch.jit.load("output/expert_policy/pendulum.pt")
-        expert.to("cuda")
-        agent = D3Agent(expert, "cuda")
-        return partial(gen_backward_expert, agent, aug_config.max_iter)
-    raise Exception("Unknown type of augmentation")
+        raise UnsupportedAugmentationError(
+            "aug.type='backward_expert' is unsupported: its expert checkpoint, "
+            "device contract and candidate semantics are not defined")
+    raise ValueError(f"Unknown type of augmentation: {aug_config.type!r}")
 
 def choose_model_basename(aug_config):
     return checkpoint_name(backward=aug_config.type == "backward_model")
@@ -192,6 +185,9 @@ def exists_prev_output(output_folder, config):
 def main():
     arg_parser = construct_parser()
     config = parse_config(arg_parser)
+    # Reject unknown or unsupported methods before creating output artifacts or
+    # loading data and checkpoints.
+    generator = choose_augmentation(config.aug)
     output_folder = config.output.aug
     os.makedirs(output_folder, exist_ok=True)
     print(config)
@@ -224,8 +220,6 @@ def main():
             np_a[i, :] = env.action_space.sample()
 
     s, a, sp = pack_data(np_s, np_a, np_sp, device)
-
-    generator = choose_augmentation(config.aug)
 
     if config.debug and data_size > 5:
         data_size = 5
