@@ -42,6 +42,7 @@
    "case": "cpu_label_generation",
    "counts": {
     "accepted": 32,
+    "action_out_of_bounds": 0,
     "attempted": 32,
     "generation_failed": 0,
     "non_finite": 0,
@@ -51,28 +52,38 @@
   },
   {
    "case": "malformed_file",
-   "error": "cannot read dynamics checkpoint /private/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ck/cpu-clean/work/malformed.pt: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code",
+   "error": "cannot read dynamics checkpoint /tmp/ccil-issue-12-checkpoints-20261023-c/work/malformed.pt: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution.Do it only if you get the file from a trusted source. W",
    "pass": true
   },
   {
    "case": "legacy_pickle_not_executed",
-   "error": "cannot read dynamics checkpoint /private/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ck/cpu-clean/work/legacy.pkl: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code e",
+   "error": "cannot read dynamics checkpoint /tmp/ccil-issue-12-checkpoints-20261023-c/work/legacy.pkl: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution.Do it only if you get the file from a trusted source. Wei",
    "marker_created": false,
    "pass": true
   },
   {
    "case": "incompatible_architecture",
-   "error": "/private/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ck/cpu-clean/work/arch.pt: incompatible architecture for dynamics_net: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.weight: copying a param with shape torch.Size([32, 3]) ",
+   "error": "/tmp/ccil-issue-12-checkpoints-20261023-c/work/arch.pt: incompatible architecture for dynamics_net: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.weight: copying a param with shape torch.Size([32, 3]) from checkpoint, the shape in current model is torch.Size([16, 3])",
    "pass": true
   },
   {
    "case": "network_set_mismatch",
-   "error": "/private/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ck/cpu-clean/work/nets.pt: networks ['dynamics_net', 'learnable_lambda'] do not match lipschitz_type 'none', which needs ['dynamics_net']",
+   "error": "/tmp/ccil-issue-12-checkpoints-20261023-c/work/nets.pt: networks ['dynamics_net', 'learnable_lambda'] do not match lipschitz_type 'none', which needs ['dynamics_net']",
    "pass": true
   },
   {
    "case": "unsupported_format",
-   "error": "/private/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ck/cpu-clean/work/fmt.pt: unsupported checkpoint format 'ccil-dynamics/0', expected 'ccil-dynamics/1'",
+   "error": "/tmp/ccil-issue-12-checkpoints-20261023-c/work/fmt.pt: unsupported checkpoint format 'ccil-dynamics/0', expected 'ccil-dynamics/1'",
+   "pass": true
+  },
+  {
+   "case": "missing_metadata",
+   "error": "/tmp/ccil-issue-12-checkpoints-20261023-c/work/missing-meta.pt: checkpoint metadata missing ['act_dim', 'activation', 'd_config', 'dtype', 'hidden_size', 'state_dim', 'training']",
+   "pass": true
+  },
+  {
+   "case": "malformed_network_payload",
+   "error": "/tmp/ccil-issue-12-checkpoints-20261023-c/work/transforms.pt: network dynamics_net transformations must be ['a_scale', 'a_shift', 'out_scale', 'out_shift', 's_scale', 's_shift'], got ['a_scale', 'a_shift', 'out_scale', 'out_shift', 's_shift']",
    "pass": true
   },
   {
@@ -89,7 +100,7 @@
   }
  ],
  "environment": {
-  "code_commit": "35dce056dc103cf3325c12275a0940900c09e5ac",
+  "code_commit": "36ee51d55a9103b00909c3b57d1bacd66705c1d8",
   "code_dirty": false,
   "cuda_available": false,
   "cuda_devices": [],
