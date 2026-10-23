@@ -29,7 +29,8 @@ through the trusted legacy path in #15.
 
 ## Loading and devices
 
-`load_world_model(path, device)` reads to CPU, validates the payload, rebuilds
+`load_world_model(path, device)` reads to CPU, validates all required metadata,
+network payloads and normalization tensors before model construction, rebuilds
 the model from `meta`, loads the state dicts strictly, restores the module mode
 and moves everything to `device`. Label generation uses
 `"cpu" if config.no_gpu else "cuda"`, the same rule as training.
@@ -48,6 +49,8 @@ back silently, and a failed save never modifies an existing file.
 |---|---|
 | The file is unreadable, not a checkpoint, or a legacy pickle | `cannot read` (the pickle is never executed) |
 | The format is unknown or missing | `unsupported checkpoint format` |
+| Required metadata is missing or malformed | `checkpoint metadata` or the invalid field name |
+| A network payload or normalization tensor is missing or malformed | The network and field name |
 | The shapes don't match `meta` | `incompatible architecture` |
 | The stored networks don't match `lipschitz_type` | `do not match` |
 | `cuda` is requested where CUDA is unavailable | `CUDA is unavailable` |
@@ -78,7 +81,10 @@ version must support the GPU; Blackwell needs CUDA 12.8 or newer.
 the code commit and the package versions.
 
 The evidence is in [`evidence/dynamics-checkpoints/`](evidence/dynamics-checkpoints/):
-- `cpu-macos/report.json`: 13/13 cases pass.
+- `cpu-macos/report.json`: 15/15 cases pass.
 - `gpu-linux/report.json`: 24/24 cases pass, cross-device included.
 
-Both runs cover all four `lipschitz_type` variants (`none`, `spectral_normalization`, `slack` and `soft_sampling`). Both were generated from commit `35dce05` with a clean tree.
+Both runs cover all four `lipschitz_type` variants (`none`,
+`spectral_normalization`, `slack` and `soft_sampling`). The CPU report
+additionally covers missing metadata and malformed nested network payloads. The
+GPU report preserves the previously verified cross-device cases.

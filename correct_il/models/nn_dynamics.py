@@ -442,6 +442,13 @@ def list_of_dict_to_dict_of_list(a_list, divisor=1.0):
 # tensors, which are plain attributes and therefore absent from state_dict().
 
 CHECKPOINT_FORMAT = "ccil-dynamics/1"
+_CHECKPOINT_META_FIELDS = {
+    "format", "state_dim", "act_dim", "hidden_size", "activation",
+    "d_config", "training", "dtype",
+}
+_TRANSFORMATION_FIELDS = {
+    "s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale",
+}
 
 
 class CheckpointError(Exception):
@@ -467,6 +474,75 @@ def _net_payload(net):
         "state_dict": {k: v.detach().cpu() for k, v in net.state_dict().items()},
         "transformations": {k: v.detach().cpu() for k, v in net.transformations.items()},
     }
+
+
+def _validate_checkpoint_payload(payload, path):
+    """Validate the versioned checkpoint schema before constructing a model."""
+    if not isinstance(payload, dict):
+        raise CheckpointError(f"{path}: checkpoint payload must be a mapping")
+    if any(not isinstance(k, str) for k in payload):
+        raise CheckpointError(f"{path}: checkpoint payload keys must be strings")
+    meta = payload.get("meta")
+    if not isinstance(meta, dict) or meta.get("format") != CHECKPOINT_FORMAT:
+        found = meta.get("format") if isinstance(meta, dict) else None
+        raise CheckpointError(f"{path}: unsupported checkpoint format {found!r}, expected {CHECKPOINT_FORMAT!r}")
+
+    missing = sorted(_CHECKPOINT_META_FIELDS - set(meta))
+    if missing:
+        raise CheckpointError(f"{path}: checkpoint metadata missing {missing}")
+    for key in ("state_dim", "act_dim"):
+        if type(meta[key]) is not int or meta[key] <= 0:
+            raise CheckpointError(f"{path}: metadata {key} must be a positive integer, got {meta[key]!r}")
+    hidden = meta["hidden_size"]
+    if not isinstance(hidden, (list, tuple)) or any(type(x) is not int or x <= 0 for x in hidden):
+        raise CheckpointError(f"{path}: metadata hidden_size must contain positive integers, got {hidden!r}")
+    if meta["activation"] not in ("relu", "tanh"):
+        raise CheckpointError(f"{path}: metadata activation must be 'relu' or 'tanh', got {meta['activation']!r}")
+    if type(meta["training"]) is not bool:
+        raise CheckpointError(f"{path}: metadata training must be boolean, got {meta['training']!r}")
+    if meta["dtype"] != "float32":
+        raise CheckpointError(f"{path}: metadata dtype must be 'float32', got {meta['dtype']!r}")
+    if not isinstance(meta["d_config"], dict) or not isinstance(meta["d_config"].get("lipschitz_type"), str):
+        raise CheckpointError(f"{path}: metadata d_config must contain a string lipschitz_type")
+
+    needs_lambda = "slack" in meta["d_config"]["lipschitz_type"]
+    expected_nets = {"dynamics_net"} | ({"learnable_lambda"} if needs_lambda else set())
+    found_nets = set(payload) - {"meta"}
+    if found_nets != expected_nets:
+        raise CheckpointError(f"{path}: networks {sorted(found_nets)} do not match "
+                              f"lipschitz_type {meta['d_config']['lipschitz_type']!r}, "
+                              f"which needs {sorted(expected_nets)}")
+
+    for name in expected_nets:
+        stored = payload[name]
+        if not isinstance(stored, dict):
+            raise CheckpointError(f"{path}: network {name} payload must be a mapping")
+        state_dict = stored.get("state_dict")
+        if not isinstance(state_dict, dict) or not state_dict:
+            raise CheckpointError(f"{path}: network {name} state_dict must be a non-empty mapping")
+        if any(not isinstance(k, str) or not isinstance(v, torch.Tensor) for k, v in state_dict.items()):
+            raise CheckpointError(f"{path}: network {name} state_dict must map strings to tensors")
+        if any(v.dtype != torch.float32 or not torch.isfinite(v).all() for v in state_dict.values()):
+            raise CheckpointError(f"{path}: network {name} state_dict tensors must be finite float32")
+        transformations = stored.get("transformations")
+        if not isinstance(transformations, dict) or set(transformations) != _TRANSFORMATION_FIELDS:
+            found = (sorted(map(str, transformations)) if isinstance(transformations, dict)
+                     else type(transformations).__name__)
+            raise CheckpointError(f"{path}: network {name} transformations must be "
+                                  f"{sorted(_TRANSFORMATION_FIELDS)}, got {found}")
+        out_dim = 1 if name == "learnable_lambda" else meta["state_dim"]
+        shapes = {"s_shift": (meta["state_dim"],), "s_scale": (meta["state_dim"],),
+                  "a_shift": (meta["act_dim"],), "a_scale": (meta["act_dim"],),
+                  "out_shift": (out_dim,), "out_scale": (out_dim,)}
+        for key, expected_shape in shapes.items():
+            value = transformations[key]
+            if not isinstance(value, torch.Tensor) or tuple(value.shape) != expected_shape:
+                shape = tuple(value.shape) if isinstance(value, torch.Tensor) else type(value).__name__
+                raise CheckpointError(f"{path}: network {name} transformation {key} has shape/type "
+                                      f"{shape}, expected tensor {expected_shape}")
+            if value.dtype != torch.float32 or not torch.isfinite(value).all():
+                raise CheckpointError(f"{path}: network {name} transformation {key} must be finite float32")
+    return meta, expected_nets
 
 
 def save_world_model(model, path, d_config):
@@ -508,20 +584,19 @@ def load_world_model(path, device):
         payload = torch.load(path, map_location="cpu", weights_only=True)
     except Exception as e:
         raise CheckpointError(f"cannot read dynamics checkpoint {path}: {e}") from e
-    meta = payload.get("meta") if isinstance(payload, dict) else None
-    if not isinstance(meta, dict) or meta.get("format") != CHECKPOINT_FORMAT:
-        found = meta.get("format") if isinstance(meta, dict) else None
-        raise CheckpointError(f"{path}: unsupported checkpoint format {found!r}, expected {CHECKPOINT_FORMAT!r}")
+    meta, expected_nets = _validate_checkpoint_payload(payload, path)
     d_config = _Config(meta["d_config"])
-    model = WorldModel(meta["state_dim"], meta["act_dim"], d_config=d_config,
-                       hidden_size=tuple(meta["hidden_size"]), device="cpu",
-                       activation=meta["activation"])
+    try:
+        model = WorldModel(meta["state_dim"], meta["act_dim"], d_config=d_config,
+                           hidden_size=tuple(meta["hidden_size"]), device="cpu",
+                           activation=meta["activation"])
+    except (AttributeError, KeyError, TypeError, ValueError) as e:
+        raise CheckpointError(f"{path}: invalid model metadata: {e}") from e
     nets = {"dynamics_net": model.dynamics_net}
     if hasattr(model, 'learnable_lambda'):
         nets["learnable_lambda"] = model.learnable_lambda
-    if set(nets) != set(payload) - {"meta"}:
-        raise CheckpointError(f"{path}: networks {sorted(set(payload) - {'meta'})} do not match "
-                              f"lipschitz_type {d_config.lipschitz_type!r}, which needs {sorted(nets)}")
+    if set(nets) != expected_nets:
+        raise CheckpointError(f"{path}: constructed networks {sorted(nets)} do not match validated metadata")
     for name, net in nets.items():
         try:
             net.load_state_dict(payload[name]["state_dict"], strict=True)
@@ -529,5 +604,8 @@ def load_world_model(path, device):
             raise CheckpointError(f"{path}: incompatible architecture for {name}: {e}") from e
         net.set_transformations(**payload[name]["transformations"])
         net.train(meta["training"])
-    model.to(device)
+    try:
+        model.to(device)
+    except (RuntimeError, TypeError, ValueError) as e:
+        raise CheckpointError(f"{path}: cannot place dynamics model on device {device!r}: {e}") from e
     return model

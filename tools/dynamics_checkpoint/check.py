@@ -164,6 +164,16 @@ def main():
     ok, msg = expect_error(lambda: nd.load_world_model(p, "cpu"), "unsupported checkpoint format")
     record("unsupported_format", ok, error=msg)
 
+    missing_meta = work / "missing-meta.pt"
+    torch.save({"meta": {"format": nd.CHECKPOINT_FORMAT}}, missing_meta)
+    ok, msg = expect_error(lambda: nd.load_world_model(missing_meta, "cpu"), "metadata missing")
+    record("missing_metadata", ok and "d_config" in msg and "state_dim" in msg, error=msg)
+
+    p = tampered(work / "none.pt", work / "transforms.pt",
+                 lambda pl: pl["dynamics_net"]["transformations"].pop("s_scale"))
+    ok, msg = expect_error(lambda: nd.load_world_model(p, "cpu"), "transformations must be")
+    record("malformed_network_payload", ok and "s_scale" in msg, error=msg)
+
     if not torch.cuda.is_available():
         ok, msg = expect_error(lambda: nd.load_world_model(work / "none.pt", "cuda"), "CUDA is unavailable")
         record("cuda_requested_without_cuda", ok, error=msg)
