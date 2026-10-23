@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "captured": "2026-10-22",
   "scope": "personalrobotics/CCIL preserved refs. image_ccil is deferred.",
   "refs": "docs/inventory/capabilities.json#refs",
@@ -95,7 +95,9 @@
         "datasets",
         "env-pendulum",
         "policy-evaluation"
-      ]
+      ],
+      "target_milestone": "M3",
+      "terminal_rule": "reproduced, reproduced-with-correctness-change, or out-of-scope (inconclusive) under the refactor-parity and paper-comparison rules of the migration contract; #3 governs sim-pendulum-disc."
     },
     {
       "id": "sim-pendulum-disc",
@@ -187,7 +189,9 @@
         "datasets",
         "env-pendulum",
         "policy-evaluation"
-      ]
+      ],
+      "target_milestone": "M3",
+      "terminal_rule": "reproduced, reproduced-with-correctness-change, or out-of-scope (inconclusive) under the refactor-parity and paper-comparison rules of the migration contract; #3 governs sim-pendulum-disc."
     },
     {
       "id": "sim-pendulum-label-bound",
@@ -244,7 +248,9 @@
       "inventory_capabilities": [
         "env-pendulum",
         "corrective-labels"
-      ]
+      ],
+      "target_milestone": "M3",
+      "terminal_rule": "reproduced once the procedure is reconstructed on the M1 analytic fixture (#10), else out-of-scope with the reconstruction attempt as evidence."
     },
     {
       "id": "sim-f1tenth",
@@ -318,7 +324,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -344,7 +350,10 @@
         "env-f1tenth",
         "f1-evaluation",
         "results-analysis"
-      ]
+      ],
+      "exclusion_rationale": "Retired benchmark: niche simulator on an unmaintained stack; drone results were produced by the observation-replacing evaluation bug. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-drone-hover",
@@ -413,7 +422,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -438,7 +447,10 @@
         "datasets",
         "env-drones",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Retired benchmark: niche simulator on an unmaintained stack; drone results were produced by the observation-replacing evaluation bug. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-drone-circle",
@@ -507,7 +519,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -533,7 +545,10 @@
         "datasets",
         "env-drones",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Retired benchmark: niche simulator on an unmaintained stack; drone results were produced by the observation-replacing evaluation bug. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-drone-flythrugate",
@@ -602,7 +617,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -627,7 +642,10 @@
         "datasets",
         "env-drones",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Retired benchmark: niche simulator on an unmaintained stack; drone results were produced by the observation-replacing evaluation bug. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-hopper",
@@ -696,7 +714,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -720,7 +738,10 @@
         "datasets",
         "env-mujoco-d4rl",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-walker2d",
@@ -789,7 +810,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -813,7 +834,10 @@
         "datasets",
         "env-mujoco-d4rl",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-ant",
@@ -882,7 +906,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -907,7 +931,10 @@
         "datasets",
         "env-mujoco-d4rl",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-halfcheetah",
@@ -976,7 +1003,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1001,7 +1028,10 @@
         "datasets",
         "env-mujoco-d4rl",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-coffee-pull",
@@ -1070,7 +1100,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1096,7 +1126,10 @@
         "datasets",
         "env-metaworld",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-button",
@@ -1165,7 +1198,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1191,7 +1224,10 @@
         "datasets",
         "env-metaworld",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-coffee-push",
@@ -1260,7 +1296,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1286,7 +1322,10 @@
         "datasets",
         "env-metaworld",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-drawer-close",
@@ -1355,7 +1394,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1381,7 +1420,10 @@
         "datasets",
         "env-metaworld",
         "policy-evaluation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy-stack reproduction (gym 0.19, mujoco-py, D4RL pickles) is not attempted. The task is kept and re-baselined on a maintained stack (Minari + Gymnasium v5 or Meta-World v3) under milestone M7; those results are new baselines, not reproductions. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "sim-model-based-baselines",
@@ -1418,17 +1460,14 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "decision",
-          "detail": "No MOReL or MILO code, configs, or outputs exist in any preserved ref.",
-          "next_action": "Decide in #9 whether external baselines are in scope; if so, locate the exact author code and commits used."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [],
-      "inventory_capabilities": []
+      "inventory_capabilities": [],
+      "exclusion_rationale": "External MOReL and MILO baselines are not reproduced. New benchmarks compare against BC, NoiseBC, and each suite's standard policy class. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-bc-ccil-data-fraction",
@@ -1464,27 +1503,19 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "data-fraction-ablation",
         "label-filtering"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-dp-ccil",
@@ -1520,27 +1551,19 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "diffusion-policy-eval",
         "action-chunking-labels"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-label-clusters",
@@ -1576,26 +1599,18 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "label-filtering"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-lipschitz-constraint",
@@ -1631,26 +1646,18 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "label-filtering"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-label-error-quantile",
@@ -1686,26 +1693,18 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "label-filtering"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "real-hparam-grid",
@@ -1741,26 +1740,18 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "hardware",
-          "detail": "Requires the physical chopstick robot and motion-capture cage.",
-          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
-        },
-        {
-          "missing": "artifact",
-          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
-          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
       ],
       "inventory_capabilities": [
         "label-filtering"
-      ]
+      ],
+      "exclusion_rationale": "Real-robot results depend on hardware and data absent from every preserved ref; they remain cited as published. Reopen if the logged data is found, since Figs. 10-12 could be re-analyzed offline. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "setup-install",
@@ -1801,7 +1792,7 @@
         "parity": "not-applicable",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1811,7 +1802,10 @@
       "inventory_capabilities": [
         "packaging",
         "documentation"
-      ]
+      ],
+      "exclusion_rationale": "The legacy install is recorded in docs/artifacts as history only. The supported install is a new environment verified in M6 (#40). Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "readme-tabulate",
@@ -1849,14 +1843,17 @@
         "parity": "exact",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [],
       "inventory_capabilities": [
         "results-analysis",
         "documentation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy CLI retired; result reporting is rebuilt on M2 run artifacts and documented in M6 (#41). Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "readme-baselines",
@@ -1899,7 +1896,7 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -1909,7 +1906,10 @@
         "baseline-vanilla-bc",
         "baseline-noise-bc",
         "documentation"
-      ]
+      ],
+      "exclusion_rationale": "Legacy CLI retired; BC and NoiseBC baselines are rebuilt behind the M2 interfaces and documented in M6 (#41). Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "internal-cluster-sweep",
@@ -1974,7 +1974,9 @@
       "discrepancies": [],
       "inventory_capabilities": [
         "cluster-sweeps"
-      ]
+      ],
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "internal-label-filtering-configs",
@@ -2046,7 +2048,9 @@
         "f1-evaluation",
         "results-analysis",
         "repo-hygiene"
-      ]
+      ],
+      "target_milestone": "M3",
+      "terminal_rule": "Terminal when #25 records which config produced Fig. 4(c) (via #3) or records that it is unknown; then out-of-scope."
     },
     {
       "id": "internal-data-ablation",
@@ -2097,20 +2101,17 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "knowledge",
-          "detail": "No reported result names this simulated ablation; Fig. 8 is a real-robot data ablation.",
-          "next_action": "Confirm with the authors whether any result used it; otherwise mark out-of-scope."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [],
       "inventory_capabilities": [
         "data-fraction-ablation",
         "results-analysis"
-      ]
+      ],
+      "exclusion_rationale": "Its only capability (data fraction subsets) is subsumed by low-data subsets in the M7 benchmarks. Benchmark scope decision of 2026-10-22, recorded in docs/migration-contract.md.",
+      "target_milestone": null,
+      "terminal_rule": "Terminal now. Reopen only by amending the migration contract."
     },
     {
       "id": "internal-action-chunking-labels",
@@ -2164,7 +2165,9 @@
       ],
       "inventory_capabilities": [
         "action-chunking-labels"
-      ]
+      ],
+      "target_milestone": "M3",
+      "terminal_rule": "Terminal when #22 ports chunked labels with an analytic-fixture artifact; the real-robot claim itself is out-of-scope."
     },
     {
       "id": "deferred-image-pendulum",
@@ -2217,7 +2220,9 @@
         "diffusion-policy-eval",
         "pendulum-data-generation",
         "rendering"
-      ]
+      ],
+      "target_milestone": null,
+      "terminal_rule": "Deferred with image_ccil; reopen when image integration resumes."
     }
   ],
   "parameters": [

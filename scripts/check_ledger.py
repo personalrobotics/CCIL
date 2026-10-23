@@ -103,6 +103,10 @@ def main():
                     errors.append(f"{eid}: incomplete blocker {b}")
         if status == "out-of-scope" and not e.get("exclusion_rationale"):
             errors.append(f"{eid}: out-of-scope requires exclusion_rationale")
+        if status in ("pending", "blocked") and not e["target_milestone"]:
+            errors.append(f"{eid}: non-terminal entry needs a target_milestone")
+        if not e["terminal_rule"]:
+            errors.append(f"{eid}: empty terminal_rule")
 
         for path in e["configs"] + [d for d in e["datasets"] if "(missing)" not in d]:
             if "*" not in path and git("cat-file", "-e", f"{ref['commit']}:{path}").returncode:

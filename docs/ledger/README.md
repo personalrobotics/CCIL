@@ -25,7 +25,7 @@ The validator checks:
   capability maps to an entry or an explicit exclusion. Every config key is
   classified in the parameter registry.
 
-On capture it reported 30 entries, 63 parameters, and 0 errors.
+On capture it reported 30 entries, 63 parameters, and 0 errors. After the migration contract (schema v2) it reports 2 pending, 3 blocked, 25 out of scope, and 0 errors.
 
 ## Statuses
 
@@ -43,27 +43,27 @@ intended algorithm.
 
 ## Entries
 
-| Entry | Claim | Status |
-|---|---|---|
-| `sim-pendulum-cont` | Fig. 4(c) | pending |
-| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | pending |
-| `sim-pendulum-label-bound` | Sec. 5.1 error bound | blocked: procedure unrecorded |
-| `sim-f1tenth` | Fig. 5(c) | pending |
-| `sim-drone-hover`, `-circle`, `-flythrugate` | Fig. 6(b) | pending |
-| `sim-hopper`, `-walker2d`, `-ant`, `-halfcheetah` | Table 1 | pending |
-| `sim-coffee-pull`, `-button`, `-coffee-push`, `-drawer-close` | Table 1 | pending |
-| `sim-model-based-baselines` | MOReL and MILO rows | blocked: scope decision (#9) |
-| `real-*` (6 entries) | Figs. 8–13, real robot | blocked: hardware and data |
-| `setup-install` | README install | pending |
-| `readme-tabulate`, `readme-baselines` | README commands | pending |
-| `internal-label-filtering-configs` | label-filtering configs | blocked: no linked result |
-| `internal-data-ablation` | Simulated data ablation | blocked: no linked result |
-| `internal-action-chunking-labels` | Sec. 6, App. C.3 | blocked: real-robot data |
-| `internal-cluster-sweep` | sweep.sh / launch.slurm | out-of-scope |
-| `deferred-image-pendulum` | Fork image branch | out-of-scope (deferred) |
+Statuses and targets follow the
+[migration contract](../migration-contract.md) §3 (schema v2).
 
-The target commands are **provisional** (`ccil run <task> --method ...`). The
-migration contract (#9) ratifies the unified CLI.
+| Entry | Claim | Status | Target |
+|---|---|---|---|
+| `sim-pendulum-cont` | Fig. 4(c) | pending | M3, the refactor-parity anchor |
+| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | pending | M3 |
+| `sim-pendulum-label-bound` | Sec. 5.1 error bound | blocked: procedure unrecorded | M3 |
+| `internal-label-filtering-configs` | label-filtering configs | blocked: no linked result | M3, resolved through #3 and #25 |
+| `internal-action-chunking-labels` | Sec. 6, App. C.3 | blocked: real-robot data | M3, capability ported in #22 |
+| `sim-hopper`, `-walker2d`, `-ant`, `-halfcheetah` | Table 1 | out-of-scope: re-baselined on Minari in M7 | none |
+| `sim-coffee-pull`, `-button`, `-coffee-push`, `-drawer-close` | Table 1 | out-of-scope: re-baselined on Meta-World v3 in M7 | none |
+| `sim-f1tenth`, `sim-drone-*` | Figs. 5(c), 6(b) | out-of-scope: benchmark retired | none |
+| `sim-model-based-baselines` | MOReL and MILO rows | out-of-scope: external baselines retired | none |
+| `real-*` (6 entries) | Figs. 8–13, real robot | out-of-scope: cited as published | none |
+| `setup-install`, `readme-*` | README install and commands | out-of-scope: legacy CLI retired | none |
+| `internal-data-ablation` | Simulated data ablation | out-of-scope: subsumed by M7 low-data subsets | none |
+| `internal-cluster-sweep` | sweep.sh / launch.slurm | out-of-scope | none |
+| `deferred-image-pendulum` | Fork image branch | out-of-scope (deferred) | none |
+
+Target commands are **provisional** until #17 fixes the CLI names.
 
 ## Findings that affect the claims
 

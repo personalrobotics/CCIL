@@ -1,13 +1,43 @@
 {
-  "schema_version": 1,
-  "description": "Reproducibility ledger schema for CCIL. scripts/check_ledger.py enforces it. Bump schema_version on any incompatible change.",
+  "schema_version": 2,
+  "description": "Reproducibility ledger schema for CCIL. scripts/check_ledger.py enforces it. Bump schema_version on any incompatible change. v2 adds target_milestone and terminal_rule (#9).",
   "enums": {
-    "kind": ["paper-result", "documented-example", "internal-result", "setup"],
-    "status": ["pending", "reproduced", "reproduced-with-correctness-change", "blocked", "out-of-scope"],
-    "parity": ["exact", "statistical", "qualitative", "not-applicable"],
-    "value_class": ["tunable", "derived", "invariant"],
-    "missing": ["artifact", "dependency", "license", "hardware", "knowledge", "decision"],
-    "target_command_status": ["provisional", "ratified"]
+    "kind": [
+      "paper-result",
+      "documented-example",
+      "internal-result",
+      "setup"
+    ],
+    "status": [
+      "pending",
+      "reproduced",
+      "reproduced-with-correctness-change",
+      "blocked",
+      "out-of-scope"
+    ],
+    "parity": [
+      "exact",
+      "statistical",
+      "qualitative",
+      "not-applicable"
+    ],
+    "value_class": [
+      "tunable",
+      "derived",
+      "invariant"
+    ],
+    "missing": [
+      "artifact",
+      "dependency",
+      "license",
+      "hardware",
+      "knowledge",
+      "decision"
+    ],
+    "target_command_status": [
+      "provisional",
+      "ratified"
+    ]
   },
   "definitions": {
     "parity": {
@@ -27,16 +57,56 @@
       "reproduced-with-correctness-change": "Reproduced after an explained correctness fix that changes behavior. Requires evidence and correctness_change.",
       "blocked": "Cannot proceed. Requires blockers naming what is missing and a next action.",
       "out-of-scope": "Intentionally not reproduced. Requires exclusion_rationale."
-    }
+    },
+    "target_milestone": "Milestone that must bring a pending or blocked entry to a terminal status; null only for out-of-scope entries."
   },
   "entry_required": [
-    "id", "kind", "title", "claim", "origin", "configs", "seeds", "hardware",
-    "env_vars", "datasets", "checkpoints", "outputs", "evaluation", "target",
-    "status", "evidence", "blockers", "inventory_capabilities"
+    "id",
+    "kind",
+    "title",
+    "claim",
+    "origin",
+    "configs",
+    "seeds",
+    "hardware",
+    "env_vars",
+    "datasets",
+    "checkpoints",
+    "outputs",
+    "evaluation",
+    "target",
+    "status",
+    "evidence",
+    "blockers",
+    "inventory_capabilities",
+    "target_milestone",
+    "terminal_rule"
   ],
-  "origin_required": ["repository", "ref", "commit", "working_directory", "commands"],
-  "evaluation_required": ["protocol", "metric"],
-  "target_required": ["command", "command_status", "parity"],
-  "blocker_required": ["missing", "detail", "next_action"],
-  "parameter_required": ["key", "class", "behavior_affecting", "where"]
+  "origin_required": [
+    "repository",
+    "ref",
+    "commit",
+    "working_directory",
+    "commands"
+  ],
+  "evaluation_required": [
+    "protocol",
+    "metric"
+  ],
+  "target_required": [
+    "command",
+    "command_status",
+    "parity"
+  ],
+  "blocker_required": [
+    "missing",
+    "detail",
+    "next_action"
+  ],
+  "parameter_required": [
+    "key",
+    "class",
+    "behavior_affecting",
+    "where"
+  ]
 }
