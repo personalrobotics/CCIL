@@ -11,7 +11,7 @@ acceptance check.
 ```bash
 git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'   # the legacy run reads the archive tag
 uv run --no-project --python 3.11 --with-requirements tools/analytic_fixture/requirements.txt \
-  python tools/analytic_fixture/run.py --impl {legacy,reference} --out <new-dir>
+  python tools/analytic_fixture/run.py --impl {legacy,current,reference} --out <new-dir>
 uv run ... python tools/analytic_fixture/run.py --check <artifact-dir>   # re-evaluate saved candidates
 ```
 
@@ -67,9 +67,11 @@ from any implementation.
 | Class | Rule |
 |---|---|
 | `non_finite` | Any component of s* or a* is not finite, or of a_G for noisy action. The candidate must be rejected. |
-| `out_of_support` | ‖s_G − s*‖ > ε, for methods that declare ε. These are backward-Euler-fast with 0.01 and noisy action with 0.005, each the method's own legacy threshold. The candidate must be rejected. |
+| `out_of_support` | Not ‖s_G − s*‖ < ε, where ε is the `aug.epsilon` passed to the method. This is the rule legacy `load_demo_for_policy` applied when loading labels for training, and it is skipped when `aug.epsilon` is unset. The fixture sets ε = 0.01 for backward-Euler-fast and 0.005 for noisy action, and leaves it unset for backward Euler and exact preimage, to cover both cases. The candidate must be rejected. |
 | `boundary` | Within 5% of ε. Either decision is allowed, which avoids judging float32 rounding at the threshold. |
-| `accepted` | Everything else must be accepted. Backward Euler and exact preimage declare no ε at generation time. Legacy applies `aug.epsilon` later, in `load_demo_for_policy`, and that stage is out of scope here. |
+| `accepted` | Everything else must be accepted. |
+
+The oracle judges the **generation stage**: what `aug_data.pkl` contains. Legacy generation accepted every candidate and applied the support rule only later, at policy-load time. The 0.01 in legacy `gen_backward_euler_fast` was a failure *counter*, not its validity rule; the code reads `count_success = 1 # - count_fail`.
 
 ## Data
 
@@ -97,8 +99,8 @@ implementation's draws; each run records its own.
 | I1 | Every accepted label is finite. |
 | I2 | Every accepted label of a method that declares ε lies within ε(1 + 5%) of s*. |
 | I3 | Accounting reconciles, per transition: attempted = expected count = number of candidate records = accepted + rejected + generation_failed, and the reported accepted count equals the accepted records. Every attempted candidate, rejected ones included, needs a record. |
-| I4 | Every finite candidate matches its closed-form s_G and target within 1e-5, and its true residual matches the predicted residual. |
-| I5 | Each accept or reject decision matches the expected class. Boundary candidates are exempt. |
+| I4 | Every finite candidate matches its closed-form s_G and target within 1e-5, and its true residual matches the predicted residual. A `generation_failed` candidate is exempt, because it holds the solver's last iterate rather than a label. |
+| I5 | Each accept or reject decision matches the expected class, and each rejected candidate's reason equals that class. Boundary candidates are exempt. |
 | I6 | Transitions equal the exact rollout, in order. No transition crosses an episode boundary, and there are Σ(Tᵢ − 1) of them. |
 | I7 | Running the implementation twice gives byte-identical transitions and candidates. |
 
@@ -114,6 +116,10 @@ recorded per accepted label, and zero or absent for rejected labels. Legacy
   `main()` acceptance loop (`gen_aug_label.py:250-260`): every returned row
   is kept whenever the generator reports `count_success > 0`. Legacy counts
   map to `accepted = count_success` and `rejected = count_fail`.
+- **`current`** ([`current.py`](../../tools/analytic_fixture/current.py)) loads
+  the working tree's generators, `choose_augmentation` and `collect_labels`
+  from `correct_il/`. It calls them as `main()` does and only regroups their
+  per-candidate output by transition.
 - **`reference`** ([`reference.py`](../../tools/analytic_fixture/reference.py))
   is a positive control that applies the declared rule to the closed forms.
   It shows that the oracle passes on a correct implementation.
@@ -141,21 +147,53 @@ byte-identical across processes on the same platform and package versions.
 
 | Method | Failing invariants | Cause |
 |---|---|---|
-| backward_euler_fast | I1, I2, I3, I5 | Hard-coded `count_success = 1`. The label is returned even when `distance > 0.01` counts it as a failure, and a NaN label is accepted. |
-| noisy_action | I1, I2, I3, I5 | Hard-coded `count_success = num_labels`. All candidates are returned, including those beyond ε and the NaN ones. |
+| backward_euler_fast | I1, I2, I3, I5 | Hard-coded `count_success = 1`. Every label is accepted at generation, including NaN and out-of-support ones. The `distance > 0.01` failure count is added on top of that success, so the counts don't reconcile. |
+| noisy_action | I1, I2, I3, I5 | Hard-coded `count_success = num_labels`. All candidates are accepted, including those beyond ε and the NaN ones, and the failure count is added on top. It also crashes when `aug.epsilon` is unset (`Tensor > None`). |
 | forward_euler | I3 | On success, `count_fail` is the root finder's iteration count. The code itself carries `# TODO fix the count_fail`. |
 | backward_euler | I3 | The NaN transition is counted as rejected but has no candidate record or reason. This is a provenance gap, not a wrongly accepted label. |
 
 These pass for every method: I4 (the label mathematics is correct), I6 and
 I7. The suspected stale-residual defect in `root_finder_s`, whose success
 test reads the residual from before its final update, does **not** occur
-with `max_iter = 50`. The labels converge, and I4 passes. The post-fix
-evidence belongs to #11.
+with `max_iter = 50`. The labels converge, and I4 passes.
+
+## Post-fix evidence (#11)
+
+[`evidence/current-post-fix/`](evidence/current-post-fix/) is the `current`
+run after #11. Every invariant passes for every method. Each generator now
+returns one record per attempted candidate, with a stable reason (`non_finite`,
+`out_of_support` or `generation_failed`). `collect_labels` reconciles the
+counts, and it raises an error if they don't. `aug_data.pkl` holds only
+accepted labels and is written even when it's empty. `label_decisions.npz`
+keeps every candidate and its decision.
+
+### Effect on historical results
+
+Applying the legacy `load_demo_for_policy` filter to both implementations'
+output on this fixture gives these results:
+
+- **`aug.epsilon` set:** the labels that reach policy training are identical
+  before and after, for all four methods. Legacy already removed the same
+  labels when loading them, and a NaN distance never passes `< epsilon`.
+- **`aug.epsilon` unset** (for example `walker2d.yml`): the finite labels are
+  identical. Legacy also passed non-finite backward-Euler-fast labels to
+  training; the fix rejects them.
+- **Shipped datasets:** all 15 contain only finite values.
+
+So the fix doesn't change which labels trained the shipped results, as long as
+the dynamics model produced finite outputs. What it does change:
+
+- the success and failure counts in `statistics.txt`, which were not
+  meaningful before the fix;
+- the contents of `aug_data.pkl`, which used to include labels that training
+  later discarded.
+
+Any acceptance rate quoted from legacy statistics should be disregarded.
 
 ## Verification procedure
 
 1. The `reference` run exits 0, and every invariant passes.
-2. The `legacy` run exits 1 with exactly the pattern above.
+2. The `legacy` run exits 1 with exactly the pre-fix pattern, and the `current` run exits 0.
 3. Two runs of each implementation give identical `manifest.json` `sha256`
    maps.
 4. Flipping any `accepted` flag in a reference `candidates.json` and running
