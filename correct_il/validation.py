@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 SPLIT_FORMAT = "ccil-split/1"
+_SPLIT_FIELDS = {"format", "seed", "validation_fraction", "n_trajectories", "train", "validation"}
 
 
 class SplitError(Exception):
@@ -35,10 +36,49 @@ def make_split(n_trajectories, validation_fraction, seed):
 
 
 def check_disjoint(split):
-    train, val = set(split["train"]), set(split["validation"])
-    if train & val or train | val != set(range(split["n_trajectories"])):
-        raise SplitError(f"split is not a partition of {split['n_trajectories']} trajectories: "
-                         f"overlap {sorted(train & val)}")
+    """Validate the complete persisted split schema and partition."""
+    if not isinstance(split, dict):
+        raise SplitError(f"split must be a mapping, got {type(split).__name__}")
+    missing = sorted(_SPLIT_FIELDS - set(split))
+    if missing:
+        raise SplitError(f"split is missing required fields {missing}")
+    if split["format"] != SPLIT_FORMAT:
+        raise SplitError(f"unsupported split format {split['format']!r}")
+    n = split["n_trajectories"]
+    if type(n) is not int or n < 2:
+        raise SplitError(f"split n_trajectories must be an integer of at least 2, got {n!r}")
+    if type(split["seed"]) is not int:
+        raise SplitError(f"split seed must be an integer, got {split['seed']!r}")
+    fraction = split["validation_fraction"]
+    if (type(fraction) not in (int, float) or not np.isfinite(fraction)
+            or not 0 < fraction < 1):
+        raise SplitError(f"split validation_fraction must be finite and between 0 and 1, got {fraction!r}")
+
+    parts = {}
+    for name in ("train", "validation"):
+        ids = split[name]
+        if not isinstance(ids, list) or not ids:
+            raise SplitError(f"split {name} must be a non-empty list")
+        if any(type(i) is not int for i in ids):
+            raise SplitError(f"split {name} IDs must be integers, got {ids!r}")
+        if ids != sorted(ids):
+            raise SplitError(f"split {name} IDs must be sorted, got {ids!r}")
+        if len(ids) != len(set(ids)):
+            raise SplitError(f"split {name} contains duplicate trajectory IDs: {ids!r}")
+        invalid = [i for i in ids if not 0 <= i < n]
+        if invalid:
+            raise SplitError(f"split {name} contains out-of-range trajectory IDs {invalid}; expected 0..{n - 1}")
+        parts[name] = set(ids)
+
+    train, val = parts["train"], parts["validation"]
+    if train & val or train | val != set(range(n)):
+        missing_ids = sorted(set(range(n)) - (train | val))
+        raise SplitError(f"split is not a partition of {n} trajectories: overlap {sorted(train & val)}, "
+                         f"missing {missing_ids}")
+    expected_validation = int(round(n * fraction))
+    if len(val) != expected_validation:
+        raise SplitError(f"split validation has {len(val)} trajectories, but n_trajectories={n} and "
+                         f"validation_fraction={fraction} require {expected_validation}")
 
 
 def load_or_create_split(path, n_trajectories, validation_fraction, seed):
@@ -47,13 +87,17 @@ def load_or_create_split(path, n_trajectories, validation_fraction, seed):
     Returns (split, reused). The file is replaced atomically.
     """
     if os.path.exists(path):
-        with open(path) as f:
-            split = json.load(f)
-        if split.get("format") != SPLIT_FORMAT:
-            raise SplitError(f"{path}: unsupported split format {split.get('format')!r}")
+        try:
+            with open(path) as f:
+                split = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            raise SplitError(f"{path}: cannot read persisted split: {e}") from e
+        try:
+            check_disjoint(split)
+        except SplitError as e:
+            raise SplitError(f"{path}: malformed persisted split: {e}") from e
         if (split["n_trajectories"], split["validation_fraction"], split["seed"]) == \
                 (n_trajectories, float(validation_fraction), int(seed)):
-            check_disjoint(split)
             return split, True
     split = make_split(n_trajectories, validation_fraction, seed)
     tmp = f"{path}.tmp-{os.getpid()}"
