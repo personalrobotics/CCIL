@@ -1,0 +1,175 @@
+{
+ "all_pass": false,
+ "implementation": "legacy",
+ "verdicts": {
+  "I1_accepted_finite": {
+   "backward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "backward_euler_fast": {
+    "examples": [
+     "corrupt[1]#0: accepted non-finite label"
+    ],
+    "pass": false,
+    "violations": 1
+   },
+   "forward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "noisy_action": {
+    "examples": [
+     "corrupt[1]#0: accepted non-finite label",
+     "corrupt[1]#1: accepted non-finite label",
+     "corrupt[1]#2: accepted non-finite label",
+     "corrupt[1]#3: accepted non-finite label"
+    ],
+    "pass": false,
+    "violations": 4
+   }
+  },
+  "I2_accepted_in_support": {
+   "backward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "backward_euler_fast": {
+    "examples": [
+     "slow[2]#0: accepted at distance 0.01242 > epsilon 0.01",
+     "fast[0]#0: accepted at distance 0.05385 > epsilon 0.01",
+     "fast[1]#0: accepted at distance 0.05295 > epsilon 0.01",
+     "fast[2]#0: accepted at distance 0.05917 > epsilon 0.01",
+     "fast[3]#0: accepted at distance 0.054 > epsilon 0.01"
+    ],
+    "pass": false,
+    "violations": 5
+   },
+   "forward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "noisy_action": {
+    "examples": [
+     "slow[0]#0: accepted at distance 0.006448 > epsilon 0.005",
+     "slow[0]#1: accepted at distance 0.006784 > epsilon 0.005",
+     "slow[1]#1: accepted at distance 0.008698 > epsilon 0.005",
+     "slow[2]#0: accepted at distance 0.007739 > epsilon 0.005",
+     "slow[2]#1: accepted at distance 0.01402 > epsilon 0.005"
+    ],
+    "pass": false,
+    "violations": 14
+   }
+  },
+  "I3_accounting": {
+   "backward_euler": {
+    "examples": [
+     "corrupt[1]: attempted=1 records=0 reported={'accepted': 0, 'rejected': 1, 'generation_failed': 0} accepted_records=0 expected=1"
+    ],
+    "pass": false,
+    "violations": 1
+   },
+   "backward_euler_fast": {
+    "examples": [
+     "slow[2]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "fast[0]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "fast[1]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "fast[2]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "fast[3]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1"
+    ],
+    "pass": false,
+    "violations": 5
+   },
+   "forward_euler": {
+    "examples": [
+     "slow[0]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "slow[1]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "slow[2]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "slow[3]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1",
+     "slow[4]: attempted=1 records=1 reported={'accepted': 1, 'rejected': 1, 'generation_failed': 0} accepted_records=1 expected=1"
+    ],
+    "pass": false,
+    "violations": 12
+   },
+   "noisy_action": {
+    "examples": [
+     "slow[0]: attempted=4 records=4 reported={'accepted': 4, 'rejected': 2, 'generation_failed': 0} accepted_records=4 expected=4",
+     "slow[1]: attempted=4 records=4 reported={'accepted': 4, 'rejected': 1, 'generation_failed': 0} accepted_records=4 expected=4",
+     "slow[2]: attempted=4 records=4 reported={'accepted': 4, 'rejected': 2, 'generation_failed': 0} accepted_records=4 expected=4",
+     "slow[3]: attempted=4 records=4 reported={'accepted': 4, 'rejected': 2, 'generation_failed': 0} accepted_records=4 expected=4",
+     "slow[4]: attempted=4 records=4 reported={'accepted': 4, 'rejected': 2, 'generation_failed': 0} accepted_records=4 expected=4"
+    ],
+    "pass": false,
+    "violations": 9
+   }
+  },
+  "I4_closed_form": {
+   "backward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "backward_euler_fast": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "forward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "noisy_action": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   }
+  },
+  "I5_expected_acceptance": {
+   "backward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "backward_euler_fast": {
+    "examples": [
+     "slow[2]#0: accepted=True expected=out_of_support",
+     "fast[0]#0: accepted=True expected=out_of_support",
+     "fast[1]#0: accepted=True expected=out_of_support",
+     "fast[2]#0: accepted=True expected=out_of_support",
+     "fast[3]#0: accepted=True expected=out_of_support"
+    ],
+    "pass": false,
+    "violations": 6
+   },
+   "forward_euler": {
+    "examples": [],
+    "pass": true,
+    "violations": 0
+   },
+   "noisy_action": {
+    "examples": [
+     "slow[0]#0: accepted=True expected=out_of_support",
+     "slow[0]#1: accepted=True expected=out_of_support",
+     "slow[1]#1: accepted=True expected=out_of_support",
+     "slow[2]#0: accepted=True expected=out_of_support",
+     "slow[2]#1: accepted=True expected=out_of_support"
+    ],
+    "pass": false,
+    "violations": 18
+   }
+  },
+  "I6_episode_boundaries": {
+   "expected_transitions": 12,
+   "got": 12,
+   "pass": true
+  },
+  "I7_replay_determinism": {
+   "pass": true
+  }
+ }
+}

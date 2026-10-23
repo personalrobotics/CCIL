@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "analytic-double-integrator",
+  "seed": 20261023,
+  "h": 0.1,
+  "dtype": "float32",
+  "tolerance": {
+    "abs": 1e-05,
+    "boundary_rel": 0.05
+  },
+  "methods": {
+    "backward_euler_fast": {"epsilon": 0.01, "max_iter": 50},
+    "backward_euler": {"epsilon": null, "max_iter": 50},
+    "forward_euler": {"epsilon": null, "max_iter": 50},
+    "noisy_action": {"epsilon": 0.005, "num_labels": 4, "delta": 0.05}
+  },
+  "episodes": [
+    {"id": "slow", "s0": [0.0, 0.03], "actions": [0.04, -0.02, 0.12, 0.0, -0.05], "corrupt_actions": []},
+    {"id": "fast", "s0": [1.0, 0.5], "actions": [0.2, -0.1, 0.3, 0.0], "corrupt_actions": []},
+    {"id": "corrupt", "s0": [0.0, 0.02], "actions": [0.01, 0.0, 0.02], "corrupt_actions": [1]}
+  ]
+}
