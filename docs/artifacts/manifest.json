@@ -1,0 +1,833 @@
+{
+  "schema_version": 1,
+  "captured": "2026-10-22",
+  "scope": "Non-source inputs referenced by docs/ledger/ledger.json. image_ccil is deferred.",
+  "environment": {
+    "python": "3.8 (README: tested with 3.8.10)",
+    "platform": "x86_64-unknown-linux-gnu",
+    "inputs": [
+      "docs/artifacts/env/requirements.in",
+      "docs/artifacts/env/uv.toml"
+    ],
+    "lock": "docs/artifacts/env/lock-linux-py38.txt",
+    "resolved_as_of": "2024-07-15T00:00:00Z",
+    "rationale": "No lock was recorded for the original runs. Resolving transitive dependencies as of main's last code commit (2024-07-14) approximates the published environment; it is not proof of it.",
+    "install_verified": false
+  },
+  "machine_local_paths": [
+    {
+      "where": "main:config/coffee_pull.yml, coffee_push.yml",
+      "value": "$HOME/CorrectiveIL/output/",
+      "replacement": "Overridden by --output.location in every script; use output/<task>."
+    },
+    {
+      "where": "main:scripts/sweep.sh",
+      "value": "/gscratch/weirdlab/tycho/ccil_mujoco/<task>",
+      "replacement": "Out of scope (ledger internal-cluster-sweep)."
+    },
+    {
+      "where": "main:scripts/launch.slurm",
+      "value": "$HOME/CorrectiveIL, conda env 'torch'",
+      "replacement": "Out of scope (ledger internal-cluster-sweep)."
+    },
+    {
+      "where": "main:correct_il/gen_aug_label.py",
+      "value": "output/expert_policy/pendulum.pt",
+      "replacement": "checkpoint:expert_policy_pendulum (unresolved)."
+    },
+    {
+      "where": "label-filtering:correct_il/envs/f1/src/eval_bc.py",
+      "value": "/home/prl/dev/CCIL",
+      "replacement": "Repository-relative output path; reconcile under f1-evaluation."
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "dataset:ant-expert-v2_10",
+      "kind": "dataset",
+      "path": "data/ant-expert-v2_10.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/ant-expert-v2_10.pkl",
+      "git_blob": "52f65c1425ae6710d8234ee71857ba8115c4d73f",
+      "sha256": "37c25bf6e724b0707b7fc1117dd9eb0e2997c80f2313cfeb49012aa3623c37b1",
+      "bytes": 4506372,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float32",
+        "trajectories": 10,
+        "horizon": [
+          465,
+          1000
+        ],
+        "obs_dim": [
+          111
+        ],
+        "act_dim": [
+          8
+        ]
+      },
+      "origin": "Subset of D4RL ant_expert-v2 (http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/ant_expert-v2.hdf5, 373231677 bytes)",
+      "origin_verified": false,
+      "license": "CC BY 4.0 (D4RL datasets); attribution required",
+      "redistributable": "yes, with attribution",
+      "ledger_entries": [
+        "sim-ant"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Subset selection (which trajectories) is unrecorded; verify against the D4RL file before relying on origin."
+      ]
+    },
+    {
+      "id": "dataset:circle_50",
+      "kind": "dataset",
+      "path": "data/circle_50.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/circle_50.pkl",
+      "git_blob": "d541c9b495373b58743dd860b661391397188a22",
+      "sha256": "41267bc34e5ad9b85aa6dfe5530aa237140f7b973436fd72b68b9726aa4c6f2e",
+      "bytes": 48026850,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          4802,
+          4802
+        ],
+        "obs_dim": [
+          20
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Via points tracked by a PID controller in gym-pybullet-drones (paper App. D.2).",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-drone-circle"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Paper Table 2 lists 30 trajectories; the file has 50.",
+        "Mean demonstration return -10.9; paper Expert row -10."
+      ]
+    },
+    {
+      "id": "dataset:f1",
+      "kind": "dataset",
+      "path": "data/f1.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/f1.pkl",
+      "git_blob": "f8a106971196646bfa605135a1c5ba9f2c1c528e",
+      "sha256": "4ab421697e270b17a3596f03c268ffc1342d047295e5ee1dd32b8b75ea286a4a",
+      "bytes": 416308,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 1,
+        "horizon": [
+          800,
+          800
+        ],
+        "obs_dim": [
+          62
+        ],
+        "act_dim": [
+          2
+        ]
+      },
+      "origin": "Pure-pursuit expert, correct_il/envs/f1/src/run_expert.py and dump_data.py.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-f1tenth"
+      ],
+      "status": "resolved",
+      "notes": []
+    },
+    {
+      "id": "dataset:flythrugate_50",
+      "kind": "dataset",
+      "path": "data/flythrugate_50.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/flythrugate_50.pkl",
+      "git_blob": "b6d74e062d568d9025093715126483ecbb0e7084",
+      "sha256": "c44b3d264faada867df2bd993a480cc0bb19cef2c1a6912e01a20d349284d7b0",
+      "bytes": 48026850,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          4802,
+          4802
+        ],
+        "obs_dim": [
+          20
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Via points tracked by a PID controller in gym-pybullet-drones (paper App. D.2).",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-drone-flythrugate"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return -4391.8; paper Expert row -4351."
+      ]
+    },
+    {
+      "id": "dataset:halfcheetah-expert-v2_50",
+      "kind": "dataset",
+      "path": "data/halfcheetah-expert-v2_50.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/halfcheetah-expert-v2_50.pkl",
+      "git_blob": "202ce9c3ff6e494ed0aca63ead988d41201b4dcf",
+      "sha256": "91bc78004f26ef956bb5ca892d448a9f876228965db44ee78e150e2c001ffdff",
+      "bytes": 4604592,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float32",
+        "trajectories": 50,
+        "horizon": [
+          1000,
+          1000
+        ],
+        "obs_dim": [
+          17
+        ],
+        "act_dim": [
+          6
+        ]
+      },
+      "origin": "Subset of D4RL halfcheetah_expert-v2 (http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/halfcheetah_expert-v2.hdf5, 237464597 bytes)",
+      "origin_verified": false,
+      "license": "CC BY 4.0 (D4RL datasets); attribution required",
+      "redistributable": "yes, with attribution",
+      "ledger_entries": [
+        "sim-halfcheetah"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Subset selection (which trajectories) is unrecorded; verify against the D4RL file before relying on origin."
+      ]
+    },
+    {
+      "id": "dataset:hopper-expert-v2_25",
+      "kind": "dataset",
+      "path": "data/hopper-expert-v2_25.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/hopper-expert-v2_25.pkl",
+      "git_blob": "d7641609d38261ecbfc5801c059c4dae6e6583dc",
+      "sha256": "ccc013e4fcb16595ef32991a3fae0b40dae8582a7321f60402fd7e59c8788137",
+      "bytes": 1354966,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float32",
+        "trajectories": 25,
+        "horizon": [
+          531,
+          1000
+        ],
+        "obs_dim": [
+          11
+        ],
+        "act_dim": [
+          3
+        ]
+      },
+      "origin": "Subset of D4RL hopper_expert-v2 (http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_expert-v2.hdf5, 152427435 bytes)",
+      "origin_verified": false,
+      "license": "CC BY 4.0 (D4RL datasets); attribution required",
+      "redistributable": "yes, with attribution",
+      "ledger_entries": [
+        "sim-hopper"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Subset selection (which trajectories) is unrecorded; verify against the D4RL file before relying on origin."
+      ]
+    },
+    {
+      "id": "dataset:hover_5",
+      "kind": "dataset",
+      "path": "data/hover_5.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/hover_5.pkl",
+      "git_blob": "6b3391b3c89c543a22150151e2d432c89fb3f9c7",
+      "sha256": "c6ad49b8e048135bc5c46742a2785cfb52e6505591176844debaa5789be88b85",
+      "bytes": 4802820,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 5,
+        "horizon": [
+          4802,
+          4802
+        ],
+        "obs_dim": [
+          20
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Via points tracked by a PID controller in gym-pybullet-drones (paper App. D.2).",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-drone-hover"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return -1122.5; paper Expert row -1104."
+      ]
+    },
+    {
+      "id": "dataset:metaworld-button-press-top-down-v2",
+      "kind": "dataset",
+      "path": "data/metaworld-button-press-top-down-v2.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/metaworld-button-press-top-down-v2.pkl",
+      "git_blob": "12b0290e78ff4d5d9898a51e08a94644f53dce68",
+      "sha256": "902f77469823aa86fcc3bf464ddf4e529a725cb6c608c7d0d298c8a9a0ee55d0",
+      "bytes": 8824000,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          501,
+          501
+        ],
+        "obs_dim": [
+          39
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Unknown; paper App. D.2 attributes it to D4RL, which has no Meta-World data.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-button"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return 3540.93; paper Expert row 3895.82."
+      ]
+    },
+    {
+      "id": "dataset:metaworld-coffee-pull-v2_50",
+      "kind": "dataset",
+      "path": "data/metaworld-coffee-pull-v2_50.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/metaworld-coffee-pull-v2_50.pkl",
+      "git_blob": "62d644bff018d21600e9c80e2b0135880e480395",
+      "sha256": "ef079b456bb42098ea21285e49fdad516fa1645247a6fe99c51e61028621cda6",
+      "bytes": 8824000,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          501,
+          501
+        ],
+        "obs_dim": [
+          39
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Unknown; paper App. D.2 attributes it to D4RL, which has no Meta-World data.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-coffee-pull"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return 4268.13; paper Expert row 4409.95."
+      ]
+    },
+    {
+      "id": "dataset:metaworld-coffee-push-v2_50",
+      "kind": "dataset",
+      "path": "data/metaworld-coffee-push-v2_50.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/metaworld-coffee-push-v2_50.pkl",
+      "git_blob": "0c5f24a3e01eeaf1ebeeeb7f7574a83ccaeeee75",
+      "sha256": "d19e47c40e7d804f3dc3f5d83c4a91ab09d45b0612cebbd8b38b220de603ecf4",
+      "bytes": 8824000,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          501,
+          501
+        ],
+        "obs_dim": [
+          39
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Unknown; paper App. D.2 attributes it to D4RL, which has no Meta-World data.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-coffee-push"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return 1250.49; paper Expert row 4488.29."
+      ]
+    },
+    {
+      "id": "dataset:metaworld-drawer-close-v2",
+      "kind": "dataset",
+      "path": "data/metaworld-drawer-close-v2.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/metaworld-drawer-close-v2.pkl",
+      "git_blob": "12e13159bbb8ad96bf6e068295efe1d3583185dd",
+      "sha256": "a4e785b270d77c6e4cd462a4c1e7344c8a005c0b6e1dae44089e0eb3b150684a",
+      "bytes": 8824000,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float64",
+        "trajectories": 50,
+        "horizon": [
+          501,
+          501
+        ],
+        "obs_dim": [
+          39
+        ],
+        "act_dim": [
+          4
+        ]
+      },
+      "origin": "Unknown; paper App. D.2 attributes it to D4RL, which has no Meta-World data.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-drawer-close"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return 4244.97; paper Expert row 4329.34."
+      ]
+    },
+    {
+      "id": "dataset:pendulum_cont_100",
+      "kind": "dataset",
+      "path": "data/pendulum_cont_100.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/pendulum_cont_100.pkl",
+      "git_blob": "2d0c537f0d8a3481a2768587082b90ef2342271f",
+      "sha256": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc",
+      "bytes": 4556903,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "episode_reward",
+          "observations"
+        ],
+        "array_type": "list",
+        "dtype": "float64",
+        "trajectories": 100,
+        "horizon": [
+          500,
+          500
+        ],
+        "obs_dim": [
+          3
+        ],
+        "act_dim": [
+          1
+        ]
+      },
+      "origin": "LQR plus energy-shaping expert (paper App. D.1); no generator on main.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-pendulum-cont",
+        "sim-pendulum-label-bound"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Paper Table 2 lists 50 trajectories; the file has 100.",
+        "Mean demonstration return -2147.11."
+      ]
+    },
+    {
+      "id": "dataset:pendulum_disc_500",
+      "kind": "dataset",
+      "path": "data/pendulum_disc_500.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/pendulum_disc_500.pkl",
+      "git_blob": "c1dc67b230f9633b5641d43e0d52f07e67b11a15",
+      "sha256": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8",
+      "bytes": 22783805,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "episode_reward",
+          "observations"
+        ],
+        "array_type": "list",
+        "dtype": "float64",
+        "trajectories": 500,
+        "horizon": [
+          500,
+          500
+        ],
+        "obs_dim": [
+          3
+        ],
+        "act_dim": [
+          1
+        ]
+      },
+      "origin": "LQR plus energy-shaping expert (paper App. D.1); no generator on main.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [
+        "sim-pendulum-disc"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Mean demonstration return -2221.59."
+      ]
+    },
+    {
+      "id": "dataset:pendulumswingup-v0",
+      "kind": "dataset",
+      "path": "data/pendulumswingup-v0.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/pendulumswingup-v0.pkl",
+      "git_blob": "3e92bb347ad068f24e9e5a05a73a2efc20e5fed0",
+      "sha256": "f35aa785d6380a019100b6ce3810d2a7909e6209c9b7b880f229a3dfc1277bde",
+      "bytes": 604027,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "done",
+          "observations",
+          "rewards"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float32",
+        "trajectories": 25,
+        "horizon": [
+          1000,
+          1000
+        ],
+        "obs_dim": [
+          3
+        ],
+        "act_dim": [
+          1
+        ]
+      },
+      "origin": "Unreferenced by any config; zero rewards; float32 with a 'done' key, unlike the other pendulum files.",
+      "origin_verified": false,
+      "license": "unknown (no repository license)",
+      "redistributable": "unknown",
+      "ledger_entries": [],
+      "status": "resolved",
+      "notes": []
+    },
+    {
+      "id": "dataset:walker2d-expert-v2_20",
+      "kind": "dataset",
+      "path": "data/walker2d-expert-v2_20.pkl",
+      "locator": "git:archive/upstream-main-2026-10-22:data/walker2d-expert-v2_20.pkl",
+      "git_blob": "8c62ae4829c9236f593622f9818cd292208600af",
+      "sha256": "31d51cffdd4ebff03a084c740570eea48a1790057018d05881989a6881a1865d",
+      "bytes": 1841922,
+      "format": {
+        "container": "pickle list of trajectory dicts",
+        "keys": [
+          "actions",
+          "observations"
+        ],
+        "array_type": "ndarray",
+        "dtype": "float32",
+        "trajectories": 20,
+        "horizon": [
+          1000,
+          1000
+        ],
+        "obs_dim": [
+          17
+        ],
+        "act_dim": [
+          6
+        ]
+      },
+      "origin": "Subset of D4RL walker2d_expert-v2 (http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/walker2d_expert-v2.hdf5, 230567195 bytes)",
+      "origin_verified": false,
+      "license": "CC BY 4.0 (D4RL datasets); attribution required",
+      "redistributable": "yes, with attribution",
+      "ledger_entries": [
+        "sim-walker2d"
+      ],
+      "status": "resolved",
+      "notes": [
+        "Subset selection (which trajectories) is unrecorded; verify against the D4RL file before relying on origin."
+      ]
+    },
+    {
+      "id": "dataset:pendulum_img_50_noised_fix",
+      "kind": "dataset",
+      "path": "data/pendulum_img_50_noised_fix.pkl",
+      "locator": null,
+      "sha256": null,
+      "status": "unresolved",
+      "ledger_entries": [
+        "deferred-image-pendulum"
+      ],
+      "license": "unknown",
+      "redistributable": "unknown",
+      "recovery": {
+        "missing": "artifact",
+        "owner": "unknown (fork author Abhay Deshpande)",
+        "action": "Deferred with image_ccil. Regenerate with correct_il/gen_pendulum_data.py on abhaybd-image or ask the author."
+      }
+    },
+    {
+      "id": "checkpoint:expert_policy_pendulum",
+      "kind": "checkpoint",
+      "path": "output/expert_policy/pendulum.pt",
+      "locator": null,
+      "sha256": null,
+      "status": "unresolved",
+      "ledger_entries": [],
+      "license": "unknown",
+      "redistributable": "unknown",
+      "recovery": {
+        "missing": "artifact",
+        "owner": "unknown",
+        "action": "Needed only by aug.type backward_expert, which no config uses. Ask the authors; otherwise mark the label type unsupported."
+      }
+    },
+    {
+      "id": "dataset:real-robot",
+      "kind": "dataset",
+      "path": null,
+      "locator": null,
+      "sha256": null,
+      "status": "unresolved",
+      "ledger_entries": [
+        "real-bc-ccil-data-fraction",
+        "real-dp-ccil",
+        "real-label-clusters",
+        "real-lipschitz-constraint",
+        "real-label-error-quantile",
+        "real-hparam-grid",
+        "internal-action-chunking-labels"
+      ],
+      "license": "unknown",
+      "redistributable": "unknown",
+      "recovery": {
+        "missing": "artifact",
+        "owner": "unknown (paper authors)",
+        "action": "Locate GraspCube, GearInsertion, and GraspCoin demonstrations and trial logs; check image_ccil when its integration resumes."
+      }
+    },
+    {
+      "id": "system:mujoco-2.1.0",
+      "kind": "system-dependency",
+      "path": "~/.mujoco/mujoco210",
+      "locator": "https://github.com/deepmind/mujoco/releases/download/2.1.0/mujoco210-linux-x86_64.tar.gz",
+      "sha256": "a436ca2f4144c38b837205635bbd60ffe1162d5b44c87df22232795978d7d012",
+      "bytes": 4385135,
+      "status": "resolved",
+      "license": "Apache-2.0",
+      "redistributable": "yes, but fetched by the user rather than vendored",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": [
+        "Required by mujoco-py 2.1.2.14 (via d4rl, mjrl, and metaworld@84bda2c). Hash matches upstream's published .sha256.",
+        "mujoco-py also needs a C compiler, GL/OSMesa headers, and patchelf on Linux."
+      ]
+    },
+    {
+      "id": "system:cuda-gpu",
+      "kind": "system-dependency",
+      "path": null,
+      "locator": null,
+      "sha256": null,
+      "status": "resolved",
+      "license": "n/a",
+      "redistributable": "n/a",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": [
+        "torch==2.1.0 Linux wheels bundle CUDA 12.1 libraries. Label generation and evaluation hard-code 'cuda', so a CPU-only stack cannot run the pipeline.",
+        "No GPU model or driver version is recorded for the original runs, so GPU portability is untested."
+      ]
+    },
+    {
+      "id": "code:d3rlpy",
+      "kind": "code-dependency",
+      "path": null,
+      "locator": "git+https://github.com/personalrobotics/d3rlpy@e89a7da6e4c1020f5cf999346c0ebd32e0bbc7c1",
+      "commit": "e89a7da6e4c1020f5cf999346c0ebd32e0bbc7c1",
+      "reachable_from": "release/CCIL, truck_merge_wip; tag release-ccil-20131006",
+      "sha256": null,
+      "status": "resolved",
+      "license": "MIT",
+      "redistributable": "yes",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": [
+        "setup.py imports numpy and Cython at build time without declaring them. env/uv.toml declares them."
+      ]
+    },
+    {
+      "id": "code:gym-pybullet-drones",
+      "kind": "code-dependency",
+      "path": null,
+      "locator": "git+https://github.com/personalrobotics/gym-pybullet-drones@2d4f34529722d57875073024e5c13fa80edf1072",
+      "commit": "2d4f34529722d57875073024e5c13fa80edf1072",
+      "reachable_from": "fix-install only",
+      "sha256": null,
+      "status": "resolved",
+      "license": "MIT",
+      "redistributable": "yes",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": [
+        "The commit is reachable only from branch fix-install; deleting that branch would orphan it. Recommend an archive tag in the fork.",
+        "Its pyproject declares only cycler and builds against poetry-core@main, which no longer supports Python 3.8. env/uv.toml supplies its real requirements."
+      ]
+    },
+    {
+      "id": "code:mjrl",
+      "kind": "code-dependency",
+      "path": null,
+      "locator": "git+https://github.com/aravindr93/mjrl@3871d93763d3b49c4741e6daeaebbc605fe140dc",
+      "commit": "3871d93763d3b49c4741e6daeaebbc605fe140dc",
+      "reachable_from": "master and others",
+      "sha256": null,
+      "status": "resolved",
+      "license": "Apache-2.0",
+      "redistributable": "yes",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": []
+    },
+    {
+      "id": "code:f1tenth_gym",
+      "kind": "code-dependency",
+      "path": null,
+      "locator": "git+https://github.com/f1tenth/f1tenth_gym@cd56335eda43ff4e401331c461877227474a3ed4",
+      "commit": "cd56335eda43ff4e401331c461877227474a3ed4",
+      "reachable_from": "main and others",
+      "sha256": null,
+      "status": "resolved",
+      "license": "MIT",
+      "redistributable": "yes",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": []
+    },
+    {
+      "id": "code:metaworld",
+      "kind": "code-dependency",
+      "path": null,
+      "locator": "git+https://github.com/rlworkgroup/metaworld@84bda2c3bd32fc03bb690d6188b22c7946cdb020",
+      "commit": "84bda2c3bd32fc03bb690d6188b22c7946cdb020",
+      "reachable_from": "main; tags v2.0.0, 3.0.0",
+      "sha256": null,
+      "status": "resolved",
+      "license": "MIT",
+      "redistributable": "yes",
+      "ledger_entries": [
+        "setup-install"
+      ],
+      "notes": []
+    }
+  ]
+}
