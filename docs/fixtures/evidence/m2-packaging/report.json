@@ -1,0 +1,101 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "builds_are_reproducible",
+   "pass": true,
+   "sdist_sha256": "78dc90d33bd820581da76d4166af1e63d7e08fc6e226238e905412895dc1fea9",
+   "wheel_sha256": "02a43f01a5accd2264e975e17c72731f7cbaaa40910ba1be9e9ba66ec805aea8"
+  },
+  {
+   "case": "wheel_contains_package_only",
+   "local_paths": [],
+   "missing": [],
+   "pass": true,
+   "unexpected": [],
+   "wheel_files": [
+    "ccil/",
+    "ccil/__init__.py",
+    "ccil/__main__.py",
+    "ccil/config/",
+    "ccil/config/__init__.py",
+    "ccil/config/docs.py",
+    "ccil/config/migrate.py",
+    "ccil/config/params.py",
+    "ccil/config/resolve.py",
+    "ccil/config/spec.py",
+    "ccil/data/",
+    "ccil/data/__init__.py",
+    "ccil/data/prepare.py",
+    "ccil/data/split.py",
+    "ccil/recipes/",
+    "ccil/recipes/pendulum_cont.yaml",
+    "ccil/recipes/pendulum_disc.yaml",
+    "ccil/schema/",
+    "ccil/schema/__init__.py",
+    "ccil/schema/docs.py",
+    "ccil/schema/fields.py",
+    "ccil/schema/io.py",
+    "ccil/schema/labels.py",
+    "ccil/schema/legacy.py",
+    "ccil/schema/trajectories.py",
+    "ccil-0.1.0.dev0.dist-info/",
+    "ccil-0.1.0.dev0.dist-info/WHEEL",
+    "ccil-0.1.0.dev0.dist-info/entry_points.txt",
+    "ccil-0.1.0.dev0.dist-info/METADATA",
+    "ccil-0.1.0.dev0.dist-info/RECORD"
+   ]
+  },
+  {
+   "case": "metadata_declares_core_dependencies_only",
+   "entry_points": "[console_scripts]\nccil = ccil.__main__:main",
+   "pass": true,
+   "requires_dist": [
+    "numpy>=1.24",
+    "pyyaml>=6.0"
+   ],
+   "requires_python": [
+    ">=3.10"
+   ]
+  },
+  {
+   "case": "clean_install_runs[python 3.10]",
+   "imported_from_venv": true,
+   "installed": {
+    "ccil": "0.1.0.dev0",
+    "numpy": "2.2.6",
+    "pyyaml": "6.0.3"
+   },
+   "manifest_split": {
+    "train": 4,
+    "validation": 1
+   },
+   "pass": true,
+   "prepare_stderr": "",
+   "python": "3.10.17"
+  },
+  {
+   "case": "clean_install_runs[python 3.14]",
+   "imported_from_venv": true,
+   "installed": {
+    "ccil": "0.1.0.dev0",
+    "numpy": "2.5.4",
+    "pyyaml": "6.0.3"
+   },
+   "manifest_split": {
+    "train": 4,
+    "validation": 1
+   },
+   "pass": true,
+   "prepare_stderr": "",
+   "python": "3.14.7"
+  }
+ ],
+ "environment": {
+  "code_commit": "dd5b54d15dd0488c5747a3a46e46dfdb87e37bc7",
+  "code_dirty": false,
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "optional_dependencies": "none declared yet; adapters add extras in M3-M5",
+  "uv": "uv 0.12.15 (Homebrew 2026-09-15 aarch64-apple-darwin)"
+ }
+}
