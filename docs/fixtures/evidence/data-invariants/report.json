@@ -311,6 +311,25 @@
    "section": "B"
   },
   {
+   "case": "backward_model_uses_candidate_record_contract",
+   "counts": {
+    "accepted": 9,
+    "action_out_of_bounds": 0,
+    "attempted": 9,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 0
+   },
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "backward_expert_rejected_before_artifact_creation",
+   "error": "aug.type='backward_expert' is unsupported: its expert checkpoint, device contract and candidate semantics are not defined",
+   "pass": true,
+   "section": "B"
+  },
+  {
    "case": "malformed_generator_output_raises",
    "error": "generator returned s with shape (1, 1), expected (1, 2)",
    "pass": true,
@@ -375,7 +394,7 @@
   }
  ],
  "environment": {
-  "code_commit": "3e806af608b85a0bfe911f18de19994accd7d5c7",
+  "code_commit": "d4ad8e8d9b15aa3cfdc44f5d06e6730faaa4bc83",
   "code_dirty": false,
   "numpy": "1.26.4",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
