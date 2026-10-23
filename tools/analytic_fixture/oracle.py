@@ -103,13 +103,16 @@ def evaluate(config, transitions, results):
                     d = float(np.linalg.norm(np.asarray(c["s_G"], dtype=np.float64) - s_star))
                     if d > eps * (1 + band):
                         viol["I2_accepted_in_support"].append(f"{tag}: accepted at distance {d:.4g} > epsilon {eps}")
-                if s_exp is not None and c["s_G"] is not None and _finite(c["s_G"]):
+                # A generation failure carries the solver's last iterate, not a label.
+                if s_exp is not None and c["s_G"] is not None and _finite(c["s_G"]) and c.get("reason") != "generation_failed":
                     meas = float(sys_.residual(np.asarray(c["s_G"], dtype=np.float64), a_g if a_g is not None else a_star, target))
                     c["oracle_residual"], c["predicted_residual"] = meas, pred_res
                     if not (_same(c["s_G"], s_exp, tol) and _same(c["target"], target, tol) and abs(meas - pred_res) <= tol):
                         viol["I4_closed_form"].append(f"{tag}: s_G={c['s_G']} expected={s_exp.tolist()} residual={meas:.3g} predicted={pred_res:.3g}")
                 if exp_class != "boundary" and c["accepted"] != (exp_class == "accepted"):
                     viol["I5_expected_acceptance"].append(f"{tag}: accepted={c['accepted']} expected={exp_class}")
+                elif not c["accepted"] and exp_class in ("non_finite", "out_of_support") and c.get("reason") != exp_class:
+                    viol["I5_expected_acceptance"].append(f"{tag}: rejected with reason={c.get('reason')!r}, expected {exp_class}")
         for name, v in viol.items():
             verdicts.setdefault(name, {})[method] = {"pass": not v, "violations": len(v), "examples": v[:5]}
     return results, verdicts

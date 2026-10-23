@@ -19,17 +19,33 @@ SOURCES = {
 REPO = Path(__file__).resolve().parents[2]
 
 
+def load_definitions(sources, ref=None, extra=None):
+    """Exec the named top-level functions and constants from repository files.
+
+    ref is a git revision to read from, or None for the working tree. Only the
+    named definitions are executed, so the files' module-level imports are not.
+    """
+    ns = {"torch": torch, "np": np, "Tuple": Tuple, **(extra or {})}
+    for path, names in sources.items():
+        if ref is None:
+            src, label = (REPO / path).read_text(), path
+        else:
+            src = subprocess.run(["git", "-C", str(REPO), "show", f"{ref}:{path}"],
+                                 capture_output=True, text=True, check=True).stdout
+            label = f"{ref}:{path}"
+        nodes = [n for n in ast.parse(src).body
+                 if (isinstance(n, ast.FunctionDef) and n.name in names)
+                 or (isinstance(n, ast.Assign) and any(getattr(t, "id", None) in names for t in n.targets))]
+        found = {n.name for n in nodes if isinstance(n, ast.FunctionDef)} | {
+            t.id for n in nodes if isinstance(n, ast.Assign) for t in n.targets}
+        if set(names) - found:
+            raise RuntimeError(f"{label} lacks {sorted(set(names) - found)}")
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), label, "exec"), ns)
+    return ns
+
+
 def load_legacy():
-    ns = {"torch": torch, "np": np, "Tuple": Tuple}
-    for path, names in SOURCES.items():
-        src = subprocess.run(["git", "-C", str(REPO), "show", f"{TAG}:{path}"],
-                             capture_output=True, text=True, check=True).stdout
-        tree = ast.parse(src)
-        nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
-        missing = set(names) - {n.name for n in nodes}
-        if missing:
-            raise RuntimeError(f"{TAG}:{path} lacks {sorted(missing)}")
-        exec(compile(ast.Module(body=nodes, type_ignores=[]), f"{TAG}:{path}", "exec"), ns)
+    ns = load_definitions(SOURCES, ref=TAG)
     ns["commit"] = subprocess.run(["git", "-C", str(REPO), "rev-parse", f"{TAG}^{{commit}}"],
                                   capture_output=True, text=True, check=True).stdout.strip()
     return ns

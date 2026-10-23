@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run an implementation on the analytic fixture and write the artifact.
 
-    python tools/analytic_fixture/run.py --impl {legacy,reference} --out DIR
+    python tools/analytic_fixture/run.py --impl {legacy,current,reference} --out DIR
     python tools/analytic_fixture/run.py --check DIR   # re-evaluate an existing artifact
 
 Exits 0 only if every invariant passes. See docs/fixtures/analytic-dynamics.md.
@@ -109,7 +109,7 @@ def check(out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--impl", choices=["legacy", "reference"])
+    ap.add_argument("--impl", choices=["legacy", "current", "reference"])
     ap.add_argument("--out", type=Path)
     ap.add_argument("--check", type=Path, help="re-evaluate an existing artifact directory")
     ap.add_argument("--config", type=Path, default=HERE / "config.json")
@@ -123,6 +123,8 @@ def main():
     model = DoubleIntegrator(config["h"]).model()
     if args.impl == "legacy":
         import legacy as impl
+    elif args.impl == "current":
+        import current as impl
     else:
         import reference as impl
 

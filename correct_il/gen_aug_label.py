@@ -37,117 +37,107 @@ def pack_data(s, a, sp, device):
     sp_t = torch.as_tensor(sp).float().to(device)
     return (s_t, a_t, sp_t)
 
-# TODO fix the count_fail
-def gen_forward_euler(max_iter, model, datapoint):
-    # given s, a, sp
-    # find s_prime that s_prime + (s_prime, a) -> s
-    # s_prime + f(s_prime,a) - s = 0
+# Every generator returns one record per attempted candidate, rejected ones
+# included: arrays "s", "a", "s_next" (n, dim), "accepted" (n,) and "reason"
+# (n,), where reason is None, "non_finite", "out_of_support", or
+# "generation_failed". The support check is aug.epsilon under the rule
+# load_demo_for_policy applies (distance < epsilon, skipped when epsilon is
+# unset), so generation records the decision training already used.
 
+
+def _candidates(gen_s, gen_a, next_s, origin, epsilon=None, failed=None):
+    """Classify candidates against the declared validity checks.
+
+    gen_s, gen_a, next_s: (n, dim) tensors. origin: the demonstration state
+    the label perturbs. epsilon: aug.epsilon; no support check when it is
+    falsy. failed: (n,) bool, True where the generator itself could not
+    produce a candidate.
+    """
+    distance = torch.norm(gen_s - origin, dim=1)
+    finite = torch.isfinite(gen_s).all(dim=1) & torch.isfinite(gen_a).all(dim=1) & torch.isfinite(origin).all()
+    reasons = []
+    for k in range(gen_s.shape[0]):
+        if not finite[k]:
+            reasons.append("non_finite")
+        elif failed is not None and failed[k]:
+            reasons.append("generation_failed")
+        elif epsilon and not distance[k] < epsilon:
+            reasons.append("out_of_support")
+        else:
+            reasons.append(None)
+    return {
+        "s": gen_s.detach().cpu().numpy(),
+        "a": gen_a.detach().cpu().numpy(),
+        "s_next": next_s.detach().cpu().numpy(),
+        "accepted": np.array([r is None for r in reasons]),
+        "reason": np.array(reasons, dtype=object),
+        "distance": distance.detach().cpu().numpy(),
+    }
+
+
+def _root_find_one(loss, s, a, target, max_iter):
+    """Root-find a single candidate; non-finite inputs skip the solver."""
+    if not (torch.isfinite(s).all() and torch.isfinite(a).all() and torch.isfinite(target).all()):
+        return torch.full_like(s, float("nan")), True
+    s_prime, is_success, _ = root_finder_s(loss, s_next=target, a=a, init_s=s, max_iter=max_iter)
+    return s_prime, not is_success
+
+
+def gen_forward_euler(max_iter, epsilon, model, datapoint):
+    # find s' such that s' + f(s', a) = s
     def loss(s, a, next_s):
         return s + model.f(s, a) - next_s
 
     s, a, sp = datapoint
-    s_prime, is_success, count_fail = root_finder_s(
-        loss, s_next=s, a=a, init_s=s, max_iter=max_iter) # TODO maybe change initial guess
-    if is_success:
-        gen_data = (s_prime.cpu().numpy(), a.cpu().numpy(), s.cpu().numpy())
-        distance = np.linalg.norm(s.cpu().numpy() - s_prime.cpu().numpy())
-    else:
-        gen_data = (None, None, None)
-        distance = 0
-    return int(is_success), count_fail, gen_data, {'distance':[distance]}
+    s_prime, failed = _root_find_one(loss, s, a, s, max_iter)  # TODO maybe change initial guess
+    return _candidates(s_prime[None], a[None], s[None], s, epsilon=epsilon, failed=torch.tensor([failed]))
 
-def gen_backward_euler(max_iter, model, datapoint):
-    # given s, a, sp
-    # find s_prime that s_prime + (s, a) -> s
 
+def gen_backward_euler(max_iter, epsilon, model, datapoint):
+    # find s' such that s' + f(s, a) = s
     def loss(s, a, next_s):
         return s + model.f(next_s, a) - next_s
 
     s, a, sp = datapoint
-    s_prime, is_success, count_fail = root_finder_s(
-        loss, s_next=s, a=a, init_s=s, max_iter=max_iter)
-    if is_success:
-        gen_data = (s_prime.cpu().numpy(), a.cpu().numpy(), s.cpu().numpy())
-        distance = np.linalg.norm(s.cpu().numpy() - s_prime.cpu().numpy())
-    else:
-        gen_data = (None, None, None)
-        distance = 0
+    s_prime, failed = _root_find_one(loss, s, a, s, max_iter)
+    return _candidates(s_prime[None], a[None], s[None], s, epsilon=epsilon, failed=torch.tensor([failed]))
 
-    if count_fail >= max_iter:
-        count_fail = 1
-    else:
-        count_fail = 0
-    return int(is_success), count_fail, gen_data, {'distance':[distance]}
 
-def gen_backward_euler_fast(max_iter, model, datapoint):
-    # s_prime = s - f(s,a)
+def gen_backward_euler_fast(max_iter, epsilon, model, datapoint):
+    # s' = s - f(s, a)
     with torch.no_grad():
         s, a, sp = datapoint
-        gen_s = torch.unsqueeze(s, 0) - model.f(torch.unsqueeze(s, 0), torch.unsqueeze(a, 0))
-        gen_s = gen_s[0]
-        distance = torch.norm(gen_s - s)
+        gen_s = s[None] - model.f(s[None], a[None])
+        return _candidates(gen_s, a[None], s[None], s, epsilon=epsilon)
 
-        count_fail =  torch.count_nonzero(distance > 0.01).cpu().item()
-        count_success = 1 # - count_fail
-
-        gen_s = gen_s.cpu().numpy()
-
-        gen_a = a.cpu().numpy()
-        next_s_np = s.cpu().numpy()
-        distance = distance.cpu().numpy()
-
-        gen_data = (gen_s, gen_a, next_s_np)
-        return count_success, count_fail, gen_data, {'distance':[distance]}
 
 def gen_noisy_action_be(num_labels, delta, epsilon, model, datapoint):
-    # return s + model.f(next_s, a_noisy) - next_s = 0
-    # return next_s - model.f(next_s, a_noisy)
-
+    # s' = s_next - f(s_next, a + noise)
     with torch.no_grad():
         s, a, sp = datapoint
         gen_noise = torch.normal(0, delta, size=(num_labels, a.size(0))).to(a.device)
         noisy_a = gen_noise + a
         next_s_tile = sp.repeat(num_labels, 1)
         gen_s = next_s_tile - model.f(next_s_tile, noisy_a)
-        distance = torch.norm(gen_s - s, dim=1)
+        return _candidates(gen_s, noisy_a, next_s_tile, s, epsilon=epsilon)
 
-        count_fail =  torch.count_nonzero(distance > epsilon).cpu().item()
-        count_success = num_labels # - count_fail
-
-        gen_s = gen_s.cpu().numpy()
-        gen_a = noisy_a.cpu().numpy()
-        next_s_np = next_s_tile.cpu().numpy()
-        distance = distance.cpu().numpy()
-
-        gen_data = (gen_s, gen_a, next_s_np)
-        return count_success, count_fail, gen_data, {'distance':distance}
 
 def gen_noisy_action_fe(num_labels, delta, epsilon, max_iter, model, datapoint):
-
+    # find s' such that s' + f(s', a + noise) = s_next
     def loss(s, a, next_s):
         return s + model.f(s, a) - next_s
 
     s, a, sp = datapoint
     gen_noise = torch.normal(0, delta, size=(num_labels, a.size(0))).to(a.device)
     noisy_a = a + gen_noise
-    count_success = 0
-    count_fail = 0
-    gen_s = []
-    gen_a = []
+    gen_s, failed = [], []
     for i in range(num_labels):
-        _a = noisy_a[i]
-        s_prime, is_success, num_fail = root_finder_s(
-            loss, s_next=sp, a=_a, init_s=s, max_iter=max_iter)
-        if is_success and torch.norm(s_prime - s) <= epsilon:
-            count_success += 1
-            gen_s.append(s_prime.cpu().numpy())
-            gen_a.append(_a.cpu().numpy())
-        else:
-            count_fail += 1
-    sp = sp.cpu().numpy()
-    gen_data = (gen_s, gen_a, sp.repeat(len(gen_s)))
-    return count_success, count_fail, gen_data, {}
+        s_prime, f = _root_find_one(loss, s, noisy_a[i], sp, max_iter)
+        gen_s.append(s_prime)
+        failed.append(f)
+    return _candidates(torch.stack(gen_s), noisy_a, sp.repeat(num_labels, 1), s,
+                       epsilon=epsilon, failed=torch.tensor(failed))
+
 
 def gen_backward_model(model, datapoint):
     s, a, sp = datapoint
@@ -169,11 +159,11 @@ def gen_backward_expert(expert: D3Agent, max_iter, model, datapoint):
 
 def choose_augmentation(aug_config):
     if aug_config.type == 'forward_euler':
-        return partial(gen_forward_euler, aug_config.max_iter)
+        return partial(gen_forward_euler, aug_config.max_iter, aug_config.epsilon)
     if aug_config.type == 'backward_euler':
-        return partial(gen_backward_euler, aug_config.max_iter)
+        return partial(gen_backward_euler, aug_config.max_iter, aug_config.epsilon)
     if aug_config.type == 'backward_euler_fast' or aug_config.type == 'random_backward':
-        return partial(gen_backward_euler_fast, aug_config.max_iter)
+        return partial(gen_backward_euler_fast, aug_config.max_iter, aug_config.epsilon)
     if aug_config.type == 'noisy_action':
         return partial(gen_noisy_action_be,
             aug_config.num_labels, aug_config.delta, aug_config.epsilon)
@@ -235,77 +225,90 @@ def main():
 
     generator = choose_augmentation(config.aug)
 
-    original_states = []
-    new_states = []
-    new_actions = []
-    new_next_states = []
-    count_success = 0
-    count_fail = 0
-
     if config.debug and data_size > 5:
         data_size = 5
 
-    distances = []
-    for i in tqdm(range(data_size)):
-        _count_suc, _count_fail, gen_data, info = generator(model, (s[i], a[i], sp[i]))
-        if info is not None: distances.append(info['distance'])
-        if _count_suc > 0:
-            count_success += _count_suc
-            s_prime, a_prime, s_next = gen_data
-            original_states.append(np.tile(np_s[i], (_count_suc, 1)))
-            new_states.append(s_prime)
-            new_actions.append(a_prime)
-            new_next_states.append(s_next)
-        count_fail += _count_fail
+    labels = collect_labels(generator, model, (s, a, sp), np_s, data_size)
+    accepted = labels['accepted']
+    counts = labels['counts']
 
-    if count_success > 0:
-        original_states = np.concatenate(original_states, axis=0).reshape(-1, state_dim)
-        new_states = np.concatenate(new_states, axis=0).reshape(-1, state_dim)
-        new_actions = np.concatenate(new_actions, axis=0).reshape(-1, action_dim)
-        new_next_states = np.concatenate(new_next_states, axis=0).reshape(-1, state_dim)
+    # aug_data.pkl holds accepted labels only. It is written even when no label is
+    # valid, so a zero-label run leaves an explicit empty artifact instead of none.
+    paths = {
+        'observations': labels['s'][accepted].reshape(-1, state_dim),
+        'actions': labels['a'][accepted].reshape(-1, action_dim),
+        'next_obs': labels['s_next'][accepted].reshape(-1, state_dim),
+        'original_states': labels['original_states'][accepted].reshape(-1, state_dim),
+    }
+    pickle.dump(paths,
+        open(os.path.join(output_folder, f'aug_data.pkl'), 'wb'))
+    save_config_yaml(config,
+        os.path.join(output_folder, f'config.yml'))
+    # Every attempted candidate with its decision; reason is '' for accepted labels.
+    np.savez(os.path.join(output_folder, 'label_decisions.npz'),
+             datapoint=labels['datapoint'], observations=labels['s'], actions=labels['a'],
+             next_obs=labels['s_next'], original_states=labels['original_states'],
+             distance=labels['distance'], accepted=accepted,
+             reason=np.array(['' if r is None else r for r in labels['reason']]))
+    if not accepted.any():
+        print("No valid labels generated")
 
-        # Save Data
-        paths = {
-            'observations': new_states,
-            'actions': new_actions,
-            'next_obs': new_next_states,
-            'original_states': original_states,
-        }
-        pickle.dump(paths,
-            open(os.path.join(output_folder, f'aug_data.pkl'), 'wb'))
-        save_config_yaml(config,
-            os.path.join(output_folder, f'config.yml'))
-    else:
-        print("No data generated")
+    distances = labels['distance'][np.isfinite(labels['distance'])]
 
     if config.aug.type == 'eval_noisy':
         with open(os.path.join(output_folder, f'statistics-{config.aug.delta}.txt'), 'w') as f:
-            f.write(f'Avg errors: {np.average(np.concatenate(distances))}')
+            f.write(f'Avg errors: {np.average(distances)}')
 
         with open('/tmp/pendulum_eval_noisy.txt', 'a+') as f:
-            f.write(f'{output_folder}-{config.aug.delta} {np.average(np.concatenate(distances))}')
+            f.write(f'{output_folder}-{config.aug.delta} {np.average(distances)}')
             f.write('\n')
 
 
     # Save statistics
     with open(os.path.join(output_folder, f'statistics.txt'), 'w') as f:
         f.write(f'Input Data Point: {data_size}\n')
-        f.write(f'Success: {count_success}\n')
-        f.write(f'Failure: {count_fail}\n')
-        if len(distances) > 0: f.write(f'Avg norm distance: {np.average(np.concatenate(distances))}')
+        f.write(f'Attempted: {counts["attempted"]}\n')
+        f.write(f'Accepted: {counts["accepted"]}\n')
+        f.write(f'Rejected (non_finite): {counts["non_finite"]}\n')
+        f.write(f'Rejected (out_of_support): {counts["out_of_support"]}\n')
+        f.write(f'Generation failed: {counts["generation_failed"]}\n')
+        if len(distances) > 0: f.write(f'Avg norm distance (finite candidates): {np.average(distances)}')
     if len(distances) > 0:
-        pickle.dump({'distance':distances},
+        pickle.dump({'distance': distances},
                 open(os.path.join(output_folder, f'distance.pkl'), 'wb'))
-        cat_distances = np.concatenate(distances)
         fig = plt.figure()
         ax = fig.add_subplot()
         fig.suptitle("Generated Label Distance")
-        ax.hist(cat_distances, density=True, bins=50)
+        ax.hist(distances, density=True, bins=50)
         path = os.path.join(output_folder, "label_distance.png")
         fig.savefig(path)
     if config.debug:
         print(distances)
-        #import pdb;pdb.set_trace()
+
+
+def collect_labels(generator, model, data, np_s, data_size):
+    """Run the generator on the first data_size transitions.
+
+    Returns every attempted candidate (rejected ones included) with its source
+    datapoint and the demonstration state it perturbs, plus reconciled counts.
+    """
+    s, a, sp = data
+    records = []
+    for i in tqdm(range(data_size)):
+        rec = generator(model, (s[i], a[i], sp[i]))
+        n = len(rec['accepted'])
+        rec['datapoint'] = np.full(n, i)
+        rec['original_states'] = np.tile(np_s[i], (n, 1))
+        records.append(rec)
+    keys = ('s', 'a', 's_next', 'accepted', 'reason', 'distance', 'datapoint', 'original_states')
+    out = {k: np.concatenate([r[k] for r in records]) for k in keys}
+    counts = {'attempted': len(out['reason']), 'accepted': int(out['accepted'].sum())}
+    for reason in ('non_finite', 'out_of_support', 'generation_failed'):
+        counts[reason] = int(sum(r == reason for r in out['reason']))
+    if counts['accepted'] + counts['non_finite'] + counts['out_of_support'] + counts['generation_failed'] != counts['attempted']:
+        raise RuntimeError(f"label counts do not reconcile: {counts}")
+    out['counts'] = counts
+    return out
 
 if __name__ == "__main__":
     main()
