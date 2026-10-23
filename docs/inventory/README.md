@@ -99,8 +99,9 @@ recorded, not fixed.
 - `bc-policy`: on `main`, an undefined `tycho` environment gets hard-coded
   loss weights. On `label-filtering`, a callable `loss_weights` is silently
   overwritten.
-- `task-configs`: on `main`, two Meta-World configs write output to a literal
-  `$HOME/CorrectiveIL/output/` directory.
+- `task-configs`: on `main`, two Meta-World configs default their output to
+  the machine-specific `$HOME/CorrectiveIL/output/`. The pipeline script
+  overrides it.
 - `datasets`: generation provenance is unknown except for F1, and
   `data/pendulumswingup-v0.pkl` is unreferenced (#8).
 - `image-state-encoder`: its config needs a dataset that no preserved ref

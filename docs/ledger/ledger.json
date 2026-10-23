@@ -1,0 +1,2669 @@
+{
+  "schema_version": 1,
+  "captured": "2026-10-22",
+  "scope": "personalrobotics/CCIL preserved refs. image_ccil is deferred.",
+  "refs": "docs/inventory/capabilities.json#refs",
+  "statistical_parity_rule": "Per-seed results must be published. Parity rule to be predeclared per entry before any rerun (see #3); none is ratified yet.",
+  "entries": [
+    {
+      "id": "sim-pendulum-cont",
+      "kind": "paper-result",
+      "title": "Pendulum swing-up, continuous: BC vs BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 4(c)",
+        "reported": {
+          "BC": -3244,
+          "BC+CCIL": -2269
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/pendulum.sh"
+        ],
+        "script": "scripts/pendulum.sh"
+      },
+      "configs": [
+        "config/pendulum_cont.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0
+        ]
+      },
+      "seeds": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/pendulum_cont_100.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/pendulum_cont/seed<S>/<env>/dynamics_*",
+        "output/pendulum_cont/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/pendulum_cont/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return (100 episodes, 500 steps), mean over seeds."
+      },
+      "target": {
+        "command": "ccil run pendulum_cont --method bc,noise-bc,ccil --seeds 41-50",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "Paper Table 2 lists 50 pendulum demonstrations; the dataset file is pendulum_cont_100.pkl.",
+        "pendulum.sh uses seeds 41-50; every other suite uses 40-49.",
+        "pendulum.sh also trains CCIL with lipschitz_type none, which no figure reports.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-pendulum",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-pendulum-disc",
+      "kind": "paper-result",
+      "title": "Discontinuous pendulum: BC vs BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 4(c)",
+        "reported": {
+          "BC": -3204,
+          "BC+CCIL": -2556
+        },
+        "tracking_issue": "#3"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/pendulum.sh"
+        ],
+        "script": "scripts/pendulum.sh"
+      },
+      "configs": [
+        "config/pendulum_disc.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0
+        ]
+      },
+      "seeds": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/pendulum_disc_500.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/pendulum_disc/seed<S>/<env>/dynamics_*",
+        "output/pendulum_disc/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/pendulum_disc/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return (100 episodes, 500 steps), mean over seeds."
+      },
+      "target": {
+        "command": "ccil run pendulum_disc --method bc,noise-bc,ccil --seeds 41-50",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "label-filtering changes this config from noisy_action (epsilon 0.01) to backward_euler_fast with label_err_quantile 0.3; which produced Fig. 4(c) is unknown.",
+        "Issue #3 reports this result as unstable across reruns; its maintainer contract governs closure.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-pendulum",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-pendulum-label-bound",
+      "kind": "paper-result",
+      "title": "Pendulum label error vs theoretical bound (Q1)",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Sec. 5.1 text",
+        "reported": {
+          "empirical_mean_L2": 0.02367,
+          "bound": 0.065
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [
+        "config/pendulum_cont.yml"
+      ],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/pendulum_cont_100.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "Compare generated next states with PendulumEnv_NP.forward_solver ground truth; average L2 error.",
+        "metric": "Mean L2 distance between generated and true next state."
+      },
+      "target": {
+        "command": "ccil analyze label-error pendulum_cont",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "knowledge",
+          "detail": "The only measurement code is a commented-out block in utils.load_demo_for_policy; the seed, label type, and K1/K2 values behind 0.065 are not recorded.",
+          "next_action": "Reconstruct the procedure from the commented block and Eq. 7, then confirm with the authors."
+        }
+      ],
+      "discrepancies": [],
+      "inventory_capabilities": [
+        "env-pendulum",
+        "corrective-labels"
+      ]
+    },
+    {
+      "id": "sim-f1tenth",
+      "kind": "paper-result",
+      "title": "F1TENTH LiDAR racing: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 5(c)",
+        "reported": {
+          "Expert": "100.0% / 1.00",
+          "BC": "31.9% / 0.58 ± 0.25",
+          "NoiseBC": "39.3% / 0.62 ± 0.28",
+          "BC+CCIL": "89.6% / 0.95 ± 0.08"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/f1.sh"
+        ],
+        "script": "scripts/f1.sh"
+      },
+      "configs": [
+        "config/f1.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.01,
+        "eval.noise": [
+          0.0,
+          0.0002,
+          0.0003,
+          0.0004,
+          0.0005,
+          0.0006,
+          0.0008
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/f1.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/f1/seed<S>/<env>/dynamics_*",
+        "output/f1/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/f1/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/envs/f1/eval_all_seeds.sh: eval_all.py -n 100 on maps/random/map0, random start on the track, TimeLimit 800 steps (40 s at 20 Hz). train_ccil.sh skips eval_bc_policy.py for f1.",
+        "metric": "Success rate (episode survives 800 steps) and average score."
+      },
+      "target": {
+        "command": "ccil run f1 --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "main's eval_bc.py prints mean return; label-filtering's prints success rate under the same label. The paper reports both.",
+        "The normalization behind 'Avg. Score' is not documented.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-f1tenth",
+        "f1-evaluation",
+        "results-analysis"
+      ]
+    },
+    {
+      "id": "sim-drone-hover",
+      "kind": "paper-result",
+      "title": "Drone Hover: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 6(b)",
+        "column": "Hover",
+        "reported": {
+          "Expert": -1104,
+          "BC": -108000000.0,
+          "NoiseBC": -113000000.0,
+          "BC+CCIL": -77000000.0
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/drone.sh"
+        ],
+        "script": "scripts/drone.sh"
+      },
+      "configs": [
+        "config/hover.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/hover_5.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/hover/seed<S>/<env>/dynamics_*",
+        "output/hover/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/hover/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise, mean over seeds."
+      },
+      "target": {
+        "command": "ccil run hover --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "For drone tasks, utils.evaluate_on_environment parses as (mix) if not drone_task else U[-1,1], so with eval.noise > 0 every observation is replaced by uniform noise rather than perturbed. All drone configs set eval.noise [0.0003].",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-drones",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-drone-circle",
+      "kind": "paper-result",
+      "title": "Drone Circle: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 6(b)",
+        "column": "Circle",
+        "reported": {
+          "Expert": -10,
+          "BC": -95600000.0,
+          "NoiseBC": -98800000.0,
+          "BC+CCIL": -34900000.0
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/drone.sh"
+        ],
+        "script": "scripts/drone.sh"
+      },
+      "configs": [
+        "config/circle.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/circle_50.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/circle/seed<S>/<env>/dynamics_*",
+        "output/circle/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/circle/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise, mean over seeds."
+      },
+      "target": {
+        "command": "ccil run circle --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "Paper Table 2 lists 30 circle demonstrations; the dataset file is circle_50.pkl.",
+        "For drone tasks, utils.evaluate_on_environment parses as (mix) if not drone_task else U[-1,1], so with eval.noise > 0 every observation is replaced by uniform noise rather than perturbed. All drone configs set eval.noise [0.0003].",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-drones",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-drone-flythrugate",
+      "kind": "paper-result",
+      "title": "Drone FlyThrough: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 6(b)",
+        "column": "FlyThrough",
+        "reported": {
+          "Expert": -4351,
+          "BC": -106000000.0,
+          "NoiseBC": -107000000.0,
+          "BC+CCIL": -41000000.0
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/drone.sh"
+        ],
+        "script": "scripts/drone.sh"
+      },
+      "configs": [
+        "config/flythrugate.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/flythrugate_50.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/flythrugate/seed<S>/<env>/dynamics_*",
+        "output/flythrugate/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/flythrugate/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise, mean over seeds."
+      },
+      "target": {
+        "command": "ccil run flythrugate --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "For drone tasks, utils.evaluate_on_environment parses as (mix) if not drone_task else U[-1,1], so with eval.noise > 0 every observation is replaced by uniform noise rather than perturbed. All drone configs set eval.noise [0.0003].",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-drones",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-hopper",
+      "kind": "paper-result",
+      "title": "Hopper: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "Hopper",
+        "reported": {
+          "Expert": 3234.3,
+          "BC": "1983.98 ± 672.66",
+          "NoiseBC": "1563.56 ± 1012.02",
+          "BC+CCIL": "2784.45 ± 188.56"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/mujoco.sh"
+        ],
+        "script": "scripts/mujoco.sh"
+      },
+      "configs": [
+        "config/hopper.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.01
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/hopper-expert-v2_25.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/hopper/seed<S>/<env>/dynamics_*",
+        "output/hopper/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/hopper/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds)."
+      },
+      "target": {
+        "command": "ccil run hopper --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-mujoco-d4rl",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-walker2d",
+      "kind": "paper-result",
+      "title": "Walker: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "Walker",
+        "reported": {
+          "Expert": 4592.3,
+          "BC": "1922.55 ± 1410.09",
+          "NoiseBC": "2893.21 ± 1076.89",
+          "BC+CCIL": "3724.89 ± 558.01"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/mujoco.sh"
+        ],
+        "script": "scripts/mujoco.sh"
+      },
+      "configs": [
+        "config/walker2d.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.03
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/walker2d-expert-v2_20.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/walker2d/seed<S>/<env>/dynamics_*",
+        "output/walker2d/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/walker2d/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds)."
+      },
+      "target": {
+        "command": "ccil run walker2d --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-mujoco-d4rl",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-ant",
+      "kind": "paper-result",
+      "title": "Ant: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "Ant",
+        "reported": {
+          "Expert": 3879.7,
+          "BC": "2965.20 ± 202.71",
+          "NoiseBC": "3776.65 ± 442.13",
+          "BC+CCIL": "3546.32 ± 338.84"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/mujoco.sh"
+        ],
+        "script": "scripts/mujoco.sh"
+      },
+      "configs": [
+        "config/ant.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 1.0,
+        "eval.noise": [
+          0.0001
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/ant-expert-v2_10.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/ant/seed<S>/<env>/dynamics_*",
+        "output/ant/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/ant/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds)."
+      },
+      "target": {
+        "command": "ccil run ant --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "mujoco.sh runs NoiseBC for ant with noise 1.0, versus 0.0001 for the other MuJoCo tasks.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-mujoco-d4rl",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-halfcheetah",
+      "kind": "paper-result",
+      "title": "Halfcheetah: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "Halfcheetah",
+        "reported": {
+          "Expert": 12135.0,
+          "BC": "8309.31 ± 795.30",
+          "NoiseBC": "8468.98 ± 738.83",
+          "BC+CCIL": "9057.13 ± 425.47"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/mujoco.sh"
+        ],
+        "script": "scripts/mujoco.sh"
+      },
+      "configs": [
+        "config/halfcheetah.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.005
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/halfcheetah-expert-v2_50.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/halfcheetah/seed<S>/<env>/dynamics_*",
+        "output/halfcheetah/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/halfcheetah/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds)."
+      },
+      "target": {
+        "command": "ccil run halfcheetah --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "halfcheetah.yml sets dynamics.lipschitz_type none, so CCIL here uses an unconstrained dynamics model.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-mujoco-d4rl",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-coffee-pull",
+      "kind": "paper-result",
+      "title": "CoffeePull: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "CoffeePull",
+        "reported": {
+          "Expert": 4409.95,
+          "BC": "3552.59 ± 233.41",
+          "NoiseBC": "3072.86 ± 785.91",
+          "BC+CCIL": "3949.54 ± 252.34"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/metaworld.sh"
+        ],
+        "script": "scripts/metaworld.sh"
+      },
+      "configs": [
+        "config/coffee_pull.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/metaworld-coffee-pull-v2_50.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/coffee_pull/seed<S>/<env>/dynamics_*",
+        "output/coffee_pull/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/coffee_pull/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds). Meta-World episodes are capped at 500 steps."
+      },
+      "target": {
+        "command": "ccil run coffee_pull --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "output.location is $HOME/CorrectiveIL/output/ in the config, but train_ccil.sh overrides it with output/<task>.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
+        "Paper App. D.2 says non-pendulum data comes from D4RL, but Meta-World is not part of D4RL; the data's origin is unknown."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-metaworld",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-button",
+      "kind": "paper-result",
+      "title": "ButtonPress: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "ButtonPress",
+        "reported": {
+          "Expert": 3895.82,
+          "BC": "3693.02 ± 104.99",
+          "NoiseBC": "3663.44 ± 63.10",
+          "BC+CCIL": "3827.60 ± 24.37"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/metaworld.sh"
+        ],
+        "script": "scripts/metaworld.sh"
+      },
+      "configs": [
+        "config/button.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/metaworld-button-press-top-down-v2.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/button/seed<S>/<env>/dynamics_*",
+        "output/button/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/button/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds). Meta-World episodes are capped at 500 steps."
+      },
+      "target": {
+        "command": "ccil run button --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "The dataset name has no demonstration count; Table 2 says 50.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
+        "Paper App. D.2 says non-pendulum data comes from D4RL, but Meta-World is not part of D4RL; the data's origin is unknown."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-metaworld",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-coffee-push",
+      "kind": "paper-result",
+      "title": "CoffeePush: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "CoffeePush",
+        "reported": {
+          "Expert": 4488.29,
+          "BC": "1288.19 ± 746.37",
+          "NoiseBC": "2551.11 ± 857.79",
+          "BC+CCIL": "2551.18 ± 770.02"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/metaworld.sh"
+        ],
+        "script": "scripts/metaworld.sh"
+      },
+      "configs": [
+        "config/coffee_push.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/metaworld-coffee-push-v2_50.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/coffee_push/seed<S>/<env>/dynamics_*",
+        "output/coffee_push/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/coffee_push/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds). Meta-World episodes are capped at 500 steps."
+      },
+      "target": {
+        "command": "ccil run coffee_push --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "output.location is $HOME/CorrectiveIL/output/ in the config, but train_ccil.sh overrides it with output/<task>.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
+        "Paper App. D.2 says non-pendulum data comes from D4RL, but Meta-World is not part of D4RL; the data's origin is unknown."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-metaworld",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-drawer-close",
+      "kind": "paper-result",
+      "title": "DrawerClose: BC, NoiseBC, BC+CCIL",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1",
+        "column": "DrawerClose",
+        "reported": {
+          "Expert": 4329.34,
+          "BC": "3247.06 ± 468.73",
+          "NoiseBC": "4226.71 ± 18.90",
+          "BC+CCIL": "4187.90 ± 44.40"
+        }
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/metaworld.sh"
+        ],
+        "script": "scripts/metaworld.sh"
+      },
+      "configs": [
+        "config/drawer_close.yml"
+      ],
+      "behavior_values": {
+        "noise_bc_override": 0.0001,
+        "eval.noise": [
+          0.0003
+        ]
+      },
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/metaworld-drawer-close-v2.pkl"
+      ],
+      "checkpoints": [],
+      "outputs": [
+        "output/drawer_close/seed<S>/<env>/dynamics_*",
+        "output/drawer_close/seed<S>/<env>/data/*/aug_data.pkl",
+        "output/drawer_close/seed<S>/<env>/policy/{naive,noise_<x>,<aug>_<lip>}/rewards_noise_<n>.pkl"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean episode return under evaluation noise (mean ± std over seeds). Meta-World episodes are capped at 500 steps."
+      },
+      "target": {
+        "command": "ccil run drawer_close --method bc,noise-bc,ccil --seeds 40-49",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "The dataset name has no demonstration count; Table 2 says 50.",
+        "Paper says Gaussian sensor and actuator noise; code mixes with a uniform sample of the observation or action space.",
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
+        "Paper App. D.2 says non-pendulum data comes from D4RL, but Meta-World is not part of D4RL; the data's origin is unknown."
+      ],
+      "inventory_capabilities": [
+        "dynamics-model",
+        "lipschitz-regularization",
+        "spectral-norm",
+        "corrective-labels",
+        "label-filtering",
+        "bc-policy",
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "dynamics-training-tool",
+        "config-system",
+        "task-configs",
+        "pipeline-scripts",
+        "packaging",
+        "datasets",
+        "env-metaworld",
+        "policy-evaluation"
+      ]
+    },
+    {
+      "id": "sim-model-based-baselines",
+      "kind": "paper-result",
+      "title": "MOReL and MILO baselines",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Table 1, Fig. 5(c), Fig. 6(b)",
+        "reported": "MOReL and MILO rows"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "unknown",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "Author implementations, per the paper (App. D.3).",
+        "metric": "As for each task."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "decision",
+          "detail": "No MOReL or MILO code, configs, or outputs exist in any preserved ref.",
+          "next_action": "Decide in #9 whether external baselines are in scope; if so, locate the exact author code and commits used."
+        }
+      ],
+      "discrepancies": [],
+      "inventory_capabilities": []
+    },
+    {
+      "id": "real-bc-ccil-data-fraction",
+      "kind": "paper-result",
+      "title": "BC vs BC+CCIL across data fractions (GraspCube, GearInsertion, GraspCoin)",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 8(a), Fig. 9"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "data-fraction-ablation",
+        "label-filtering"
+      ]
+    },
+    {
+      "id": "real-dp-ccil",
+      "kind": "paper-result",
+      "title": "Diffusion Policy vs DP+CCIL on GraspCoin",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 8(b)"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "diffusion-policy-eval",
+        "action-chunking-labels"
+      ]
+    },
+    {
+      "id": "real-label-clusters",
+      "kind": "paper-result",
+      "title": "Local Lipschitz label clusters on GraspCube (20% data)",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 10"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "label-filtering"
+      ]
+    },
+    {
+      "id": "real-lipschitz-constraint",
+      "kind": "paper-result",
+      "title": "Local L across Lipschitz constraints",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 11"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "label-filtering"
+      ]
+    },
+    {
+      "id": "real-label-error-quantile",
+      "kind": "paper-result",
+      "title": "Success vs label error quantile on GraspCube (20% data)",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 12"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "label-filtering"
+      ]
+    },
+    {
+      "id": "real-hparam-grid",
+      "kind": "paper-result",
+      "title": "Lipschitz constraint x label rejection quantile grid",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Fig. 13"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "HEBI 7-DoF chopstick robot with OptiTrack motion capture (env name 'tycho' in train_bc_policy.py).",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "48 trials per agent: 16 fixed initial conditions x 3 trials; two-proportion z-tests (paper Sec. 6.6).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "hardware",
+          "detail": "Requires the physical chopstick robot and motion-capture cage.",
+          "next_action": "Decide in #9 whether real-robot results are reproduced, re-analyzed from logged data, or out of scope."
+        },
+        {
+          "missing": "artifact",
+          "detail": "No real-world demonstrations, trained policies, or trial logs exist in any preserved CCIL ref.",
+          "next_action": "Ask the authors where the data lives; check image_ccil when its integration resumes."
+        }
+      ],
+      "discrepancies": [
+        "train_bc_policy.py on main hard-codes 'tycho' loss weights and disables action scaling, so real-robot training differed from simulation."
+      ],
+      "inventory_capabilities": [
+        "label-filtering"
+      ]
+    },
+    {
+      "id": "setup-install",
+      "kind": "setup",
+      "title": "README installation",
+      "claim": {
+        "source": "README.md (main)",
+        "workflow": "Install pinned dependencies and the package."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "git clone https://github.com/personalrobotics/CCIL.git",
+          "cd CCIL",
+          "pip install -r install_deps.txt",
+          "pip install -e ."
+        ],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "README says Python 3.8.10. MuJoCo binaries are needed for d4rl and mjrl.",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "Install succeeds in a clean environment, and every task's environment can be constructed.",
+        "metric": "pass/fail"
+      },
+      "target": {
+        "command": "pip install ccil[all]",
+        "command_status": "provisional",
+        "parity": "not-applicable",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "setup.py uses distutils, which was removed in Python 3.12.",
+        "envs/f1/requirements.txt pins torch 2.0.1, but setup.py pins torch 2.1.0."
+      ],
+      "inventory_capabilities": [
+        "packaging",
+        "documentation"
+      ]
+    },
+    {
+      "id": "readme-tabulate",
+      "kind": "documented-example",
+      "title": "README result tabulation",
+      "claim": {
+        "source": "README.md (main)",
+        "workflow": "Tabulate rewards_noise_*.pkl after running the scripts."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "find output/* -name \"rewards_noise_*.pkl\" | xargs python ./correct_il/tabulate_results.py"
+        ],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "CPU",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "The table matches the per-seed reward files it reads.",
+        "metric": "Table contents."
+      },
+      "target": {
+        "command": "ccil report <output-dir>",
+        "command_status": "provisional",
+        "parity": "exact",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [],
+      "inventory_capabilities": [
+        "results-analysis",
+        "documentation"
+      ]
+    },
+    {
+      "id": "readme-baselines",
+      "kind": "documented-example",
+      "title": "README vanilla BC and NoiseBC commands",
+      "claim": {
+        "source": "README.md (main)",
+        "workflow": "Train baselines by overriding policy.naive and policy.noise_bc."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true",
+          "python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true policy.noise_bc <NOISE>"
+        ],
+        "script": null
+      },
+      "configs": [
+        "config/*.yml"
+      ],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [
+        "output/seed<S>/<env>/policy/{naive,noise_<x>}/policy.pt"
+      ],
+      "evaluation": {
+        "protocol": "Covered by each sim-* entry's BC and NoiseBC rows.",
+        "metric": "As for each task."
+      },
+      "target": {
+        "command": "ccil run <task> --method bc|noise-bc",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "pending",
+      "evidence": [],
+      "blockers": [],
+      "discrepancies": [
+        "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.)."
+      ],
+      "inventory_capabilities": [
+        "baseline-vanilla-bc",
+        "baseline-noise-bc",
+        "documentation"
+      ]
+    },
+    {
+      "id": "internal-cluster-sweep",
+      "kind": "internal-result",
+      "title": "Cluster sweep (scripts/sweep.sh, launch.slurm)",
+      "claim": {
+        "source": "scripts/sweep.sh and README 'sweep over parameters'",
+        "workflow": "Drone-task sweep over lipschitz types and aug types on a Slurm cluster."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "main",
+        "commit": "5a9e3c169874f876419953105fcba88cb5a3695e",
+        "working_directory": "repository root",
+        "commands": [
+          "sbatch scripts/launch.slurm"
+        ],
+        "script": "scripts/sweep.sh"
+      },
+      "configs": [
+        "config/circle.yml",
+        "config/hover.yml",
+        "config/flythrugate.yml"
+      ],
+      "behavior_values": {},
+      "seeds": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
+      "hardware": "Slurm cluster (/gscratch/weirdlab), conda env 'torch'.",
+      "env_vars": [
+        "TQDM_DISABLE=1",
+        "HOME (expects $HOME/CorrectiveIL)"
+      ],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [
+        "/gscratch/weirdlab/tycho/ccil_mujoco/<task>"
+      ],
+      "evaluation": {
+        "protocol": "As for the drone entries.",
+        "metric": "Mean return."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "not-applicable",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "out-of-scope",
+      "evidence": [],
+      "blockers": [],
+      "exclusion_rationale": "A machine-specific tuning sweep with no linked reported result. It is preserved in history; the drone sim-* entries cover the experiments it searched over.",
+      "discrepancies": [],
+      "inventory_capabilities": [
+        "cluster-sweeps"
+      ]
+    },
+    {
+      "id": "internal-label-filtering-configs",
+      "kind": "internal-result",
+      "title": "label-filtering config set (label-error quantile filtering)",
+      "claim": {
+        "source": "label-filtering commits 'Add changes from IROS', 'Update simulation configs'",
+        "workflow": "Sim configs retuned with label_err_quantile and model_err_thresh."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "label-filtering",
+        "commit": "73d187dc233f73a0248c095da9d4b6fe3a48377a",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/train_ccil.sh '<tasks>' '<seeds>' <noise_bc> true"
+        ],
+        "script": "scripts/train_ccil.sh"
+      },
+      "configs": [
+        "config/ant.yml",
+        "config/button.yml",
+        "config/circle.yml",
+        "config/coffee_pull.yml",
+        "config/coffee_push.yml",
+        "config/drawer_close.yml",
+        "config/f1.yml",
+        "config/flythrugate.yml",
+        "config/halfcheetah.yml",
+        "config/hopper.yml",
+        "config/hover.yml",
+        "config/pendulum_cont.yml",
+        "config/pendulum_disc.yml",
+        "config/walker2d.yml"
+      ],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "Unknown. train_ccil.sh on this branch comments out the BC, NoiseBC, and label-generation steps.",
+        "metric": "Unknown."
+      },
+      "target": {
+        "command": "ccil run <task> --method ccil --label-err-quantile <q>",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "knowledge",
+          "detail": "No reported result is tied to these configs; they may back the IROS submission or the unified preprint.",
+          "next_action": "Ask the authors which result these configs produced; record the answer here before reconciling with main's configs."
+        }
+      ],
+      "discrepancies": [
+        "F1 eval on this branch loads policies from /home/prl/dev/CCIL."
+      ],
+      "inventory_capabilities": [
+        "task-configs",
+        "label-filtering",
+        "pipeline-scripts",
+        "f1-evaluation",
+        "results-analysis",
+        "repo-hygiene"
+      ]
+    },
+    {
+      "id": "internal-data-ablation",
+      "kind": "internal-result",
+      "title": "Data-fraction ablation for BC (scripts/data_ablation.sh)",
+      "claim": {
+        "source": "label-filtering scripts/data_ablation.sh",
+        "workflow": "BC at data fractions 0.2-1.0; CCIL steps are commented out."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "label-filtering",
+        "commit": "73d187dc233f73a0248c095da9d4b6fe3a48377a",
+        "working_directory": "repository root",
+        "commands": [
+          "./scripts/data_ablation.sh <tasks>"
+        ],
+        "script": "scripts/data_ablation.sh"
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [
+        "output/data_ablation/<task>/data_frac<p>"
+      ],
+      "evaluation": {
+        "protocol": "correct_il/eval_bc_policy.py: 100 episodes per policy (hard-coded), one run per seed, sensor and actuator noise applied as x*(1-n) + n*sample(space) for each n in eval.noise. Paper reports mean and std over 10 seeds.",
+        "metric": "Mean return."
+      },
+      "target": {
+        "command": "ccil run <task> --method bc --data-frac <p>",
+        "command_status": "provisional",
+        "parity": "statistical",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "knowledge",
+          "detail": "No reported result names this simulated ablation; Fig. 8 is a real-robot data ablation.",
+          "next_action": "Confirm with the authors whether any result used it; otherwise mark out-of-scope."
+        }
+      ],
+      "discrepancies": [],
+      "inventory_capabilities": [
+        "data-fraction-ablation",
+        "results-analysis"
+      ]
+    },
+    {
+      "id": "internal-action-chunking-labels",
+      "kind": "internal-result",
+      "title": "Corrective labels for action chunking",
+      "claim": {
+        "source": "Ke, Deshpande, Pfeifer, Zhang, Gupta, Srinivasa. CCIL: Continuity-Based Corrective Labels for Imitation Learning. gh-pages static/pdf/ke2025ccil.pdf (arXiv 2310.12972)",
+        "figure": "Sec. 6 'Label Generation for Action Chunking', App. C.3"
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "label-filtering",
+        "commit": "73d187dc233f73a0248c095da9d4b6fe3a48377a",
+        "working_directory": "repository root",
+        "commands": [
+          "python correct_il/gen_aug_label_chunking.py <config>"
+        ],
+        "script": null
+      },
+      "configs": [],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [],
+      "checkpoints": [],
+      "outputs": [
+        "<output.aug>/aug_data.pkl"
+      ],
+      "evaluation": {
+        "protocol": "Used for real-robot diffusion-policy agents (Fig. 8(b)).",
+        "metric": "Success rate."
+      },
+      "target": {
+        "command": "ccil labels <task> --chunk-size <k>",
+        "command_status": "provisional",
+        "parity": "qualitative",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "blocked",
+      "evidence": [],
+      "blockers": [
+        {
+          "missing": "artifact",
+          "detail": "Only real-robot data exercised this path, and that data is absent.",
+          "next_action": "Resolve with real-dp-ccil."
+        }
+      ],
+      "discrepancies": [
+        "The chunk_size condition is inverted, so a configured value is ignored."
+      ],
+      "inventory_capabilities": [
+        "action-chunking-labels"
+      ]
+    },
+    {
+      "id": "deferred-image-pendulum",
+      "kind": "internal-result",
+      "title": "Image-observation pendulum CCIL (fork image branch)",
+      "claim": {
+        "source": "abhaybd/CCIL image branch",
+        "workflow": "Pendulum with 64x64 image observations, joint encoder and dynamics training, diffusion-policy evaluation."
+      },
+      "origin": {
+        "repository": "https://github.com/personalrobotics/CCIL",
+        "ref": "abhaybd-image",
+        "commit": "69aa85a37abf57421943f76cbcdb3922c55f3738",
+        "working_directory": "repository root",
+        "commands": [
+          "python correct_il/gen_pendulum_data.py ...",
+          "./scripts/train_ccil.sh pendulum_img ..."
+        ],
+        "script": "scripts/train_ccil.sh"
+      },
+      "configs": [
+        "config/pendulum_img.yml"
+      ],
+      "behavior_values": {},
+      "seeds": [],
+      "hardware": "One NVIDIA GPU. Label generation and evaluation hard-code device 'cuda'.",
+      "env_vars": [],
+      "datasets": [
+        "data/pendulum_img_50_noised_fix.pkl (missing)"
+      ],
+      "checkpoints": [],
+      "outputs": [],
+      "evaluation": {
+        "protocol": "eval_bc_policy.py and eval_dp_policy.py on PendulumSwingupContImg-v0.",
+        "metric": "Mean return."
+      },
+      "target": {
+        "command": "none",
+        "command_status": "provisional",
+        "parity": "not-applicable",
+        "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
+      },
+      "status": "out-of-scope",
+      "evidence": [],
+      "blockers": [],
+      "exclusion_rationale": "Image CCIL is deferred with image_ccil integration (decision of 2026-10-22). Revisit when that work resumes.",
+      "discrepancies": [],
+      "inventory_capabilities": [
+        "image-state-encoder",
+        "diffusion-policy-eval",
+        "pendulum-data-generation",
+        "rendering"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "key": "env",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "data.pkl",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "seed",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "eval.noise",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "data.num_traj",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config"
+    },
+    {
+      "key": "data.horizon",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config"
+    },
+    {
+      "key": "data.num_datapoints",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config"
+    },
+    {
+      "key": "output.folder_suffix",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config"
+    },
+    {
+      "key": "output.location",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config"
+    },
+    {
+      "key": "data.expert",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "config",
+      "note": "Never read by code."
+    },
+    {
+      "key": "data.data_frac",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config (label-filtering)",
+      "note": "Selects a seeded trajectory subset."
+    },
+    {
+      "key": "no_gpu",
+      "class": "tunable",
+      "behavior_affecting": false,
+      "where": "config",
+      "note": "Only switches the dynamics-training device."
+    },
+    {
+      "key": "dynamics.lipschitz_type",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.lipschitz_constraint",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.soft_lipschitz_penalty_weight",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.soft_lipschitz_sampling_eps",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.soft_lipschitz_n_samples",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.slack_weight",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.lr",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.weight_decay",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.layers",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.activation",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.train_epochs",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.batch_size",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.type",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.max_iter",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.num_labels",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.delta",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.epsilon",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.balance_data",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.label_err_quantile",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.max_label_err",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.model_err_thresh",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "aug.chunk_size",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "policy.lr",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "policy.batch_size",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "policy.train_epochs",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "policy.layers",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "state_encoder.latent_dim",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "state_encoder.layers",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "state_encoder.policy_layers",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "state_encoder.policy_loss_weight",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "state_encoder.target_network_tau",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "config"
+    },
+    {
+      "key": "dynamics.val_percentage",
+      "class": "tunable",
+      "behavior_affecting": false,
+      "where": "config",
+      "note": "Never read by code."
+    },
+    {
+      "key": "aug.use_expert_label",
+      "class": "tunable",
+      "behavior_affecting": false,
+      "where": "config",
+      "note": "Never read by code."
+    },
+    {
+      "key": "policy.naive",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config / CLI override",
+      "note": "Selects the BC baseline."
+    },
+    {
+      "key": "policy.noise_bc",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config / CLI override",
+      "note": "Selects NoiseBC and its noise scale; set per suite by scripts."
+    },
+    {
+      "key": "literal:eval.n_trials=100",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/eval_bc_policy.py"
+    },
+    {
+      "key": "literal:eval.success_denominator=100",
+      "class": "derived",
+      "behavior_affecting": true,
+      "where": "correct_il/eval_bc_policy.py"
+    },
+    {
+      "key": "literal:eval.noise_model",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/utils.py:evaluate_on_environment",
+      "note": "obs*(1-n)+n*obs_space.sample(); drone obs replaced by U[-1,1]; act*(1-n)+n*act_space.sample()."
+    },
+    {
+      "key": "literal:metaworld.max_steps=500",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/utils.py:evaluate_on_environment"
+    },
+    {
+      "key": "literal:pendulum.constants",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/envs/pendulum_env.py",
+      "note": "l=1.0, g=9.81, dt=0.02, RK4, action in [-3,3], 500-step episodes."
+    },
+    {
+      "key": "literal:f1.horizon=800",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/envs/f1/src/run_expert.py",
+      "note": "40 s at 20 Hz."
+    },
+    {
+      "key": "literal:f1.eval_map=maps/random/map0",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/envs/f1/eval_all_seeds.sh"
+    },
+    {
+      "key": "literal:f1.eval_n_traj=100",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/envs/f1/eval_all_seeds.sh"
+    },
+    {
+      "key": "literal:noise_bc.noise_model",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/CustomBC.py",
+      "note": "noise_cov*U[0,1) on a random half of each batch."
+    },
+    {
+      "key": "literal:bc.action_scaler=min_max",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "correct_il/train_bc_policy.py",
+      "note": "Disabled for env 'tycho' on main."
+    },
+    {
+      "key": "literal:bc.tycho_loss_weights",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "correct_il/train_bc_policy.py",
+      "note": "[1.9,1.9,2.5,0.01,0.01,0.01,0.01,10.0] for env 'tycho' on main."
+    },
+    {
+      "key": "literal:bc.epoch_scaling",
+      "class": "derived",
+      "behavior_affecting": true,
+      "where": "correct_il/train_bc_policy.py",
+      "note": "train_epochs //= num_labels for balanced noisy_action."
+    },
+    {
+      "key": "literal:root_finder.threshold=1e-4",
+      "class": "tunable",
+      "behavior_affecting": true,
+      "where": "correct_il/utils.py:root_finder_s"
+    },
+    {
+      "key": "literal:backward_euler_fast.fail_distance=0.01",
+      "class": "derived",
+      "behavior_affecting": false,
+      "where": "correct_il/gen_aug_label.py",
+      "note": "Only counts failures; does not filter."
+    },
+    {
+      "key": "literal:dynamics.input_normalization",
+      "class": "derived",
+      "behavior_affecting": true,
+      "where": "correct_il/models/nn_dynamics.py",
+      "note": "Shift and scale from data mean and mean absolute deviation."
+    },
+    {
+      "key": "literal:seeding",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "correct_il/utils.py:seed",
+      "note": "Seeds numpy, random, torch, and d3rlpy; no CUDA determinism flags, so GPU runs may not be bitwise repeatable."
+    }
+  ],
+  "documented_examples": {
+    "README.md": {
+      "git clone https://github.com/personalrobotics/CCIL.git": "setup-install",
+      "cd CCIL": "setup-install",
+      "pip install -r install_deps.txt": "setup-install",
+      "pip install -e .": "setup-install",
+      "./scripts/pendulum.sh": "sim-pendulum-cont",
+      "find output/* -name \"rewards_noise_*.pkl\" | xargs python ./correct_il/tabulate_results.py": "readme-tabulate",
+      "./scripts/mujoco.sh": "sim-hopper",
+      "./scripts/metaworld.sh": "sim-coffee-pull",
+      "./scripts/drone.sh": "sim-drone-hover",
+      "./scripts/f1.sh": "sim-f1tenth",
+      "./scripts/sweep.sh": "internal-cluster-sweep",
+      "python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true": "readme-baselines",
+      "python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true policy.noise_bc <NOISE>": "readme-baselines"
+    }
+  },
+  "file_coverage": {
+    "main": {
+      "scripts/train_ccil.sh": "sim-hopper",
+      "scripts/pendulum.sh": "sim-pendulum-cont",
+      "scripts/mujoco.sh": "sim-hopper",
+      "scripts/metaworld.sh": "sim-coffee-pull",
+      "scripts/drone.sh": "sim-drone-hover",
+      "scripts/f1.sh": "sim-f1tenth",
+      "scripts/sweep.sh": "internal-cluster-sweep",
+      "scripts/launch.slurm": "internal-cluster-sweep",
+      "correct_il/envs/f1/eval_all_seeds.sh": "sim-f1tenth"
+    },
+    "label-filtering": {
+      "scripts/data_ablation.sh": "internal-data-ablation",
+      "scripts/train_ccil.sh": "internal-label-filtering-configs",
+      "scripts/sweep.sh": "internal-cluster-sweep",
+      "scripts/launch.slurm": "internal-cluster-sweep",
+      "correct_il/envs/f1/eval_sweep.sh": "internal-label-filtering-configs",
+      "correct_il/envs/f1/eval_all_seeds.sh": "internal-label-filtering-configs",
+      "scripts/pendulum.sh": "sim-pendulum-cont",
+      "scripts/mujoco.sh": "sim-hopper",
+      "scripts/metaworld.sh": "sim-coffee-pull",
+      "scripts/drone.sh": "sim-drone-hover",
+      "scripts/f1.sh": "sim-f1tenth"
+    },
+    "abhaybd-image": {
+      "config/pendulum_img.yml": "deferred-image-pendulum"
+    }
+  },
+  "capability_exclusions": {
+    "project-website": "Static site, not an experiment. Archived via gh-pages."
+  }
+}
