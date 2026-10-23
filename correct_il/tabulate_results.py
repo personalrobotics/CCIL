@@ -2,7 +2,6 @@ from tabulate import tabulate
 import re
 import numpy as np
 import argparse
-import pickle
 import os
 
 def get_args():
@@ -21,8 +20,7 @@ def read_results(results_file):
     results_files = get_rew_files(results_file)
     noise_results = []
     for results_file in results_files:
-        with open(results_file, "rb") as f:
-            data = pickle.load(f)
+        data = np.load(results_file, allow_pickle=False)
         path = os.path.normpath(results_file).split(os.sep)
         policy_name = path[-2]
         task = path[-4]

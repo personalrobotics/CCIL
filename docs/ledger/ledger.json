@@ -2641,6 +2641,13 @@
       "behavior_affecting": true,
       "where": "config (main, optional, added by #14)",
       "note": "Declared action bounds. When present, demonstration actions outside them fail ingress validation and generated labels outside them are rejected (action_out_of_bounds), never clamped. No shipped config declares them."
+    },
+    {
+      "key": "data.path",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config (main, replaces data.pkl, #15)",
+      "note": "Path to a ccil-trajectories/1 .npz dataset, loaded without pickle. Shipped configs point at data/*.npz produced by convert_legacy_dataset.py --shipped from the sha256-verified legacy pickles."
     }
   ],
   "documented_examples": {

@@ -4,7 +4,6 @@ Script to eval BC policies given data
 import os
 os.environ["D4RL_SUPPRESS_IMPORT_ERROR"] = "1"
 import argparse
-import pickle
 from matplotlib import pyplot as plt
 import numpy as np
 import d3rlpy
@@ -49,10 +48,8 @@ def main():
                                                    sensor_noise_size=noise, actuator_noise_size=noise)
         print(f'{color_begin}Noise size {noise} {np.average(rewards)} {np.std(rewards)}{color_end}')
         suffix = f"_noise_{noise}" if len(config.eval.noise) > 0 else ""
-        pickle.dump(rewards,
-            open(os.path.join(output_folder, f'rewards{suffix}.pkl'), 'wb'))
-        pickle.dump(success/100,
-            open(os.path.join(output_folder, f'success{suffix}.pkl'), 'wb'))
+        np.save(os.path.join(output_folder, f'rewards{suffix}.npy'), np.asarray(rewards, dtype=float))
+        np.save(os.path.join(output_folder, f'success{suffix}.npy'), np.asarray(success / 100, dtype=float))
 
         with open('/tmp/eval_bc_policy.txt', 'a+') as f:
             f.write(f'{config.output.policy} {noise} {np.average(rewards)}')

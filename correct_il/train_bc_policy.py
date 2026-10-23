@@ -6,7 +6,6 @@ import argparse
 import os
 import d3rlpy
 import numpy as np
-import pickle
 import torch.nn.functional as F
 
 from utils import seed, parse_config, save_config_yaml, load_demo_for_policy

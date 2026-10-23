@@ -7,7 +7,6 @@ import torch
 import numpy as np
 import random
 from typing import Tuple
-import pickle
 import gym,d4rl
 
 
@@ -32,8 +31,9 @@ def build_dataset(trajectories: list) -> Tuple[np.ndarray, np.ndarray, np.ndarra
     return s, a, sp
 
 def load_trajectories(config_data):
-    with open(config_data.pkl, "rb") as f:
-        return pickle.load(f)
+    # Validated, non-executable .npz only; legacy pickles go through convert_legacy_dataset.py.
+    from trajectory_io import read_trajectories
+    return read_trajectories(config_data.path)[0]
 
 def load_data(config_data):
     # TODO limit data number
@@ -75,8 +75,8 @@ def load_demo_for_policy(config):
     #     return full_dataset, expert_dataset
 
     # Load Aug Data
-    aug_pkl_fn = os.path.join(config.output.aug, 'aug_data.pkl')
-    aug_data = pickle.load(open(aug_pkl_fn, 'rb'))
+    with np.load(os.path.join(config.output.aug, 'aug_data.npz'), allow_pickle=False) as z:
+        aug_data = {k: z[k] for k in z.files}
     _s = aug_data['observations']
     _original_s = aug_data['original_states']
     dis = np.linalg.norm(_s - _original_s, axis=1)
@@ -275,7 +275,7 @@ def parse_config(parser):
 
     config['output']['location'] = os.path.expandvars(config['output']['location'])
     config['output']['location'] = os.path.join(config['output']['location'], f'seed{config["seed"]}')
-    config['data']['pkl'] = os.path.expandvars(config['data']['pkl'])
+    config['data']['path'] = os.path.expandvars(config['data']['path'])
     config['output']['folder'] = os.path.join(
         config['output']['location'],
         f"{config['env']}{config['output']['folder_suffix']}")

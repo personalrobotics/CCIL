@@ -31,7 +31,7 @@ We include scripts to reproduce our experiments:
 To visualize the results:
 
 ```bash
-> find output/* -name "rewards_noise_*.pkl" | xargs python ./correct_il/tabulate_results.py
+> find output/* -name "rewards_noise_*.npy" | xargs python ./correct_il/tabulate_results.py
 ```
 
 With additional environments installed (see below for instructions), you can try:
@@ -53,7 +53,18 @@ An experiment is parameterized by its configuration. Complete configuration file
 
 ## Data Format
 
-Data is stored in the `data` folder as a pickle file. Each data file is a list of trajectories,
+Datasets are read from non-executable `.npz` files (format `ccil-trajectories/1`, see
+`correct_il/trajectory_io.py`). The shipped datasets are stored as legacy pickles in `data/`; convert them once,
+which verifies each file's sha256 against `docs/artifacts/manifest.json` before unpickling it:
+
+```bash
+python correct_il/convert_legacy_dataset.py --shipped
+```
+
+Pickle files can execute code when loaded, so training and label generation never read them directly. To
+convert another pickle, pass `--expect-sha256 HEX` or explicitly acknowledge `--trust-legacy-pickle`.
+
+Each legacy data file is a list of trajectories,
 where a trajectory is a dict with `"observations"` and `"actions"` keys. The respective corresponding
 values are 2D ndarrays, where the first dimension is horizon and the second dimension is state
 dimension and action dimension, respectively.
