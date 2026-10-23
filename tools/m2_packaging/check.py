@@ -23,7 +23,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 PYTHONS = ("3.10", "3.14")
 CORE = {"ccil", "numpy", "pyyaml"}
-FORBIDDEN = re.compile(r"(__pycache__|\.pyc$|\.npz$|\.pkl$|\.log$|/runs/|^data/|\.venv)")
+FORBIDDEN = re.compile(r"(__pycache__|\.pyc$|\.npz$|\.pkl$|\.log$|manifest\.json$|^data/|\.venv)")  # caches, data, run outputs
 LOCAL_PATHS = re.compile(r"(/Users/|/home/|/private/|/tmp/)")
 
 
@@ -104,13 +104,16 @@ def main():
         prep = run(venv / "bin" / "ccil", "data", "prepare", "--set", "data.path=tiny.npz", "--set", "run.output_dir=runs",
                    cwd=work, check=False)
         runs = list((work / "runs").iterdir()) if (work / "runs").exists() else []
-        manifest = json.loads((runs[0] / "manifest.json").read_text()) if len(runs) == 1 else {}
+        metrics = json.loads((runs[0] / "metrics.json").read_text())["values"] if len(runs) == 1 else {}
+        validated = json.loads(run(venv / "bin" / "ccil", "run", "validate", runs[0], cwd=work, check=False).stdout)["status"] \
+            if len(runs) == 1 else None
         from_wheel = str(venv) in info["file"] and str(REPO) not in info["file"]
         record(f"clean_install_runs[python {py}]",
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
-               and prep.returncode == 0 and manifest.get("split") == {"train": 4, "validation": 1},
+               and prep.returncode == 0 and validated == "complete"
+               and (metrics.get("train_episodes"), metrics.get("validation_episodes")) == (4, 1),
                python=info["python"], installed=installed, imported_from_venv=from_wheel,
-               prepare_stderr=prep.stderr[-300:], manifest_split=manifest.get("split"))
+               prepare_stderr=prep.stderr[-300:], run_status=validated, metrics=metrics)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

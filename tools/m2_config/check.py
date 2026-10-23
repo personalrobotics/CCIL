@@ -34,7 +34,7 @@ def ccil(*args, cwd):
 
 
 def tree_hashes(d: Path) -> dict:
-    return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(d.iterdir())}
+    return {p.relative_to(d).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(d.rglob("*")) if p.is_file()}
 
 
 def main():
@@ -67,7 +67,7 @@ def main():
     if ok:
         def load(run):
             return (json.loads((run / "config.json").read_text()), json.loads((run / "manifest.json").read_text()),
-                    json.loads((run / "split.json").read_text()))
+                    json.loads((run / "data/split.json").read_text()))
         by_frac = {load(r)[0]["values"]["data.validation_fraction"]["value"]: (r, *load(r)) for r in runs}
         d_run, d_cfg, d_man, d_split = by_frac[0.2]
         o_run, o_cfg, o_man, o_split = by_frac[0.3]
@@ -77,20 +77,20 @@ def main():
                       and d_cfg["values"]["run.output_dir"]["source"] == "cli"
                       and d_cfg["values"]["transition_model.lipschitz_type"]["source"] == "recipe:pendulum_cont"
                       and d_cfg["values"]["generation.root_tolerance"]["source"] == "default")
-        hashes_ok = all(d_man["files"][n] == hashlib.sha256((d_run / n).read_bytes()).hexdigest() for n in d_man["files"])
+        hashes_ok = all(d_man["files"][n]["sha256"] == hashlib.sha256((d_run / n).read_bytes()).hexdigest() for n in d_man["files"])
         ok = sources_ok and hashes_ok and changed == ["data.validation_fraction"] \
             and len(d_split["validation"]) == 20 and len(o_split["validation"]) == 30 and d_man["run_id"] != o_man["run_id"]
         detail = {"default_run": d_man["run_id"], "override_run": o_man["run_id"], "changed_values": changed,
                   "override_source": o_cfg["values"]["data.validation_fraction"]["source"],
                   "validation_episodes": [len(d_split["validation"]), len(o_split["validation"])],
-                  "seed": d_man["seed"], "default_manifest": d_man, "override_manifest": o_man,
+                  "seed": d_man["seeds"]["run.seed"], "default_manifest": d_man, "override_manifest": o_man,
                   "default_value_sources": {k: v["source"] for k, v in d_cfg["values"].items()}}
     record("default_and_override_runs_record_provenance", ok, **detail)
 
     # --- byte-identical replay from another working directory ---------------
     r_b = ccil("data", "prepare", *base, cwd=work[1])
     a_dirs, b_dirs = sorted((work[0] / "runs").iterdir()), sorted((work[1] / "runs").iterdir())
-    default_a = [d for d in a_dirs if json.loads((d / "split.json").read_text())["validation_fraction"] == 0.2][0]
+    default_a = [d for d in a_dirs if json.loads((d / "data/split.json").read_text())["validation_fraction"] == 0.2][0]
     same = r_b.returncode == 0 and len(b_dirs) == 1 and b_dirs[0].name == default_a.name \
         and tree_hashes(b_dirs[0]) == tree_hashes(default_a)
     record("replay_is_byte_identical", same, run_id=b_dirs[0].name if b_dirs else None, files=tree_hashes(default_a))

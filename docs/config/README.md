@@ -57,8 +57,8 @@ Everything is checked before any output is written or any model is built:
 
 `uv run ccil data prepare --recipe pendulum_cont --set data.path=... --set run.output_dir=runs`
 validates the dataset, splits it by episode, and writes a run directory
-containing `dataset.npz`, `split.json`, `config.json` and `manifest.json` (with
-SHA-256 hashes).
+in the [standard layout](../runs.md): `data/dataset.npz`, `data/split.json`,
+`config.json`, `metrics.json`, `logs/run.log` and a hashed `manifest.json`.
 
 - **Run ID:** derived from the configuration and the source data, so identical
   inputs reproduce the same directory byte for byte.
