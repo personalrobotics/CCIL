@@ -1,0 +1,76 @@
+{
+ "dtype": "float32",
+ "episodes": [
+  {
+   "actions": [
+    0.04,
+    -0.02,
+    0.12,
+    0.0,
+    -0.05
+   ],
+   "corrupt_actions": [],
+   "id": "slow",
+   "s0": [
+    0.0,
+    0.03
+   ]
+  },
+  {
+   "actions": [
+    0.2,
+    -0.1,
+    0.3,
+    0.0
+   ],
+   "corrupt_actions": [],
+   "id": "fast",
+   "s0": [
+    1.0,
+    0.5
+   ]
+  },
+  {
+   "actions": [
+    0.01,
+    0.0,
+    0.02
+   ],
+   "corrupt_actions": [
+    1
+   ],
+   "id": "corrupt",
+   "s0": [
+    0.0,
+    0.02
+   ]
+  }
+ ],
+ "h": 0.1,
+ "methods": {
+  "backward_euler": {
+   "epsilon": null,
+   "max_iter": 50
+  },
+  "backward_euler_fast": {
+   "epsilon": 0.01,
+   "max_iter": 50
+  },
+  "forward_euler": {
+   "epsilon": null,
+   "max_iter": 50
+  },
+  "noisy_action": {
+   "delta": 0.05,
+   "epsilon": 0.005,
+   "num_labels": 4
+  }
+ },
+ "name": "analytic-double-integrator",
+ "schema_version": 1,
+ "seed": 20261023,
+ "tolerance": {
+  "abs": 1e-05,
+  "boundary_rel": 0.05
+ }
+}
