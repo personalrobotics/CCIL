@@ -89,7 +89,7 @@ were found on `main`. `label-filtering` adds analysis scripts
 
 | Item | Risk | Owner | Recovery action |
 |---|---|---|---|
-| `abhaybd/CCIL` `image` and `main` fork-only commits | Lost if the fork is deleted or force-pushed. Nothing upstream references them. | CCIL maintainers, with fork owner Abhay Deshpande | Fetch them and push archive tags upstream, as described in the preservation policy below. |
+| `abhaybd/CCIL` `image` and `main` fork-only commits | **Resolved 2026-10-22.** Previously they would have been lost if the fork were deleted or force-pushed. | CCIL maintainers | Preserved upstream by `archive/abhaybd-image-2026-10-22` and `archive/abhaybd-main-2026-10-22`. |
 | `label-filtering` contains a commit labeled "Dirty commit: sweeping" | The commit's contents are unreviewed. Later milestones must not treat it as a vetted baseline. | M0 reproducibility ledger (#7) | Classify it in the ledger. Do not rewrite it. |
 | `v1.0.0` is a lightweight tag | It records no tagger or date and can be moved with `git push -f`. | CCIL maintainers | Keep it as is. The SHA recorded here, together with the archive tag below, is the durable reference. |
 | `envs/f1` provenance | License and upstream origin unknown. | M0 capability inventory (#6) | Confirm the origin before any relicensing or release. |
