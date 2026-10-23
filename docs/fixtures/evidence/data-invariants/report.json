@@ -1,0 +1,385 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "clean_dataset_passes",
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "nan_in_unused_last_action_passes",
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "nan_action",
+   "expected": {
+    "episode": 0,
+    "frame": 2,
+    "invariant": "non_finite"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "actions[2] = [nan]",
+     "episode": 0,
+     "frame": 2,
+     "invariant": "non_finite"
+    }
+   ]
+  },
+  {
+   "case": "inf_observation",
+   "expected": {
+    "episode": 1,
+    "frame": 3,
+    "invariant": "non_finite"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "observations[3] = [1.152999997138977, inf]",
+     "episode": 1,
+     "frame": 3,
+     "invariant": "non_finite"
+    }
+   ]
+  },
+  {
+   "case": "float32_overflow",
+   "expected": {
+    "episode": 1,
+    "frame": 1,
+    "invariant": "float32_overflow"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "observations[1] exceeds the float32 range",
+     "episode": 1,
+     "frame": 1,
+     "invariant": "float32_overflow"
+    }
+   ]
+  },
+  {
+   "case": "length_mismatch",
+   "expected": {
+    "episode": 0,
+    "frame": null,
+    "invariant": "length_mismatch"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "6 observations but 5 actions",
+     "episode": 0,
+     "frame": null,
+     "invariant": "length_mismatch"
+    }
+   ]
+  },
+  {
+   "case": "integer_dtype",
+   "expected": {
+    "episode": 1,
+    "frame": null,
+    "invariant": "dtype"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "actions dtype int64 is not a floating type",
+     "episode": 1,
+     "frame": null,
+     "invariant": "dtype"
+    }
+   ]
+  },
+  {
+   "case": "observation_rank",
+   "expected": {
+    "episode": 0,
+    "frame": null,
+    "invariant": "shape"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "observations has shape (6, 2, 1); expected 2-D",
+     "episode": 0,
+     "frame": null,
+     "invariant": "shape"
+    }
+   ]
+  },
+  {
+   "case": "dimension_mismatch",
+   "expected": {
+    "episode": 1,
+    "frame": null,
+    "invariant": "dimension_mismatch"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "(state_dim, act_dim) = (3, 1), but episode 0 has (2, 1)",
+     "episode": 1,
+     "frame": null,
+     "invariant": "dimension_mismatch"
+    }
+   ]
+  },
+  {
+   "case": "too_short",
+   "expected": {
+    "episode": 0,
+    "frame": null,
+    "invariant": "too_short"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "1 frames; a transition needs at least 2",
+     "episode": 0,
+     "frame": null,
+     "invariant": "too_short"
+    }
+   ]
+  },
+  {
+   "case": "action_out_of_bounds",
+   "expected": {
+    "episode": 0,
+    "frame": 2,
+    "invariant": "action_out_of_bounds"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "actions[2] = [0.11999999731779099] outside [[-0.1], [0.1]]",
+     "episode": 0,
+     "frame": 2,
+     "invariant": "action_out_of_bounds"
+    },
+    {
+     "detail": "actions[0] = [0.20000000298023224] outside [[-0.1], [0.1]]",
+     "episode": 1,
+     "frame": 0,
+     "invariant": "action_out_of_bounds"
+    },
+    {
+     "detail": "actions[1] = [-0.10000000149011612] outside [[-0.1], [0.1]]",
+     "episode": 1,
+     "frame": 1,
+     "invariant": "action_out_of_bounds"
+    },
+    {
+     "detail": "actions[2] = [0.30000001192092896] outside [[-0.1], [0.1]]",
+     "episode": 1,
+     "frame": 2,
+     "invariant": "action_out_of_bounds"
+    }
+   ]
+  },
+  {
+   "case": "missing_key",
+   "expected": {
+    "episode": 1,
+    "frame": null,
+    "invariant": "episode_structure"
+   },
+   "input_unchanged": true,
+   "pass": true,
+   "section": "A",
+   "violations": [
+    {
+     "detail": "episode must be a dict with 'observations' and 'actions'",
+     "episode": 1,
+     "frame": null,
+     "invariant": "episode_structure"
+    }
+   ]
+  },
+  {
+   "case": "not_a_list",
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "action_bounds_reject_never_clamp",
+   "counts": {
+    "accepted": 27,
+    "action_out_of_bounds": 9,
+    "attempted": 36,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 0
+   },
+   "pass": true,
+   "rejected_examples": [
+    {
+     "action": [
+      0.3481992185115814
+     ],
+     "episode": 0,
+     "frame": 0,
+     "reason": "action_out_of_bounds"
+    },
+    {
+     "action": [
+      -0.39575788378715515
+     ],
+     "episode": 0,
+     "frame": 0,
+     "reason": "action_out_of_bounds"
+    },
+    {
+     "action": [
+      -0.35182157158851624
+     ],
+     "episode": 0,
+     "frame": 4,
+     "reason": "action_out_of_bounds"
+    },
+    {
+     "action": [
+      0.4913005232810974
+     ],
+     "episode": 1,
+     "frame": 0,
+     "reason": "action_out_of_bounds"
+    },
+    {
+     "action": [
+      0.3879619836807251
+     ],
+     "episode": 1,
+     "frame": 0,
+     "reason": "action_out_of_bounds"
+    }
+   ],
+   "section": "B"
+  },
+  {
+   "case": "non_finite_model_output_rejected_with_source",
+   "counts": {
+    "accepted": 5,
+    "action_out_of_bounds": 0,
+    "attempted": 9,
+    "generation_failed": 0,
+    "non_finite": 4,
+    "out_of_support": 0
+   },
+   "pass": true,
+   "rejected_frames": [
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "section": "B"
+  },
+  {
+   "case": "malformed_generator_output_raises",
+   "error": "generator returned s with shape (1, 1), expected (1, 2)",
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "accepted": 100,
+   "candidates": 100,
+   "case": "pendulum_train_and_generate_end_to_end",
+   "episodes_frames": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     0,
+     4
+    ]
+   ],
+   "files": [
+    "accepted",
+    "actions",
+    "datapoint",
+    "distance",
+    "episode",
+    "frame",
+    "next_obs",
+    "observations",
+    "original_states",
+    "reason"
+   ],
+   "pass": true,
+   "section": "C",
+   "statistics": "Input Data Point: 5\nAttempted: 100\nAccepted: 100\nRejected (non_finite): 0\nRejected (out_of_support): 0\nGeneration failed: 0\nRejected (action_out_of_bounds): 0\nAvg norm distance (finite candidates): 0.003812034148722887"
+  },
+  {
+   "case": "corrupt_frame_fails_at_ingress_before_any_output",
+   "gen_error": [
+    "    raise DataValidationError(violations, counts)",
+    "invariants.DataValidationError: dataset failed validation (non_finite=1):",
+    "  non_finite: episode 7, frame 123: actions[123] = [nan]"
+   ],
+   "pass": true,
+   "section": "C",
+   "train_error": [
+    "    raise DataValidationError(violations, counts)",
+    "invariants.DataValidationError: dataset failed validation (non_finite=1):",
+    "  non_finite: episode 7, frame 123: actions[123] = [nan]"
+   ]
+  }
+ ],
+ "environment": {
+  "code_commit": "3e806af608b85a0bfe911f18de19994accd7d5c7",
+  "code_dirty": false,
+  "numpy": "1.26.4",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.1.0"
+ }
+}

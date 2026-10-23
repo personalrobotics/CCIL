@@ -12,6 +12,7 @@ import numpy as np
 from models.nn_dynamics import WorldModel, checkpoint_name, save_world_model
 from utils import seed, parse_config, load_trajectories, build_dataset, save_config_yaml
 from validation import held_out_evaluation, load_or_create_split
+from invariants import declared_action_bounds, validate_trajectories
 
 
 def construct_parser():
@@ -82,6 +83,7 @@ def main():
     # Load Data
     d_config = config.dynamics
     trajectories = load_trajectories(config.data)
+    validate_trajectories(trajectories, *(declared_action_bounds(config.data) or (None, None)))
     # Decide the held-out split before any training, so an impossible split fails fast.
     validation_fraction = d_config.validation_fraction or 0
     split = None
