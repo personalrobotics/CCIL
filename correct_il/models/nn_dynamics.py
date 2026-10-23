@@ -41,7 +41,12 @@ class WorldModel:
         self.loss_fn = construct_loss_fn(d_config, self) # default loss is MSE on Y
 
     def to(self, device):
-        self.dynamics_net.to(device)
+        # Normalization tensors are plain attributes, not buffers, so module.to()
+        # leaves them behind; set_transformations re-places them on the new device.
+        nets = [self.dynamics_net] + ([self.learnable_lambda] if hasattr(self, 'learnable_lambda') else [])
+        for net in nets:
+            net.to(device)
+            net.set_transformations(**net.transformations)
         self.device = device
 
     def is_cuda(self):
@@ -70,12 +75,12 @@ class WorldModel:
             out_scale = torch.mean(torch.abs(sp-s-out_shift), dim=0)
             self.dynamics_net.set_transformations(s_shift, s_scale, a_shift, a_scale, out_shift, out_scale)
         else:
-            s_shift     = torch.zeros(self.state_dim).cuda()
-            s_scale    = torch.ones(self.state_dim).cuda()
-            a_shift     = torch.zeros(self.act_dim).cuda()
-            a_scale    = torch.ones(self.act_dim).cuda()
-            out_shift   = torch.zeros(self.state_dim).cuda()
-            out_scale  = torch.ones(self.state_dim).cuda()
+            s_shift     = torch.zeros(self.state_dim, device=self.device)
+            s_scale    = torch.ones(self.state_dim, device=self.device)
+            a_shift     = torch.zeros(self.act_dim, device=self.device)
+            a_scale    = torch.ones(self.act_dim, device=self.device)
+            out_shift   = torch.zeros(self.state_dim, device=self.device)
+            out_scale  = torch.ones(self.state_dim, device=self.device)
         return (s_shift, s_scale, a_shift, a_scale, out_shift, out_scale)
 
     def fit_dynamics(self, s, a, sp, batch_size, train_epochs, max_steps=1e10,
@@ -431,3 +436,102 @@ def list_of_dict_to_dict_of_list(a_list, divisor=1.0):
         for k in keys:
             new_list[k].append(a_dict[k] / divisor)
     return new_list
+
+
+# ---------------------------------------------------------------
+# Checkpoints
+# ---------------------------------------------------------------
+# A checkpoint is a torch.save payload readable with weights_only=True (no code
+# execution): versioned metadata, float32 state dicts, and the normalization
+# tensors, which are plain attributes and therefore absent from state_dict().
+
+CHECKPOINT_FORMAT = "ccil-dynamics/1"
+
+
+class CheckpointError(Exception):
+    """A dynamics checkpoint cannot be read, is incompatible, or cannot be placed."""
+
+
+def checkpoint_name(backward=False):
+    """Canonical file name for a forward or backward dynamics checkpoint."""
+    return "dynamics_backward.pt" if backward else "dynamics.pt"
+
+
+class _Config(dict):
+    """Attribute access over the stored dynamics config, as construct_loss_fn expects."""
+    def __getattr__(self, k):
+        try:
+            return self[k]
+        except KeyError:
+            raise AttributeError(k)
+
+
+def _net_payload(net):
+    return {
+        "state_dict": {k: v.detach().cpu() for k, v in net.state_dict().items()},
+        "transformations": {k: v.detach().cpu() for k, v in net.transformations.items()},
+    }
+
+
+def save_world_model(model, path, d_config):
+    """Atomically write model to path; an existing file survives a failed save."""
+    import os
+    meta = {
+        "format": CHECKPOINT_FORMAT,
+        "state_dim": int(model.state_dim),
+        "act_dim": int(model.act_dim),
+        "hidden_size": [int(h) for h in model.dynamics_net.hidden_size],
+        "activation": "tanh" if model.dynamics_net.nonlinearity is torch.tanh else "relu",
+        "d_config": {k: d_config[k] for k in d_config},
+        # Restored on load: spectral-norm layers run a power iteration on every
+        # forward pass in training mode, so the mode affects predictions.
+        "training": bool(model.dynamics_net.training),
+        "dtype": "float32",
+    }
+    payload = {"meta": meta, "dynamics_net": _net_payload(model.dynamics_net)}
+    if hasattr(model, 'learnable_lambda'):
+        payload["learnable_lambda"] = _net_payload(model.learnable_lambda)
+    tmp = f"{path}.tmp-{os.getpid()}"
+    try:
+        torch.save(payload, tmp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def load_world_model(path, device):
+    """Load a checkpoint written by save_world_model onto device ('cpu' or 'cuda[:i]').
+
+    Raises CheckpointError for unreadable, unsupported, or incompatible files and
+    for a CUDA device when CUDA is unavailable; it never falls back silently.
+    """
+    if str(device).startswith("cuda") and not torch.cuda.is_available():
+        raise CheckpointError(f"device {device!r} requested but CUDA is unavailable")
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+    except Exception as e:
+        raise CheckpointError(f"cannot read dynamics checkpoint {path}: {e}") from e
+    meta = payload.get("meta") if isinstance(payload, dict) else None
+    if not isinstance(meta, dict) or meta.get("format") != CHECKPOINT_FORMAT:
+        found = meta.get("format") if isinstance(meta, dict) else None
+        raise CheckpointError(f"{path}: unsupported checkpoint format {found!r}, expected {CHECKPOINT_FORMAT!r}")
+    d_config = _Config(meta["d_config"])
+    model = WorldModel(meta["state_dim"], meta["act_dim"], d_config=d_config,
+                       hidden_size=tuple(meta["hidden_size"]), device="cpu",
+                       activation=meta["activation"])
+    nets = {"dynamics_net": model.dynamics_net}
+    if hasattr(model, 'learnable_lambda'):
+        nets["learnable_lambda"] = model.learnable_lambda
+    if set(nets) != set(payload) - {"meta"}:
+        raise CheckpointError(f"{path}: networks {sorted(set(payload) - {'meta'})} do not match "
+                              f"lipschitz_type {d_config.lipschitz_type!r}, which needs {sorted(nets)}")
+    for name, net in nets.items():
+        try:
+            net.load_state_dict(payload[name]["state_dict"], strict=True)
+        except RuntimeError as e:
+            raise CheckpointError(f"{path}: incompatible architecture for {name}: {e}") from e
+        net.set_transformations(**payload[name]["transformations"])
+        net.train(meta["training"])
+    model.to(device)
+    return model
