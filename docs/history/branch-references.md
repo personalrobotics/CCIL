@@ -10,10 +10,20 @@ To check the live remotes against this manifest:
 scripts/verify_history_manifest.sh
 ```
 
-The script runs `git ls-remote` once per repository and prints `OK`, `MOVED` or
-`MISSING` for each recorded ref, and `UNRECORDED` for any upstream branch or tag
-that this manifest omits. It exits non-zero if a recorded ref moved or
-disappeared. The script needs only `git`, and it ran clean on the capture date.
+The script runs `git ls-remote` once per repository and prints one status per
+recorded ref:
+
+- `OK`: the ref still points at the recorded SHA.
+- `ADVANCED`: a branch moved forward but its history still contains the
+  recorded commit, as `main` does after consolidation work merges.
+- `MOVED`: a tag changed, or a branch was rewritten so that it no longer
+  contains the recorded commit.
+- `MISSING`: the ref no longer exists.
+
+It also prints `UNRECORDED` for any upstream branch or tag that this manifest
+omits. It exits non-zero only on `MOVED` or `MISSING`. The script needs only
+`git`; to decide `ADVANCED`, it fetches the history of the moved branch into a
+temporary directory. It ran clean on the capture date.
 An `UNRECORDED` line for a short-lived pull-request branch is expected and
 does not fail the check.
 
@@ -45,6 +55,7 @@ follow the preservation policy below.
 
 | Tag | Tag object | Tagged commit | Preserves |
 |---|---|---|---|
+| `archive/upstream-main-2026-10-22` | `477ddb81c7adc3527c77b094c08181a98077eff3` | `5a9e3c169874f876419953105fcba88cb5a3695e` | Upstream `main` before consolidation commits. Pushed after the manifest merged. |
 | `archive/upstream-label-filtering-2026-10-22` | `f076eebccad85f2b7f7ed3dd4423d01b7c69d468` | `73d187dc233f73a0248c095da9d4b6fe3a48377a` | Upstream `label-filtering` |
 | `archive/abhaybd-image-2026-10-22` | `9d50f8f75446b6c742fa5e431283d5993a18c885` | `69aa85a37abf57421943f76cbcdb3922c55f3738` | Fork `abhaybd/CCIL` `image`. Its history also contains the fork's original `label-filtering` tip `dc7068a`. |
 | `archive/abhaybd-main-2026-10-22` | `2d3a853ef731f1986e13413d83b95873f78aba68` | `a50f7922082c7aa4c0b9b1a57b2665900b5fecfa` | Fork `abhaybd/CCIL` `main` |
