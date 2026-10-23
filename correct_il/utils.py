@@ -31,12 +31,13 @@ def build_dataset(trajectories: list) -> Tuple[np.ndarray, np.ndarray, np.ndarra
     sp = np.concatenate([traj["observations"][1:] for traj in trajectories])
     return s, a, sp
 
+def load_trajectories(config_data):
+    with open(config_data.pkl, "rb") as f:
+        return pickle.load(f)
+
 def load_data(config_data):
     # TODO limit data number
-    data_path = config_data.pkl
-    with open(data_path, "rb") as f:
-        data = pickle.load(f)
-    return build_dataset(data)
+    return build_dataset(load_trajectories(config_data))
 
 def dataset_to_d3rlpy(s, a, _):
     import d3rlpy
