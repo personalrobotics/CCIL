@@ -1,9 +1,10 @@
 # CCIL migration contract
 
-**Status:** proposed 2026-10-22. It is ratified when this document merges after
-maintainer review. Changing it requires a reviewed pull request that edits this
-file. It is the binding scope and completion contract for consolidating CCIL,
-and it draws on the [history manifest](history/branch-references.md), the
+**Status:** ratified 2026-10-22; amended 2026-10-23 to sequence image work behind
+an explicit stability gate. Changing this contract requires a reviewed pull
+request that edits this file. It is the binding scope and completion contract
+for consolidating CCIL, and it draws on the
+[history manifest](history/branch-references.md), the
 [capability inventory](inventory/README.md), the
 [reproducibility ledger](ledger/README.md) and the
 [artifact manifest](artifacts/README.md).
@@ -12,7 +13,9 @@ and it draws on the [history manifest](history/branch-references.md), the
 
 Ship one maintained CCIL implementation that:
 
-- generates state-based corrective labels behind stable interfaces;
+- generates state-based corrective labels behind stable interfaces first;
+- adds end-to-end image CCIL in M5, including visual representation,
+  corrective-label generation and downstream imitation-learning training;
 - produces CCIL-augmented LeRobot datasets that standard trainers can consume
   unchanged;
 - is evaluated on benchmarks the field currently uses, with expert data
@@ -30,8 +33,12 @@ an oracle only where it is correct and runs on a maintained stack.
   references. Their tips are preserved by the `archive/*` tags listed in the
   history manifest. Nothing is deleted or rewritten.
   `scripts/verify_history_manifest.sh` must pass before each milestone closes.
-- `image_ccil` is **deferred** (decision of 2026-10-22). Its integration
-  (M5) is not scheduled, and it must not be archived (see §9).
+- `image_ccil` remains an active research repository while its implementation
+  is in flux. Integration is deliberately deferred to M5. M5 starts only after
+  maintainers declare a baseline stable; #31 then records its references,
+  provenance, capabilities and artifacts before any image code migrates.
+  Deferral is sequencing, not cancellation, and the repository must not be
+  archived (see §9).
 
 ## 3. Benchmark scope (decision of 2026-10-22)
 
@@ -68,13 +75,14 @@ exact signatures; until those issues close, every ledger target command is
 | Python package `ccil` | #20 | Optional extras per benchmark suite. The core installs without any simulator. |
 | Configuration schema | #4 | Versioned and validated. Every behavior-affecting value is named, and there are no hidden literals. |
 | Trajectory, label and provenance schemas | #16 | Versioned. Each label records its source frame, generator, validator decision and parameters. |
-| Transition-model, generator and validator interfaces | #17 | State-based. The image representation is out of scope until M5. |
+| Transition-model, generator and validator interfaces | #17 | State-based in M2, then extended without breaking the core interfaces for image representations in M5. |
 | Run artifacts | #18 | Written atomically, with commit, resolved config, seeds, environment and per-seed results. |
 | Command-line interface | #17, #41 | One `ccil` entry point with subcommands. Names are fixed by #17. |
 | LeRobot dataset output | M4 | An immutable augmented dataset with CCIL provenance, consumable by an unchanged LeRobot trainer. |
+| Integrated image workflow | M5, #31–#37 | A stability-gated migration from image observations through CCIL labels to downstream policy training and evaluation. |
 
-Out of scope for the first release are a compatibility layer for the legacy
-scripts and their CLI, and image CCIL.
+Out of scope for the first release is a compatibility layer for the legacy
+scripts and their CLI. Image CCIL remains release scope, sequenced through M5.
 
 ## 5. Validation: two oracles
 
@@ -168,4 +176,4 @@ scope with rationales that cite §3.
 - promising reproduction where inputs are unavailable;
 - requiring CCIL to beat behavior cloning as a closure condition;
 - tuning to recover historical numbers;
-- image CCIL before M5 is rescheduled.
+- image CCIL before the M5 stability gate and #31 baseline capture are complete.

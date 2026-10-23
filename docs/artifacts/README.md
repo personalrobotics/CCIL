@@ -4,8 +4,10 @@ Captured **2026-10-22**. This covers every non-source input that the
 [reproducibility ledger](../ledger/README.md) needs: datasets, checkpoints,
 code dependencies, system dependencies and the Python environment. Each one
 has a stable identifier and a hash, or is listed below as unresolved with a
-recovery action. The source of truth is [`manifest.json`](manifest.json).
-`image_ccil` is out of scope; its integration is deferred.
+recovery action. The source of truth is [`manifest.json`](manifest.json). This
+M0 manifest covers CCIL and its preserved forks. The actively changing
+`image_ccil` repository is deferred to M5 issue #31, which must inventory its
+artifacts and environments before image code migrates.
 
 To verify:
 

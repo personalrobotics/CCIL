@@ -1,8 +1,12 @@
 # CCIL history and branch references
 
-Captured **2026-10-22**. This file records every Git reference that must stay
-recoverable while CCIL is consolidated. The machine-readable copy is
-[`refs.tsv`](refs.tsv). `image_ccil` is out of scope for this capture.
+Captured **2026-10-22**. This file records every CCIL Git reference that must
+stay recoverable while the state-based core is consolidated. The
+machine-readable copy is [`refs.tsv`](refs.tsv). The actively changing
+`image_ccil` repository is deliberately deferred to M5. Issue #31 owns its
+stability-gated reference capture, branch reconciliation and provenance review
+before any image code migrates. Deferral does not permit archiving, deleting or
+rewriting that repository.
 
 To check the live remotes against this manifest:
 
@@ -77,8 +81,10 @@ preserved by the archive tags above.
 | `HoneyMack/CCIL` `main` | `5a9e3c169874f876419953105fcba88cb5a3695e` | Same as upstream `main`. |
 | `LuziaKn/CCIL` `main` | `f656990a4cb9e94cee9726e19a20a7deef918002` | Upstream ancestor of `main`, two commits behind. |
 
-The issue also lists `merge`, `libero-merge`, `noise-bc` and `caiyi_real_world`.
-Those branches belong to `image_ccil`, not CCIL, so this capture does not cover them.
+The original issue also lists `merge`, `libero-merge`, `noise-bc` and
+`caiyi_real_world`. Those branches belong to the actively changing `image_ccil`
+repository. Their stability-gated capture and reconciliation are deferred to
+M5 issue #31; this CCIL manifest does not claim to cover them.
 
 ## Content classification on `main`
 
