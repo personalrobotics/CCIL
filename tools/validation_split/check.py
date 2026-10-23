@@ -55,6 +55,19 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     cases = []
 
+    def portable(value):
+        """Remove machine-local roots from the committed evidence artifact."""
+        if isinstance(value, str):
+            for root, marker in ((str(REPO), "<repo>"), (str(out), "<artifact>"),
+                                 (str(Path.home()), "<home>")):
+                value = value.replace(root, marker)
+            return value
+        if isinstance(value, dict):
+            return {k: portable(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [portable(v) for v in value]
+        return value
+
     def record(name, ok, **detail):
         cases.append({"case": name, "pass": bool(ok), **detail})
         print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else detail}")
@@ -166,7 +179,7 @@ def main():
                         "python": platform.python_version(), "platform": platform.platform(),
                         "torch": torch.__version__, "numpy": np.__version__, "config": CONFIG, "epochs": int(EPOCHS)},
     }
-    (out / "report.json").write_text(json.dumps(result, indent=1, sort_keys=True) + "\n")
+    (out / "report.json").write_text(json.dumps(portable(result), indent=1, sort_keys=True) + "\n")
     print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
     return 0 if result["all_pass"] else 1
 
