@@ -14,6 +14,8 @@ The script runs `git ls-remote` once per repository and prints `OK`, `MOVED` or
 `MISSING` for each recorded ref, and `UNRECORDED` for any upstream branch or tag
 that this manifest omits. It exits non-zero if a recorded ref moved or
 disappeared. The script needs only `git`, and it ran clean on the capture date.
+An `UNRECORDED` line for a short-lived pull-request branch is expected and
+does not fail the check.
 
 ## Repository
 
@@ -35,10 +37,23 @@ disappeared. The script needs only `git`, and it ran clean on the capture date.
 | `label-filtering` | `73d187dc233f73a0248c095da9d4b6fe3a48377a` | 2024-11-25, Abhay Deshpande: "Add label generation for action chunking policies" | 4 ahead, 0 behind | Post-publication research: IROS changes, simulation config updates, a sweep commit labeled "Dirty commit: sweeping", and label generation for action-chunking policies (`gen_aug_label_chunking.py`, ablation and sweep tabulation scripts). Touches 31 files (+640/−145). |
 | `gh-pages` | `0650df8ee4f295b993e0903d94f03a98828872f7` | 2025-10-28, Abhay D: "Add unified preprint, update bibtex citations" | separate history: shares only the initial commit `09fbf948`, 37 ahead and 5 behind | Project website. Generated and static web content, not library code. |
 
+## Archive tags
+
+These annotated tags were pushed to `personalrobotics/CCIL` on 2026-10-22, so
+that branch tips which could otherwise be lost stay reachable upstream. They
+follow the preservation policy below.
+
+| Tag | Tag object | Tagged commit | Preserves |
+|---|---|---|---|
+| `archive/upstream-label-filtering-2026-10-22` | `f076eebccad85f2b7f7ed3dd4423d01b7c69d468` | `73d187dc233f73a0248c095da9d4b6fe3a48377a` | Upstream `label-filtering` |
+| `archive/abhaybd-image-2026-10-22` | `9d50f8f75446b6c742fa5e431283d5993a18c885` | `69aa85a37abf57421943f76cbcdb3922c55f3738` | Fork `abhaybd/CCIL` `image`. Its history also contains the fork's original `label-filtering` tip `dc7068a`. |
+| `archive/abhaybd-main-2026-10-22` | `2d3a853ef731f1986e13413d83b95873f78aba68` | `a50f7922082c7aa4c0b9b1a57b2665900b5fecfa` | Fork `abhaybd/CCIL` `main` |
+
 ## Fork references
 
 Six public forks exist. Five point at commits already upstream. The
-`abhaybd/CCIL` fork holds commits found nowhere upstream.
+`abhaybd/CCIL` fork held commits found nowhere upstream. They are now
+preserved by the archive tags above.
 
 | Fork ref | SHA | Status |
 |---|---|---|
