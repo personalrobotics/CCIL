@@ -4,7 +4,7 @@
   {
    "case": "train_with_validation_exits_0",
    "pass": true,
-   "stderr": "%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.13it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.13it/s]\n\n  0%|          | 0/2 [00:00<?, ?it/s]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 1/2 [00:00<00:00,  1.40it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.03it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.07it/s]\n/Users/siddh/.cache/uv/archive-v0/dT6OqhbdXPoA4dqm/lib/python3.11/site-packages/torch/_functorch/deprecated.py:83: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.jacrev is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.func.jacrev instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('jacrev')\n/Users/siddh/.cache/uv/archive-v0/dT6OqhbdXPoA4dqm/lib/python3.11/site-packages/torch/_functorch/deprecated.py:61: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.vmap is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.vmap instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('vmap', 'torch.vmap')\n\n  0%|          | 0/49 [00:00<?, ?it/s]\n 27%|\u2588\u2588\u258b       | 13/49 [00:00<00:00, 129.87it/s]\n 69%|\u2588\u2588\u2588\u2588\u2588\u2588\u2589   | 34/49 [00:00<00:00, 174.38it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 49/49 [00:00<00:00, 179.94it/s]\n"
+   "stderr": "|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.18it/s]\n\n  0%|          | 0/2 [00:00<?, ?it/s]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 1/2 [00:00<00:00,  1.51it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.51it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.51it/s]\n<home>/.cache/uv/archive-v0/dT6OqhbdXPoA4dqm/lib/python3.11/site-packages/torch/_functorch/deprecated.py:83: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.jacrev is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.func.jacrev instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('jacrev')\n<home>/.cache/uv/archive-v0/dT6OqhbdXPoA4dqm/lib/python3.11/site-packages/torch/_functorch/deprecated.py:61: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.vmap is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.vmap instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('vmap', 'torch.vmap')\n\n  0%|          | 0/49 [00:00<?, ?it/s]\n 12%|\u2588\u258f        | 6/49 [00:00<00:00, 58.74it/s]\n 55%|\u2588\u2588\u2588\u2588\u2588\u258c    | 27/49 [00:00<00:00, 145.67it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 49/49 [00:00<00:00, 178.62it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 49/49 [00:00<00:00, 160.88it/s]\n"
   },
   {
    "case": "split_is_trajectory_partition",
@@ -60,6 +60,19 @@
    "pass": true
   },
   {
+   "case": "malformed_persisted_splits_fail_before_reuse",
+   "errors": {
+    "boolean_id": "split train IDs must be integers, got [0, 1, True]",
+    "duplicate": "split train contains duplicate trajectory IDs: [0, 0, 1, 2]",
+    "invalid_json": "<artifact>/broken-split.json: cannot read persisted split: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+    "missing_field": "split is missing required fields ['seed']",
+    "out_of_range": "split train contains out-of-range trajectory IDs [4]; expected 0..3",
+    "unsorted": "split train IDs must be sorted, got [3, 1, 0]",
+    "wrong_validation_count": "split validation has 1 trajectories, but n_trajectories=4 and validation_fraction=0.5 require 2"
+   },
+   "pass": true
+  },
+  {
    "case": "config_change_creates_new_split",
    "pass": true,
    "validation": 30
@@ -72,7 +85,7 @@
   {
    "case": "small_dataset_fails_fast_with_diagnostic",
    "pass": true,
-   "stderr_tail": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/siddh/code/CCIL/correct_il/validation.py\", line 24, in make_split\n    raise SplitError(\nvalidation.SplitError: dataset has 1 trajectories; validation_fraction=0.2 gives 0 validation trajectories, but each split needs at least one. Use more trajectories, change dynamics.validation_fraction, or set it to 0 to skip held-out evaluation.\n"
+   "stderr_tail": "\"<repo>/correct_il/validation.py\", line 25, in make_split\n    raise SplitError(\nvalidation.SplitError: dataset has 1 trajectories; validation_fraction=0.2 gives 0 validation trajectories, but each split needs at least one. Use more trajectories, change dynamics.validation_fraction, or set it to 0 to skip held-out evaluation.\n"
   },
   {
    "batch_size": 512,
@@ -84,7 +97,7 @@
   }
  ],
  "environment": {
-  "code_commit": "2bf165bc666a8ef50dec25f0984dce89bcc54b9a",
+  "code_commit": "dab2a310fd350d1353f51759066b6d3b6fb5bb65",
   "code_dirty": false,
   "config": "config/pendulum_cont.yml",
   "epochs": 2,
