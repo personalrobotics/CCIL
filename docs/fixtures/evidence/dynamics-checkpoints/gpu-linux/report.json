@@ -1,0 +1,175 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "roundtrip_cpu[none]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[spectral_normalization]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[slack]",
+   "has_lambda": true,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[soft_sampling]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "backward_name_lookup",
+   "lookup": "dynamics_backward.pt",
+   "pass": true
+  },
+  {
+   "case": "cpu_label_generation",
+   "counts": {
+    "accepted": 32,
+    "attempted": 32,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 0
+   },
+   "pass": true
+  },
+  {
+   "case": "malformed_file",
+   "error": "cannot read dynamics checkpoint runs/20261023T132154Z-checkpoint-check/work/malformed.pt: Weights only load failed. In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`. Re-running `torch.load` with `weights_only` set to `False` will like",
+   "pass": true
+  },
+  {
+   "case": "legacy_pickle_not_executed",
+   "error": "cannot read dynamics checkpoint runs/20261023T132154Z-checkpoint-check/work/legacy.pkl: Weights only load failed. In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`. Re-running `torch.load` with `weights_only` set to `False` will likely",
+   "marker_created": false,
+   "pass": true
+  },
+  {
+   "case": "incompatible_architecture",
+   "error": "runs/20261023T132154Z-checkpoint-check/work/arch.pt: incompatible architecture for dynamics_net: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.weight: copying a param with shape torch.Size([32, 3]) from checkpoint, the shape in current model is torch.Size([16, 3]).\n\t",
+   "pass": true
+  },
+  {
+   "case": "network_set_mismatch",
+   "error": "runs/20261023T132154Z-checkpoint-check/work/nets.pt: networks ['dynamics_net', 'learnable_lambda'] do not match lipschitz_type 'none', which needs ['dynamics_net']",
+   "pass": true
+  },
+  {
+   "case": "unsupported_format",
+   "error": "runs/20261023T132154Z-checkpoint-check/work/fmt.pt: unsupported checkpoint format 'ccil-dynamics/0', expected 'ccil-dynamics/1'",
+   "pass": true
+  },
+  {
+   "case": "failed_save_preserves_existing",
+   "leftover_temp_files": [],
+   "pass": true,
+   "raised": true,
+   "unchanged": true
+  },
+  {
+   "case": "saved_cuda_loaded_cpu[none]",
+   "max_abs_diff": 5.960464477539063e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cuda[none]",
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06
+  },
+  {
+   "case": "saved_cpu_loaded_cuda[none]",
+   "max_abs_diff": 5.960464477539063e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cpu[spectral_normalization]",
+   "max_abs_diff": 7.450580596923828e-09,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cuda[spectral_normalization]",
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06
+  },
+  {
+   "case": "saved_cpu_loaded_cuda[spectral_normalization]",
+   "max_abs_diff": 5.960464477539063e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cpu[slack]",
+   "max_abs_diff": 1.4901161193847656e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cuda[slack]",
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06
+  },
+  {
+   "case": "saved_cpu_loaded_cuda[slack]",
+   "max_abs_diff": 1.4901161193847656e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cpu[soft_sampling]",
+   "max_abs_diff": 5.960464477539063e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  },
+  {
+   "case": "saved_cuda_loaded_cuda[soft_sampling]",
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06
+  },
+  {
+   "case": "saved_cpu_loaded_cuda[soft_sampling]",
+   "max_abs_diff": 5.960464477539063e-08,
+   "pass": true,
+   "tolerance": 1e-05
+  }
+ ],
+ "environment": {
+  "code_commit": "35dce056dc103cf3325c12275a0940900c09e5ac",
+  "code_dirty": false,
+  "cuda_available": true,
+  "cuda_devices": [
+   "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+   "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "numpy": "1.26.4",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.7.1+cu128"
+ },
+ "tolerances": {
+  "cross_device": 1e-05,
+  "same_device": 1e-06
+ }
+}
