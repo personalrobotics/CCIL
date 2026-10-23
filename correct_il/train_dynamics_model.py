@@ -4,12 +4,11 @@ Script to learn MDP model from data for offline policy optimization
 
 import argparse
 import os
-import pickle
 
 from matplotlib import pyplot as plt
 import numpy as np
 
-from models.nn_dynamics import WorldModel
+from models.nn_dynamics import WorldModel, checkpoint_name, save_world_model
 from utils import seed, parse_config, load_data, save_config_yaml
 
 
@@ -54,7 +53,7 @@ def plot_lipschitz_dist(lipschitz_coeff, folder_name, model_name=None, lipschitz
     fig.savefig(path)
 
 def exists_prev_output(output_folder, config):
-    f1 = os.path.join(output_folder, "dynamics.pkl")
+    f1 = os.path.join(output_folder, checkpoint_name(config.dynamics.backward))
     f2 = os.path.join(output_folder, "statistics.txt")
     return os.path.exists(f1) and os.path.exists(f2)
 
@@ -73,6 +72,9 @@ def main():
 
     # Load Data
     s, a, sp = load_data(config.data)
+    if config.dynamics.backward:
+        # A backward model maps (s_{t+1}, a_t) to s_t, as gen_backward_model assumes.
+        s, sp = sp, s
 
     # Construct Dynamics Model
     d_config = config.dynamics
@@ -94,9 +96,7 @@ def main():
     # Save Model and config
     save_config_yaml(config, os.path.join(output_folder, "config.yaml"))
 
-    fn = "dynamics_backward.pkl" if d_config.backward else "dynamics.pkl"
-    with open(os.path.join(output_folder, "dynamics.pkl"), "wb") as f:
-        pickle.dump(dynamics, f)
+    save_world_model(dynamics, os.path.join(output_folder, checkpoint_name(d_config.backward)), d_config)
 
     # Report Validation Loss
     prediction_error = dynamics.eval_prediction_error(s, a, sp, d_config.batch_size)

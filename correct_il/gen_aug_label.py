@@ -22,6 +22,7 @@ import gym
 import matplotlib.pyplot as plt
 
 from utils import D3Agent, seed, parse_config, load_data, save_config_yaml, root_finder_s
+from models.nn_dynamics import checkpoint_name, load_world_model
 from envs import *
 
 def construct_parser():
@@ -181,10 +182,7 @@ def choose_augmentation(aug_config):
     raise Exception("Unknown type of augmentation")
 
 def choose_model_basename(aug_config):
-    if aug_config.type == "backward_model":
-        return "dynamics_backward.pkl"
-    else:
-        return "dynamics.pkl"
+    return checkpoint_name(backward=aug_config.type == "backward_model")
 
 def exists_prev_output(output_folder, config):
     f1 = os.path.join(output_folder, "aug_data.pkl")
@@ -207,7 +205,8 @@ def main():
     # Load Model
     model_basename = choose_model_basename(config.aug)
     model_fn = os.path.join(config.output.dynamics, model_basename)
-    model = pickle.load(open(model_fn, 'rb'))
+    device = "cpu" if config.no_gpu else "cuda"
+    model = load_world_model(model_fn, device)
 
     # Load Data
     np_s, np_a, np_sp = load_data(config.data)
@@ -221,7 +220,7 @@ def main():
         for i in range(data_size):
             np_a[i, :] = env.action_space.sample()
 
-    s, a, sp = pack_data(np_s, np_a, np_sp, 'cuda')
+    s, a, sp = pack_data(np_s, np_a, np_sp, device)
 
     generator = choose_augmentation(config.aug)
 
