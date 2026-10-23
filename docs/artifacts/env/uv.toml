@@ -1,0 +1,21 @@
+# Build-time and metadata fixes needed to resolve CCIL's declared dependencies (see docs/artifacts).
+# gym==0.19.0 has an invalid extras specifier that setuptools>65.5 rejects; install_deps.txt pins these for that reason.
+build-constraint-dependencies = ["setuptools==65.5.0", "wheel==0.38.4"]
+
+[extra-build-dependencies]
+d3rlpy = ["numpy==1.22.0", "Cython==0.29.32"]
+
+# gym-pybullet-drones@2d4f345 declares only cycler and builds against poetry-core@main,
+# which no longer supports Python 3.8. Supply the metadata its code actually needs.
+[[dependency-metadata]]
+name = "gym-pybullet-drones"
+version = "0.0.3"
+requires-dist = ["cycler>=0.10,<0.11", "pybullet", "gym", "numpy", "scipy"]
+
+# gym==0.19.0 publishes unparseable metadata ("opencv-python (>=3.)" in an extra).
+# Its install_requires at tag 0.19.0 are exactly these.
+[[dependency-metadata]]
+name = "gym"
+version = "0.19.0"
+requires-dist = ["numpy>=1.18.0", "cloudpickle>=1.2.0,<1.7.0"]
+requires-python = ">=3.6"
