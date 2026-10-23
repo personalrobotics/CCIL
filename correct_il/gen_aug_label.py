@@ -21,7 +21,8 @@ from tqdm import tqdm
 import gym
 import matplotlib.pyplot as plt
 
-from utils import D3Agent, seed, parse_config, load_data, save_config_yaml, root_finder_s
+from utils import D3Agent, seed, parse_config, load_trajectories, build_dataset, save_config_yaml, root_finder_s
+from invariants import declared_action_bounds, transition_index, validate_trajectories
 from models.nn_dynamics import checkpoint_name, load_world_model
 from envs import *
 
@@ -202,16 +203,19 @@ def main():
 
     seed(config.seed)
 
+    # Load and validate data before the model, so malformed data fails first
+    trajectories = load_trajectories(config.data)
+    action_bounds = declared_action_bounds(config.data)
+    validate_trajectories(trajectories, *(action_bounds or (None, None)))
+    np_s, np_a, np_sp = build_dataset(trajectories)
+    data_size, state_dim = np_s.shape
+    _, action_dim = np_a.shape
+
     # Load Model
     model_basename = choose_model_basename(config.aug)
     model_fn = os.path.join(config.output.dynamics, model_basename)
     device = "cpu" if config.no_gpu else "cuda"
     model = load_world_model(model_fn, device)
-
-    # Load Data
-    np_s, np_a, np_sp = load_data(config.data)
-    data_size, state_dim = np_s.shape
-    _, action_dim = np_a.shape
 
     if config.aug.type == 'random_backward':
         # replace expert action with random action in data augmentation
@@ -227,7 +231,8 @@ def main():
     if config.debug and data_size > 5:
         data_size = 5
 
-    labels = collect_labels(generator, model, (s, a, sp), np_s, data_size)
+    labels = collect_labels(generator, model, (s, a, sp), np_s, data_size,
+                            transition_ids=transition_index(trajectories), action_bounds=action_bounds)
     accepted = labels['accepted']
     counts = labels['counts']
 
@@ -245,7 +250,8 @@ def main():
         os.path.join(output_folder, f'config.yml'))
     # Every attempted candidate with its decision; reason is '' for accepted labels.
     np.savez(os.path.join(output_folder, 'label_decisions.npz'),
-             datapoint=labels['datapoint'], observations=labels['s'], actions=labels['a'],
+             datapoint=labels['datapoint'], episode=labels['episode'], frame=labels['frame'],
+             observations=labels['s'], actions=labels['a'],
              next_obs=labels['s_next'], original_states=labels['original_states'],
              distance=labels['distance'], accepted=accepted,
              reason=np.array(['' if r is None else r for r in labels['reason']]))
@@ -271,6 +277,7 @@ def main():
         f.write(f'Rejected (non_finite): {counts["non_finite"]}\n')
         f.write(f'Rejected (out_of_support): {counts["out_of_support"]}\n')
         f.write(f'Generation failed: {counts["generation_failed"]}\n')
+        f.write(f'Rejected (action_out_of_bounds): {counts["action_out_of_bounds"]}\n')
         if len(distances) > 0: f.write(f'Avg norm distance (finite candidates): {np.average(distances)}')
     if len(distances) > 0:
         pickle.dump({'distance': distances},
@@ -285,26 +292,47 @@ def main():
         print(distances)
 
 
-def collect_labels(generator, model, data, np_s, data_size):
+def collect_labels(generator, model, data, np_s, data_size, transition_ids=None, action_bounds=None):
     """Run the generator on the first data_size transitions.
 
     Returns every attempted candidate (rejected ones included) with its source
-    datapoint and the demonstration state it perturbs, plus reconciled counts.
+    datapoint, episode and frame, and the demonstration state it perturbs, plus
+    reconciled counts. transition_ids: (episode, frame) arrays aligned with
+    data. action_bounds: optional (low, high); accepted labels whose action
+    falls outside are rejected as action_out_of_bounds, never clamped.
     """
     s, a, sp = data
+    state_dim, act_dim = s.shape[1], a.shape[1]
+    episode, frame = transition_ids if transition_ids is not None else (np.full(len(s), -1), np.full(len(s), -1))
+    if action_bounds is not None:
+        low = np.broadcast_to(np.asarray(action_bounds[0], dtype=float), (act_dim,))
+        high = np.broadcast_to(np.asarray(action_bounds[1], dtype=float), (act_dim,))
     records = []
     for i in tqdm(range(data_size)):
         rec = generator(model, (s[i], a[i], sp[i]))
         n = len(rec['accepted'])
+        # A malformed generator output is a programming defect, not a rejected label.
+        expected = {'s': (n, state_dim), 'a': (n, act_dim), 's_next': (n, state_dim), 'reason': (n,), 'distance': (n,)}
+        for k, shape in expected.items():
+            if np.shape(rec[k]) != shape:
+                raise ValueError(f"generator returned {k} with shape {np.shape(rec[k])}, expected {shape}")
+        if action_bounds is not None:
+            for k in range(n):
+                if rec['accepted'][k] and ((rec['a'][k] < low) | (rec['a'][k] > high)).any():
+                    rec['accepted'][k] = False
+                    rec['reason'][k] = 'action_out_of_bounds'
         rec['datapoint'] = np.full(n, i)
+        rec['episode'] = np.full(n, episode[i])
+        rec['frame'] = np.full(n, frame[i])
         rec['original_states'] = np.tile(np_s[i], (n, 1))
         records.append(rec)
-    keys = ('s', 'a', 's_next', 'accepted', 'reason', 'distance', 'datapoint', 'original_states')
+    keys = ('s', 'a', 's_next', 'accepted', 'reason', 'distance', 'datapoint', 'episode', 'frame', 'original_states')
     out = {k: np.concatenate([r[k] for r in records]) for k in keys}
     counts = {'attempted': len(out['reason']), 'accepted': int(out['accepted'].sum())}
-    for reason in ('non_finite', 'out_of_support', 'generation_failed'):
+    reasons = ('non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds')
+    for reason in reasons:
         counts[reason] = int(sum(r == reason for r in out['reason']))
-    if counts['accepted'] + counts['non_finite'] + counts['out_of_support'] + counts['generation_failed'] != counts['attempted']:
+    if counts['accepted'] + sum(counts[r] for r in reasons) != counts['attempted']:
         raise RuntimeError(f"label counts do not reconcile: {counts}")
     out['counts'] = counts
     return out

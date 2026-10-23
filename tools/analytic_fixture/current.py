@@ -41,7 +41,7 @@ def run(config, model, trajectories):
             out.append({
                 "attempted": len(idx),
                 "reported": {"accepted": int(labels["accepted"][idx].sum()),
-                             "rejected": sum(r in ("non_finite", "out_of_support") for r in reasons),
+                             "rejected": sum(r in ("non_finite", "out_of_support", "action_out_of_bounds") for r in reasons),
                              "generation_failed": sum(r == "generation_failed" for r in reasons)},
                 "candidates": [{"s_G": labels["s"][k], "a_G": labels["a"][k], "target": labels["s_next"][k],
                                 "accepted": bool(labels["accepted"][k]), "reason": labels["reason"][k]} for k in idx],

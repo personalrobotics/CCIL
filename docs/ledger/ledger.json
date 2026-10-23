@@ -2627,6 +2627,20 @@
       "behavior_affecting": false,
       "where": "config (main, added by #13)",
       "note": "Fraction of trajectories held out to score a separate evaluation model; the label model always trains on all trajectories, so labels are unaffected. 0 skips held-out evaluation. Replaces the never-read dynamics.val_percentage on main."
+    },
+    {
+      "key": "data.action_low",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config (main, optional, added by #14)",
+      "note": "Declared action bounds. When present, demonstration actions outside them fail ingress validation and generated labels outside them are rejected (action_out_of_bounds), never clamped. No shipped config declares them."
+    },
+    {
+      "key": "data.action_high",
+      "class": "invariant",
+      "behavior_affecting": true,
+      "where": "config (main, optional, added by #14)",
+      "note": "Declared action bounds. When present, demonstration actions outside them fail ingress validation and generated labels outside them are rejected (action_out_of_bounds), never clamped. No shipped config declares them."
     }
   ],
   "documented_examples": {
