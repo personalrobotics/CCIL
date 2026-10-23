@@ -12,9 +12,9 @@ implemented in [`src/ccil/schema/`](../../src/ccil/schema/).
 the specs. Edit the specs, not the file, and regenerate it:
 
 ```bash
-PYTHONPATH=src python -m ccil schema docs           # write docs/schemas/reference.md
-PYTHONPATH=src python -m ccil schema docs --check   # fail if it is out of date
-PYTHONPATH=src python -m ccil schema validate TRAJ.npz [--candidates CANDS.npz]
+uv run ccil schema docs           # write docs/schemas/reference.md
+uv run ccil schema docs --check   # fail if it is out of date
+uv run ccil schema validate TRAJ.npz [--candidates CANDS.npz]
 ```
 
 ## Rules
@@ -38,8 +38,7 @@ PYTHONPATH=src python -m ccil schema validate TRAJ.npz [--candidates CANDS.npz]
 ## Evidence
 
 ```bash
-PYTHONPATH=src uv run --no-project --python 3.11 --with-requirements tools/m2_schemas/requirements.txt \
-  python tools/m2_schemas/check.py --out <new-dir>
+uv run --group evidence python tools/m2_schemas/check.py --out <new-dir>
 ```
 
 [`../fixtures/evidence/m2-schemas/report.json`](../fixtures/evidence/m2-schemas/report.json)

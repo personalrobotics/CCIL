@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Evidence for the configuration contract and `data prepare` (#4).
 
-    PYTHONPATH=src python tools/m2_config/check.py --out DIR
+    uv run python tools/m2_config/check.py --out DIR
 
-Runs `python -m ccil data prepare` on the Pendulum data with defaults and with an
+Runs `ccil data prepare` on the Pendulum data with defaults and with an
 override, checks per-value provenance, byte-identical replay, failures before
 any output, legacy migration, and generated-docs drift. Writes DIR/report.json.
 """
@@ -20,14 +20,13 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "correct_il"))
 from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.schema import read_trajectories, write_trajectories  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from trajectory_io import convert_legacy_pickle  # noqa: E402
 
-ENV = {**os.environ, "PYTHONPATH": str(REPO / "src")}
+ENV = dict(os.environ)  # ccil is installed in the uv project environment
 
 
 def ccil(*args, cwd):

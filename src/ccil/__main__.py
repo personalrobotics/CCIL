@@ -1,4 +1,4 @@
-"""Command-line entry point: python -m ccil <group> <command>."""
+"""Command-line entry point: ccil <group> <command> (also python -m ccil)."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ def _schema_docs(args) -> int:
     if args.check:
         current = Path(args.out).read_text() if Path(args.out).exists() else ""
         if current != text:
-            print(f"{args.out} is out of date; run: python -m ccil schema docs", file=sys.stderr)
+            print(f"{args.out} is out of date; run: uv run ccil schema docs", file=sys.stderr)
             return 1
         print(f"{args.out} is up to date")
         return 0
@@ -69,12 +69,12 @@ def _config_show(args) -> int:
 
 def _config_docs(args) -> int:
     from .config.docs import render_parameters
-    return _write_or_check(render_parameters(), args.out, args.check, "python -m ccil config docs")
+    return _write_or_check(render_parameters(), args.out, args.check, "uv run ccil config docs")
 
 
 def _config_audit(args) -> int:
     from .config.docs import render_audit
-    return _write_or_check(render_audit(args.ledger), args.out, args.check, "python -m ccil config audit")
+    return _write_or_check(render_audit(args.ledger), args.out, args.check, "uv run ccil config audit")
 
 
 def _data_prepare(args) -> int:
@@ -98,7 +98,7 @@ def _add_config_args(p) -> None:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m ccil")
+    ap = argparse.ArgumentParser(prog="ccil")
     groups = ap.add_subparsers(dest="group", required=True)
     schema = groups.add_parser("schema", help="data schemas").add_subparsers(dest="command", required=True)
     docs = schema.add_parser("docs", help="generate the schema reference")
