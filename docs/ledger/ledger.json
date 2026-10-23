@@ -2620,6 +2620,13 @@
       "behavior_affecting": true,
       "where": "correct_il/utils.py:seed",
       "note": "Seeds numpy, random, torch, and d3rlpy; no CUDA determinism flags, so GPU runs may not be bitwise repeatable."
+    },
+    {
+      "key": "dynamics.validation_fraction",
+      "class": "tunable",
+      "behavior_affecting": false,
+      "where": "config (main, added by #13)",
+      "note": "Fraction of trajectories held out to score a separate evaluation model; the label model always trains on all trajectories, so labels are unaffected. 0 skips held-out evaluation. Replaces the never-read dynamics.val_percentage on main."
     }
   ],
   "documented_examples": {

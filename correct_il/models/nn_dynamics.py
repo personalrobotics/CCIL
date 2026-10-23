@@ -130,16 +130,12 @@ class WorldModel:
     def eval_prediction_error(self, s, a, s_next, batch_size):
         s_next = torch.as_tensor(s_next).float().to(self.device)
 
-        transforms = self.dynamics_net.get_params()['transforms']
-        s_shift, s_scale, a_shift, a_scale, out_shift, out_scale = transforms
-
-        i = 0
         err_norms = []
-        num_steps = int(s.shape[0] // batch_size)
-        for _ in range(num_steps):
+        # Includes the final partial batch; dropping it skipped data and gave NaN
+        # whenever there were fewer transitions than one batch.
+        for i in range(0, s.shape[0], batch_size):
             sp = self.predict(s[i:i+batch_size], a[i:i+batch_size])
             error = (sp - s_next[i:i+batch_size]).norm(dim=-1)
-            i += batch_size
             err_norms += error.cpu().tolist()
         return np.mean(err_norms)
 
