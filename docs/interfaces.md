@@ -20,7 +20,7 @@ composes the stages.
 |---|---|---|---|---|
 | `Representation` | `encode(dict[modality → (N, …)]) → (N, D)` float. `output_modality` is `state` or `latent.<name>`. `kind` and `version`. | A trainable representation owns its parameters. The integrated pipeline (#19, M5) fits it; generation never does. | Deterministic and batch-invariant | A wrong shape or dtype raises `InterfaceError`. |
 | `TransitionModel` | `fit(z, a, z_next, seed) → metrics`; `delta(z, a) → (N, D)`; optional `jacobian_z → (N, D, D)`; `evaluate`; `save(path)`; classmethod `load(path, device)`; `kind` and `version` | The model owns its parameters, optimizer and device. Only `fit` changes state. | `delta` is side-effect free | A file that isn't a checkpoint of a known kind and version raises `CheckpointError`. Model-specific failures, such as an unavailable device, propagate unchanged. |
-| `Generator` | `generate(TransitionBatch, model, seed) → CandidateBatch`, plus `name`, `version`, `params` | Stateless: `params` fully describe it | Randomness per transition from `(seed, crc32(episode_id), frame)`, so output is batch-invariant | It marks `failed` and never accepts or rejects. A malformed batch raises `InterfaceError`. |
+| `Generator` | `generate(TransitionBatch, model, seed) → CandidateBatch`, plus `name`, `version`, `params` | Stateless: `params` fully describe it | Randomness per transition from `(seed, crc32(episode_id), frame)`, so output is batch-invariant: byte for byte with numpy models, and up to float32 kernel rounding (about 1e-8) with torch models, whose matrix products round differently at different batch shapes | It marks `failed` and never accepts or rejects. A malformed batch raises `InterfaceError`. |
 | `Validator` | `check(batch, cands, model) → (reject (n,) bool, measurements)`, plus `reason`: a built-in reason code, a namespaced extension `<namespace>.<reason>`, or `None` for a validator that only measures | Stateless | Deterministic | A malformed or reserved (`ccil.`) reason, a malformed mask, or a measuring-only validator that rejects raises `InterfaceError` before anything is written. |
 | `Weighting` | `weights(cands, accepted) → (n,)` | Stateless | Deterministic | Weights must be finite and ≥ 0, and 0 on rejected rows (checked by the schema). |
 
@@ -32,7 +32,9 @@ composes the stages.
   would change.
 - A checkpoint records `component`, `kind` and `version`.
   `load_transition_model(path, device)` reads the kind and dispatches through
-  `TRANSITION_MODELS`, a plain dict that #21 extends with `mlp`. There is no
+  `TRANSITION_MODELS`, a plain dict. An entry may be a `"module:Class"` string,
+  such as `mlp`, which is imported only when that kind is used and fails with
+  install guidance if its extra is missing. There is no
   plugin discovery.
 
 Arrays are **numpy** at every boundary. Torch-backed models and encoders convert
@@ -62,9 +64,9 @@ its `distance` measured.
 | Generator | `NoisyAction(k, σ)` | z' − f(z', a + δ) |
 | Validators | `Finite`, `GenerationFailed`, `SupportRadius(ε)`, `ActionBounds`, `ModelResidual` | `SupportRadius` uses the legacy rule `distance < ε`. `ModelResidual` only measures. |
 | Weighting | `Uniform` | 1 for accepted rows, 0 for rejected. |
+| Transition model | `ccil.models.mlp.MLPTransitionModel` (`kind="mlp"`, needs `ccil[torch]`) | The legacy `WorldModel` with every Lipschitz regularizer (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 
-M3 ports the torch `WorldModel` and the full legacy generator set (#21, #22)
-onto these interfaces.
+M3 ports the full legacy generator set onto these interfaces (#22).
 
 ## The image path (M5)
 

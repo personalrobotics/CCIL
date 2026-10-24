@@ -65,7 +65,8 @@ def main():
     for n in (1, 2):
         d = out / f"dist{n}"
         run("uv", "build", "--out-dir", d, cwd=REPO)
-        builds.append({p.suffix if p.suffix == ".whl" else ".tar.gz": p for p in d.iterdir()})
+        # Select by name: newer uv also writes a .gitignore into the output directory.
+        builds.append({kind: p for p in d.iterdir() for kind in (".whl", ".tar.gz") if p.name.endswith(kind)})
     wheel, sdist = builds[0][".whl"], builds[0][".tar.gz"]
     record("builds_are_reproducible", all(sha(builds[0][k]) == sha(builds[1][k]) for k in builds[0]),
            wheel_sha256=sha(wheel), sdist_sha256=sha(sdist))
@@ -118,7 +119,8 @@ def main():
         label_runs = sorted((work / "label_runs").iterdir()) if (work / "label_runs").exists() else []
         label_status = sorted(json.loads(run(venv / "bin" / "ccil", "run", "validate", d, cwd=work, check=False).stdout)["status"]
                               for d in label_runs)
-        from_wheel = str(venv) in info["file"] and str(REPO) not in info["file"]
+        # Imported from the venv's site-packages, not the source tree (the output dir may sit inside the repo).
+        from_wheel = Path(info["file"]).resolve().is_relative_to(venv.resolve()) and "site-packages" in Path(info["file"]).parts
         record(f"clean_install_runs[python {py}]",
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
                and prep.returncode == 0 and validated == "complete"

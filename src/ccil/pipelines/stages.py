@@ -50,8 +50,9 @@ class StageResult:
 STAGE_KEYS = {
     "data.prepare": ("run.seed", "data."),
     "representation.fit": ("run.seed", "representation."),
-    "transition.fit": ("run.seed", "transition_model.", "representation.modality"),
-    "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality"),
+    "transition.fit": ("run.seed", "transition_model.", "representation.modality", "compute."),
+    "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
+                        "compute."),
     "policy.train": ("run.seed", "policy."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }

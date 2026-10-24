@@ -20,8 +20,8 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `compute.device` | choice | `"cuda"` | - | `cpu`, `cuda` | declared (M3 (#21)) | Device for model computation. | Legacy default (no_gpu false) ran on CUDA. | `no_gpu` |
-| `compute.deterministic` | bool | `false` | - | - | declared (M3 (#21)) | Request deterministic GPU kernels. | Legacy seeding set no CUDA determinism flags. | - |
+| `compute.device` | choice | `"cuda"` | - | `cpu`, `cuda` | implemented | Device for model computation. | Legacy default (no_gpu false) ran on CUDA; cuda without CUDA fails, never falls back. | `no_gpu` |
+| `compute.deterministic` | bool | `false` | - | - | implemented | Request deterministic torch kernels while fitting and predicting. | Legacy seeding set no determinism flags. On CUDA this needs CUBLAS_WORKSPACE_CONFIG=:4096:8. | - |
 
 ## data
 
@@ -44,20 +44,20 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `transition_model.kind` | choice | `"mlp"` | - | `linear`, `mlp` | implemented | Transition-model family: linear (least squares) or mlp. | Legacy code used an MLP (WorldModel); its port is #21, so mlp fails with guidance until then. | - |
-| `transition_model.direction` | choice | `"forward"` | - | `forward`, `backward` | declared (M3 (#21)) | Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t). | Legacy dynamics.backward, absent (forward) in every config. | `dynamics.backward` |
-| `transition_model.lipschitz_type` | choice | `null` | - | `none`, `spectral_normalization`, `slack`, `spectral_normalization_slack`, `soft_sampling`, `soft_sampling_slack`, `soft_jac` | declared (M3 (#21)) | Lipschitz regularization of the transition model. | Task-specific in legacy configs. | `dynamics.lipschitz_type` |
-| `transition_model.lipschitz_constraint` | float | `null` | - | (0.0, inf] | declared (M3 (#21)) | Target Lipschitz bound. | Task-specific (1.0-4.0) in legacy configs. | `dynamics.lipschitz_constraint` |
-| `transition_model.soft_penalty_weight` | float | `null` | - | [0.0, inf] | declared (M3 (#21)) | Weight of the soft Lipschitz penalty. | Task-specific in legacy configs. | `dynamics.soft_lipschitz_penalty_weight` |
-| `transition_model.soft_sampling_eps` | float | `0.0003` | state units | (0.0, inf] | declared (M3 (#21)) | Perturbation radius for sampled Lipschitz estimates. | Same value in every legacy config. | `dynamics.soft_lipschitz_sampling_eps` |
+| `transition_model.kind` | choice | `"mlp"` | - | `linear`, `mlp` | implemented | Transition-model family: linear (least squares) or mlp. | Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+). | - |
+| `transition_model.direction` | choice | `"forward"` | - | `forward`, `backward` | implemented | Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t). | Legacy dynamics.backward, absent (forward) in every config. | `dynamics.backward` |
+| `transition_model.lipschitz_type` | choice | `null` | - | `none`, `spectral_normalization`, `slack`, `spectral_normalization_slack`, `soft_sampling`, `soft_sampling_slack`, `soft_jac` | implemented | Lipschitz regularization of the transition model. | Task-specific in legacy configs. | `dynamics.lipschitz_type` |
+| `transition_model.lipschitz_constraint` | float | `null` | - | (0.0, inf] | implemented | Target Lipschitz bound. | Task-specific (1.0-4.0) in legacy configs. | `dynamics.lipschitz_constraint` |
+| `transition_model.soft_penalty_weight` | float | `null` | - | [0.0, inf] | implemented | Weight of the soft Lipschitz penalty. | Task-specific in legacy configs. | `dynamics.soft_lipschitz_penalty_weight` |
+| `transition_model.soft_sampling_eps` | float | `0.0003` | state units | (0.0, inf] | implemented | Perturbation radius for sampled Lipschitz estimates. | Same value in every legacy config. | `dynamics.soft_lipschitz_sampling_eps` |
 | `transition_model.soft_samples` | int | `5` | - | [1, inf] | declared (M3 (#21)) | Samples per point for sampled Lipschitz estimates. | Same value in every legacy config. | `dynamics.soft_lipschitz_n_samples` |
-| `transition_model.slack_weight` | float | `1.0` | - | [0.0, inf] | declared (M3 (#21)) | Weight of the slack penalty. | Legacy code default when slack_weight is absent. | `dynamics.slack_weight` |
-| `transition_model.learning_rate` | float | `0.001` | - | (0.0, inf] | declared (M3 (#21)) | Adam learning rate. | Same value in every legacy config. | `dynamics.lr` |
-| `transition_model.weight_decay` | float | `1e-05` | - | [0.0, inf] | declared (M3 (#21)) | Adam weight decay. | Same value in every legacy config. | `dynamics.weight_decay` |
-| `transition_model.hidden_layers` | ints | `null` | - | [1, inf] | declared (M3 (#21)) | Hidden layer widths. | Task-specific in legacy configs. | `dynamics.layers` |
-| `transition_model.activation` | choice | `"relu"` | - | `relu`, `tanh` | declared (M3 (#21)) | Hidden activation. | Same value in every legacy config. | `dynamics.activation` |
-| `transition_model.epochs` | int | `null` | - | [1, inf] | declared (M3 (#21)) | Training epochs. | Task-specific in legacy configs. | `dynamics.train_epochs` |
-| `transition_model.batch_size` | int | `null` | - | [1, inf] | declared (M3 (#21)) | Minibatch size. | Task-specific in legacy configs. | `dynamics.batch_size` |
+| `transition_model.slack_weight` | float | `1.0` | - | [0.0, inf] | implemented | Weight of the slack penalty. | Legacy code default when slack_weight is absent. | `dynamics.slack_weight` |
+| `transition_model.learning_rate` | float | `0.001` | - | (0.0, inf] | implemented | Adam learning rate. | Same value in every legacy config. | `dynamics.lr` |
+| `transition_model.weight_decay` | float | `1e-05` | - | [0.0, inf] | implemented | Adam weight decay. | Same value in every legacy config. | `dynamics.weight_decay` |
+| `transition_model.hidden_layers` | ints | `null` | - | [1, inf] | implemented | Hidden layer widths. | Task-specific in legacy configs. | `dynamics.layers` |
+| `transition_model.activation` | choice | `"relu"` | - | `relu`, `tanh` | implemented | Hidden activation. | Same value in every legacy config. | `dynamics.activation` |
+| `transition_model.epochs` | int | `null` | - | [1, inf] | implemented | Training epochs. | Task-specific in legacy configs. | `dynamics.train_epochs` |
+| `transition_model.batch_size` | int | `null` | - | [1, inf] | implemented | Minibatch size. | Task-specific in legacy configs. | `dynamics.batch_size` |
 
 ## generation
 

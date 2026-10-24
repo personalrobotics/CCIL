@@ -1,0 +1,290 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "legacy_worldmodel_equivalence_at_fixed_weights",
+   "pass": true,
+   "tolerance_train_mode_rel": 1e-05,
+   "torch": "2.14.1",
+   "types": {
+    "none": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_jac": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_sampling": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_sampling_slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "spectral_normalization": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": true,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 2.9802322387695312e-08,
+     "train_max_rel_diff": 1.4802782288825256e-07
+    },
+    "spectral_normalization_slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": true,
+     "legacy_torch": "2.1.0",
+     "power_iteration_buffers_max_diff": 5.960464477539063e-08,
+     "train_max_rel_diff": 1.982845532211286e-07
+    }
+   }
+  },
+  {
+   "I1_accepted_finite": true,
+   "I2_accepted_in_support": true,
+   "I3_accounting": true,
+   "acceptance_agrees_with_exact_model": 0.997,
+   "accepted": 193,
+   "artifact": "<out>/analytic/runs/labels-generate-2b1a1f43b02b/labels/candidates.npz",
+   "candidates": 1000,
+   "case": "analytic_mlp_backward_euler_invariants",
+   "correction_residual_max": 0.010193168134269029,
+   "held_out_evaluation_model": {
+    "max_l2": 0.002957723927496057,
+    "mean_l2": 0.0007522069953557236,
+    "note": "evaluation model fitted on the train split; the label model saw every episode",
+    "transitions": 250
+   },
+   "label_error_vs_exact_mean": 0.0004979473403443047,
+   "label_minus_exact_equals_model_error_max_gap": 1.942890293094024e-16,
+   "label_model_train": {
+    "max_l2": 0.002169623003532544,
+    "mean_l2": 0.0004979464859387498,
+    "transitions": 1000
+   },
+   "local_lipschitz_dz_max": 0.13493575361575808,
+   "pass": true,
+   "rejections": {
+    "action_out_of_bounds": 0,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 807
+   },
+   "residual_minus_lipschitz_bound_max": -2.5075463003084873e-05,
+   "stages": {
+    "data-prepare-478f396d2a0f": "complete",
+    "labels-generate-2b1a1f43b02b": "complete",
+    "transition-fit-b23b61e7dc80": "complete"
+   }
+  },
+  {
+   "case": "pendulum_held_out_metrics[cpu]",
+   "device": "cpu",
+   "held_out_evaluation_model": {
+    "max_l2": 0.0034251521289373646,
+    "mean_l2": 0.0006395024603911497,
+    "note": "evaluation model fitted on the train split; the label model saw every episode",
+    "transitions": 9980
+   },
+   "label_model": {
+    "epochs": 100,
+    "max_l2": 0.0037549736402567747,
+    "mean_l2": 0.0007107174009321813,
+    "transitions": 49900
+   },
+   "label_model_final_losses": {
+    "lipschitz_penalty": 0.0,
+    "loss": 0.0002873756600389036,
+    "mse_loss": 0.0002873756600389036
+   },
+   "labels": {
+    "acceptance_rate": 1.0,
+    "accepted": 49900,
+    "candidates": 49900,
+    "generator": {
+     "name": "backward_euler",
+     "params_hash": "b67b95441f18eaa9",
+     "version": "1"
+    },
+    "rejections_by_reason": {
+     "action_out_of_bounds": 0,
+     "generation_failed": 0,
+     "non_finite": 0,
+     "out_of_support": 0
+    }
+   },
+   "pass": true,
+   "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
+   "stages": {
+    "data-prepare-9f36be9036b0": "complete",
+    "labels-generate-dd35ebce240e": "complete",
+    "transition-fit-76541cb399d6": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "case": "every_lipschitz_type_trains",
+   "constraint": 1.5,
+   "pass": true,
+   "types": {
+    "none": {
+     "final_losses": {
+      "loss": 0.30773116275668144,
+      "mean_error": 0.7037915214896202
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558017319026975
+    },
+    "slack": {
+     "final_losses": {
+      "loss": -0.13107053562998772,
+      "mse_loss": 0.6430020704865456,
+      "slack_penalty": 0.3106277585029602,
+      "slack_std": 0.06700751464813948,
+      "weighted_mse_loss": 0.1795572228729725
+     },
+     "finite": true,
+     "train_mean_l2": 0.03607388860344505
+    },
+    "soft_jac": {
+     "final_losses": {
+      "lipschitz_penalty": 0.0,
+      "loss": 0.30773116275668144,
+      "mse_loss": 0.30773116275668144
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558017319026975
+    },
+    "soft_sampling": {
+     "final_losses": {
+      "lipschitz_penalty": 0.0,
+      "loss": 0.30773116275668144,
+      "mse_loss": 0.30773116275668144
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558017319026975
+    },
+    "soft_sampling_slack": {
+     "final_losses": {
+      "lipschitz_penalty": 4.749074491883221e-06,
+      "loss": 0.3077359162271023,
+      "mse_loss": 0.30773116275668144
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558017319026975
+    },
+    "spectral_normalization": {
+     "final_losses": {
+      "loss": 0.5195979289710522,
+      "mean_error": 0.9335868582129478
+     },
+     "finite": true,
+     "layer_spectral_norms": [
+      1.500130534172058,
+      1.4092189073562622,
+      0.7596179246902466
+     ],
+     "train_mean_l2": 0.04220112507160549,
+     "within_constraint": true
+    },
+    "spectral_normalization_slack": {
+     "final_losses": {
+      "loss": -0.02024366520345211,
+      "mse_loss": 0.9941535070538521,
+      "slack_penalty": 0.26028836891055107,
+      "slack_std": 0.04677504627034068,
+      "weighted_mse_loss": 0.24004470370709896
+     },
+     "finite": true,
+     "layer_spectral_norms": [
+      1.500016212463379,
+      1.367294430732727,
+      0.727538526058197
+     ],
+     "train_mean_l2": 0.04690725823721903,
+     "within_constraint": true
+    }
+   }
+  },
+  {
+   "case": "checkpoint_persistence",
+   "failures": {
+    "cuda_without_cuda": "RuntimeError: compute.device 'cuda' requested but CUDA is not available",
+    "missing_tensor": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tMissing key(s) in state_dict: \"fc_layers.0.bias\". ",
+    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '99'; MLPTransiti",
+    "wrong_shape": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.bias: copying a param with shape torch.Size([1]) from checkpoint, the shape in cu"
+   },
+   "meta": {
+    "act_dim": 1,
+    "component": "transition_model",
+    "derived_from": {
+     "commit": "477ddb81c7adc3527c77b094c08181a98077eff3",
+     "files": [
+      "correct_il/models/nn_dynamics.py",
+      "correct_il/models/spectral_norm.py"
+     ],
+     "paper": "Ke et al., CCIL: Continuity-Based Data Augmentation for Corrective Imitation Learning, ICLR 2024, arXiv:2310.12972",
+     "ref": "archive/upstream-main-2026-10-22",
+     "repository": "personalrobotics/CCIL"
+    },
+    "kind": "mlp",
+    "state_dim": 2,
+    "training": true,
+    "version": "2"
+   },
+   "pass": true,
+   "reload_delta_identical": true,
+   "resave_byte_identical": true
+  },
+  {
+   "case": "same_seed_byte_identical_checkpoints",
+   "pass": true,
+   "sha256": {
+    "a": "de73caf725cbffaddd115511e25c573ca7cc6c274385e266460bb071d8f826de",
+    "b": "de73caf725cbffaddd115511e25c573ca7cc6c274385e266460bb071d8f826de",
+    "c": "df73b36d879e27f9a187ee33299ce6bf474db434c6fbe4aa1b87b451f44ec9d0"
+   }
+  },
+  {
+   "case": "mlp_without_torch_fails_before_any_stage",
+   "error": "invalid configuration:\n  transition_model.kind 'mlp' needs the ccil[torch] extra (Python 3.11+): pip install 'ccil[torch]' (No module named 'torch')",
+   "exit": 2,
+   "pass": true,
+   "torch_installed": false
+  }
+ ],
+ "environment": {
+  "code_commit": "4bf260730908fc8ee07eb6518766ea2537960520",
+  "code_dirty": false,
+  "cuda": null,
+  "device": "cpu",
+  "host_load": [
+   212.939453125,
+   143.00244140625,
+   70.41015625
+  ],
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.14.1"
+ }
+}

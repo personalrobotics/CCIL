@@ -1,0 +1,19 @@
+# The analytic double integrator (docs/fixtures/analytic-dynamics.md) with the
+# vector CCIL MLP (#21) instead of the exact linear model. Backward-Euler labels
+# are closed form, so each label's error equals the model's one-step error at
+# the demonstration point. Small, CPU-sized settings; not tuned.
+config_version: 1
+run: {seed: 20261023}
+compute: {device: cpu}
+data: {validation_fraction: 0.25}
+representation: {kind: identity, modality: state}
+transition_model:
+  kind: mlp
+  hidden_layers: [64, 64]
+  activation: relu
+  lipschitz_type: none
+  learning_rate: 0.001
+  weight_decay: 1.0e-05
+  epochs: 150
+  batch_size: 64
+generation: {method: backward_euler, support_radius: 0.05}
