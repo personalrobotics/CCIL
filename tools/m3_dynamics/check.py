@@ -44,7 +44,7 @@ sys.path.insert(0, str(REPO / "correct_il"))
 import torch  # noqa: E402
 from system import DoubleIntegrator  # noqa: E402
 
-from ccil.core import CheckpointError, jacobian_fd, load_transition_model  # noqa: E402
+from ccil.core import jacobian_fd, load_transition_model  # noqa: E402
 from ccil.models.mlp import MLPTransitionModel  # noqa: E402
 from ccil.runs import layout, validate_run  # noqa: E402
 from ccil.schema import Episode, TrajectoryDataset, read_candidates, read_trajectories, write_trajectories  # noqa: E402
@@ -150,16 +150,16 @@ def main():
     if only & {"analytic", "persistence"}:
         work.mkdir()
         sys_ = double_integrator_dataset(work / "di.npz")
-        r = ccil("labels", "generate", "--recipe", "analytic_double_integrator_mlp", "--set", "data.path=di.npz",
-                 "--set", "run.output_dir=runs", cwd=work)
-        rs = runs(work / "runs")
-        statuses = {n: validate_run(p)[0] for n, p in rs.items()}
+        ar = ccil("labels", "generate", "--recipe", "analytic_double_integrator_mlp", "--set", "data.path=di.npz",
+                  "--set", "run.output_dir=runs", cwd=work)
+        ars = runs(work / "runs")  # the analytic runs; the persistence case reads their checkpoint
+        statuses = {n: validate_run(p)[0] for n, p in ars.items()}
     if "analytic" in only:
-        detail = {"stages": statuses, "stderr": r.stderr[-400:]}
-        ok = r.returncode == 0 and len(rs) == 3 and set(statuses.values()) == {"complete"}
+        detail = {"stages": statuses, "stderr": ar.stderr[-400:]}
+        ok = ar.returncode == 0 and len(ars) == 3 and set(statuses.values()) == {"complete"}
         if ok:
-            fit_dir, lab_dir = stage(rs, "transition-fit"), stage(rs, "labels-generate")
-            ds = read_trajectories(stage(rs, "data-prepare") / layout.DATASET)
+            fit_dir, lab_dir = stage(ars, "transition-fit"), stage(ars, "labels-generate")
+            ds = read_trajectories(stage(ars, "data-prepare") / layout.DATASET)
             c = read_candidates(lab_dir / layout.CANDIDATES, ds)
             model = load_transition_model(fit_dir / "checkpoints/transition_model.npz")
             s = np.concatenate([ep.observations["state"][:-1] for ep in ds.episodes]).astype(np.float64)
@@ -254,7 +254,7 @@ def main():
 
     # --- persistence ---------------------------------------------------------------------
     if "persistence" in only:
-        ck = stage(rs, "transition-fit") / "checkpoints/transition_model.npz"
+        ck = stage(ars, "transition-fit") / "checkpoints/transition_model.npz"
         m = load_transition_model(ck)
         probe = np.random.default_rng(1).uniform(-1, 1, size=(32, 2)), np.random.default_rng(2).uniform(-1, 1, size=(32, 1))
         m.save(out / "resaved.npz")
@@ -294,7 +294,6 @@ def main():
                meta={k: meta[k] for k in ("component", "kind", "version", "state_dim", "act_dim", "training", "derived_from")},
                reload_delta_identical=same_delta, resave_byte_identical=same_bytes,
                failures={k: v.replace(str(out), "<out>") for k, v in failures.items()})
-        assert CheckpointError  # imported for the failure taxonomy above
 
     # --- determinism ------------------------------------------------------------------------
     if "determinism" in only:
