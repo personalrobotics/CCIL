@@ -18,7 +18,7 @@ from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimag
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..runs.provenance import sha256
-from ..schema import REASON_CODES, read_trajectories, write_candidates
+from ..schema import read_trajectories, write_candidates
 from .stages import StageResult, run_stage
 
 MODEL_CHECKPOINT = f"{layout.CHECKPOINTS}/transition_model.npz"
@@ -116,7 +116,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
                                 run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
                                 inputs={name: sha256(path) for name, path in inputs.items()})
         write_candidates(cands, run.path(layout.CANDIDATES))
-        counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(REASON_CODES)}
+        counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(cands.reason_codes)}
         run.metrics({"candidates": int(len(cands.accepted)), "accepted": int(cands.accepted.sum()),
                      "acceptance_rate": float(cands.accepted.mean()) if len(cands.accepted) else 0.0,
                      "rejections_by_reason": counts, "generator": cands.generator})

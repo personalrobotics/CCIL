@@ -6,7 +6,7 @@ implemented in [`src/ccil/schema/`](../../src/ccil/schema/).
 | Schema | Holds |
 |---|---|
 | `ccil.trajectories` 1.0 | Episodes of named observation modalities (`state`, `image.<camera>`), actions, termination, and optional timestamps, task, and action chunks. Timestamps and action chunks are all-or-none across episodes. Transitions are identified by `(episode_id, frame)`. |
-| `ccil.candidates` 2.0 | One row per attempted candidate label. Each row has its source identity, observation, action and target, an accepted flag, independent rejection reasons, measurements and a weight (0 on rejected rows). The file records the run ID, seed, generator, weighting, and the SHA-256 of each input, always including the transition model. An accepted label can therefore be traced from the candidate file alone. 2.0 made the weight and this provenance required. |
+| `ccil.candidates` 2.1 | One row per attempted candidate label. Each row has its source identity, observation, action and target, an accepted flag, independent rejection reasons, measurements and a weight (0 on rejected rows). The file records the run ID, seed, generator, weighting, and the SHA-256 of each input, always including the transition model. An accepted label can therefore be traced from the candidate file alone. 2.0 made the weight and this provenance required. 2.1 added namespaced extension reasons (`<namespace>.<reason>`). A file declares 2.1 only when it uses one, so built-in-only files remain 2.0. |
 
 [`reference.md`](reference.md) is the normative field reference, generated from
 the specs. Edit the specs, not the file, and regenerate it:
