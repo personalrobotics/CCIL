@@ -47,7 +47,7 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 | `run_id` | `str` | Identifier of the run that produced the candidates. |
 | `generator` | `dict` | name, version, and params_hash of the generator. |
 | `reason_codes` | `tuple[str]` | Column labels of reasons; each one of ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds']. |
-| `observations` | `dict[str, array (N, ...)]` | Candidate observation per modality. |
+| `observations` | `dict[str, array (N, ...)]` | Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation. |
 | `target_observations` | `dict[str, array (N, ...)]` | Observation the candidate action should reach, per modality. |
 
 ### Arrays
@@ -61,6 +61,8 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] rejects row i. |
 | `measurements[name]` | float | (N,) | per measurement | yes | Validity measurements (e.g. distance, residual); NaN allowed only on rejected rows. |
 | `weight` | float | (N,) | - | no | Optional training weight; finite and >= 0, and 0 on rejected rows. |
+
+Candidate modality names match `^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$`.
 
 Reason codes: `non_finite`, `out_of_support`, `generation_failed`, `action_out_of_bounds`.
 

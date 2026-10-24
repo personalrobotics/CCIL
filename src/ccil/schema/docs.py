@@ -40,6 +40,7 @@ def render() -> str:
         "",
         "### Fields", "", *_fields(c.FIELDS), "",
         "### Arrays", "", *_table(c.ARRAY_SPECS), "",
+        f"Candidate modality names match `{c.CANDIDATE_MODALITY.pattern}`.", "",
         f"Reason codes: {', '.join(f'`{r}`' for r in c.REASON_CODES)}.", "",
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.CAND_REQUIRED))}, plus `obs/<modality>`, "

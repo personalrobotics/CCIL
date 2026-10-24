@@ -7,12 +7,17 @@ required on every row so accepted labels can always be traced and replayed.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from .fields import ArraySpec, Violations, check_finite
 from .trajectories import MODALITY, TrajectoryDataset
+
+# Candidates may also live in a learned representation space (latent.<name>), so
+# image methods emit labels without a new schema; trajectories never store latents.
+CANDIDATE_MODALITY = re.compile(r"^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$")
 
 SCHEMA = "ccil.candidates"
 VERSION = (1, 0)
@@ -32,7 +37,7 @@ FIELDS = [
     ("run_id", "str", "Identifier of the run that produced the candidates."),
     ("generator", "dict", "name, version, and params_hash of the generator."),
     ("reason_codes", "tuple[str]", f"Column labels of reasons; each one of {list(REASON_CODES)}."),
-    ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality."),
+    ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation."),
     ("target_observations", "dict[str, array (N, ...)]", "Observation the candidate action should reach, per modality."),
 ]
 
@@ -88,7 +93,7 @@ class CandidateSet:
                 out.add("structure", "candidates", f"{label} must be a non-empty dict of modalities")
                 continue
             for name, x in mods.items():
-                if not isinstance(name, str) or not MODALITY.match(name):
+                if not isinstance(name, str) or not CANDIDATE_MODALITY.match(name):
                     out.add("modality_name", "candidates", f"{label} modality {name!r} is not a valid modality name")
                 elif not isinstance(x, np.ndarray) or len(x) != n:
                     out.add("shape", f"{label}[{name}]", f"expected an array with {n} rows")
