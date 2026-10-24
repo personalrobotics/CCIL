@@ -11,6 +11,10 @@
 4. An image-style method plugs in a trainable latent representation and a fitted
    latent model without any schema change.
 5. Malformed stage outputs raise InterfaceError and leave no run directory.
+6. ExactPreimage isolates failures per candidate: in one batch, rows with a
+   singular Newton system or non-finite model output are marked failed
+   (generation_failed) while the solvable rows match the exact linear solution,
+   byte for byte and at every batch size.
 Writes DIR/report.json.
 """
 import argparse
@@ -226,6 +230,62 @@ def main():
     leftovers = [p.name for p in (out / "runs").iterdir() if p.name.startswith(".")]
     record("malformed_stage_outputs_raise_before_writing", all(failures.values()) and not leftovers,
            errors=failures, staging_left=leftovers)
+
+    # 6. ExactPreimage failure isolation in a mixed batch.
+    class MixedModel:
+        """Exact linear dynamics, except delta = -z (I + df/dz singular) where a > 0.1
+        and NaN where a < -0.04."""
+
+        def __init__(self, exact):
+            self.exact = exact
+
+        def masks(self, a):
+            return a[:, 0] > 0.1, a[:, 0] < -0.04
+
+        def delta(self, z, a):
+            singular, nan = self.masks(a)
+            d = self.exact.delta(z, a)
+            d[singular] = -z[singular]
+            d[nan] = np.nan
+            return d
+
+        def jacobian_z(self, z, a):
+            singular, nan = self.masks(a)
+            J = np.array(self.exact.jacobian_z(z, a))
+            J[singular] = -np.eye(z.shape[1])
+            J[nan] = np.nan
+            return J
+
+    mixed, gen = MixedModel(model), ExactPreimage()
+    vals = [Finite(), GenerationFailed(), ModelResidual()]
+    try:
+        runs = {bs: generate_labels(dataset, rep, mixed, gen, vals, run_id="mixed", seed=SEED, batch_size=bs)
+                for bs in (1, 4, None)}
+        error = None
+    except Exception as e:  # noqa: BLE001  (the defect being guarded against is an uncaught solver error)
+        runs, error = {}, f"{type(e).__name__}: {e}"
+    if runs:
+        ref = generate_labels(dataset, rep, model, gen, vals, run_id="mixed", seed=SEED)
+        full = runs[None]
+        singular, nan = mixed.masks(full.actions)
+        bad = singular | nan
+        gf = full.reasons[:, REASON_CODES.index("generation_failed")]
+        mixed_digests = set()
+        for bs, cs in runs.items():
+            path = out / f"mixed-{bs}.npz"
+            write_candidates(cs, path)
+            mixed_digests.add(hashlib.sha256(path.read_bytes()).hexdigest())
+        ok = (bad.any() and (~bad).any() and np.array_equal(gf, bad) and np.array_equal(full.accepted, ~bad)
+              and np.array_equal(full.observations["state"][~bad], ref.observations["state"][~bad])
+              and len(mixed_digests) == 1)
+        detail = {"rows": int(len(bad)), "singular_rows": int(singular.sum()), "non_finite_rows": int(nan.sum()),
+                  "generation_failed": int(gf.sum()), "accepted": int(full.accepted.sum()),
+                  "solvable_rows_match_exact_model": bool(np.array_equal(full.observations["state"][~bad],
+                                                                         ref.observations["state"][~bad])),
+                  "batch_sizes": [1, 4, "all"], "distinct_sha256": sorted(mixed_digests)}
+    else:
+        ok, detail = False, {"error": error}
+    record("exact_preimage_isolates_singular_and_non_finite_rows", ok, **detail)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
