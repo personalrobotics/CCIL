@@ -100,3 +100,20 @@ change needs its own pull request with before-and-after evidence.
    `soft_sampling_slack`, the per-sample slack `(B, 1)` multiplies the
    per-perturbation penalty `(B·n,)`, which broadcasts to `(B, B·n)` instead of
    pairing each sample with its own perturbations.
+
+## Evidence
+
+```bash
+uv run --group evidence python tools/m3_dynamics/check.py --out <new-dir> [--device cuda] [--only CASE ...]
+```
+
+The reports are in [`../fixtures/evidence/m3-dynamics/`](../fixtures/evidence/m3-dynamics/):
+
+| Report | What it covers |
+|---|---|
+| `report-cpu.json` | All seven cases on CPU. |
+| `report-cuda.json` | The Pendulum case on CUDA (siddh, RTX PRO 6000 Blackwell, torch 2.14.1+cu130). |
+
+The legacy-equivalence case runs `tools/m3_dynamics/legacy_export.py` in the
+pinned legacy environment (`tools/dynamics_checkpoint/requirements.txt`). It
+exchanges only numpy arrays with the new code.

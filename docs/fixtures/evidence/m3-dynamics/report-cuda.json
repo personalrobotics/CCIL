@@ -1,0 +1,65 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "pendulum_held_out_metrics[cuda]",
+   "device": "cuda",
+   "held_out_evaluation_model": {
+    "max_l2": 0.0033142933807629293,
+    "mean_l2": 0.0006897956142079408,
+    "note": "evaluation model fitted on the train split; the label model saw every episode",
+    "transitions": 9980
+   },
+   "label_model": {
+    "epochs": 100,
+    "max_l2": 0.00320275374505031,
+    "mean_l2": 0.0005015856464549422,
+    "transitions": 49900
+   },
+   "label_model_final_losses": {
+    "lipschitz_penalty": 0.0007894268102185397,
+    "loss": 0.0009112009219345205,
+    "mse_loss": 0.00012177411295364361
+   },
+   "labels": {
+    "acceptance_rate": 1.0,
+    "accepted": 49900,
+    "candidates": 49900,
+    "generator": {
+     "name": "backward_euler",
+     "params_hash": "b67b95441f18eaa9",
+     "version": "1"
+    },
+    "rejections_by_reason": {
+     "action_out_of_bounds": 0,
+     "generation_failed": 0,
+     "non_finite": 0,
+     "out_of_support": 0
+    }
+   },
+   "pass": true,
+   "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
+   "stages": {
+    "data-prepare-65a4966e4ff7": "complete",
+    "labels-generate-fd055d068ca6": "complete",
+    "transition-fit-fa7ddf313e7c": "complete"
+   },
+   "stderr": ""
+  }
+ ],
+ "environment": {
+  "code_commit": "6074e3347f4db06ff9f25d0aec1f4646ed1feaf8",
+  "code_dirty": false,
+  "cuda": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+  "device": "cuda",
+  "host_load": [
+   0.64208984375,
+   0.25634765625,
+   0.08837890625
+  ],
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.14.1+cu130"
+ }
+}
