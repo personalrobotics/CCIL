@@ -29,14 +29,14 @@
     }
    },
    "rerun_output": [
-    "data.prepare       reused runs/data-prepare-efca32e9dca0",
-    "transition.fit     reused runs/transition-fit-c5e9f32b4a0c",
-    "labels.generate    reused runs/labels-generate-9133b129ceef"
+    "data.prepare       reused runs/data-prepare-ef20910dccbe",
+    "transition.fit     reused runs/transition-fit-bbe6eb04d920",
+    "labels.generate    reused runs/labels-generate-9f4975302f22"
    ],
    "stages": {
-    "data-prepare-efca32e9dca0": "complete",
-    "labels-generate-9133b129ceef": "complete",
-    "transition-fit-c5e9f32b4a0c": "complete"
+    "data-prepare-ef20910dccbe": "complete",
+    "labels-generate-9f4975302f22": "complete",
+    "transition-fit-bbe6eb04d920": "complete"
    },
    "stderr": ""
   },
@@ -63,6 +63,85 @@
     "params": {},
     "version": "1"
    }
+  },
+  {
+   "case": "stage_identity_recorded_and_rederives_run_id",
+   "components": {
+    "data-prepare-ef20910dccbe": {},
+    "labels-generate-9f4975302f22": {
+     "generator": {
+      "name": "backward_euler",
+      "version": "1"
+     },
+     "representation": {
+      "kind": "identity",
+      "version": "1"
+     },
+     "transition_model": {
+      "kind": "linear",
+      "version": "1"
+     },
+     "weighting": {
+      "name": "uniform",
+      "version": "1"
+     }
+    },
+    "transition-fit-bbe6eb04d920": {
+     "representation": {
+      "kind": "identity",
+      "version": "1"
+     },
+     "transition_model": {
+      "kind": "linear",
+      "version": "1"
+     }
+    }
+   },
+   "implementation": {
+    "ccil_version": "0.1.0.dev0",
+    "dependencies": {
+     "numpy": "2.4.6",
+     "pyyaml": "6.0.3",
+     "torch": "2.14.1"
+    },
+    "source_sha256": "48978d70a5e1223ef3d137719b72df460670c2ed285f9119dbba658a50260e85"
+   },
+   "pass": true
+  },
+  {
+   "case": "changed_implementation_writes_distinct_runs",
+   "new_runs": [
+    "data-prepare-d1793b999603",
+    "labels-generate-00d09f8b88e9",
+    "transition-fit-2520b9dc58e7"
+   ],
+   "pass": true,
+   "stage_status": {
+    "data.prepare": "wrote",
+    "labels.generate": "wrote",
+    "transition.fit": "wrote"
+   },
+   "stderr": ""
+  },
+  {
+   "case": "component_version_change_writes_distinct_runs",
+   "new_runs": [
+    "labels-generate-52d785242da3",
+    "transition-fit-14cf883cecca"
+   ],
+   "pass": true,
+   "stage_status": {
+    "data.prepare": "reused",
+    "labels.generate": "wrote",
+    "transition.fit": "wrote"
+   },
+   "stderr": ""
+  },
+  {
+   "case": "unidentifiable_implementation_never_reuses",
+   "error": "stage data.prepare failed: no ccil source files under <out>/empty_package",
+   "pass": true,
+   "stage_status": {}
   },
   {
    "case": "offline_imports_no_trainer",
@@ -92,12 +171,12 @@
    "pass": true,
    "same_manifest_vocabulary": true,
    "stages": {
-    "data-prepare-62a903922f57": "complete",
-    "labels-generate-cfa04b9b7914": "complete",
-    "policy-evaluate-3579fc964050": "complete",
-    "policy-train-b9c622980f2a": "complete",
-    "representation-fit-ae5b91bb5c7e": "complete",
-    "transition-fit-3b7deb6bde5d": "complete"
+    "data-prepare-db58fea4263a": "complete",
+    "labels-generate-9d044a8e7b80": "complete",
+    "policy-evaluate-8992be76c91e": "complete",
+    "policy-train-fafd670bdc93": "complete",
+    "representation-fit-264094777318": "complete",
+    "transition-fit-5b3544a84315": "complete"
    }
   },
   {
@@ -158,10 +237,10 @@
     ]
    ],
    "stages_after_failure": {
-    "data-prepare-62a903922f57": "complete",
-    "labels-generate-cfa04b9b7914": "complete",
-    "representation-fit-ae5b91bb5c7e": "complete",
-    "transition-fit-3b7deb6bde5d": "complete"
+    "data-prepare-db58fea4263a": "complete",
+    "labels-generate-9d044a8e7b80": "complete",
+    "representation-fit-264094777318": "complete",
+    "transition-fit-5b3544a84315": "complete"
    },
    "staging_left": []
   },
@@ -197,7 +276,7 @@
    ],
    "resume_error": null,
    "runs_after_failure": {
-    "policy-train-154362c15a14": "complete"
+    "policy-train-8ca2fbf0fd0f": "complete"
    }
   },
   {
@@ -220,7 +299,7 @@
   }
  ],
  "environment": {
-  "code_commit": "816999c610588c548af4cc3691a939a9fa6a7c68",
+  "code_commit": "b28d2c01c213d395dc06de27591d095d2fc2cd70",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
