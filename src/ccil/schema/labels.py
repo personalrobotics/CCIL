@@ -1,12 +1,18 @@
-"""Candidate schema `ccil.candidates` 1.0.
+"""Candidate schema `ccil.candidates` 2.0.
 
 One row per attempted candidate, accepted or rejected. A row is accepted
 exactly when it carries no rejection reason; a rejected row may carry several
-independent reasons. Source identity (episode_id, frame) and measurements are
-required on every row so accepted labels can always be traced and replayed.
+independent reasons. Source identity (episode_id, frame), measurements, and a
+training weight are required on every row, and the file records the run, seed,
+generator, input hashes (always including the transition model), and weighting
+that produced it, so an accepted label can be traced and replayed from the
+candidate file alone.
+
+2.0 made weight, seed, inputs, and weighting required (1.0 had none of them).
 """
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import dataclass, field
 
@@ -20,7 +26,7 @@ from .trajectories import MODALITY, TrajectoryDataset
 CANDIDATE_MODALITY = re.compile(r"^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$")
 
 SCHEMA = "ccil.candidates"
-VERSION = (1, 0)
+VERSION = (2, 0)
 REASON_CODES = ("non_finite", "out_of_support", "generation_failed", "action_out_of_bounds")
 
 SOURCE_EPISODE = ArraySpec("source_episode_id", "str", ("N",), "-", "Episode the candidate perturbs.")
@@ -30,12 +36,15 @@ ACCEPTED = ArraySpec("accepted", "bool", ("N",), "-", "True exactly when the row
 REASONS = ArraySpec("reasons", "bool", ("N", "R"), "-", "reasons[i, r] is True when reason_codes[r] rejects row i.")
 MEASUREMENT = ArraySpec("measurements[name]", "float", ("N",), "per measurement",
                         "Validity measurements (e.g. distance, residual); NaN allowed only on rejected rows.")
-WEIGHT = ArraySpec("weight", "float", ("N",), "-", "Optional training weight; finite and >= 0, and 0 on rejected rows.",
-                   required=False)
+WEIGHT = ArraySpec("weight", "float", ("N",), "-", "Training weight; finite and >= 0 on accepted rows, 0 on rejected rows.")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, ACTIONS, ACCEPTED, REASONS, MEASUREMENT, WEIGHT]
 FIELDS = [
     ("run_id", "str", "Identifier of the run that produced the candidates."),
     ("generator", "dict", "name, version, and params_hash of the generator."),
+    ("seed", "int", "Seed the generator drew its randomness from."),
+    ("inputs", "dict[str, str]", "SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from."),
+    ("weighting", "dict", "name, version, and params of the weighting that produced weight."),
     ("reason_codes", "tuple[str]", f"Column labels of reasons; each one of {list(REASON_CODES)}."),
     ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation."),
     ("target_observations", "dict[str, array (N, ...)]", "Observation the candidate action should reach, per modality."),
@@ -53,9 +62,12 @@ class CandidateSet:
     target_observations: dict
     accepted: np.ndarray
     reasons: np.ndarray
+    weight: np.ndarray
+    seed: int
+    inputs: dict
+    weighting: dict
     reason_codes: tuple = REASON_CODES
     measurements: dict = field(default_factory=dict)
-    weight: np.ndarray | None = None
 
     def validate(self, dataset: TrajectoryDataset | None = None) -> "CandidateSet":
         """Raise SchemaError listing every violation; with dataset, also check source identity."""
@@ -65,7 +77,15 @@ class CandidateSet:
         if not isinstance(self.generator, dict) or any(
                 not isinstance(self.generator.get(k), str) or not self.generator.get(k) for k in ("name", "version", "params_hash")):
             out.add("generator", "candidates", "generator needs non-empty string name, version, and params_hash")
-        codes = tuple(self.reason_codes)
+        if type(self.seed) is not int:
+            out.add("seed", "candidates", f"seed must be an int, got {type(self.seed).__name__}")
+        if not isinstance(self.inputs, dict) or "transition_model" not in self.inputs or any(
+                not isinstance(k, str) or not k or not isinstance(h, str) or not SHA256.match(h) for k, h in self.inputs.items()):
+            out.add("inputs", "candidates", "inputs must map non-empty names, including transition_model, to SHA-256 hex digests")
+        if not isinstance(self.weighting, dict) or not isinstance(self.weighting.get("params"), dict) or any(
+                not isinstance(self.weighting.get(k), str) or not self.weighting.get(k) for k in ("name", "version")):
+            out.add("weighting", "candidates", "weighting needs non-empty string name and version and a params dict")
+        codes = tuple(self.reason_codes) if isinstance(self.reason_codes, (tuple, list)) else ()
         unknown = [c for c in codes if c not in REASON_CODES]
         if unknown or len(set(codes)) != len(codes):
             out.add("reason_codes", "candidates", f"reason_codes must be distinct members of {list(REASON_CODES)}; got {list(codes)}")
@@ -74,7 +94,8 @@ class CandidateSet:
                   SOURCE_FRAME.check(self.source_frame, "candidates", dims, out),
                   ACCEPTED.check(self.accepted, "candidates", dims, out),
                   REASONS.check(self.reasons, "candidates", dims, out),
-                  ACTIONS.check(self.actions, "candidates", dims, out, finite=False)])
+                  ACTIONS.check(self.actions, "candidates", dims, out, finite=False),
+                  WEIGHT.check(self.weight, "candidates", dims, out, finite=False)])
         if not ok:
             out.raise_if_any()
         n = dims["N"]
@@ -95,7 +116,7 @@ class CandidateSet:
             for name, x in mods.items():
                 if not isinstance(name, str) or not CANDIDATE_MODALITY.match(name):
                     out.add("modality_name", "candidates", f"{label} modality {name!r} is not a valid modality name")
-                elif not isinstance(x, np.ndarray) or len(x) != n:
+                elif not isinstance(x, np.ndarray) or x.ndim == 0 or len(x) != n:
                     out.add("shape", f"{label}[{name}]", f"expected an array with {n} rows")
                 elif self.accepted.any() and x.dtype.kind == "f":
                     check_finite(x, f"{label}[{name}]", "accepted rows", out, rows=self.accepted)
@@ -108,12 +129,11 @@ class CandidateSet:
             for name, x in self.measurements.items():
                 if MEASUREMENT.check(x, f"measurements[{name}]", {"N": n}, out, finite=False) and self.accepted.any():
                     check_finite(x[:, None], f"measurements[{name}]", "accepted rows", out, rows=self.accepted)
-        if self.weight is not None and WEIGHT.check(self.weight, "weight", {"N": n}, out, finite=False):
-            acc = self.weight[self.accepted]
-            if not (np.isfinite(acc).all() and (acc >= 0).all()):
-                out.add("weight", "accepted rows", "weights must be finite and >= 0")
-            if (self.weight[rejected] != 0).any():
-                out.add("weight", "rejected rows", "rejected rows must have weight 0")
+        acc = self.weight[self.accepted]
+        if not (np.isfinite(acc).all() and (acc >= 0).all()):
+            out.add("weight", "accepted rows", "weights must be finite and >= 0")
+        if (self.weight[rejected] != 0).any():
+            out.add("weight", "rejected rows", "rejected rows must have weight 0")
         if dataset is not None:
             lengths = {ep.episode_id: ep.length for ep in dataset.episodes}
             for i in range(n):
@@ -129,12 +149,12 @@ class CandidateSet:
         return [c for c, on in zip(self.reason_codes, self.reasons[i]) if on]
 
     def accepted_labels(self) -> "CandidateSet":
-        """The accepted rows, keeping source identity, generator, and measurements."""
+        """The accepted rows, keeping source identity, provenance, measurements, and weights."""
         m = self.accepted
         return CandidateSet(
             run_id=self.run_id, generator=dict(self.generator), source_episode_id=self.source_episode_id[m],
             source_frame=self.source_frame[m], observations={k: v[m] for k, v in self.observations.items()},
             actions=self.actions[m], target_observations={k: v[m] for k, v in self.target_observations.items()},
-            accepted=self.accepted[m], reasons=self.reasons[m], reason_codes=tuple(self.reason_codes),
-            measurements={k: v[m] for k, v in self.measurements.items()},
-            weight=None if self.weight is None else self.weight[m]).validate()
+            accepted=self.accepted[m], reasons=self.reasons[m], weight=self.weight[m], seed=self.seed,
+            inputs=dict(self.inputs), weighting=copy.deepcopy(self.weighting), reason_codes=tuple(self.reason_codes),
+            measurements={k: v[m] for k, v in self.measurements.items()}).validate()

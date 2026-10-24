@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
+from pathlib import Path
 
 import numpy as np
 
@@ -16,6 +18,8 @@ from .representation import transitions
 
 class Uniform:
     """Weight 1 for accepted candidates and 0 for rejected ones."""
+
+    name, version, params = "uniform", "1", {}
 
     def weights(self, cands, accepted: np.ndarray) -> np.ndarray:
         return accepted.astype(np.float64)
@@ -28,12 +32,22 @@ def params_hash(generator, validators) -> str:
     return hashlib.sha256(json.dumps(desc, sort_keys=True).encode()).hexdigest()[:16]
 
 
+def checkpoint_sha256(model) -> str:
+    """SHA-256 of the checkpoint model.save() writes; checkpoints are byte-deterministic."""
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "model.npz"
+        model.save(path)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def generate_labels(dataset: TrajectoryDataset, representation, model, generator, validators, run_id: str, seed: int,
-                    weighting=None, batch_size: int | None = None) -> CandidateSet:
+                    weighting=None, batch_size: int | None = None, inputs: dict | None = None) -> CandidateSet:
     """Generate, validate, and weight candidates; return a schema-valid CandidateSet.
 
     batch_size splits generation into chunks; generators are batch-invariant, so it
-    changes memory use, not results.
+    changes memory use, not results. weighting defaults to Uniform. inputs maps
+    input names to SHA-256 digests for the candidate provenance; a missing
+    transition_model entry is the hash of the checkpoint model.save() writes.
     """
     dataset.validate()
     batch = transitions(dataset, representation)
@@ -64,7 +78,14 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
                 raise InterfaceError(f"{type(v).__name__} measurement {k!r} is duplicated or not a ({len(cands)},) array")
             measurements[k] = x.astype(np.float64)
     accepted = ~reasons.any(axis=1)
-    weight = None if weighting is None else weighting.weights(cands, accepted)
+    weighting = weighting or Uniform()
+    weight = np.asarray(weighting.weights(cands, accepted), dtype=np.float64)
+    inputs = dict(inputs or {})
+    if "transition_model" not in inputs:
+        if not hasattr(model, "save"):
+            raise InterfaceError("pass inputs['transition_model'] or give the transition model a save() so labels "
+                                 "record its checkpoint hash")
+        inputs["transition_model"] = checkpoint_sha256(model)
 
     modality = representation.output_modality
     return CandidateSet(
@@ -72,5 +93,7 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         generator={"name": generator.name, "version": generator.version, "params_hash": params_hash(generator, validators)},
         source_episode_id=batch.episode_id[cands.source], source_frame=batch.frame[cands.source].astype(np.int64),
         observations={modality: cands.z}, actions=cands.a, target_observations={modality: cands.target},
-        accepted=accepted, reasons=reasons, reason_codes=REASON_CODES, measurements=measurements, weight=weight,
+        accepted=accepted, reasons=reasons, weight=weight, seed=int(seed), inputs=inputs,
+        weighting={"name": weighting.name, "version": weighting.version, "params": dict(weighting.params)},
+        reason_codes=REASON_CODES, measurements=measurements,
     ).validate(dataset)

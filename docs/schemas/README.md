@@ -5,8 +5,8 @@ implemented in [`src/ccil/schema/`](../../src/ccil/schema/).
 
 | Schema | Holds |
 |---|---|
-| `ccil.trajectories` 1.0 | Episodes of named observation modalities (`state`, `image.<camera>`), actions, termination, and optional timestamps, task, and action chunks. Transitions are identified by `(episode_id, frame)`. |
-| `ccil.candidates` 1.0 | One row per attempted candidate label. Each row has its source identity, generator, observation, action and target, an accepted flag, independent rejection reasons, measurements and an optional weight. |
+| `ccil.trajectories` 1.0 | Episodes of named observation modalities (`state`, `image.<camera>`), actions, termination, and optional timestamps, task, and action chunks. Timestamps and action chunks are all-or-none across episodes. Transitions are identified by `(episode_id, frame)`. |
+| `ccil.candidates` 2.0 | One row per attempted candidate label. Each row has its source identity, observation, action and target, an accepted flag, independent rejection reasons, measurements and a weight (0 on rejected rows). The file records the run ID, seed, generator, weighting, and the SHA-256 of each input, always including the transition model. An accepted label can therefore be traced from the candidate file alone. 2.0 made the weight and this provenance required. |
 
 [`reference.md`](reference.md) is the normative field reference, generated from
 the specs. Edit the specs, not the file, and regenerate it:
@@ -24,6 +24,10 @@ uv run ccil schema validate TRAJ.npz [--candidates CANDS.npz]
   validate on load.
 - **No executable formats.** Files are `.npz`, written atomically and read with
   `allow_pickle=False`.
+- **Malformed files** raise `SchemaError` with a `format` diagnostic, never a
+  raw decoding error. This covers files that aren't archives, truncated or
+  pickled arrays, metadata that is non-JSON or mistyped, and inconsistent array
+  layout.
 - **Compatibility.**
   - A minor version only adds optional fields; a major version may break
     compatibility.
@@ -42,7 +46,7 @@ uv run --group evidence python tools/m2_schemas/check.py --out <new-dir>
 ```
 
 [`../fixtures/evidence/m2-schemas/report.json`](../fixtures/evidence/m2-schemas/report.json)
-has 26 cases:
+has 38 cases:
 
 - **Valid examples round-trip exactly:** vector, multimodal image, action
   chunks, and multi-reason candidates.
@@ -52,3 +56,13 @@ has 26 cases:
 - **The analytic fixture, end to end** from trajectories to accepted labels,
   with source identity and measurements intact.
 - **All 15 shipped datasets** converted from the M1 format exactly.
+- **Provenance:**
+  - the seed, input hashes, weighting and weights survive a write–read round
+    trip and `accepted_labels`;
+  - missing or malformed provenance fails;
+  - a 1.0 candidates file is rejected by its major version.
+- **Mixed optional fields:** timestamps or action chunks on only some episodes,
+  or differing chunk lengths, fail validation. The writer refuses them with a
+  `SchemaError`.
+- **Malformed files:** 13 trajectory, 5 candidate and 1 legacy file, each
+  rejected with exit 1 and a `SchemaError` diagnostic, and no traceback.

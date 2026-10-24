@@ -28,7 +28,11 @@ Each stage writes its own run directory.
 
 The output is a label set, `labels-generate-*/labels/candidates.npz`, with
 accepted and rejected rows, plus a report in its `metrics.json`: counts by
-reason, the acceptance rate, and the generator identity. `transition.fit` also
+reason, the acceptance rate, and the generator identity. The label set records
+its own provenance: the run seed, the uniform weighting, a weight per row (0 on
+rejected rows), and the SHA-256 of the stage's inputs (dataset and transition
+model, plus the representation in the integrated pipeline). These match the
+stage manifest. `transition.fit` also
 reports the held-out error of an evaluation model fitted on the train split
 (#13).
 
@@ -81,10 +85,11 @@ uv run --group evidence python tools/m2_pipelines/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json)
-has 10 cases:
+has 11 cases:
 
 - **Offline:** analytic generation passes the #10 oracle, replays byte for
-  byte, and is fully reused on rerun. It imports no trainer.
+  byte, and is fully reused on rerun. It imports no trainer. Its labels carry
+  provenance equal to the stage manifest.
 - **Integrated:** all six stages complete, with checkpoint handoff verified by
   hash.
 - **Trainer swap:** reuses the four CCIL stages.

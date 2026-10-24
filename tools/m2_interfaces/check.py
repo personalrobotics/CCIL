@@ -38,6 +38,7 @@ from ccil.core import (ActionBounds, BackwardEuler, CandidateBatch, ExactPreimag
                        IdentityRepresentation, InterfaceError, LinearTransitionModel, ModelResidual, NoisyAction,
                        SupportRadius, Uniform, generate_labels)
 from ccil.runs import RunWriter, layout, validate_run  # noqa: E402
+from ccil.schema.io import _atomic_savez  # noqa: E402
 from ccil.schema import (REASON_CODES, Episode, TrajectoryDataset, read_candidates, write_candidates,  # noqa: E402
                          write_trajectories)
 
@@ -248,6 +249,10 @@ def main():
             d[singular] = -z[singular]
             d[nan] = np.nan
             return d
+
+        def save(self, path):
+            _atomic_savez(path, {"A": self.exact.A, "B": self.exact.B,
+                                 "kind": np.array("mixed: -z where a > 0.1, NaN where a < -0.04")})
 
         def jacobian_z(self, z, a):
             singular, nan = self.masks(a)

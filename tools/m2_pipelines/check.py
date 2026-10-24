@@ -5,6 +5,8 @@
 
 1. Offline analytic run: three complete stage runs whose labels pass the #10
    oracle (I1-I5), byte-identical replay, and full reuse on rerun.
+   The labels carry the run seed, the uniform weighting, explicit weights (0 on
+   rejected rows), and input hashes equal to the labels stage's manifest inputs.
 2. Offline generation never imports the integrated pipeline or a policy trainer.
 3. Integrated stub flow on a synthetic state+image dataset: six complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
@@ -111,6 +113,18 @@ def main():
            and all(oracle_ok.values()) and replay and reused,
            stages=statuses, oracle=oracle_ok, replay_identical=replay, rerun_output=r3.stdout.strip().splitlines(),
            report=json.loads((labels_dir / layout.METRICS).read_text())["values"], stderr=r1.stderr[-400:])
+
+    # 1b. Pipeline-produced candidates carry their own provenance and explicit weights.
+    lm = json.loads((labels_dir / layout.MANIFEST).read_text())
+    cfg_seed = json.loads((labels_dir / "config.json").read_text())["values"]["run.seed"]["value"]
+    manifest_inputs = {k: v["sha256"] for k, v in lm["inputs"].items()}
+    record("offline_candidates_carry_provenance",
+           cands.inputs == manifest_inputs and "transition_model" in cands.inputs and cands.seed == cfg_seed
+           and cands.run_id == lm["run_id"] and cands.weighting == {"name": "uniform", "version": "1", "params": {}}
+           and np.array_equal(cands.weight, cands.accepted.astype(np.float64)),
+           inputs=cands.inputs, manifest_inputs=manifest_inputs, seed=cands.seed, weighting=cands.weighting,
+           weight_on_rejected=sorted(set(cands.weight[~cands.accepted].tolist())),
+           weight_on_accepted=sorted(set(cands.weight[cands.accepted].tolist())))
 
     # 2. Offline generation imports no trainer or integrated pipeline.
     probe = ("import sys, json; from ccil.config import resolve; from ccil.pipelines.offline import generate_offline; "

@@ -4,8 +4,8 @@
   {
    "case": "builds_are_reproducible",
    "pass": true,
-   "sdist_sha256": "78dc90d33bd820581da76d4166af1e63d7e08fc6e226238e905412895dc1fea9",
-   "wheel_sha256": "02a43f01a5accd2264e975e17c72731f7cbaaa40910ba1be9e9ba66ec805aea8"
+   "sdist_sha256": "0cf9c70850bfff963ce63d251d4ac0db8056332907279b98e807fd46b0aefa47",
+   "wheel_sha256": "f8778882441adb8eaa2ee914c5b1299c430172e8319c762cdfd623833e681c72"
   },
   {
    "case": "wheel_contains_package_only",
@@ -24,13 +24,34 @@
     "ccil/config/params.py",
     "ccil/config/resolve.py",
     "ccil/config/spec.py",
+    "ccil/core/",
+    "ccil/core/__init__.py",
+    "ccil/core/batch.py",
+    "ccil/core/generators.py",
+    "ccil/core/labels.py",
+    "ccil/core/representation.py",
+    "ccil/core/transition.py",
+    "ccil/core/validators.py",
     "ccil/data/",
     "ccil/data/__init__.py",
     "ccil/data/prepare.py",
     "ccil/data/split.py",
+    "ccil/pipelines/",
+    "ccil/pipelines/__init__.py",
+    "ccil/pipelines/integrated.py",
+    "ccil/pipelines/offline.py",
+    "ccil/pipelines/policy.py",
+    "ccil/pipelines/stages.py",
     "ccil/recipes/",
+    "ccil/recipes/analytic_double_integrator.yaml",
     "ccil/recipes/pendulum_cont.yaml",
     "ccil/recipes/pendulum_disc.yaml",
+    "ccil/runs/",
+    "ccil/runs/__init__.py",
+    "ccil/runs/layout.py",
+    "ccil/runs/provenance.py",
+    "ccil/runs/validate.py",
+    "ccil/runs/writer.py",
     "ccil/schema/",
     "ccil/schema/__init__.py",
     "ccil/schema/docs.py",
@@ -66,13 +87,22 @@
     "numpy": "2.2.6",
     "pyyaml": "6.0.3"
    },
-   "manifest_split": {
-    "train": 4,
-    "validation": 1
+   "labels_generate_stages": [
+    "complete",
+    "complete",
+    "complete"
+   ],
+   "labels_stderr": "",
+   "metrics": {
+    "episodes": 5,
+    "train_episodes": 4,
+    "transitions": 35,
+    "validation_episodes": 1
    },
    "pass": true,
    "prepare_stderr": "",
-   "python": "3.10.17"
+   "python": "3.10.17",
+   "run_status": "complete"
   },
   {
    "case": "clean_install_runs[python 3.14]",
@@ -82,17 +112,26 @@
     "numpy": "2.5.4",
     "pyyaml": "6.0.3"
    },
-   "manifest_split": {
-    "train": 4,
-    "validation": 1
+   "labels_generate_stages": [
+    "complete",
+    "complete",
+    "complete"
+   ],
+   "labels_stderr": "",
+   "metrics": {
+    "episodes": 5,
+    "train_episodes": 4,
+    "transitions": 35,
+    "validation_episodes": 1
    },
    "pass": true,
    "prepare_stderr": "",
-   "python": "3.14.7"
+   "python": "3.14.7",
+   "run_status": "complete"
   }
  ],
  "environment": {
-  "code_commit": "dd5b54d15dd0488c5747a3a46e46dfdb87e37bc7",
+  "code_commit": "68534af39f315037afcc25f2c6f2a328b7fb5413",
   "code_dirty": false,
   "host": "macOS-26.6.2-arm64-arm-64bit",
   "optional_dependencies": "none declared yet; adapters add extras in M3-M5",

@@ -13,9 +13,11 @@ import numpy as np
 
 from ..config import ConfigError
 from ..core import (ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed, IdentityRepresentation,
-                    LinearTransitionModel, ModelResidual, NoisyAction, SupportRadius, generate_labels, transitions)
+                    LinearTransitionModel, ModelResidual, NoisyAction, SupportRadius, Uniform, generate_labels,
+                    transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
+from ..runs.provenance import sha256
 from ..schema import REASON_CODES, read_trajectories, write_candidates
 from .stages import StageResult, run_stage
 
@@ -107,7 +109,8 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         dataset = read_trajectories(inputs["dataset"])
         model = LinearTransitionModel.load(inputs["transition_model"])
         cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
-                                run_id=run.run_id, seed=v["run.seed"])
+                                run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
+                                inputs={name: sha256(path) for name, path in inputs.items()})
         write_candidates(cands, run.path(layout.CANDIDATES))
         counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(REASON_CODES)}
         run.metrics({"candidates": int(len(cands.accepted)), "accepted": int(cands.accepted.sum()),

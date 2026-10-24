@@ -8,10 +8,14 @@ candidates) round-trip exactly; one invalid example per rule fails with the
 expected diagnostic and is left unmodified; the analytic fixture travels from
 trajectories through closed-form candidates to accepted labels with identity
 and measurements intact; all 15 shipped datasets convert from the M1 format
-exactly. Writes DIR/report.json.
+exactly; candidate provenance (seed, input hashes, weighting, weights) survives
+round trips and accepted_labels; optional per-frame fields are all-or-none; and
+malformed files raise SchemaError, never a decoding traceback. Writes
+DIR/report.json.
 """
 import argparse
 import copy
+import hashlib
 import json
 import platform
 import subprocess
@@ -116,7 +120,9 @@ def main():
         actions=rng.normal(size=(4, 2)).astype(np.float32),
         target_observations={"state": rng.normal(size=(4, 3)).astype(np.float32)},
         accepted=np.array([True, False, False, False]), reasons=reasons,
-        measurements={"distance": np.array([0.1, 0.9, 1.2, np.nan])}, weight=np.array([1.0, 0, 0, 0]))
+        measurements={"distance": np.array([0.1, 0.9, 1.2, np.nan])}, weight=np.array([1.0, 0, 0, 0]),
+        seed=7, inputs={"transition_model": "a" * 64, "dataset": "b" * 64},
+        weighting={"name": "uniform", "version": "1", "params": {}})
     cand.validate(vector)
     write_candidates(cand, out / "candidates.npz")
     back = read_candidates(out / "candidates.npz", vector)
@@ -225,6 +231,10 @@ def main():
         run_id="analytic-fixture", generator={"name": "backward_euler_closed_form", "version": "1", "params_hash": "eps=0.01"},
         source_episode_id=ids, source_frame=frames.astype(np.int64), observations={"state": s_g.astype(np.float32)},
         actions=a, target_observations={"state": s}, accepted=~reasons.any(axis=1), reasons=reasons,
+        weight=(~reasons.any(axis=1)).astype(np.float64), seed=0,
+        inputs={"transition_model": hashlib.sha256(np.ascontiguousarray(np.hstack([sys_.A, sys_.B]))).hexdigest(),
+                "dataset": hashlib.sha256((out / "fixture.npz").read_bytes()).hexdigest()},
+        weighting={"name": "uniform", "version": "1", "params": {}},
         measurements={"distance": dist, "residual": resid})
     write_candidates(fixture_cands, out / "fixture_candidates.npz")
     back = read_candidates(out / "fixture_candidates.npz", ds)
@@ -255,6 +265,137 @@ def main():
                      "source_sha256": back.meta["converted_from"]["sha256"]})
     record("D", "shipped_datasets_convert_exactly", r.returncode == 0 and len(rows) == 15 and all(x["exact"] for x in rows),
            datasets=rows)
+
+    # --- E: candidate provenance travels with the file ----------------------
+    labels_path = out / "fixture_accepted_labels.npz"
+    write_candidates(labels, labels_path)
+    labels_back = read_candidates(labels_path, ds)
+    prov = {k: getattr(labels_back, k) for k in ("run_id", "seed", "inputs", "weighting", "generator")}
+    record("E", "provenance_survives_round_trip_and_accepted_labels",
+           same(labels, labels_back) and all(same(getattr(fixture_cands, k), v) for k, v in prov.items())
+           and np.array_equal(labels_back.weight, np.ones(int(exp_acc.sum()))),
+           provenance=prov, weights=labels_back.weight.tolist())
+    expect("missing_seed", lambda: cmut(lambda c: setattr(c, "seed", None)), "seed")
+    expect("inputs_without_transition_model", lambda: cmut(lambda c: c.inputs.pop("transition_model")), "inputs")
+    expect("input_hash_not_sha256", lambda: cmut(lambda c: c.inputs.__setitem__("dataset", "abc")), "inputs")
+    expect("weighting_without_params", lambda: cmut(lambda c: c.weighting.pop("params")), "weighting")
+    expect("missing_weight", lambda: cmut(lambda c: setattr(c, "weight", None)), "type")
+
+    def cvariant(name, edit):
+        with np.load(out / "candidates.npz", allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        edit(arrays)
+        np.savez(out / name, **arrays)
+        try:
+            read_candidates(out / name)
+            return None
+        except SchemaError as e:
+            return [v["detail"] for v in e.violations]
+
+    got = cvariant("candidates_v1.npz", lambda a: (a.pop("weight"), meta_edit(version="1.0")(a)))
+    record("E", "candidates_1_0_rejected_by_major_version", got is not None and any("major version 1" in d for d in got),
+           errors=got)
+
+    # --- F: optional per-frame fields are all-or-none --------------------------
+    def first_only(field):
+        def build():
+            d = copy.deepcopy(image if field == "timestamps" else chunked)
+            extra = copy.deepcopy(d.episodes[0])
+            extra.episode_id = "second"
+            setattr(extra, field, None)
+            if field == "action_chunks":
+                extra.action_chunk_mask = None
+            d.episodes.append(extra)
+            return d
+        return build
+
+    def other_k():
+        d = copy.deepcopy(chunked)
+        extra = copy.deepcopy(d.episodes[0])
+        extra.episode_id = "second"
+        extra.action_chunks, extra.action_chunk_mask = extra.action_chunks[:, :2], extra.action_chunk_mask[:, :2]
+        d.episodes.append(extra)
+        return d
+
+    expect("timestamps_on_some_episodes", first_only("timestamps"), "optional_field_presence")
+    expect("action_chunks_on_some_episodes", first_only("action_chunks"), "optional_field_presence")
+    expect("action_chunk_length_differs", other_k, "dimension_mismatch")
+    writes = {}
+    for name, build in (("timestamps", first_only("timestamps")), ("action_chunks", first_only("action_chunks")),
+                        ("chunk_length", other_k)):
+        try:
+            write_trajectories(build(), out / f"mixed_{name}.npz")
+            writes[name] = "written"
+        except SchemaError as e:
+            writes[name] = f"SchemaError: {sorted(e.counts)}"
+        except Exception as e:  # noqa: BLE001  (the defect being guarded against is a raw crash in the writer)
+            writes[name] = f"{type(e).__name__}: {e}"
+    record("F", "writer_refuses_mixed_optional_fields_with_schema_error",
+           all(v.startswith("SchemaError") for v in writes.values()) and not list(out.glob("mixed_*")), writes=writes)
+
+    # --- G: malformed files raise SchemaError, never a decoding traceback ------
+    def raw_variant(name, edit, src="vector.npz"):
+        with np.load(out / src, allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        edit(arrays)
+        np.savez(out / name, **arrays)
+        return out / name
+
+    def set_meta(value):
+        return lambda a: a.__setitem__("meta", value)
+
+    def edit_meta(**changes):
+        return meta_edit(**changes)
+
+    malformed = {
+        "meta_invalid_json": raw_variant("m_json.npz", set_meta(np.array("{not json"))),
+        "meta_json_list": raw_variant("m_list.npz", set_meta(np.array("[1, 2]"))),
+        "meta_not_a_string": raw_variant("m_num.npz", set_meta(np.array(3.0))),
+        "optional_fields_not_a_list": raw_variant("m_opt.npz", edit_meta(optional_fields="timestamps")),
+        "dataset_meta_not_an_object": raw_variant("m_ds.npz", edit_meta(dataset=[1])),
+        "episode_lengths_2d": raw_variant("m_len2d.npz", lambda a: a.__setitem__("episode_lengths", a["episode_lengths"][None])),
+        "episode_lengths_float": raw_variant("m_lenf.npz", lambda a: a.__setitem__("episode_lengths", a["episode_lengths"] * 1.0)),
+        "episode_lengths_mismatch": raw_variant("m_lenx.npz", lambda a: a.__setitem__("episode_lengths", a["episode_lengths"] + 1)),
+        "terminated_not_bool": raw_variant("m_term.npz", lambda a: a.__setitem__("terminated", a["terminated"].astype(int))),
+        "zero_dim_actions": raw_variant("m_act0.npz", lambda a: a.__setitem__("actions", np.array(1.0))),
+    }
+    (out / "m_garbage.npz").write_bytes(b"this is not an npz archive")
+    malformed["not_an_archive"] = out / "m_garbage.npz"
+    whole = (out / "vector.npz").read_bytes()
+    (out / "m_truncated.npz").write_bytes(whole[: len(whole) // 2])
+    malformed["truncated_archive"] = out / "m_truncated.npz"
+    np.savez(out / "m_pickled.npz", **{**{k: v for k, v in np.load(out / "vector.npz", allow_pickle=False).items()},
+                                       "terminated": np.array([True, None], dtype=object)})
+    malformed["pickled_object_array"] = out / "m_pickled.npz"
+    cand_malformed = {
+        "reason_codes_not_a_list": edit_meta(reason_codes=3),
+        "seed_not_an_int": edit_meta(seed="7"),
+        "inputs_not_an_object": edit_meta(inputs=["transition_model"]),
+        "zero_dim_observation": lambda a: a.__setitem__("obs/state", np.array(1.0, np.float32)),
+        "meta_invalid_json": set_meta(np.array("{")),
+    }
+    results = {}
+    for name, path in malformed.items():
+        r = subprocess.run([sys.executable, "-m", "ccil", "schema", "validate", str(path)], capture_output=True, text=True)
+        results[f"trajectories:{name}"] = {"exit": r.returncode, "traceback": "Traceback" in r.stderr,
+                                           "error": r.stderr.strip().splitlines()[0:2]}
+    for name, edit in cand_malformed.items():
+        path = raw_variant(f"mc_{name}.npz", edit, src="candidates.npz")
+        r = subprocess.run([sys.executable, "-m", "ccil", "schema", "validate", str(out / "vector.npz"),
+                            "--candidates", str(path)], capture_output=True, text=True)
+        results[f"candidates:{name}"] = {"exit": r.returncode, "traceback": "Traceback" in r.stderr,
+                                         "error": r.stderr.strip().splitlines()[0:2]}
+    m1 = out / "m1_bad_meta.npz"
+    np.savez(m1, observations=np.zeros((4, 2)), actions=np.zeros((4, 1)), episode_lengths=np.array([4]), meta=np.array("{"))
+    try:
+        from_m1_npz(m1)
+        results["legacy:meta_invalid_json"] = {"exit": 0, "traceback": False, "error": []}
+    except SchemaError as e:
+        results["legacy:meta_invalid_json"] = {"exit": 1, "traceback": False, "error": str(e).splitlines()[:2]}
+    except Exception as e:  # noqa: BLE001  (the defect being guarded against is a raw decoding error)
+        results["legacy:meta_invalid_json"] = {"exit": None, "traceback": True, "error": [f"{type(e).__name__}: {e}"]}
+    record("G", "malformed_files_raise_schema_error", all(v["exit"] == 1 and not v["traceback"] for v in results.values()),
+           results=results)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
