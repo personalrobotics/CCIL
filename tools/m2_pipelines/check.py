@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""Evidence for the offline and integrated pipelines (#19).
+
+    uv run --group evidence python tools/m2_pipelines/check.py --out DIR
+
+1. Offline analytic run: three complete stage runs whose labels pass the #10
+   oracle (I1-I5), byte-identical replay, and full reuse on rerun.
+2. Offline generation never imports the integrated pipeline or a policy trainer.
+3. Integrated stub flow on a synthetic state+image dataset: six complete stages,
+   latent labels, shared manifest vocabulary, checkpoint handoff by hash.
+4. Replacing the downstream trainer reuses the four CCIL stages.
+5. A failure in policy.train leaves earlier stages valid; the rerun resumes there.
+   Unsupported configurations fail before any stage writes.
+6. Help output states inputs, outputs, optional dependencies, and exit codes.
+Writes DIR/report.json.
+"""
+import argparse
+import hashlib
+import json
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "tools" / "m2_interfaces"))
+sys.path.insert(0, str(REPO / "tools" / "analytic_fixture"))
+import oracle  # noqa: E402
+from check import fixture, to_oracle  # noqa: E402  (tools/m2_interfaces/check.py)
+
+from ccil.config import resolve  # noqa: E402
+from ccil.pipelines.integrated import run_integrated  # noqa: E402
+from ccil.pipelines.policy import LinearPolicyTrainer  # noqa: E402
+from ccil.pipelines.stages import StageError  # noqa: E402
+from ccil.runs import layout, validate_run  # noqa: E402
+from ccil.schema import Episode, TrajectoryDataset, read_candidates, read_trajectories, write_trajectories  # noqa: E402
+
+
+def ccil(*args, cwd):
+    return subprocess.run([sys.executable, "-m", "ccil", *map(str, args)], cwd=cwd, capture_output=True, text=True)
+
+
+def tree(d: Path) -> dict:
+    return {p.relative_to(d).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(d.rglob("*")) if p.is_file()}
+
+
+def runs(d: Path) -> dict:
+    return {p.name: p for p in sorted(d.iterdir()) if p.is_dir() and not p.name.startswith(".")} if d.exists() else {}
+
+
+def image_dataset(path: Path) -> None:
+    rng = np.random.default_rng(7)
+    render = rng.normal(size=(3, 64))
+    eps = []
+    for e in range(4):
+        s = np.cumsum(rng.normal(scale=0.1, size=(15, 3)), axis=0)
+        pix = np.clip(128 + 40 * (s @ render), 0, 255).astype(np.uint8).reshape(15, 8, 8, 1)
+        eps.append(Episode(f"img{e}", {"state": s.astype(np.float32), "image.top": pix}, rng.normal(size=(15, 2)).astype(np.float32)))
+    write_trajectories(TrajectoryDataset(eps), path)
+
+
+INTEGRATED = ["--set", "representation.kind=pca", "--set", "representation.modality=image.top", "--set", "representation.dim=4",
+              "--set", "transition_model.kind=linear", "--set", "generation.method=backward_euler",
+              "--set", "generation.support_radius=0.5", "--set", "data.validation_fraction=0.25",
+              "--set", "data.path=images.npz", "--set", "run.output_dir=runs"]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", type=Path, required=True)
+    out = ap.parse_args().out.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    cases = []
+
+    def record(name, ok, **detail):
+        cases.append({"case": name, "pass": bool(ok), **detail})
+        print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else detail}")
+
+    config = json.loads((REPO / "tools/analytic_fixture/config.json").read_text())
+    config["episodes"] = [e for e in config["episodes"] if not e["corrupt_actions"]]
+    offline_args = ["labels", "generate", "--recipe", "analytic_double_integrator", "--set", "data.path=fixture.npz",
+                    "--set", "run.output_dir=runs"]
+
+    # 1. Offline analytic run.
+    wa, wb = out / "offline_a", out / "offline_b"
+    for w in (wa, wb):
+        w.mkdir()
+        write_trajectories(fixture(config), w / "fixture.npz")
+    r1 = ccil(*offline_args, cwd=wa)
+    ra = runs(wa / "runs")
+    statuses = {n: validate_run(p)[0] for n, p in ra.items()}
+    labels_dir = next(p for n, p in ra.items() if n.startswith("labels-generate"))
+    dataset = read_trajectories(next(p for n, p in ra.items() if n.startswith("data-prepare")) / layout.DATASET)
+    cands = read_candidates(labels_dir / layout.CANDIDATES, dataset)
+    _, verdicts = oracle.evaluate({**config, "methods": {"backward_euler_fast": config["methods"]["backward_euler_fast"]}},
+                                  oracle.episodes_to_transitions(config), {"backward_euler_fast": to_oracle(cands, dataset)})
+    oracle_ok = {k: v["backward_euler_fast"]["pass"] for k, v in verdicts.items() if k != "I6_episode_boundaries"}
+    r2 = ccil(*offline_args, cwd=wb)
+    rb = runs(wb / "runs")
+    replay = sorted(ra) == sorted(rb) and all(tree(ra[n]) == tree(rb[n]) for n in ra)
+    r3 = ccil(*offline_args, cwd=wa)
+    reused = r3.returncode == 0 and r3.stdout.count("reused") == 3 and r3.stdout.count("wrote") == 0
+    record("offline_analytic_run", r1.returncode == 0 and len(ra) == 3 and set(statuses.values()) == {"complete"}
+           and all(oracle_ok.values()) and replay and reused,
+           stages=statuses, oracle=oracle_ok, replay_identical=replay, rerun_output=r3.stdout.strip().splitlines(),
+           report=json.loads((labels_dir / layout.METRICS).read_text())["values"], stderr=r1.stderr[-400:])
+
+    # 2. Offline generation imports no trainer or integrated pipeline.
+    probe = ("import sys, json; from ccil.config import resolve; from ccil.pipelines.offline import generate_offline; "
+             "generate_offline(resolve(recipe='analytic_double_integrator', sets=['data.path=fixture.npz', 'run.output_dir=probe_runs'])); "
+             "print(json.dumps(sorted(m for m in sys.modules if (m.startswith('ccil.') and ('integrated' in m or 'policy' in m)) "
+             "or m.split('.')[0] == 'torch')))")
+    p = subprocess.run([sys.executable, "-c", probe], cwd=wa, capture_output=True, text=True)
+    mods = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
+    record("offline_imports_no_trainer", mods == [], loaded=mods, stderr=p.stderr[-300:])
+
+    # 3. Integrated stub flow.
+    wi = out / "integrated"
+    wi.mkdir()
+    image_dataset(wi / "images.npz")
+    r = ccil("pipeline", "integrated", *INTEGRATED, cwd=wi)
+    ri = runs(wi / "runs")
+    st = {n: validate_run(p)[0] for n, p in ri.items()}
+    by_stage = {json.loads((p / layout.MANIFEST).read_text())["workflow"]: p for p in ri.values()}
+    ok = r.returncode == 0 and len(ri) == 6 and set(st.values()) == {"complete"}
+    detail = {"stages": st, "stderr": r.stderr[-400:]}
+    if ok:
+        lab = by_stage["labels.generate"]
+        lc = read_candidates(lab / layout.CANDIDATES, read_trajectories(by_stage["data.prepare"] / layout.DATASET))
+        manifests = [json.loads((p / layout.MANIFEST).read_text()) for p in [*ri.values(), *ra.values()]]
+        same_vocab = len({tuple(sorted(m)) for m in manifests}) == 1
+        lab_inputs = json.loads((lab / layout.MANIFEST).read_text())["inputs"]
+        handoff = (lab_inputs["representation"]["sha256"] == hashlib.sha256(
+            (by_stage["representation.fit"] / "checkpoints/representation.npz").read_bytes()).hexdigest()
+            and lab_inputs["transition_model"]["sha256"] == hashlib.sha256(
+                (by_stage["transition.fit"] / "checkpoints/transition_model.npz").read_bytes()).hexdigest())
+        ev = json.loads((by_stage["policy.evaluate"] / layout.METRICS).read_text())["values"]
+        ok = set(lc.observations) == {"latent.pca"} and lc.accepted.any() and same_vocab and handoff
+        detail = {"stages": st, "label_modality": sorted(lc.observations), "accepted": int(lc.accepted.sum()),
+                  "candidates": int(len(lc.accepted)), "same_manifest_vocabulary": same_vocab,
+                  "checkpoint_handoff_by_hash": handoff, "evaluation": ev,
+                  "labels_inputs": sorted(lab_inputs)}
+    record("integrated_stub_flow", ok, **detail)
+
+    # 4. Replacing the downstream trainer reuses the four CCIL stages.
+    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "policy.trainer=mean_action", cwd=wi)
+    lines = [l.split() for l in r.stdout.strip().splitlines()]
+    reuse = {l[0]: l[1] for l in lines}
+    record("downstream_trainer_replaceable", r.returncode == 0
+           and all(reuse.get(s) == "reused" for s in ("data.prepare", "representation.fit", "transition.fit", "labels.generate"))
+           and reuse.get("policy.train") == "wrote" and reuse.get("policy.evaluate") == "wrote" and len(runs(wi / "runs")) == 8,
+           stage_status=reuse)
+
+    # 5. Failure in policy.train, then resume; unsupported configs fail before writing.
+    wf = out / "failure"
+    wf.mkdir()
+    image_dataset(wf / "images.npz")
+
+    class FlakyTrainer(LinearPolicyTrainer):
+        name = "flaky"
+        fail = True
+
+        def fit(self, z, a, w):
+            if FlakyTrainer.fail:
+                raise RuntimeError("simulated trainer failure")
+            return super().fit(z, a, w)
+
+    sets = [s for s in INTEGRATED if s != "--set"]
+    cwd = os.getcwd()
+    os.chdir(wf)
+    try:
+        cfg = resolve(sets=sets)
+        try:
+            run_integrated(cfg, trainer=FlakyTrainer())
+            failed_stage = None
+        except StageError as e:
+            failed_stage = e.stage
+        after_fail = {n: validate_run(p)[0] for n, p in runs(wf / "runs").items()}
+        staging = [p.name for p in (wf / "runs").iterdir() if p.name.startswith(".")]
+        FlakyTrainer.fail = False
+        resumed = run_integrated(cfg, trainer=FlakyTrainer())
+    finally:
+        os.chdir(cwd)
+    resume_ok = [r.reused for r in resumed] == [True, True, True, True, False, False]
+    record("failure_leaves_earlier_stages_and_resumes", failed_stage == "policy.train" and len(after_fail) == 4
+           and set(after_fail.values()) == {"complete"} and not staging and resume_ok,
+           failed_stage=failed_stage, stages_after_failure=after_fail, staging_left=staging,
+           resume=[[r.stage, r.reused] for r in resumed])
+    for name, extra in (("unsupported_method", ["--set", "generation.method=backward_model"]),
+                        ("mlp_model", ["--set", "transition_model.kind=mlp"])):
+        w = out / f"preflight_{name}"
+        w.mkdir()
+        write_trajectories(fixture(config), w / "fixture.npz")
+        r = ccil(*offline_args, *extra, cwd=w)
+        record(f"fails_before_any_stage[{name}]", r.returncode == 2 and not (w / "runs").exists(), error=r.stderr.strip())
+
+    # 6. Help output.
+    helps = {cmd: ccil(*cmd.split(), "--help", cwd=out).stdout for cmd in ("labels generate", "pipeline integrated")}
+    record("help_states_inputs_outputs_dependencies_exit_codes",
+           all(all(k in h for k in ("required:", "outputs:", "optional:", "exit:")) for h in helps.values()),
+           help=helps)
+
+    git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
+    report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
+              "environment": {"code_commit": git("rev-parse", "HEAD"),
+                              "code_dirty": bool(git("status", "--porcelain", "--", "src", "tools", "pyproject.toml", "uv.lock")),
+                              "python": platform.python_version(), "platform": platform.platform(), "numpy": np.__version__}}
+    text = json.dumps(report, indent=1, sort_keys=True, default=str) + "\n"
+    (out / "report.json").write_text(text.replace(str(out), "<out>").replace(str(REPO), "<repo>"))
+    print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
+    return 0 if report["all_pass"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

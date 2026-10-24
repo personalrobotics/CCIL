@@ -36,10 +36,21 @@ PARAMS = [
     Param("data.action_high", "floats", None, "Declared upper action bound per dimension (or one value for all).",
           "Opt-in (#14); no shipped config declares bounds.", "data", units="action units", nullable=True,
           legacy=("data.action_high",)),
+    # representation ----------------------------------------------------------
+    Param("representation.kind", "choice", "identity", "Representation the labels live in.",
+          "identity reproduces vector CCIL; pca is the integrated pipeline's reference learned representation.",
+          "representation", choices=("identity", "pca")),
+    Param("representation.modality", "str", "state", "Stored modality the representation reads.",
+          "Vector CCIL reads the state modality.", "representation"),
+    Param("representation.dim", "int", None, "Latent dimension of a learned representation.",
+          "Required by pca; unused by identity.", "representation", low=1, nullable=True),
     # environment -----------------------------------------------------------
     Param("environment.id", "str", None, "Simulator task identifier used for evaluation.",
           "Task-specific; set by recipes.", "environment", nullable=True, legacy=("env",), status=D, milestone="M3/M7"),
     # transition model ------------------------------------------------------
+    Param("transition_model.kind", "choice", "mlp", "Transition-model family: linear (least squares) or mlp.",
+          "Legacy code used an MLP (WorldModel); its port is #21, so mlp fails with guidance until then.",
+          "transition_model", choices=("linear", "mlp")),
     Param("transition_model.direction", "choice", "forward", "Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t).",
           "Legacy dynamics.backward, absent (forward) in every config.", "transition_model",
           choices=("forward", "backward"), legacy=("dynamics.backward",), status=D, milestone="M3 (#21)"),
@@ -74,26 +85,28 @@ PARAMS = [
     Param("transition_model.batch_size", "int", None, "Minibatch size.", "Task-specific in legacy configs.",
           "transition_model", low=1, nullable=True, legacy=("dynamics.batch_size",), status=D, milestone="M3 (#21)"),
     # generation ------------------------------------------------------------
-    Param("generation.method", "choice", None, "Corrective-label generator.", "Task-specific in legacy configs.",
-          "generation", choices=METHODS, nullable=True, legacy=("aug.type",), status=D, milestone="M3 (#21, #22)"),
+    Param("generation.method", "choice", None,
+          "Corrective-label generator. noisy_action_fe and backward_model are ported in #22.",
+          "Task-specific in legacy configs.", "generation", choices=METHODS, nullable=True, legacy=("aug.type",)),
     Param("generation.max_iterations", "int", None, "Root-finder iterations.", "Task-specific (30 or 50) in legacy configs.",
-          "generation", low=1, nullable=True, legacy=("aug.max_iter",), status=D, milestone="M3 (#21)"),
+          "generation", low=1, nullable=True, legacy=("aug.max_iter",)),
     Param("generation.root_tolerance", "float", 0.0001, "Residual norm at which the root finder stops.",
-          "Legacy literal in utils.root_finder_s.", "generation", units="state units", low=0.0, low_open=True,
-          status=D, milestone="M3 (#21)"),
+          "Legacy literal in utils.root_finder_s.", "generation", units="state units", low=0.0, low_open=True),
     Param("generation.labels_per_transition", "int", None, "Noisy-action candidates per transition.",
-          "Task-specific (10 or 20) in legacy configs.", "generation", low=1, nullable=True, legacy=("aug.num_labels",),
-          status=D, milestone="M3 (#22)"),
+          "Task-specific (10 or 20) in legacy configs.", "generation", low=1, nullable=True, legacy=("aug.num_labels",)),
     Param("generation.action_noise_std", "float", None, "Standard deviation of the noisy-action perturbation.",
           "Task-specific in legacy configs.", "generation", units="action units", low=0.0, low_open=True, nullable=True,
-          legacy=("aug.delta",), status=D, milestone="M3 (#22)"),
+          legacy=("aug.delta",)),
     Param("generation.support_radius", "float", None, "Labels farther than this from the demonstration state are rejected.",
           "aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check.", "generation",
-          units="state units", low=0.0, low_open=True, nullable=True, legacy=("aug.epsilon",), status=D, milestone="M3 (#22)"),
+          units="state units", low=0.0, low_open=True, nullable=True, legacy=("aug.epsilon",)),
     # policy ----------------------------------------------------------------
-    Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC.",
+    Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
           "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
-          legacy=("policy.naive", "policy.noise_bc"), status=D, milestone="M3"),
+          legacy=("policy.naive", "policy.noise_bc")),
+    Param("policy.trainer", "choice", "linear_least_squares", "Downstream policy trainer of the integrated pipeline.",
+          "Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer.",
+          "policy", choices=("linear_least_squares", "mean_action")),
     Param("policy.noise_scale", "float", None, "NoiseBC observation-noise scale.", "Set per suite by the legacy scripts.",
           "policy", low=0.0, nullable=True, legacy=("policy.noise_bc",), status=D, milestone="M3"),
     Param("policy.noise_model", "choice", "legacy_uniform_half_batch", "NoiseBC noise distribution.",
@@ -143,7 +156,14 @@ def _noise(v):
     return None
 
 
+def _pca_dim(v):
+    if v["representation.kind"] == "pca" and not v["representation.dim"]:
+        return "representation.kind pca requires representation.dim"
+    return None
+
+
 RULES = [
+    ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
     ("noise_bc_scale", ("policy.method", "policy.noise_scale"), _noise),
 ]

@@ -100,6 +100,27 @@ def _run_validate(args) -> int:
     return 0 if status == "complete" else 1
 
 
+def _run_pipeline(args, which) -> int:
+    from .config import ConfigError
+    from .core import InterfaceError
+    from .pipelines.stages import StageError
+    from .schema import SchemaError
+    try:
+        cfg = _resolve(args)
+        if which == "offline":
+            from .pipelines.offline import generate_offline
+            results = generate_offline(cfg)
+        else:
+            from .pipelines.integrated import run_integrated
+            results = run_integrated(cfg)
+    except (ConfigError, SchemaError, InterfaceError, StageError) as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    for r in results:
+        print(f"{r.stage:18s} {'reused' if r.reused else 'wrote '} {r.run_dir}")
+    return 0
+
+
 def _add_config_args(p) -> None:
     p.add_argument("--recipe", help="named recipe in src/ccil/recipes/")
     p.add_argument("--config", help="user configuration file (YAML)")
@@ -135,6 +156,16 @@ def main(argv=None) -> int:
     prep = data.add_parser("prepare", help="validate a dataset, split it by episode, and write a run directory")
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
+    labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
+    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure',
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+    _add_config_args(gen)
+    gen.set_defaults(fn=lambda a: _run_pipeline(a, "offline"))
+    pipeline = groups.add_parser("pipeline", help="integrated pipelines").add_subparsers(dest="command", required=True)
+    integ = pipeline.add_parser("integrated", help="representation, labels, and downstream policy",
+                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure', formatter_class=argparse.RawDescriptionHelpFormatter)
+    _add_config_args(integ)
+    integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
     runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
     rval = runs.add_parser("validate", help="classify a run directory: complete, corrupt, incompatible, or incomplete")
     rval.add_argument("run_dir")

@@ -95,15 +95,15 @@ def main():
         and tree_hashes(b_dirs[0]) == tree_hashes(default_a)
     record("replay_is_byte_identical", same, run_id=b_dirs[0].name if b_dirs else None, files=tree_hashes(default_a))
 
-    # --- existing run directory: refused, then atomically replaced ---------
+    # --- existing run directory: reused unchanged (#19 stage resume), then atomically replaced ---------
     before = tree_hashes(default_a)
     r_again = ccil("data", "prepare", *base, cwd=work[0])
-    refused = r_again.returncode == 2 and "exists" in r_again.stderr and tree_hashes(default_a) == before
+    refused = r_again.returncode == 0 and tree_hashes(default_a) == before and len(list((work[0] / "runs").iterdir())) == 2
     r_over = ccil("data", "prepare", "--recipe", "pendulum_cont", "--set", "run.output_dir=runs", "--set", "run.overwrite=true",
                   cwd=work[0])
     leftovers = [p.name for p in (work[0] / "runs").iterdir() if p.name.startswith(".")]
-    record("existing_run_refused_then_replaced_atomically", refused and r_over.returncode == 0 and not leftovers,
-           refused_stderr=r_again.stderr.strip()[-200:], leftovers=leftovers)
+    record("existing_run_reused_then_replaced_atomically", refused and r_over.returncode == 0 and not leftovers,
+           rerun_stdout=r_again.stdout.strip()[-200:], leftovers=leftovers)
 
     # --- failures before any output -----------------------------------------
     def fails(name, sets, needle, extra=()):

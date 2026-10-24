@@ -1,0 +1,8 @@
+# The analytic double integrator of docs/fixtures/analytic-dynamics.md: a linear
+# system, so the least-squares linear model recovers its exact dynamics.
+config_version: 1
+run: {seed: 20261023}
+data: {validation_fraction: 0.5}
+representation: {kind: identity, modality: state}
+transition_model: {kind: linear}
+generation: {method: backward_euler_fast, support_radius: 0.01}
