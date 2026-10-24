@@ -15,6 +15,10 @@
    singular Newton system or non-finite model output are marked failed
    (generation_failed) while the solvable rows match the exact linear solution,
    byte for byte and at every batch size.
+7. A fitted transition model's checkpoint records its kind and version, loads
+   through the generic loader, and re-saves byte-identically; unknown kinds,
+   other versions or components, and non-checkpoints raise CheckpointError,
+   while an unavailable device surfaces as the model's own error.
 Writes DIR/report.json.
 """
 import argparse
@@ -291,6 +295,48 @@ def main():
     else:
         ok, detail = False, {"error": error}
     record("exact_preimage_isolates_singular_and_non_finite_rows", ok, **detail)
+
+    # 7. Transition-model persistence: identity in the checkpoint, generic loading, visible failures.
+    from ccil.core import TRANSITION_MODELS, TransitionModel, load_transition_model
+    fitted = LinearTransitionModel()
+    tb = transitions(dataset, rep)
+    fitted.fit(tb.z, tb.a, tb.z_next, seed=SEED)
+    ck = out / "transition_model.npz"
+    fitted.save(ck)
+    with np.load(ck, allow_pickle=False) as z:
+        ck_meta = json.loads(str(z["meta"]))
+    loaded = load_transition_model(ck)
+    loaded.save(out / "transition_model_resaved.npz")
+    same_bytes = ck.read_bytes() == (out / "transition_model_resaved.npz").read_bytes()
+    same_delta = np.array_equal(loaded.delta(tb.z, tb.a), fitted.delta(tb.z, tb.a))
+
+    def rewrite_meta(name, **changes):
+        with np.load(ck, allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        arrays["meta"] = np.array(json.dumps({**ck_meta, **changes}))
+        np.savez(out / name, **arrays)
+        return out / name
+
+    (out / "not_a_checkpoint.npz").write_bytes(b"not a checkpoint")
+    failures = {}
+    for name, call in (("unknown_kind", lambda: load_transition_model(rewrite_meta("ck_kind.npz", kind="spline"))),
+                       ("future_version", lambda: load_transition_model(rewrite_meta("ck_ver.npz", version="2"))),
+                       ("other_component", lambda: load_transition_model(rewrite_meta("ck_comp.npz", component="policy"))),
+                       ("not_a_checkpoint", lambda: load_transition_model(out / "not_a_checkpoint.npz")),
+                       ("unavailable_device", lambda: load_transition_model(ck, device="cuda"))):
+        try:
+            call()
+            failures[name] = "loaded"
+        except Exception as e:  # noqa: BLE001  (recording which error type each failure surfaces as)
+            failures[name] = f"{type(e).__name__}: {e}"
+    expected = {"unknown_kind": "CheckpointError", "future_version": "CheckpointError", "other_component": "CheckpointError",
+                "not_a_checkpoint": "CheckpointError", "unavailable_device": "ValueError"}
+    record("transition_model_persistence_contract",
+           isinstance(fitted, TransitionModel) and ck_meta == {"component": "transition_model", "kind": "linear", "version": "1"}
+           and TRANSITION_MODELS["linear"] is LinearTransitionModel and same_bytes and same_delta
+           and all(failures[k].split(":")[0] == v for k, v in expected.items()),
+           checkpoint_meta=ck_meta, save_load_save_identical=same_bytes, delta_identical=same_delta,
+           failures={k: v.replace(str(out), "<out>") for k, v in failures.items()})
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

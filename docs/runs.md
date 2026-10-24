@@ -15,6 +15,7 @@ Every `ccil` workflow writes one run directory (#18). The implementation is in
 | `checkpoints/<name>.pt` | Model checkpoints. |
 | `plots/<name>.png` | Figures. |
 | `logs/run.log` | Plain log lines, with no timestamps. |
+| `stage.json` | Pipeline stages only: the identity the stage's run ID hashes, which decides reuse. See [`pipelines.md`](pipelines.md). |
 
 A workflow writes only the components it produces.
 

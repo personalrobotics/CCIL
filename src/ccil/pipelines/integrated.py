@@ -16,6 +16,7 @@ import numpy as np
 
 from ..config import ConfigError
 from ..core import transitions
+from ..core.transition import check_identity, checkpoint_meta
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..schema import read_candidates, read_trajectories
@@ -31,6 +32,7 @@ POLICY_CHECKPOINT = f"{layout.CHECKPOINTS}/policy.npz"
 class PCARepresentation:
     """Deterministic PCA of one modality (state, or flattened image pixels in [0, 1])."""
 
+    kind, version = "pca", "1"
     trainable = True
     output_modality = "latent.pca"
 
@@ -63,11 +65,13 @@ class PCARepresentation:
         self.mean, self.components = state["mean"], state["components"]
 
     def save(self, path):
+        meta = {"component": "representation", "kind": self.kind, "version": self.version, "modality": self.modality}
         _atomic_savez(path, {"mean": self.mean, "components": self.components,
-                             "meta": np.array(json.dumps({"representation": "pca", "modality": self.modality}))})
+                             "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
     def load(cls, path, modality, dim):
+        check_identity(path, checkpoint_meta(path, "representation"), cls)
         rep = cls(modality, dim)
         with np.load(path, allow_pickle=False) as z:
             rep.load_state_dict({"mean": z["mean"], "components": z["components"]})
@@ -92,7 +96,8 @@ def run_integrated(cfg, trainer=None):
         metrics = rep.fit(read_trajectories(prepared.out(layout.DATASET)))
         rep.save(run.path(REPRESENTATION_CHECKPOINT))
         run.metrics(metrics)
-    rep_stage = run_stage("representation.fit", cfg, {"dataset": prepared.out(layout.DATASET)}, fit_representation)
+    rep_stage = run_stage("representation.fit", cfg, {"dataset": prepared.out(layout.DATASET)}, fit_representation,
+                          components={"representation": PCARepresentation(modality, dim)})
     results.append(rep_stage)
     rep = PCARepresentation.load(rep_stage.out(REPRESENTATION_CHECKPOINT), modality, dim)
     rep_input = {"representation": rep_stage.out(REPRESENTATION_CHECKPOINT)}
@@ -121,7 +126,7 @@ def run_integrated(cfg, trainer=None):
         trainer.save(run.path(POLICY_CHECKPOINT))
         run.metrics({"trainer": trainer.name, "policy_method": v["policy.method"], "rows": int(sum(len(x) for x in z)),
                      "label_rows": int(sum(len(x) for x in z[1:]))})
-    trained = run_stage("policy.train", cfg, policy_inputs, train, identity={"trainer": trainer.name})
+    trained = run_stage("policy.train", cfg, policy_inputs, train, components={"trainer": trainer})
     results.append(trained)
 
     eval_inputs = {**policy_inputs, "policy": trained.out(POLICY_CHECKPOINT)}
@@ -135,5 +140,5 @@ def run_integrated(cfg, trainer=None):
         err = np.linalg.norm(policy.predict(batch.z[held]) - batch.a[held], axis=1)
         run.metrics({"held_out_transitions": int(held.sum()), "action_l2_mean": float(err.mean()),
                      "action_l2_max": float(err.max()), "note": "offline action error; simulator evaluation is M7"})
-    results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, identity={"trainer": trainer.name}))
+    results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": trainer}))
     return results

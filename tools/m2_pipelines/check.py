@@ -7,6 +7,11 @@
    oracle (I1-I5), byte-identical replay, and full reuse on rerun.
    The labels carry the run seed, the uniform weighting, explicit weights (0 on
    rejected rows), and input hashes equal to the labels stage's manifest inputs.
+   Each stage's stage.json records the identity its run ID hashes (consumed
+   configuration, components with versions, implementation source hash and
+   dependency versions, input hashes). Changed source, even a comment, or a
+   bumped component version writes distinct runs and leaves the old ones intact;
+   an unreadable implementation fails instead of reusing.
 2. Offline generation never imports the integrated pipeline or a policy trainer.
 3. Integrated stub flow on a synthetic state+image dataset: six complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
@@ -25,6 +30,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -125,6 +131,51 @@ def main():
            inputs=cands.inputs, manifest_inputs=manifest_inputs, seed=cands.seed, weighting=cands.weighting,
            weight_on_rejected=sorted(set(cands.weight[~cands.accepted].tolist())),
            weight_on_accepted=sorted(set(cands.weight[cands.accepted].tolist())))
+
+    # 1c. Reuse is decided by implementation and component identity, recorded in stage.json.
+    from ccil.pipelines.stages import stage_run_id
+    from ccil.runs.provenance import implementation
+    impl = implementation()
+    recorded = {n: json.loads((p / layout.STAGE).read_text()) for n, p in ra.items()}
+    consistent = all(st["run_id"] == n and stage_run_id({k: v for k, v in st.items() if k != "run_id"}) == n
+                     and st["implementation"] == impl and layout.STAGE in json.loads((ra[n] / layout.MANIFEST).read_text())["files"]
+                     for n, st in recorded.items())
+    record("stage_identity_recorded_and_rederives_run_id", consistent and reused,
+           implementation=impl, components={n: st["components"] for n, st in recorded.items()})
+
+    def variant_run(name, prelude):
+        """Rerun the offline pipeline in work_a from a child process that first runs prelude."""
+        code = prelude + "\nimport sys\nfrom ccil.__main__ import main\nsys.exit(main(sys.argv[1:]))\n"
+        before = set(runs(wa / "runs"))
+        r = subprocess.run([sys.executable, "-c", code, *offline_args], cwd=wa, capture_output=True, text=True)
+        status = {l.split()[0]: l.split()[1] for l in r.stdout.strip().splitlines() if len(l.split()) > 1}
+        new = sorted(set(runs(wa / "runs")) - before)
+        return r, status, new
+
+    originals = {n: tree(p) for n, p in ra.items()}
+    pkg = out / "changed_source"
+    shutil.copytree(REPO / "src" / "ccil", pkg / "ccil", ignore=shutil.ignore_patterns("__pycache__"))
+    with open(pkg / "ccil" / "core" / "generators.py", "a") as f:
+        f.write("# an edit that changes no behavior still changes the implementation\n")
+    r, status, new = variant_run("changed_source", f"import sys; sys.path.insert(0, {str(pkg)!r})\n"
+                                                   f"import ccil; assert ccil.__file__.startswith({str(pkg)!r})")
+    new_impl = {json.loads((wa / "runs" / n / layout.STAGE).read_text())["implementation"]["source_sha256"] for n in new}
+    record("changed_implementation_writes_distinct_runs", r.returncode == 0 and set(status.values()) == {"wrote"}
+           and len(new) == 3 and new_impl and impl["source_sha256"] not in new_impl
+           and all(tree(ra[n]) == h for n, h in originals.items()),
+           stage_status=status, new_runs=new, stderr=r.stderr[-300:])
+
+    r, status, new = variant_run("component_version", "from ccil.core import LinearTransitionModel\n"
+                                                      "LinearTransitionModel.version = '2'")
+    record("component_version_change_writes_distinct_runs", r.returncode == 0 and status.get("data.prepare") == "reused"
+           and status.get("transition.fit") == "wrote" and status.get("labels.generate") == "wrote" and len(new) == 2,
+           stage_status=status, new_runs=new, stderr=r.stderr[-300:])
+
+    (out / "empty_package").mkdir()
+    r, status, new = variant_run("unidentifiable", f"import ccil.runs.provenance as p\n"
+                                                   f"from pathlib import Path\np.PACKAGE_ROOT = Path({str(out / 'empty_package')!r})")
+    record("unidentifiable_implementation_never_reuses", r.returncode == 2 and not new and "reused" not in r.stdout
+           and "no ccil source files" in r.stderr, stage_status=status, error=r.stderr.strip()[-300:])
 
     # 2. Offline generation imports no trainer or integrated pipeline.
     probe = ("import sys, json; from ccil.config import resolve; from ccil.pipelines.offline import generate_offline; "

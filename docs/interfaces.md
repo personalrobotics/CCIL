@@ -18,11 +18,22 @@ composes the stages.
 
 | Interface | Inputs → outputs | State and ownership | Determinism | Failures |
 |---|---|---|---|---|
-| `Representation` | `encode(dict[modality → (N, …)]) → (N, D)` float. `output_modality` is `state` or `latent.<name>`. | A trainable representation owns its parameters. The integrated pipeline (#19, M5) fits it; generation never does. | Deterministic and batch-invariant | A wrong shape or dtype raises `InterfaceError`. |
-| `TransitionModel` | `fit(z, a, z_next, seed) → metrics`; `delta(z, a) → (N, D)`; optional `jacobian_z → (N, D, D)`; `evaluate`; `save` / `load(path, device)` | The model owns its parameters, optimizer and device. Only `fit` changes state. | `delta` is side-effect free | Model-specific load errors, such as `CheckpointError` for torch models (#12). |
+| `Representation` | `encode(dict[modality → (N, …)]) → (N, D)` float. `output_modality` is `state` or `latent.<name>`. `kind` and `version`. | A trainable representation owns its parameters. The integrated pipeline (#19, M5) fits it; generation never does. | Deterministic and batch-invariant | A wrong shape or dtype raises `InterfaceError`. |
+| `TransitionModel` | `fit(z, a, z_next, seed) → metrics`; `delta(z, a) → (N, D)`; optional `jacobian_z → (N, D, D)`; `evaluate`; `save(path)`; classmethod `load(path, device)`; `kind` and `version` | The model owns its parameters, optimizer and device. Only `fit` changes state. | `delta` is side-effect free | A file that isn't a checkpoint of a known kind and version raises `CheckpointError`. Model-specific failures, such as an unavailable device, propagate unchanged. |
 | `Generator` | `generate(TransitionBatch, model, seed) → CandidateBatch`, plus `name`, `version`, `params` | Stateless: `params` fully describe it | Randomness per transition from `(seed, crc32(episode_id), frame)`, so output is batch-invariant | It marks `failed` and never accepts or rejects. A malformed batch raises `InterfaceError`. |
 | `Validator` | `check(batch, cands, model) → (reject (n,) bool, measurements)`, plus `reason` (a `ccil.candidates` reason code, or `None` for a validator that only measures) | Stateless | Deterministic | An unknown reason, a malformed mask, or a measuring-only validator that rejects raises `InterfaceError`. |
 | `Weighting` | `weights(cands, accepted) → (n,)` | Stateless | Deterministic | Weights must be finite and ≥ 0, and 0 on rejected rows (checked by the schema). |
+
+**Identity and persistence.**
+- A transition model's `kind` is its `transition_model.kind` value, and a
+  representation's is its `representation.kind` value. Policy trainers use
+  `name` (the `policy.trainer` value).
+- A component's `version` changes whenever its checkpoints or fitted results
+  would change.
+- A checkpoint records `component`, `kind` and `version`.
+  `load_transition_model(path, device)` reads the kind and dispatches through
+  `TRANSITION_MODELS`, a plain dict that #21 extends with `mlp`. There is no
+  plugin discovery.
 
 Arrays are **numpy** at every boundary. Torch-backed models and encoders convert
 internally, which keeps the core at numpy + pyyaml. No gradients cross an
@@ -63,7 +74,7 @@ uv run --group evidence python tools/m2_interfaces/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-interfaces/report.json`](fixtures/evidence/m2-interfaces/report.json)
-has 7 cases:
+has 8 cases:
 
 - **The #10 oracle:** the new core passes the analytic oracle (I1–I5) for every
   method, and its run directory validates as complete.
@@ -78,3 +89,7 @@ has 7 cases:
   with a singular Newton system or non-finite model output as
   `generation_failed`. The solvable rows match the exact solution, with
   byte-identical output at batch sizes 1, 4 and all.
+- **Persistence:** a fitted model's checkpoint records its kind and version,
+  loads through `load_transition_model`, and re-saves byte for byte. Unknown
+  kinds, other versions or components, and files that aren't checkpoints raise
+  `CheckpointError`. An unavailable device raises the model's own `ValueError`.

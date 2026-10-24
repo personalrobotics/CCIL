@@ -12,9 +12,9 @@ from pathlib import Path
 import numpy as np
 
 from ..config import ConfigError
-from ..core import (ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed, IdentityRepresentation,
-                    LinearTransitionModel, ModelResidual, NoisyAction, SupportRadius, Uniform, generate_labels,
-                    transitions)
+from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
+                    IdentityRepresentation, ModelResidual, NoisyAction, SupportRadius, Uniform, generate_labels,
+                    load_transition_model, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..runs.provenance import sha256
@@ -45,12 +45,15 @@ def build_validators(v):
 
 
 def build_model(v):
-    if v["transition_model.kind"] == "mlp":
+    kind = v["transition_model.kind"]
+    if kind == "mlp" and kind not in TRANSITION_MODELS:
         raise ConfigError(["transition_model.kind 'mlp' (the legacy WorldModel) is ported in #21; "
                            "use transition_model.kind=linear until then"])
+    if kind not in TRANSITION_MODELS:
+        raise ConfigError([f"transition_model.kind {kind!r} has no implementation; available: {sorted(TRANSITION_MODELS)}"])
     if v["transition_model.direction"] != "forward":
         raise ConfigError(["transition_model.direction 'backward' is ported in #22"])
-    return LinearTransitionModel()
+    return TRANSITION_MODELS[kind]()
 
 
 def preflight(cfg) -> None:
@@ -98,7 +101,8 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")
-    return run_stage("transition.fit", cfg, inputs, body)
+    return run_stage("transition.fit", cfg, inputs, body,
+                     components={"representation": representation, "transition_model": build_model(v)})
 
 
 def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
@@ -107,7 +111,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
-        model = LinearTransitionModel.load(inputs["transition_model"])
+        model = load_transition_model(inputs["transition_model"])
         cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
                                 run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
                                 inputs={name: sha256(path) for name, path in inputs.items()})
@@ -118,7 +122,9 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
                      "rejections_by_reason": counts, "generator": cands.generator})
         run.log(f"generated {len(cands.accepted)} candidates with {cands.generator['name']}; "
                 f"accepted {int(cands.accepted.sum())}")
-    return run_stage("labels.generate", cfg, inputs, body)
+    return run_stage("labels.generate", cfg, inputs, body,
+                     components={"representation": representation, "transition_model": build_model(v),
+                                 "generator": build_generator(v), "weighting": Uniform()})
 
 
 def generate_offline(cfg) -> list[StageResult]:

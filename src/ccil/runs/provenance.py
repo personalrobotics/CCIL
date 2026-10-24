@@ -39,6 +39,37 @@ def code() -> dict:
     return info
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent  # the ccil package that is running
+
+
+class ImplementationUnknown(RuntimeError):
+    """The running ccil source cannot be read, so stage outputs cannot be safely reused."""
+
+
+def implementation() -> dict:
+    """What decides whether a stored stage output was made by this code.
+
+    source_sha256 hashes every file of the running ccil package (paths and
+    bytes, without bytecode caches), so uncommitted edits are identified by
+    their content; dependencies records the packages whose versions change
+    numerics.
+    """
+    h = hashlib.sha256()
+    try:
+        files = sorted(p for p in PACKAGE_ROOT.rglob("*")
+                       if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
+        if not files:
+            raise ImplementationUnknown(f"no ccil source files under {PACKAGE_ROOT}")
+        for p in files:
+            rel = p.relative_to(PACKAGE_ROOT).as_posix().encode()
+            h.update(len(rel).to_bytes(8, "big") + rel)
+            data = p.read_bytes()
+            h.update(len(data).to_bytes(8, "big") + data)
+    except OSError as e:
+        raise ImplementationUnknown(f"cannot read the ccil source under {PACKAGE_ROOT}: {e}") from None
+    return {"ccil_version": __version__, "source_sha256": h.hexdigest(), "dependencies": environment()["packages"]}
+
+
 def environment() -> dict:
     packages = {}
     for name in PACKAGES:

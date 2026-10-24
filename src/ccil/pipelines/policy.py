@@ -1,6 +1,9 @@
 """Downstream policy trainers for the integrated pipeline.
 
 Contract
+- name and version identify the trainer (name is the policy.trainer value);
+  checkpoints record both, and load refuses a checkpoint of another name or
+  version with CheckpointError.
 - fit(z, a, weights) trains on representation-space inputs (N, D), actions
   (N, A), and per-row weights (N,) >= 0, and returns self. The trainer owns its
   parameters, optimizer, and device; numpy crosses the interface.
@@ -19,12 +22,14 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
+from ..core.transition import CheckpointError, checkpoint_meta
 from ..schema.io import _atomic_savez
 
 
 @runtime_checkable
 class PolicyTrainer(Protocol):
     name: str
+    version: str
 
     def fit(self, z: np.ndarray, a: np.ndarray, weights: np.ndarray) -> "PolicyTrainer": ...
 
@@ -35,19 +40,24 @@ class PolicyTrainer(Protocol):
     def load(self, path) -> "PolicyTrainer": ...
 
 
-def _load(path, name) -> dict:
+def _save(path, trainer, arrays: dict) -> None:
+    meta = {"component": "policy", "trainer": trainer.name, "version": trainer.version}
+    _atomic_savez(path, {**arrays, "meta": np.array(json.dumps(meta, sort_keys=True))})
+
+
+def _load(path, trainer) -> dict:
+    meta = checkpoint_meta(path, "policy")
+    if (meta.get("trainer"), meta.get("version")) != (trainer.name, trainer.version):
+        raise CheckpointError(f"{path} holds a {meta.get('trainer')!r} version {meta.get('version')!r} policy, "
+                              f"not {trainer.name!r} version {trainer.version!r}")
     with np.load(path, allow_pickle=False) as z:
-        arrays = {k: z[k] for k in z.files}
-    saved = json.loads(str(arrays.pop("meta")))["trainer"]
-    if saved != name:
-        raise ValueError(f"{path} holds a {saved!r} policy, not {name!r}")
-    return arrays
+        return {k: z[k] for k in z.files if k != "meta"}
 
 
 class LinearPolicyTrainer:
     """Weighted least-squares behavior cloning: a = W z + b."""
 
-    name = "linear_least_squares"
+    name, version = "linear_least_squares", "1"
 
     def fit(self, z, a, weights):
         X = np.hstack([z, np.ones((len(z), 1))]) * np.sqrt(weights)[:, None]
@@ -59,10 +69,10 @@ class LinearPolicyTrainer:
         return z @ self.W.T + self.b
 
     def save(self, path):
-        _atomic_savez(path, {"W": self.W, "b": self.b, "meta": np.array(json.dumps({"trainer": self.name}))})
+        _save(path, self, {"W": self.W, "b": self.b})
 
     def load(self, path):
-        arrays = _load(path, self.name)
+        arrays = _load(path, self)
         self.W, self.b = arrays["W"], arrays["b"]
         return self
 
@@ -70,7 +80,7 @@ class LinearPolicyTrainer:
 class MeanActionTrainer:
     """Predict the weighted mean action everywhere; a minimal alternative trainer."""
 
-    name = "mean_action"
+    name, version = "mean_action", "1"
 
     def fit(self, z, a, weights):
         self.mean = (a * weights[:, None]).sum(axis=0) / weights.sum()
@@ -80,10 +90,10 @@ class MeanActionTrainer:
         return np.broadcast_to(self.mean, (len(z), len(self.mean))).copy()
 
     def save(self, path):
-        _atomic_savez(path, {"mean": self.mean, "meta": np.array(json.dumps({"trainer": self.name}))})
+        _save(path, self, {"mean": self.mean})
 
     def load(self, path):
-        self.mean = _load(path, self.name)["mean"]
+        self.mean = _load(path, self)["mean"]
         return self
 
 
