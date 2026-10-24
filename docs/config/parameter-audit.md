@@ -54,7 +54,7 @@ Status counts: declared 13, deferred 11, derived 3, dropped 8, implemented 29, i
 | `dynamics.val_percentage` | tunable | - | dropped | never read by the legacy code (#13) |
 | `aug.use_expert_label` | tunable | - | dropped | never read by the legacy code |
 | `policy.naive` | invariant | `policy.method` | implemented |  |
-| `policy.noise_bc` | invariant | `policy.noise_scale` | declared | M3 |
+| `policy.noise_bc` | invariant | `policy.noise_scale` | declared | #89 |
 | `literal:eval.n_trials=100` | invariant | `evaluation.episodes` | declared |  |
 | `literal:eval.success_denominator=100` | derived | - | derived | equals evaluation.episodes |
 | `literal:eval.noise_model` | invariant | `evaluation.noise_model` | declared |  |

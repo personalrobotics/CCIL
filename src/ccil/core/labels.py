@@ -69,6 +69,10 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
     codes = canonical_reason_order(set(REASON_CODES) | {v.reason for v in validators if v.reason is not None})
     reasons = np.zeros((len(cands), len(codes)), bool)
     measurements = {f"generator.{k}": v.astype(np.float64) for k, v in cands.measurements.items()}
+    # Every measurement's meaning travels with the file when every producer declares it.
+    gen_specs = getattr(generator, "measurement_specs", None)
+    specs = None if gen_specs is None or set(gen_specs) != set(cands.measurements) else \
+        {f"generator.{k}": dict(v) for k, v in gen_specs.items()}
     for v in validators:
         reject, meas = v.check(batch, cands, model)
         if not isinstance(reject, np.ndarray) or reject.shape != (len(cands),) or reject.dtype != np.bool_:
@@ -81,6 +85,11 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
             if k in measurements or not isinstance(x, np.ndarray) or x.shape != (len(cands),):
                 raise InterfaceError(f"{type(v).__name__} measurement {k!r} is duplicated or not a ({len(cands)},) array")
             measurements[k] = x.astype(np.float64)
+        v_specs = getattr(v, "measurement_specs", None)
+        if specs is not None and v_specs is not None and set(v_specs) == set(meas):
+            specs.update({k: dict(x) for k, x in v_specs.items()})
+        else:
+            specs = None
     accepted = ~reasons.any(axis=1)
     weighting = weighting or Uniform()
     weight = np.asarray(weighting.weights(cands, accepted), dtype=np.float64)
@@ -94,10 +103,11 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
     modality = representation.output_modality
     return CandidateSet(
         run_id=run_id,
-        generator={"name": generator.name, "version": generator.version, "params_hash": params_hash(generator, validators)},
+        generator={"name": generator.name, "version": generator.version, "params_hash": params_hash(generator, validators),
+                   "params": json.loads(json.dumps(generator.params))},
         source_episode_id=batch.episode_id[cands.source], source_frame=batch.frame[cands.source].astype(np.int64),
         observations={modality: cands.z}, actions=cands.a, target_observations={modality: cands.target},
         accepted=accepted, reasons=reasons, weight=weight, seed=int(seed), inputs=inputs,
         weighting={"name": weighting.name, "version": weighting.version, "params": dict(weighting.params)},
-        reason_codes=codes, measurements=measurements,
+        reason_codes=codes, measurements=measurements, measurement_specs=specs,
     ).validate(dataset)

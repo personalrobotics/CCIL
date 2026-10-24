@@ -63,7 +63,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `generation.method` | choice | `null` | - | `backward_euler`, `backward_euler_fast`, `forward_euler`, `noisy_action`, `noisy_action_fe`, `backward_model` | implemented | Corrective-label generator. noisy_action_fe and backward_model are ported in #22. | Task-specific in legacy configs. | `aug.type` |
+| `generation.method` | choice | `null` | - | `backward_euler`, `backward_euler_fast`, `forward_euler`, `noisy_action`, `noisy_action_fe`, `backward_model` | implemented | Corrective-label generator. backward_model is ported in #22. | Task-specific in legacy configs. | `aug.type` |
 | `generation.max_iterations` | int | `null` | - | [1, inf] | implemented | Root-finder iterations. | Task-specific (30 or 50) in legacy configs. | `aug.max_iter` |
 | `generation.root_tolerance` | float | `0.0001` | state units | (0.0, inf] | implemented | Residual norm at which the root finder stops. | Legacy literal in utils.root_finder_s. | - |
 | `generation.labels_per_transition` | int | `null` | - | [1, inf] | implemented | Noisy-action candidates per transition. | Task-specific (10 or 20) in legacy configs. | `aug.num_labels` |
@@ -76,8 +76,8 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 |---|---|---|---|---|---|---|---|---|
 | `policy.method` | choice | `"ccil"` | - | `ccil`, `bc`, `noise_bc` | implemented | Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3). | Replaces the policy.naive and policy.noise_bc flag combination. | `policy.naive`, `policy.noise_bc` |
 | `policy.trainer` | choice | `"linear_least_squares"` | - | `linear_least_squares`, `mean_action` | implemented | Downstream policy trainer of the integrated pipeline. | Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. | - |
-| `policy.noise_scale` | float | `null` | - | [0.0, inf] | declared (M3) | NoiseBC observation-noise scale. | Set per suite by the legacy scripts. | `policy.noise_bc` |
-| `policy.noise_model` | choice | `"legacy_uniform_half_batch"` | - | `legacy_uniform_half_batch` | declared (M3) | NoiseBC noise distribution. | Legacy CustomBC adds noise_cov * U[0,1) to half of each batch (non-negative, not zero-mean). | - |
+| `policy.noise_scale` | float | `null` | observation units | [0.0, inf] | declared (#89) | NoiseBC observation-noise scale: the maximum noise magnitude. | Set per suite by the legacy scripts. | `policy.noise_bc` |
+| `policy.noise_model` | choice | `"symmetric_uniform_half_batch"` | - | `symmetric_uniform_half_batch`, `legacy_uniform_half_batch` | declared (#89) | NoiseBC noise distribution. | symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity. | - |
 | `policy.learning_rate` | float | `0.001` | - | (0.0, inf] | declared (M3) | Policy learning rate. | Same value in every legacy config. | `policy.lr` |
 | `policy.batch_size` | int | `null` | - | [1, inf] | declared (M3) | Policy minibatch size. | Task-specific in legacy configs. | `policy.batch_size` |
 | `policy.epochs` | int | `null` | - | [1, inf] | declared (M3) | Policy training epochs. | Task-specific in legacy configs. | `policy.train_epochs` |

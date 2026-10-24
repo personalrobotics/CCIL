@@ -26,6 +26,7 @@ class Validator(Protocol):
 
 class Finite:
     reason = "non_finite"
+    measurement_specs: dict = {}
 
     def check(self, batch, cands, model):
         return ~(np.isfinite(cands.z).all(axis=1) & np.isfinite(cands.a).all(axis=1)), {}
@@ -33,6 +34,7 @@ class Finite:
 
 class GenerationFailed:
     reason = "generation_failed"
+    measurement_specs: dict = {}
 
     def check(self, batch, cands, model):
         return cands.failed.copy(), {}
@@ -42,6 +44,10 @@ class SupportRadius:
     """Reject unless ||z_G - z_source|| < radius (the legacy aug.epsilon rule)."""
 
     reason = "out_of_support"
+    measurement_specs = {"distance": {"definition": "||z_G - z_t||: distance of the label state from the demonstration "
+                                                    "state of its source transition, accepted when < radius",
+                                      "norm": "l2", "units": "representation units (state units for "
+                                                             "representation.kind=identity)"}}
 
     def __init__(self, radius: float):
         self.radius = float(radius)
@@ -54,6 +60,7 @@ class SupportRadius:
 
 class ActionBounds:
     reason = "action_out_of_bounds"
+    measurement_specs: dict = {}
 
     def __init__(self, low, high):
         self.low, self.high = np.asarray(low, dtype=float), np.asarray(high, dtype=float)
@@ -67,6 +74,9 @@ class ModelResidual:
     """Measure ||z_G + f(z_G, a) - target|| under the model; never rejects."""
 
     reason = None
+    measurement_specs = {"residual": {"definition": "||z_G + f(z_G, a_G) - target||: one-step error of the label under "
+                                                    "the model", "norm": "l2",
+                                      "units": "representation units (state units for representation.kind=identity)"}}
 
     def check(self, batch, cands, model):
         resid = np.linalg.norm(cands.z + model.delta(cands.z, cands.a) - cands.target, axis=1)
