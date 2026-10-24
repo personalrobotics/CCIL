@@ -14,11 +14,11 @@
    "manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "bbeea07157e69987642f51b1adc1fba934385986",
+     "git_commit": "6b302edf220759cf8808bf865af6212d327317ce",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "206e6689c255055a5ba6b01f8684937e7eab02de7b2cf7777506db36c656d343",
+     "config_hash": "dfa5a43083927b53e11df5d84376d3333a54e08b81d03da344c0985d90143281",
      "path": "config.json"
     },
     "environment": {
@@ -34,8 +34,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "62ca11935be0b8a026a20b02956d317250e77888805551cd632ced6cffd84b15",
-      "size": 5181,
+      "sha256": "49335539a101c01cd89b3743c692158edb85cfbada8acafa559c206166066c1d",
+      "size": 5820,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -140,7 +140,7 @@
   {
    "case": "data_prepare_complete_and_v1_manifest_incompatible",
    "pass": true,
-   "prepare_run": "prepare-85dec61c77cd",
+   "prepare_run": "data-prepare-ac1bfc5ba8c7",
    "stderr": ""
   },
   {
@@ -152,7 +152,7 @@
    "case": "sigkill_leaves_destination_intact_and_staging_is_reclaimed",
    "left_after_rerun": [],
    "pass": true,
-   "staging_name": ".analytic-0001.tmp-56882",
+   "staging_name": ".analytic-0001.tmp-89061",
    "staging_status": [
     1,
     "incomplete"
@@ -199,10 +199,114 @@
    "expected": "incompatible",
    "got": "incompatible",
    "pass": true
+  },
+  {
+   "case": "validate[parent_traversal_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[absolute_path_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[non_canonical_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[symlinked_file_escapes]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[symlinked_directory_escapes]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[files_is_a_list]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[entry_is_a_string]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[size_is_a_string]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "previous",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "complete",
+    "hidden": [],
+    "returncode": 1,
+    "stderr": " in _replace_by_renames\n    os.replace(self.staging, self.dest)\n  File \"<string>\", line 25, in replace\nOSError: [Errno 5] simulated failure of the second rename"
+   },
+   "case": "commit_boundary[second_rename_fails]",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "previous",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "missing",
+    "hidden": [
+     ".analytic-0001.old-89110",
+     ".analytic-0001.tmp-89110"
+    ],
+    "returncode": -9,
+    "stderr": ""
+   },
+   "case": "commit_boundary[kill_after_first_rename]",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "replacement",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "complete",
+    "hidden": [
+     ".analytic-0001.tmp-89117"
+    ],
+    "returncode": -9,
+    "stderr": ""
+   },
+   "case": "commit_boundary[kill_after_exchange]",
+   "pass": true
+  },
+  {
+   "case": "next_writer_restores_before_existence_check",
+   "dest_missing_after_kill": true,
+   "pass": true,
+   "refused_existing": true
   }
  ],
  "environment": {
-  "code_commit": "bbeea07157e69987642f51b1adc1fba934385986",
+  "code_commit": "6b302edf220759cf8808bf865af6212d327317ce",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

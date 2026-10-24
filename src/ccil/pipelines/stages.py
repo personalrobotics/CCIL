@@ -19,6 +19,7 @@ from pathlib import Path
 
 from ..runs import RunError, RunWriter, validate_run
 from ..runs.provenance import sha256
+from ..runs.writer import recover
 
 
 class StageError(RuntimeError):
@@ -63,6 +64,8 @@ def run_stage(stage: str, cfg, inputs: dict, body, identity: dict | None = None)
     out_dir = Path(cfg["run.output_dir"])
     run_id = stage_run_id(stage, cfg, inputs, identity)
     dest = out_dir / run_id
+    if out_dir.is_dir():
+        recover(out_dir, run_id)
     if dest.exists() and not cfg["run.overwrite"]:
         status, problems = validate_run(dest)
         if status == "complete":
