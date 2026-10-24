@@ -119,7 +119,8 @@ def main():
         label_runs = sorted((work / "label_runs").iterdir()) if (work / "label_runs").exists() else []
         label_status = sorted(json.loads(run(venv / "bin" / "ccil", "run", "validate", d, cwd=work, check=False).stdout)["status"]
                               for d in label_runs)
-        from_wheel = str(venv) in info["file"] and str(REPO) not in info["file"]
+        # Imported from the venv's site-packages, not the source tree (the output dir may sit inside the repo).
+        from_wheel = Path(info["file"]).resolve().is_relative_to(venv.resolve()) and "site-packages" in Path(info["file"]).parts
         record(f"clean_install_runs[python {py}]",
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
                and prep.returncode == 0 and validated == "complete"
