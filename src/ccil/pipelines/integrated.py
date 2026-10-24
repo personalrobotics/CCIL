@@ -16,6 +16,7 @@ import numpy as np
 
 from ..config import ConfigError
 from ..core import transitions
+from ..core.transition import check_identity, checkpoint_meta
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..schema import read_candidates, read_trajectories
@@ -31,6 +32,7 @@ POLICY_CHECKPOINT = f"{layout.CHECKPOINTS}/policy.npz"
 class PCARepresentation:
     """Deterministic PCA of one modality (state, or flattened image pixels in [0, 1])."""
 
+    kind, version = "pca", "1"
     trainable = True
     output_modality = "latent.pca"
 
@@ -63,11 +65,13 @@ class PCARepresentation:
         self.mean, self.components = state["mean"], state["components"]
 
     def save(self, path):
+        meta = {"component": "representation", "kind": self.kind, "version": self.version, "modality": self.modality}
         _atomic_savez(path, {"mean": self.mean, "components": self.components,
-                             "meta": np.array(json.dumps({"representation": "pca", "modality": self.modality}))})
+                             "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
     def load(cls, path, modality, dim):
+        check_identity(path, checkpoint_meta(path, "representation"), cls)
         rep = cls(modality, dim)
         with np.load(path, allow_pickle=False) as z:
             rep.load_state_dict({"mean": z["mean"], "components": z["components"]})

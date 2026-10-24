@@ -8,8 +8,17 @@ Contract
 - jacobian_z(z, a) is optional and returns df/dz as (N, D, D); generators fall back
   to central finite differences (jacobian_fd) when it is absent.
 - evaluate(z, a, z_next) returns one-step error metrics without changing state.
-- save(path) / load(path, device) persist float32-equivalent parameters; numpy
-  arrays cross the interface, so torch models convert internally.
+- kind and version identify the implementation; kind is the
+  transition_model.kind value that selects it, and version changes whenever
+  saved checkpoints or fitted results would differ. Pipelines record both in
+  provenance and stage identity.
+- save(path) writes a checkpoint whose meta records kind and version;
+  load(path, device) is a classmethod that restores it. load_transition_model
+  reads the kind from the checkpoint and dispatches through TRANSITION_MODELS.
+  A file that is not a checkpoint of a known kind and version raises
+  CheckpointError; model-specific failures (an unavailable device, for example)
+  propagate unchanged. numpy arrays cross the interface, so torch models
+  convert internally.
 """
 from __future__ import annotations
 
@@ -21,8 +30,15 @@ import numpy as np
 from ..schema.io import _atomic_savez
 
 
+class CheckpointError(ValueError):
+    """A file is not a checkpoint of a known component kind and version."""
+
+
 @runtime_checkable
 class TransitionModel(Protocol):
+    kind: str
+    version: str
+
     def fit(self, z: np.ndarray, a: np.ndarray, z_next: np.ndarray, seed: int) -> dict: ...
 
     def delta(self, z: np.ndarray, a: np.ndarray) -> np.ndarray: ...
@@ -30,6 +46,27 @@ class TransitionModel(Protocol):
     def evaluate(self, z: np.ndarray, a: np.ndarray, z_next: np.ndarray) -> dict: ...
 
     def save(self, path) -> None: ...
+
+    @classmethod
+    def load(cls, path, device: str = "cpu") -> "TransitionModel": ...
+
+
+def checkpoint_meta(path, component: str) -> dict:
+    """The meta of a component checkpoint, or CheckpointError."""
+    try:
+        with np.load(path, allow_pickle=False) as z:
+            meta = json.loads(str(z["meta"]))
+    except (OSError, ValueError, KeyError, EOFError) as e:
+        raise CheckpointError(f"{path} is not a {component} checkpoint: {e}") from None
+    if not isinstance(meta, dict) or meta.get("component") != component:
+        raise CheckpointError(f"{path} is not a {component} checkpoint")
+    return meta
+
+
+def check_identity(path, meta: dict, cls) -> None:
+    if (meta.get("kind"), meta.get("version")) != (cls.kind, cls.version):
+        raise CheckpointError(f"{path} holds {meta.get('kind')!r} version {meta.get('version')!r}; "
+                              f"{cls.__name__} reads {cls.kind!r} version {cls.version!r}")
 
 
 def jacobian_fd(model, z: np.ndarray, a: np.ndarray, eps: float = 1e-6) -> np.ndarray:
@@ -51,7 +88,7 @@ def one_step_metrics(model, z, a, z_next) -> dict:
 class LinearTransitionModel:
     """f(z, a) = A z + B a + c. Exact for linear systems; fitted by least squares."""
 
-    FORMAT = "ccil.linear-transition/1"
+    kind, version = "linear", "1"
 
     def __init__(self, A=None, B=None, c=None):
         self.A = None if A is None else np.asarray(A, dtype=np.float64)
@@ -78,13 +115,27 @@ class LinearTransitionModel:
         return one_step_metrics(self, z, a, z_next)
 
     def save(self, path) -> None:
-        _atomic_savez(path, {"A": self.A, "B": self.B, "c": self.c, "meta": np.array(json.dumps({"format": self.FORMAT}))})
+        meta = {"component": "transition_model", "kind": self.kind, "version": self.version}
+        _atomic_savez(path, {"A": self.A, "B": self.B, "c": self.c, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
     def load(cls, path, device: str = "cpu") -> "LinearTransitionModel":
+        check_identity(path, checkpoint_meta(path, "transition_model"), cls)
         if device != "cpu":
             raise ValueError("LinearTransitionModel runs on cpu only")
         with np.load(path, allow_pickle=False) as z:
-            if json.loads(str(z["meta"])).get("format") != cls.FORMAT:
-                raise ValueError(f"{path} is not a {cls.FORMAT} file")
             return cls(z["A"], z["B"], z["c"])
+
+
+# transition_model.kind -> implementation; #21 adds the torch MLP.
+TRANSITION_MODELS = {LinearTransitionModel.kind: LinearTransitionModel}
+
+
+def load_transition_model(path, device: str = "cpu"):
+    """Restore any registered transition model from its checkpoint."""
+    meta = checkpoint_meta(path, "transition_model")
+    cls = TRANSITION_MODELS.get(meta.get("kind"))
+    if cls is None:
+        raise CheckpointError(f"{path} holds transition model kind {meta.get('kind')!r}; "
+                              f"this ccil reads {sorted(TRANSITION_MODELS)}")
+    return cls.load(path, device)

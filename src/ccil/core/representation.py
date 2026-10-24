@@ -9,6 +9,9 @@ Contract
 - trainable representations own their parameters; fitting them is the job of an
   integrated pipeline (#19, M5), never of label generation. Gradients do not
   cross this interface.
+- kind and version identify the implementation (kind is the
+  representation.kind value); a persisted representation records both in its
+  checkpoint, like TransitionModel.
 - Failures: a wrong output shape or dtype is an InterfaceError raised by the caller.
 """
 from __future__ import annotations
@@ -23,6 +26,8 @@ from .batch import InterfaceError, TransitionBatch, check_transitions
 
 @runtime_checkable
 class Representation(Protocol):
+    kind: str
+    version: str
     output_modality: str
     trainable: bool
 
@@ -36,6 +41,7 @@ class Representation(Protocol):
 class IdentityRepresentation:
     """Use one stored modality unchanged; the vector CCIL representation."""
 
+    kind, version = "identity", "1"
     trainable = False
 
     def __init__(self, modality: str = "state"):
