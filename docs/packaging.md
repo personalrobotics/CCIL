@@ -6,13 +6,14 @@ The `ccil` core is a uv-managed project (#20).
 |---|---|
 | Definition | [`pyproject.toml`](../pyproject.toml), with build backend `uv_build`, a src layout, and the `ccil` console script |
 | Lock | [`uv.lock`](../uv.lock), committed. `.python-version` selects 3.11 for development. |
-| Python | 3.10 and newer |
+| Python | 3.10 and newer for `ccil`; 3.11 and newer for `ccil[torch]` and the `evidence` group (see [`security.md`](security.md)) |
 | Core dependencies | `numpy>=1.24`, `pyyaml>=6.0`. Nothing else installs with the core. |
-| Dependency groups | `evidence` (torch), used only by the M2 evidence tools |
-| Optional extras | None yet. Adapters add them when they land: torch-backed models (M3), LeRobot (M4), image models (M5). A missing extra must fail only when its feature is requested, with install guidance. |
+| Dependency groups | `evidence`: exact pins of matplotlib, pillow and torch, Python 3.11+, used only by the evidence tools |
+| Optional extras | `torch`: `torch>=2.9.1` on Python 3.11+, for torch-backed models (#21). Later adapters add their own: LeRobot (M4), image models (M5). A missing extra must fail only when its feature is requested, with install guidance. |
 
 ```bash
 uv sync                              # development environment from the lock
+uv run python tools/dependency_gate/check.py --out <dir>   # dependency gate; see security.md
 uv run ccil --help
 uv build                             # sdist and wheel into dist/
 uv run --group evidence python tools/m2_schemas/check.py --out <dir>

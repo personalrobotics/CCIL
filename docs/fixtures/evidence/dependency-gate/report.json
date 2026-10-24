@@ -1,0 +1,110 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "accepted": [],
+   "audited_packages": 46,
+   "case": "lock_current_and_free_of_known_vulnerabilities",
+   "lock_check": "Resolved 47 packages in 9ms",
+   "pass": true,
+   "vulnerabilities": []
+  },
+  {
+   "case": "evidence_pinned_exactly_on_python_3_11_plus",
+   "core": [
+    "numpy>=1.24",
+    "pyyaml>=6.0"
+   ],
+   "evidence": [
+    "matplotlib==3.10.9",
+    "pillow==13.0.0",
+    "torch==2.14.1"
+   ],
+   "evidence_requires_python": ">=3.11",
+   "pass": true,
+   "torch_extra": [
+    "torch>=2.9.1; python_version >= '3.11'"
+   ]
+  },
+  {
+   "case": "torch_extra_installs_and_runs[minimum 2.9.1, python 3.11]",
+   "filelock": "4.2.4",
+   "install_stderr": "",
+   "pass": true,
+   "smoke": {
+    "ccil": "<out>/venv-minimum/lib/python3.11/site-packages/ccil/__init__.py",
+    "npz_round_trip_identical": true,
+    "torch": "2.9.1"
+   }
+  },
+  {
+   "case": "torch_extra_installs_and_runs[locked 2.14.1, python 3.11]",
+   "filelock": "4.2.4",
+   "install_stderr": "",
+   "pass": true,
+   "smoke": {
+    "ccil": "<out>/venv-locked/lib/python3.11/site-packages/ccil/__init__.py",
+    "npz_round_trip_identical": true,
+    "torch": "2.14.1"
+   }
+  },
+  {
+   "case": "python_3_10_core_installs_without_torch",
+   "installed": {
+    "ccil": "0.1.0.dev0",
+    "numpy": "2.2.6",
+    "pyyaml": "6.0.3"
+   },
+   "pass": true,
+   "python": "3.10.17"
+  },
+  {
+   "case": "ccil_package_never_unpickles",
+   "hits": [],
+   "pass": true
+  },
+  {
+   "case": "legacy_pins_documented_and_isolated",
+   "manifests": {
+    "correct_il/envs/f1/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.0.1",
+     "torch_in_lock_at_this_version": false
+    },
+    "tools/analytic_fixture/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.1.0",
+     "torch_in_lock_at_this_version": false
+    },
+    "tools/dynamics_checkpoint/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.1.0",
+     "torch_in_lock_at_this_version": false
+    },
+    "tools/invariants/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.1.0",
+     "torch_in_lock_at_this_version": false
+    },
+    "tools/legacy_serialization/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.1.0",
+     "torch_in_lock_at_this_version": false
+    },
+    "tools/validation_split/requirements.txt": {
+     "documented": true,
+     "pin": "torch==2.1.0",
+     "torch_in_lock_at_this_version": false
+    }
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "b303418fc28f3e9633c0f6dca47d572d0c475c36",
+  "code_dirty": false,
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "uv": "uv 0.12.15 (Homebrew 2026-09-15 aarch64-apple-darwin)"
+ }
+}
