@@ -1,14 +1,19 @@
 """Stage runs: each pipeline stage is its own run directory (docs/runs.md).
 
 A stage's run ID hashes its name, the configuration keys that stage consumes
-(STAGE_KEYS), any explicit identity, and the SHA-256 of every input artifact.
+(STAGE_KEYS), the components it uses (kind or name, and version), the running
+implementation (the ccil source hash and dependency versions), and the SHA-256
+of every input artifact. The full identity is written to stage.json in the run.
 Upstream checkpoints hand off through the manifest `inputs`, so a change
 upstream produces a new downstream run, while a change that only affects later
 stages (for example the policy trainer) reuses every earlier stage. Each run
 still records the full configuration in config.json. Resume is owned here: a
 stage whose run directory already exists and validates as complete is reused,
-unless run.overwrite is set. A stage that fails leaves no run directory, so a
-rerun resumes at the first incomplete stage.
+unless run.overwrite is set. Changed code, even uncommitted, changes the source
+hash and therefore the run ID, so an output is reused only by the implementation
+that made it; if the source cannot be read, the stage fails instead of reusing.
+A stage that fails leaves no run directory, so a rerun resumes at the first
+incomplete stage.
 """
 from __future__ import annotations
 
@@ -17,8 +22,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..runs import RunError, RunWriter, validate_run
-from ..runs.provenance import sha256
+from ..runs import RunError, RunWriter, layout, validate_run
+from ..runs.provenance import ImplementationUnknown, implementation, sha256
+from ..runs.writer import dump_json
 from ..runs.writer import recover
 
 
@@ -51,18 +57,37 @@ STAGE_KEYS = {
 }
 
 
-def stage_run_id(stage: str, cfg, inputs: dict, identity: dict | None = None) -> str:
+def component(obj) -> dict:
+    """Identity of a component: kind (representations, transition models) or name (the rest), and version."""
+    key = "kind" if hasattr(obj, "kind") else "name"
+    return {key: getattr(obj, key), "version": obj.version}
+
+
+def stage_identity(stage: str, cfg, inputs: dict, components: dict | None = None) -> dict:
+    """Everything the reuse decision depends on; its hash is the run ID."""
     prefixes = STAGE_KEYS[stage]
     consumed = {k: v for k, v in cfg.values.items() if any(k == p or (p.endswith(".") and k.startswith(p)) for p in prefixes)}
-    blob = json.dumps({"stage": stage, "config": consumed, "identity": identity or {},
-                       "inputs": {k: sha256(p) for k, p in sorted(inputs.items())}}, sort_keys=True)
-    return f"{stage.replace('.', '-')}-{hashlib.sha256(blob.encode()).hexdigest()[:12]}"
+    try:
+        impl = implementation()
+    except ImplementationUnknown as e:
+        raise StageError(stage, e) from e
+    return {"stage": stage, "config": consumed, "components": components or {}, "implementation": impl,
+            "inputs": {k: sha256(p) for k, p in sorted(inputs.items())}}
 
 
-def run_stage(stage: str, cfg, inputs: dict, body, identity: dict | None = None) -> StageResult:
-    """Run body(run) inside a RunWriter for this stage, or reuse a complete prior run."""
+def stage_run_id(identity: dict) -> str:
+    blob = json.dumps(identity, sort_keys=True)
+    return f"{identity['stage'].replace('.', '-')}-{hashlib.sha256(blob.encode()).hexdigest()[:12]}"
+
+
+def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = None) -> StageResult:
+    """Run body(run) inside a RunWriter for this stage, or reuse a complete prior run.
+
+    components maps roles to component objects (see component()).
+    """
     out_dir = Path(cfg["run.output_dir"])
-    run_id = stage_run_id(stage, cfg, inputs, identity)
+    identity = stage_identity(stage, cfg, inputs, {role: component(c) for role, c in (components or {}).items()})
+    run_id = stage_run_id(identity)
     dest = out_dir / run_id
     if out_dir.is_dir():
         recover(out_dir, run_id)
@@ -76,6 +101,7 @@ def run_stage(stage: str, cfg, inputs: dict, body, identity: dict | None = None)
         with RunWriter(out_dir, run_id, stage, cfg, overwrite=cfg["run.overwrite"]) as run:
             for name, path in sorted(inputs.items()):
                 run.add_input(name, path)
+            dump_json({**identity, "run_id": run_id}, run.path(layout.STAGE))
             body(run)
     except StageError:
         raise

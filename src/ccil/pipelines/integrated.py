@@ -96,7 +96,8 @@ def run_integrated(cfg, trainer=None):
         metrics = rep.fit(read_trajectories(prepared.out(layout.DATASET)))
         rep.save(run.path(REPRESENTATION_CHECKPOINT))
         run.metrics(metrics)
-    rep_stage = run_stage("representation.fit", cfg, {"dataset": prepared.out(layout.DATASET)}, fit_representation)
+    rep_stage = run_stage("representation.fit", cfg, {"dataset": prepared.out(layout.DATASET)}, fit_representation,
+                          components={"representation": PCARepresentation(modality, dim)})
     results.append(rep_stage)
     rep = PCARepresentation.load(rep_stage.out(REPRESENTATION_CHECKPOINT), modality, dim)
     rep_input = {"representation": rep_stage.out(REPRESENTATION_CHECKPOINT)}
@@ -125,7 +126,7 @@ def run_integrated(cfg, trainer=None):
         trainer.save(run.path(POLICY_CHECKPOINT))
         run.metrics({"trainer": trainer.name, "policy_method": v["policy.method"], "rows": int(sum(len(x) for x in z)),
                      "label_rows": int(sum(len(x) for x in z[1:]))})
-    trained = run_stage("policy.train", cfg, policy_inputs, train, identity={"trainer": trainer.name})
+    trained = run_stage("policy.train", cfg, policy_inputs, train, components={"trainer": trainer})
     results.append(trained)
 
     eval_inputs = {**policy_inputs, "policy": trained.out(POLICY_CHECKPOINT)}
@@ -139,5 +140,5 @@ def run_integrated(cfg, trainer=None):
         err = np.linalg.norm(policy.predict(batch.z[held]) - batch.a[held], axis=1)
         run.metrics({"held_out_transitions": int(held.sum()), "action_l2_mean": float(err.mean()),
                      "action_l2_max": float(err.max()), "note": "offline action error; simulator evaluation is M7"})
-    results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, identity={"trainer": trainer.name}))
+    results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": trainer}))
     return results

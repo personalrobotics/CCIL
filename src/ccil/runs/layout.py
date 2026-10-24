@@ -12,6 +12,7 @@ CANDIDATES = "labels/candidates.npz"
 CHECKPOINTS = "checkpoints"   # checkpoints/<name>.pt
 PLOTS = "plots"               # plots/<name>.png
 LOG = "logs/run.log"
+STAGE = "stage.json"           # pipeline stages: the identity their reuse decision used
 
 MANIFEST_SCHEMA = "ccil.run-manifest"
 MANIFEST_VERSION = (2, 0)

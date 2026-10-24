@@ -9,9 +9,16 @@ contract ([`config/`](config/README.md)), the core interfaces
 
 Each stage writes its own run directory.
 
-- **Identity.** A stage's run ID hashes the stage name, the configuration keys
-  that stage consumes, any explicit identity (such as a Python-supplied
-  trainer), and the SHA-256 of every input artifact.
+- **Identity.** A stage's run ID hashes:
+  - the stage name and the configuration keys that stage consumes;
+  - the components it uses, by kind or name and version (representation,
+    transition model, generator, weighting, trainer);
+  - the running implementation: the ccil version, a SHA-256 over every file of
+    the ccil package, and the numpy, pyyaml and torch versions;
+  - the SHA-256 of every input artifact.
+
+  The full identity is written to the stage's `stage.json`, listed in its
+  manifest.
 - **Checkpoint handoff.** Upstream outputs, such as a dataset, a representation,
   a transition model or labels, become the downstream manifest's `inputs`, with
   their hashes.
@@ -19,6 +26,12 @@ Each stage writes its own run directory.
   reused unless `run.overwrite=true`. A stage that fails leaves no run directory
   and no staging, so a rerun resumes at the first incomplete stage. A change
   upstream changes every downstream run ID, so stale outputs are never reused.
+  Reuse also requires byte-identical ccil source: any edit, committed or not,
+  writes new runs and leaves the old ones intact. If the source can't be read,
+  the stage fails rather than reusing.
+- **Custom trainers.** A trainer passed from Python is outside the ccil package,
+  so its `name` and `version` are its identity. Bump `version` when its
+  behavior changes.
 - **Failures.** Configuration problems are reported before any stage writes.
   A stage failure is reported with the stage name, and earlier stages stay valid.
 
@@ -85,11 +98,16 @@ uv run --group evidence python tools/m2_pipelines/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json)
-has 11 cases:
+has 15 cases:
 
 - **Offline:** analytic generation passes the #10 oracle, replays byte for
   byte, and is fully reused on rerun. It imports no trainer. Its labels carry
   provenance equal to the stage manifest.
+- **Implementation identity:**
+  - each `stage.json` re-derives its run ID;
+  - a one-comment source change or a component version bump writes distinct
+    runs, leaving the old runs byte-identical;
+  - an unreadable implementation exits 2 without reusing anything.
 - **Integrated:** all six stages complete, with checkpoint handoff verified by
   hash.
 - **Trainer swap:** reuses the four CCIL stages.

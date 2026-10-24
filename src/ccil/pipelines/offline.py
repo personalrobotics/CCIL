@@ -101,7 +101,8 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")
-    return run_stage("transition.fit", cfg, inputs, body)
+    return run_stage("transition.fit", cfg, inputs, body,
+                     components={"representation": representation, "transition_model": build_model(v)})
 
 
 def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
@@ -121,7 +122,9 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
                      "rejections_by_reason": counts, "generator": cands.generator})
         run.log(f"generated {len(cands.accepted)} candidates with {cands.generator['name']}; "
                 f"accepted {int(cands.accepted.sum())}")
-    return run_stage("labels.generate", cfg, inputs, body)
+    return run_stage("labels.generate", cfg, inputs, body,
+                     components={"representation": representation, "transition_model": build_model(v),
+                                 "generator": build_generator(v), "weighting": Uniform()})
 
 
 def generate_offline(cfg) -> list[StageResult]:
