@@ -21,7 +21,7 @@ composes the stages.
 | `Representation` | `encode(dict[modality → (N, …)]) → (N, D)` float. `output_modality` is `state` or `latent.<name>`. `kind` and `version`. | A trainable representation owns its parameters. The integrated pipeline (#19, M5) fits it; generation never does. | Deterministic and batch-invariant | A wrong shape or dtype raises `InterfaceError`. |
 | `TransitionModel` | `fit(z, a, z_next, seed) → metrics`; `delta(z, a) → (N, D)`; optional `jacobian_z → (N, D, D)`; `evaluate`; `save(path)`; classmethod `load(path, device)`; `kind` and `version` | The model owns its parameters, optimizer and device. Only `fit` changes state. | `delta` is side-effect free | A file that isn't a checkpoint of a known kind and version raises `CheckpointError`. Model-specific failures, such as an unavailable device, propagate unchanged. |
 | `Generator` | `generate(TransitionBatch, model, seed) → CandidateBatch`, plus `name`, `version`, `params` | Stateless: `params` fully describe it | Randomness per transition from `(seed, crc32(episode_id), frame)`, so output is batch-invariant | It marks `failed` and never accepts or rejects. A malformed batch raises `InterfaceError`. |
-| `Validator` | `check(batch, cands, model) → (reject (n,) bool, measurements)`, plus `reason` (a `ccil.candidates` reason code, or `None` for a validator that only measures) | Stateless | Deterministic | An unknown reason, a malformed mask, or a measuring-only validator that rejects raises `InterfaceError`. |
+| `Validator` | `check(batch, cands, model) → (reject (n,) bool, measurements)`, plus `reason`: a built-in reason code, a namespaced extension `<namespace>.<reason>`, or `None` for a validator that only measures | Stateless | Deterministic | A malformed or reserved (`ccil.`) reason, a malformed mask, or a measuring-only validator that rejects raises `InterfaceError` before anything is written. |
 | `Weighting` | `weights(cands, accepted) → (n,)` | Stateless | Deterministic | Weights must be finite and ≥ 0, and 0 on rejected rows (checked by the schema). |
 
 **Identity and persistence.**
@@ -38,6 +38,13 @@ composes the stages.
 Arrays are **numpy** at every boundary. Torch-backed models and encoders convert
 internally, which keeps the core at numpy + pyyaml. No gradients cross an
 interface.
+
+**Extension reasons.** A method-specific validator declares its own reason,
+such as `reason = "example.low_confidence"`. The namespace and reason are each
+`[a-z][a-z0-9_]*`, and `ccil` is reserved. `generate_labels` adds one column per
+extension after the built-ins, sorted, so column order is deterministic. The
+built-in codes keep their meanings. A consumer that doesn't know a namespace
+still treats those rows as rejected, and can report the code as opaque.
 
 **Validators are independent.** All of them run, a candidate is accepted only if
 none rejects it, and every rejecting validator records its reason. One label can
@@ -64,7 +71,7 @@ onto these interfaces.
 A learned encoder implements `Representation` with
 `output_modality = "latent.<name>"`, and a latent transition model implements
 `TransitionModel`. Labels then live in latent space as `latent.<name>`
-candidates. `ccil.candidates` 2.0 accepts that modality, so no schema change is
+candidates. `ccil.candidates` 2.x accepts that modality, so no schema change is
 needed. Trajectories still store only `state` and `image` modalities.
 
 ## Evidence
@@ -74,7 +81,7 @@ uv run --group evidence python tools/m2_interfaces/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-interfaces/report.json`](fixtures/evidence/m2-interfaces/report.json)
-has 8 cases:
+has 10 cases:
 
 - **The #10 oracle:** the new core passes the analytic oracle (I1–I5) for every
   method, and its run directory validates as complete.
@@ -93,3 +100,8 @@ has 8 cases:
   loads through `load_transition_model`, and re-saves byte for byte. Unknown
   kinds, other versions or components, and files that aren't checkpoints raise
   `CheckpointError`. An unavailable device raises the model's own `ValueError`.
+- **Extension reasons:** a custom `example.low_confidence` validator writes a
+  complete run, and its candidates (version 2.1) reload with the same reason
+  order and row assignments. Built-in-only files stay 2.0. Ten malformed
+  declarations, from validators or in a candidate set, fail before any artifact
+  is written.

@@ -213,7 +213,7 @@ def write_candidates(cands: CandidateSet, path, validate: bool = True) -> None:
     arrays.update({f"meas/{k}": v for k, v in cands.measurements.items()})
     meta = {k: getattr(cands, k) for k in CAND_META}
     meta["reason_codes"] = list(meta["reason_codes"])
-    arrays["meta"] = _meta(labels.SCHEMA, labels.VERSION, CAND_OPTIONAL, **meta)
+    arrays["meta"] = _meta(labels.SCHEMA, labels.file_version(meta["reason_codes"]), CAND_OPTIONAL, **meta)
     _atomic_savez(path, arrays)
 
 

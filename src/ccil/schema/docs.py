@@ -45,7 +45,8 @@ def render() -> str:
         "### Fields", "", *_fields(c.FIELDS), "",
         "### Arrays", "", *_table(c.ARRAY_SPECS), "",
         f"Candidate modality names match `{c.CANDIDATE_MODALITY.pattern}`.", "",
-        f"Reason codes: {', '.join(f'`{r}`' for r in c.REASON_CODES)}.", "",
+        f"Built-in reason codes: {', '.join(f'`{r}`' for r in c.REASON_CODES)}. Extension codes match "
+        f"`{c.EXTENSION_REASON.pattern}`; reserved namespaces: {', '.join(f'`{n}`' for n in c.RESERVED_NAMESPACES)}.", "",
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.CAND_REQUIRED))}, plus `obs/<modality>`, "
         f"`target/<modality>`, and `meas/<name>`. Optional: {_names(io.CAND_OPTIONAL)}. "

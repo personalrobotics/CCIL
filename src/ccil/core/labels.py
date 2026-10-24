@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from ..schema import REASON_CODES, CandidateSet, TrajectoryDataset
+from ..schema.labels import canonical_reason_order, reason_code_problem
 from .batch import InterfaceError, check_candidates, concat
 from .representation import transitions
 
@@ -61,18 +62,21 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         offsets.append(start)
     cands = concat(chunks, offsets)
 
-    reasons = np.zeros((len(cands), len(REASON_CODES)), bool)
+    for v in validators:
+        why = None if v.reason is None else reason_code_problem(v.reason)
+        if why:
+            raise InterfaceError(f"{type(v).__name__}.reason: {why}")
+    codes = canonical_reason_order(set(REASON_CODES) | {v.reason for v in validators if v.reason is not None})
+    reasons = np.zeros((len(cands), len(codes)), bool)
     measurements = {f"generator.{k}": v.astype(np.float64) for k, v in cands.measurements.items()}
     for v in validators:
-        if v.reason is not None and v.reason not in REASON_CODES:
-            raise InterfaceError(f"{type(v).__name__}.reason {v.reason!r} is not one of {list(REASON_CODES)}")
         reject, meas = v.check(batch, cands, model)
         if not isinstance(reject, np.ndarray) or reject.shape != (len(cands),) or reject.dtype != np.bool_:
             raise InterfaceError(f"{type(v).__name__}.check must return a bool ({len(cands)},) reject mask")
         if v.reason is None and reject.any():
             raise InterfaceError(f"{type(v).__name__} has no reason code but rejected candidates")
         if v.reason is not None:
-            reasons[:, REASON_CODES.index(v.reason)] |= reject
+            reasons[:, codes.index(v.reason)] |= reject
         for k, x in meas.items():
             if k in measurements or not isinstance(x, np.ndarray) or x.shape != (len(cands),):
                 raise InterfaceError(f"{type(v).__name__} measurement {k!r} is duplicated or not a ({len(cands)},) array")
@@ -95,5 +99,5 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         observations={modality: cands.z}, actions=cands.a, target_observations={modality: cands.target},
         accepted=accepted, reasons=reasons, weight=weight, seed=int(seed), inputs=inputs,
         weighting={"name": weighting.name, "version": weighting.version, "params": dict(weighting.params)},
-        reason_codes=REASON_CODES, measurements=measurements,
+        reason_codes=codes, measurements=measurements,
     ).validate(dataset)

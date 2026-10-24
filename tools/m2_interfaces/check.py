@@ -19,6 +19,11 @@
    through the generic loader, and re-saves byte-identically; unknown kinds,
    other versions or components, and non-checkpoints raise CheckpointError,
    while an unavailable device surfaces as the model's own error.
+8. A custom validator with a namespaced reason (example.low_confidence) writes
+   a complete run whose candidates (version 2.1) reload with the same reason
+   order and row assignments; built-in-only files stay 2.0. Malformed reason
+   declarations, from validators or in a candidate set, fail before any
+   artifact is written.
 Writes DIR/report.json.
 """
 import argparse
@@ -43,7 +48,7 @@ from ccil.core import (ActionBounds, BackwardEuler, CandidateBatch, ExactPreimag
                        SupportRadius, Uniform, generate_labels)
 from ccil.runs import RunWriter, layout, validate_run  # noqa: E402
 from ccil.schema.io import _atomic_savez  # noqa: E402
-from ccil.schema import (REASON_CODES, Episode, TrajectoryDataset, read_candidates, write_candidates,  # noqa: E402
+from ccil.schema import (REASON_CODES, Episode, SchemaError, TrajectoryDataset, read_candidates, write_candidates,  # noqa: E402
                          write_trajectories)
 
 SEED = 20261023
@@ -337,6 +342,78 @@ def main():
            and all(failures[k].split(":")[0] == v for k, v in expected.items()),
            checkpoint_meta=ck_meta, save_load_save_identical=same_bytes, delta_identical=same_delta,
            failures={k: v.replace(str(out), "<out>") for k, v in failures.items()})
+
+    # 8. Namespaced extension reasons: end to end through a run, and refused at ingress when malformed.
+    class LowConfidence:
+        """Rejects candidates whose action norm exceeds 0.1; a stand-in for a method-specific test."""
+        reason = "example.low_confidence"
+
+        def check(self, batch, cands, model):
+            norm = np.linalg.norm(cands.a, axis=1)
+            return norm > 0.1, {"example.action_norm": norm}
+
+    ext_validators = [Finite(), GenerationFailed(), SupportRadius(0.01), LowConfidence(), ModelResidual()]
+    ext = generate_labels(dataset, rep, model, NoisyAction(4, 0.05), ext_validators, run_id="analytic-extension", seed=SEED)
+    with RunWriter(out / "runs", "analytic-extension", "core.generate_labels", cfg) as run:
+        write_trajectories(dataset, run.path(layout.DATASET))
+        write_candidates(ext, run.path(layout.CANDIDATES))
+    ext_path = out / "runs" / "analytic-extension" / layout.CANDIDATES
+    ext_back = read_candidates(ext_path, dataset)
+    with np.load(ext_path, allow_pickle=False) as z:
+        ext_version = json.loads(str(z["meta"]))["version"]
+    with np.load(out / "batch-noisy_action-None.npz", allow_pickle=False) as z:
+        builtin_version = json.loads(str(z["meta"]))["version"]
+    col = ext_back.reason_codes.index("example.low_confidence")
+    norm = np.linalg.norm(ext_back.actions.astype(np.float64), axis=1)
+    record("namespaced_reason_round_trips_through_a_run",
+           ext_back.reason_codes == REASON_CODES + ("example.low_confidence",) and ext_version == "2.1"
+           and builtin_version == "2.0" and np.array_equal(ext_back.reasons, ext.reasons)
+           and np.array_equal(ext_back.reasons[:, col], norm > 0.1) and ext_back.reasons[:, col].any()
+           and np.array_equal(ext_back.accepted, ~ext_back.reasons.any(axis=1))
+           and validate_run(out / "runs" / "analytic-extension")[0] == "complete",
+           artifact="<out>/runs/analytic-extension/labels/candidates.npz", reason_codes=list(ext_back.reason_codes),
+           file_version=ext_version, builtin_only_file_version=builtin_version,
+           rows_by_reason={c: int(ext_back.reasons[:, i].sum()) for i, c in enumerate(ext_back.reason_codes)},
+           accepted=int(ext_back.accepted.sum()), candidates=int(len(ext_back.accepted)))
+
+    ingress = {}
+    for name, code in (("unnamespaced_unknown", "low_confidence"), ("uppercase_namespace", "Example.low"),
+                       ("nested_namespace", "a.b.c"), ("reserved_namespace", "ccil.low"), ("non_string", 3)):
+        class Bad(LowConfidence):
+            reason = code
+        dest = out / "runs" / f"ingress-{name}"
+        try:
+            with RunWriter(out / "runs", f"ingress-{name}", "core.generate_labels", cfg) as run:
+                write_candidates(generate_labels(dataset, rep, model, BackwardEuler(), [Bad()], run_id="x", seed=SEED),
+                                 run.path(layout.CANDIDATES))
+            ingress[f"validator:{name}"] = "written"
+        except InterfaceError as e:
+            ingress[f"validator:{name}"] = "written" if dest.exists() else f"InterfaceError: {e}"
+
+    def declared(codes, reasons=None):
+        c = copy.copy(ext)
+        c.reason_codes = codes
+        if reasons is not None:
+            c.reasons = reasons
+        return c
+
+    dup = REASON_CODES + ("example.low_confidence", "example.low_confidence")
+    wrong_order = ("example.low_confidence",) + REASON_CODES
+    unsorted_ext = REASON_CODES + ("zeta.b", "alpha.a")
+    two = np.hstack([ext.reasons, ext.reasons[:, -1:]])
+    for name, cands in (("duplicate", declared(dup, two)), ("not_canonical_order", declared(wrong_order)),
+                        ("extensions_unsorted", declared(unsorted_ext, two)),
+                        ("non_string", declared(REASON_CODES + (7,))), ("not_a_sequence", declared("non_finite"))):
+        path = out / f"ingress-{name}.npz"
+        try:
+            write_candidates(cands, path)
+            ingress[f"declared:{name}"] = "written"
+        except SchemaError as e:
+            ingress[f"declared:{name}"] = "written" if path.exists() else f"SchemaError: {sorted(e.counts)}"
+    leftovers = [p.name for p in (out / "runs").iterdir() if p.name.startswith(("ingress-", "."))]
+    record("malformed_reason_codes_fail_before_any_artifact",
+           all(v.startswith(("InterfaceError", "SchemaError")) for v in ingress.values()) and not leftovers,
+           results=ingress, artifacts_left=leftovers)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

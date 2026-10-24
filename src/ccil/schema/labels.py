@@ -8,7 +8,16 @@ generator, input hashes (always including the transition model), and weighting
 that produced it, so an accepted label can be traced and replayed from the
 candidate file alone.
 
+Reason columns are the built-in codes, whose meanings are fixed, and
+namespaced extension codes <namespace>.<reason> that a method's own validators
+declare (the ccil namespace is reserved). Built-ins come first in their
+canonical order, then extensions sorted. A consumer that does not know an
+extension's namespace still treats the row as rejected: accepted is True
+exactly when no column, built-in or extension, rejects the row.
+
 2.0 made weight, seed, inputs, and weighting required (1.0 had none of them).
+2.1 added extension reason codes; a file declares 2.1 only when it uses one, so
+files with built-in reasons alone stay 2.0.
 """
 from __future__ import annotations
 
@@ -26,8 +35,34 @@ from .trajectories import MODALITY, TrajectoryDataset
 CANDIDATE_MODALITY = re.compile(r"^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$")
 
 SCHEMA = "ccil.candidates"
-VERSION = (2, 0)
+VERSION = (2, 1)
 REASON_CODES = ("non_finite", "out_of_support", "generation_failed", "action_out_of_bounds")
+EXTENSION_REASON = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
+RESERVED_NAMESPACES = ("ccil",)
+
+
+def reason_code_problem(code) -> str | None:
+    """Why code is neither a built-in reason nor a valid extension, or None."""
+    if not isinstance(code, str):
+        return f"{code!r} is not a string"
+    if code in REASON_CODES:
+        return None
+    if not EXTENSION_REASON.match(code):
+        return (f"{code!r} is neither a built-in reason {list(REASON_CODES)} nor an extension "
+                f"<namespace>.<reason> matching {EXTENSION_REASON.pattern}")
+    if code.split(".")[0] in RESERVED_NAMESPACES:
+        return f"{code!r} uses the reserved namespace {code.split('.')[0]!r}"
+    return None
+
+
+def canonical_reason_order(codes) -> tuple:
+    """Built-in codes in REASON_CODES order, then extension codes sorted."""
+    return tuple(c for c in REASON_CODES if c in codes) + tuple(sorted(c for c in codes if c not in REASON_CODES))
+
+
+def file_version(codes) -> tuple:
+    """The lowest version that can hold these reason codes."""
+    return VERSION if any(c not in REASON_CODES for c in codes) else (2, 0)
 
 SOURCE_EPISODE = ArraySpec("source_episode_id", "str", ("N",), "-", "Episode the candidate perturbs.")
 SOURCE_FRAME = ArraySpec("source_frame", "int", ("N",), "frames", "Transition index t in the source episode (t <= T-2).")
@@ -45,7 +80,7 @@ FIELDS = [
     ("seed", "int", "Seed the generator drew its randomness from."),
     ("inputs", "dict[str, str]", "SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from."),
     ("weighting", "dict", "name, version, and params of the weighting that produced weight."),
-    ("reason_codes", "tuple[str]", f"Column labels of reasons; each one of {list(REASON_CODES)}."),
+    ("reason_codes", "tuple[str]", f"Column labels of reasons, distinct and in canonical order: built-ins {list(REASON_CODES)} first, then extension codes <namespace>.<reason> sorted."),
     ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation."),
     ("target_observations", "dict[str, array (N, ...)]", "Observation the candidate action should reach, per modality."),
 ]
@@ -86,9 +121,17 @@ class CandidateSet:
                 not isinstance(self.weighting.get(k), str) or not self.weighting.get(k) for k in ("name", "version")):
             out.add("weighting", "candidates", "weighting needs non-empty string name and version and a params dict")
         codes = tuple(self.reason_codes) if isinstance(self.reason_codes, (tuple, list)) else ()
-        unknown = [c for c in codes if c not in REASON_CODES]
-        if unknown or len(set(codes)) != len(codes):
-            out.add("reason_codes", "candidates", f"reason_codes must be distinct members of {list(REASON_CODES)}; got {list(codes)}")
+        if not isinstance(self.reason_codes, (tuple, list)):
+            out.add("reason_codes", "candidates", f"reason_codes must be a sequence, got {type(self.reason_codes).__name__}")
+        bad = [why for why in map(reason_code_problem, codes) if why]
+        for why in bad:
+            out.add("reason_codes", "candidates", why)
+        if not bad:
+            if len(set(codes)) != len(codes):
+                out.add("reason_codes", "candidates", f"reason_codes must be distinct; got {list(codes)}")
+            elif codes != canonical_reason_order(codes):
+                out.add("reason_codes", "candidates", f"reason_codes must be in canonical order "
+                                                      f"{list(canonical_reason_order(codes))}; got {list(codes)}")
         dims = {"R": len(codes)}
         ok = all([SOURCE_EPISODE.check(self.source_episode_id, "candidates", dims, out),
                   SOURCE_FRAME.check(self.source_frame, "candidates", dims, out),
