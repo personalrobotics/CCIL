@@ -20,10 +20,10 @@ PARAMS = [
     Param("run.overwrite", "bool", False, "Replace an existing run directory with the same run ID.",
           "Legacy scripts always overwrote; the core refuses unless asked.", "run", legacy=("overwrite",)),
     Param("compute.device", "choice", "cuda", "Device for model computation.",
-          "Legacy default (no_gpu false) ran on CUDA.", "compute", choices=("cpu", "cuda"), legacy=("no_gpu",),
-          status=D, milestone="M3 (#21)"),
-    Param("compute.deterministic", "bool", False, "Request deterministic GPU kernels.",
-          "Legacy seeding set no CUDA determinism flags.", "compute", status=D, milestone="M3 (#21)"),
+          "Legacy default (no_gpu false) ran on CUDA; cuda without CUDA fails, never falls back.", "compute",
+          choices=("cpu", "cuda"), legacy=("no_gpu",)),
+    Param("compute.deterministic", "bool", False, "Request deterministic torch kernels while fitting and predicting.",
+          "Legacy seeding set no determinism flags. On CUDA this needs CUBLAS_WORKSPACE_CONFIG=:4096:8.", "compute"),
     # data ------------------------------------------------------------------
     Param("data.path", "path", None, "Dataset file: ccil.trajectories .npz, or an M1 ccil-trajectories/1 .npz.",
           "Required; there is no meaningful default dataset.", "data", nullable=True, legacy=("data.pkl", "data.path")),
@@ -49,41 +49,41 @@ PARAMS = [
           "Task-specific; set by recipes.", "environment", nullable=True, legacy=("env",), status=D, milestone="M3/M7"),
     # transition model ------------------------------------------------------
     Param("transition_model.kind", "choice", "mlp", "Transition-model family: linear (least squares) or mlp.",
-          "Legacy code used an MLP (WorldModel); its port is #21, so mlp fails with guidance until then.",
+          "Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+).",
           "transition_model", choices=("linear", "mlp")),
     Param("transition_model.direction", "choice", "forward", "Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t).",
           "Legacy dynamics.backward, absent (forward) in every config.", "transition_model",
-          choices=("forward", "backward"), legacy=("dynamics.backward",), status=D, milestone="M3 (#21)"),
+          choices=("forward", "backward"), legacy=("dynamics.backward",)),
     Param("transition_model.lipschitz_type", "choice", None, "Lipschitz regularization of the transition model.",
           "Task-specific in legacy configs.", "transition_model", choices=LIPSCHITZ, nullable=True,
-          legacy=("dynamics.lipschitz_type",), status=D, milestone="M3 (#21)"),
+          legacy=("dynamics.lipschitz_type",)),
     Param("transition_model.lipschitz_constraint", "float", None, "Target Lipschitz bound.",
           "Task-specific (1.0-4.0) in legacy configs.", "transition_model", low=0.0, low_open=True, nullable=True,
-          legacy=("dynamics.lipschitz_constraint",), status=D, milestone="M3 (#21)"),
+          legacy=("dynamics.lipschitz_constraint",)),
     Param("transition_model.soft_penalty_weight", "float", None, "Weight of the soft Lipschitz penalty.",
           "Task-specific in legacy configs.", "transition_model", low=0.0, nullable=True,
-          legacy=("dynamics.soft_lipschitz_penalty_weight",), status=D, milestone="M3 (#21)"),
+          legacy=("dynamics.soft_lipschitz_penalty_weight",)),
     Param("transition_model.soft_sampling_eps", "float", 0.0003, "Perturbation radius for sampled Lipschitz estimates.",
           "Same value in every legacy config.", "transition_model", units="state units", low=0.0, low_open=True,
-          legacy=("dynamics.soft_lipschitz_sampling_eps",), status=D, milestone="M3 (#21)"),
+          legacy=("dynamics.soft_lipschitz_sampling_eps",)),
     Param("transition_model.soft_samples", "int", 5, "Samples per point for sampled Lipschitz estimates.",
           "Same value in every legacy config.", "transition_model", low=1, legacy=("dynamics.soft_lipschitz_n_samples",),
           status=D, milestone="M3 (#21)"),
     Param("transition_model.slack_weight", "float", 1.0, "Weight of the slack penalty.",
           "Legacy code default when slack_weight is absent.", "transition_model", low=0.0,
-          legacy=("dynamics.slack_weight",), status=D, milestone="M3 (#21)"),
+          legacy=("dynamics.slack_weight",)),
     Param("transition_model.learning_rate", "float", 0.001, "Adam learning rate.", "Same value in every legacy config.",
-          "transition_model", low=0.0, low_open=True, legacy=("dynamics.lr",), status=D, milestone="M3 (#21)"),
+          "transition_model", low=0.0, low_open=True, legacy=("dynamics.lr",)),
     Param("transition_model.weight_decay", "float", 1e-05, "Adam weight decay.", "Same value in every legacy config.",
-          "transition_model", low=0.0, legacy=("dynamics.weight_decay",), status=D, milestone="M3 (#21)"),
+          "transition_model", low=0.0, legacy=("dynamics.weight_decay",)),
     Param("transition_model.hidden_layers", "ints", None, "Hidden layer widths.", "Task-specific in legacy configs.",
-          "transition_model", low=1, nullable=True, legacy=("dynamics.layers",), status=D, milestone="M3 (#21)"),
+          "transition_model", low=1, nullable=True, legacy=("dynamics.layers",)),
     Param("transition_model.activation", "choice", "relu", "Hidden activation.", "Same value in every legacy config.",
-          "transition_model", choices=("relu", "tanh"), legacy=("dynamics.activation",), status=D, milestone="M3 (#21)"),
+          "transition_model", choices=("relu", "tanh"), legacy=("dynamics.activation",)),
     Param("transition_model.epochs", "int", None, "Training epochs.", "Task-specific in legacy configs.",
-          "transition_model", low=1, nullable=True, legacy=("dynamics.train_epochs",), status=D, milestone="M3 (#21)"),
+          "transition_model", low=1, nullable=True, legacy=("dynamics.train_epochs",)),
     Param("transition_model.batch_size", "int", None, "Minibatch size.", "Task-specific in legacy configs.",
-          "transition_model", low=1, nullable=True, legacy=("dynamics.batch_size",), status=D, milestone="M3 (#21)"),
+          "transition_model", low=1, nullable=True, legacy=("dynamics.batch_size",)),
     # generation ------------------------------------------------------------
     Param("generation.method", "choice", None,
           "Corrective-label generator. noisy_action_fe and backward_model are ported in #22.",
@@ -159,6 +159,26 @@ def _noise(v):
 def _pca_dim(v):
     if v["representation.kind"] == "pca" and not v["representation.dim"]:
         return "representation.kind pca requires representation.dim"
+    return None
+
+
+# Settings each Lipschitz regularizer reads; legacy WorldModel failed on a missing one only mid-training.
+LIPSCHITZ_NEEDS = {
+    "spectral_normalization": ("transition_model.lipschitz_constraint",),
+    "spectral_normalization_slack": ("transition_model.lipschitz_constraint",),
+    "soft_sampling": ("transition_model.lipschitz_constraint", "transition_model.soft_penalty_weight"),
+    "soft_sampling_slack": ("transition_model.lipschitz_constraint", "transition_model.soft_penalty_weight"),
+    "soft_jac": ("transition_model.lipschitz_constraint", "transition_model.soft_penalty_weight"),
+}
+
+
+def mlp_settings_problem(v):
+    """Why an mlp transition model cannot be built from v, or None; checked when a stage builds one."""
+    missing = [k for k in ("transition_model.hidden_layers", "transition_model.epochs", "transition_model.batch_size")
+               if v[k] is None]
+    missing += [k for k in LIPSCHITZ_NEEDS.get(v["transition_model.lipschitz_type"], ()) if v[k] is None]
+    if missing:
+        return f"transition_model.kind mlp with lipschitz_type {v['transition_model.lipschitz_type']!r} requires {missing}"
     return None
 
 

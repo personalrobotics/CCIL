@@ -22,6 +22,7 @@ Contract
 """
 from __future__ import annotations
 
+import importlib
 import json
 from typing import Protocol, runtime_checkable
 
@@ -114,6 +115,10 @@ class LinearTransitionModel:
     def evaluate(self, z, a, z_next) -> dict:
         return one_step_metrics(self, z, a, z_next)
 
+    @classmethod
+    def from_config(cls, v) -> "LinearTransitionModel":
+        return cls()
+
     def save(self, path) -> None:
         meta = {"component": "transition_model", "kind": self.kind, "version": self.version}
         _atomic_savez(path, {"A": self.A, "B": self.B, "c": self.c, "meta": np.array(json.dumps(meta, sort_keys=True))})
@@ -127,15 +132,28 @@ class LinearTransitionModel:
             return cls(z["A"], z["B"], z["c"])
 
 
-# transition_model.kind -> implementation; #21 adds the torch MLP.
-TRANSITION_MODELS = {LinearTransitionModel.kind: LinearTransitionModel}
+# transition_model.kind -> implementation, or "module:Class" for one that needs an
+# optional extra, imported only when that kind is used.
+TRANSITION_MODELS = {LinearTransitionModel.kind: LinearTransitionModel, "mlp": "ccil.models.mlp:MLPTransitionModel"}
+EXTRAS = {"mlp": "the ccil[torch] extra (Python 3.11+): pip install 'ccil[torch]'"}
+
+
+def transition_model_class(kind: str):
+    """The class implementing kind; ModuleNotFoundError with install guidance if its extra is missing."""
+    impl = TRANSITION_MODELS[kind]
+    if isinstance(impl, str):
+        module, name = impl.split(":")
+        try:
+            impl = getattr(importlib.import_module(module), name)
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(f"transition_model.kind {kind!r} needs {EXTRAS[kind]} ({e})") from e
+    return impl
 
 
 def load_transition_model(path, device: str = "cpu"):
     """Restore any registered transition model from its checkpoint."""
     meta = checkpoint_meta(path, "transition_model")
-    cls = TRANSITION_MODELS.get(meta.get("kind"))
-    if cls is None:
+    if meta.get("kind") not in TRANSITION_MODELS:
         raise CheckpointError(f"{path} holds transition model kind {meta.get('kind')!r}; "
                               f"this ccil reads {sorted(TRANSITION_MODELS)}")
-    return cls.load(path, device)
+    return transition_model_class(meta["kind"]).load(path, device)

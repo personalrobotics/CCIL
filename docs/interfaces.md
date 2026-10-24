@@ -32,7 +32,9 @@ composes the stages.
   would change.
 - A checkpoint records `component`, `kind` and `version`.
   `load_transition_model(path, device)` reads the kind and dispatches through
-  `TRANSITION_MODELS`, a plain dict that #21 extends with `mlp`. There is no
+  `TRANSITION_MODELS`, a plain dict. An entry may be a `"module:Class"` string,
+  such as `mlp`, which is imported only when that kind is used and fails with
+  install guidance if its extra is missing. There is no
   plugin discovery.
 
 Arrays are **numpy** at every boundary. Torch-backed models and encoders convert
@@ -62,9 +64,9 @@ its `distance` measured.
 | Generator | `NoisyAction(k, σ)` | z' − f(z', a + δ) |
 | Validators | `Finite`, `GenerationFailed`, `SupportRadius(ε)`, `ActionBounds`, `ModelResidual` | `SupportRadius` uses the legacy rule `distance < ε`. `ModelResidual` only measures. |
 | Weighting | `Uniform` | 1 for accepted rows, 0 for rejected. |
+| Transition model | `ccil.models.mlp.MLPTransitionModel` (`kind="mlp"`, needs `ccil[torch]`) | The legacy `WorldModel` with every Lipschitz regularizer (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 
-M3 ports the torch `WorldModel` and the full legacy generator set (#21, #22)
-onto these interfaces.
+M3 ports the full legacy generator set onto these interfaces (#22).
 
 ## The image path (M5)
 

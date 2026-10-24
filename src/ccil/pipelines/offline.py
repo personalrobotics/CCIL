@@ -12,9 +12,10 @@ from pathlib import Path
 import numpy as np
 
 from ..config import ConfigError
+from ..config.params import mlp_settings_problem
 from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
                     IdentityRepresentation, ModelResidual, NoisyAction, SupportRadius, Uniform, generate_labels,
-                    load_transition_model, transitions)
+                    load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..runs.provenance import sha256
@@ -46,14 +47,18 @@ def build_validators(v):
 
 def build_model(v):
     kind = v["transition_model.kind"]
-    if kind == "mlp" and kind not in TRANSITION_MODELS:
-        raise ConfigError(["transition_model.kind 'mlp' (the legacy WorldModel) is ported in #21; "
-                           "use transition_model.kind=linear until then"])
     if kind not in TRANSITION_MODELS:
         raise ConfigError([f"transition_model.kind {kind!r} has no implementation; available: {sorted(TRANSITION_MODELS)}"])
-    if v["transition_model.direction"] != "forward":
-        raise ConfigError(["transition_model.direction 'backward' is ported in #22"])
-    return TRANSITION_MODELS[kind]()
+    if kind == "mlp" and mlp_settings_problem(v):
+        raise ConfigError([mlp_settings_problem(v)])
+    try:
+        cls = transition_model_class(kind)
+    except ModuleNotFoundError as e:
+        raise ConfigError([str(e)]) from None
+    try:
+        return cls.from_config(v)
+    except RuntimeError as e:  # e.g. compute.device cuda without CUDA
+        raise ConfigError([str(e)]) from None
 
 
 def preflight(cfg) -> None:
@@ -65,6 +70,9 @@ def preflight(cfg) -> None:
         errors.append("generation.method is required")
     if v["generation.method"] == "noisy_action" and not (v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
         errors.append("generation.method noisy_action requires generation.labels_per_transition and generation.action_noise_std")
+    if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
+        errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
+                      "backward_model uses such a model, and it is ported in #22")
     for check in (build_model, build_generator):
         try:
             if v["generation.method"] is not None:
@@ -86,8 +94,11 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
         batch = transitions(dataset, representation)
+        z, a, z_next = batch.z, batch.a, batch.z_next
+        if v["transition_model.direction"] == "backward":
+            z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
         model = build_model(v)
-        metrics = {"label_model": model.fit(batch.z, batch.a, batch.z_next, seed=v["run.seed"])}
+        metrics = {"label_model": model.fit(z, a, z_next, seed=v["run.seed"])}
         if split_path.exists():
             import json
             split = json.loads(split_path.read_text())
@@ -95,8 +106,8 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
             tr = np.isin(batch.episode_id, list(train))
             va = np.isin(batch.episode_id, list(val))
             evaluation = build_model(v)
-            evaluation.fit(batch.z[tr], batch.a[tr], batch.z_next[tr], seed=v["run.seed"])
-            metrics["held_out"] = evaluation.evaluate(batch.z[va], batch.a[va], batch.z_next[va])
+            evaluation.fit(z[tr], a[tr], z_next[tr], seed=v["run.seed"])
+            metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
             metrics["held_out"]["note"] = "evaluation model fitted on the train split; the label model saw every episode"
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
@@ -111,7 +122,9 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
-        model = load_transition_model(inputs["transition_model"])
+        # compute.device places torch models; the numpy linear model always runs on cpu.
+        device = "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
+        model = load_transition_model(inputs["transition_model"], device=device)
         cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
                                 run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
                                 inputs={name: sha256(path) for name, path in inputs.items()})

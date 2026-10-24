@@ -4,7 +4,7 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 26, deferred 11, derived 3, dropped 8, implemented 16, invariant 1, retired 5.
+Status counts: declared 13, deferred 11, derived 3, dropped 8, implemented 29, invariant 1, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
@@ -19,19 +19,19 @@ Status counts: declared 26, deferred 11, derived 3, dropped 8, implemented 16, i
 | `output.location` | derived | `run.output_dir` | implemented |  |
 | `data.expert` | derived | - | dropped | never read by the legacy code |
 | `data.data_frac` | invariant | - | deferred | trajectory subsampling; superseded by M7 low-data subsets (#51-#55) |
-| `no_gpu` | tunable | `compute.device` | declared | M3 (#21) |
-| `dynamics.lipschitz_type` | tunable | `transition_model.lipschitz_type` | declared | M3 (#21) |
-| `dynamics.lipschitz_constraint` | tunable | `transition_model.lipschitz_constraint` | declared | M3 (#21) |
-| `dynamics.soft_lipschitz_penalty_weight` | tunable | `transition_model.soft_penalty_weight` | declared | M3 (#21) |
-| `dynamics.soft_lipschitz_sampling_eps` | tunable | `transition_model.soft_sampling_eps` | declared | M3 (#21) |
+| `no_gpu` | tunable | `compute.device` | implemented |  |
+| `dynamics.lipschitz_type` | tunable | `transition_model.lipschitz_type` | implemented |  |
+| `dynamics.lipschitz_constraint` | tunable | `transition_model.lipschitz_constraint` | implemented |  |
+| `dynamics.soft_lipschitz_penalty_weight` | tunable | `transition_model.soft_penalty_weight` | implemented |  |
+| `dynamics.soft_lipschitz_sampling_eps` | tunable | `transition_model.soft_sampling_eps` | implemented |  |
 | `dynamics.soft_lipschitz_n_samples` | tunable | `transition_model.soft_samples` | declared | M3 (#21) |
-| `dynamics.slack_weight` | tunable | `transition_model.slack_weight` | declared | M3 (#21) |
-| `dynamics.lr` | tunable | `transition_model.learning_rate` | declared | M3 (#21) |
-| `dynamics.weight_decay` | tunable | `transition_model.weight_decay` | declared | M3 (#21) |
-| `dynamics.layers` | tunable | `transition_model.hidden_layers` | declared | M3 (#21) |
-| `dynamics.activation` | tunable | `transition_model.activation` | declared | M3 (#21) |
-| `dynamics.train_epochs` | tunable | `transition_model.epochs` | declared | M3 (#21) |
-| `dynamics.batch_size` | tunable | `transition_model.batch_size` | declared | M3 (#21) |
+| `dynamics.slack_weight` | tunable | `transition_model.slack_weight` | implemented |  |
+| `dynamics.lr` | tunable | `transition_model.learning_rate` | implemented |  |
+| `dynamics.weight_decay` | tunable | `transition_model.weight_decay` | implemented |  |
+| `dynamics.layers` | tunable | `transition_model.hidden_layers` | implemented |  |
+| `dynamics.activation` | tunable | `transition_model.activation` | implemented |  |
+| `dynamics.train_epochs` | tunable | `transition_model.epochs` | implemented |  |
+| `dynamics.batch_size` | tunable | `transition_model.batch_size` | implemented |  |
 | `aug.type` | tunable | `generation.method` | implemented |  |
 | `aug.max_iter` | tunable | `generation.max_iterations` | implemented |  |
 | `aug.num_labels` | tunable | `generation.labels_per_transition` | implemented |  |
@@ -76,5 +76,5 @@ Status counts: declared 26, deferred 11, derived 3, dropped 8, implemented 16, i
 | `data.action_high` | invariant | `data.action_high` | implemented |  |
 | `data.path` | invariant | `data.path` | implemented |  |
 | `overwrite` | - | `run.overwrite` | implemented |  |
-| `dynamics.backward` | - | `transition_model.direction` | declared | M3 (#21) |
+| `dynamics.backward` | - | `transition_model.direction` | implemented |  |
 | `debug` | - | - | dropped | development aid that truncated label generation to five transitions |

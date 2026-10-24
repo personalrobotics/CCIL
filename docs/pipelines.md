@@ -86,7 +86,7 @@ provide, and claim no image-CCIL parity:
 | `generation.method` | `backward_euler`, `backward_euler_fast`, `forward_euler` (exact preimage), `noisy_action` | Implemented |
 | `generation.method` | `noisy_action_fe`, `backward_model` | Fail with guidance to #22 |
 | `transition_model.kind` | `linear` | Implemented |
-| `transition_model.kind` | `mlp` (the legacy default) | Fails with guidance to #21 |
+| `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |
 | `policy.method` | `ccil`, `bc` | Implemented |
 | `policy.method` | `noise_bc` | Arrives in M3 |
