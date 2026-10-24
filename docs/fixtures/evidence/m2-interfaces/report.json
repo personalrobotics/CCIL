@@ -137,7 +137,7 @@
     "generator_shape": "BadGen.generate returned a malformed CandidateBatch: z (9, 1), expected float (9, 2)",
     "measuring_validator_rejects": "SneakyMeasure has no reason code but rejected candidates",
     "representation_rank": "BadRep.encode returned (6,) float32 for episode 'slow'; expected float (6, D)",
-    "unknown_reason": "BadReason.reason 'too_far' is not one of ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds']"
+    "unknown_reason": "BadReason.reason: 'too_far' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\."
    },
    "pass": true,
    "staging_left": []
@@ -177,10 +177,50 @@
    },
    "pass": true,
    "save_load_save_identical": true
+  },
+  {
+   "accepted": 22,
+   "artifact": "<out>/runs/analytic-extension/labels/candidates.npz",
+   "builtin_only_file_version": "2.0",
+   "candidates": 36,
+   "case": "namespaced_reason_round_trips_through_a_run",
+   "file_version": "2.1",
+   "pass": true,
+   "reason_codes": [
+    "non_finite",
+    "out_of_support",
+    "generation_failed",
+    "action_out_of_bounds",
+    "example.low_confidence"
+   ],
+   "rows_by_reason": {
+    "action_out_of_bounds": 0,
+    "example.low_confidence": 13,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 2
+   }
+  },
+  {
+   "artifacts_left": [],
+   "case": "malformed_reason_codes_fail_before_any_artifact",
+   "pass": true,
+   "results": {
+    "declared:duplicate": "SchemaError: ['reason_codes']",
+    "declared:extensions_unsorted": "SchemaError: ['reason_codes']",
+    "declared:non_string": "SchemaError: ['reason_codes']",
+    "declared:not_a_sequence": "SchemaError: ['reason_codes', 'shape']",
+    "declared:not_canonical_order": "SchemaError: ['reason_codes']",
+    "validator:nested_namespace": "InterfaceError: Bad.reason: 'a.b.c' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:non_string": "InterfaceError: Bad.reason: 3 is not a string",
+    "validator:reserved_namespace": "InterfaceError: Bad.reason: 'ccil.low' uses the reserved namespace 'ccil'",
+    "validator:unnamespaced_unknown": "InterfaceError: Bad.reason: 'low_confidence' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:uppercase_namespace": "InterfaceError: Bad.reason: 'Example.low' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+   }
   }
  ],
  "environment": {
-  "code_commit": "816999c610588c548af4cc3691a939a9fa6a7c68",
+  "code_commit": "8e9f5792e52588dcefa1d4ef31294809462b0b3a",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
