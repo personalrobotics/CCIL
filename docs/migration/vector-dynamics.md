@@ -1,5 +1,9 @@
 # Vector dynamics and backward-Euler labels: migration map (#21)
 
+The port is faithful where the legacy method was correct. It is corrected where
+the implementation contradicted the paper or the per-sample semantics the
+method intends. Every correction has before-and-after evidence, listed below.
+
 This page maps the original vector CCIL dynamics model and backward-Euler
 labels to the `ccil` core.
 
@@ -23,7 +27,7 @@ labels to the `ccil` core.
 | `DynamicsNet` | `ccil.models.mlp.DynamicsNet` | Same layers, normalization, residual output and `out_scale >= 1e-8` mask. The normalization tensors are registered buffers, so they move with `.to(device)` and are saved. |
 | `WorldModel.init_normalization_to_data` | `MLPTransitionModel.fit` | Mean and mean-absolute-deviation of s, a and s' − s. |
 | `WorldModel.fit_dynamics`, `fit_model` | `MLPTransitionModel.fit` | Adam, a new permutation each epoch, and the last partial minibatch dropped. |
-| `construct_loss_fn` and its losses | `mse_loss`, `soft_sampling_loss`, `soft_sampling_slack_loss`, `slack_loss`, `soft_jac_loss` | Same formulas. `functorch` becomes `torch.func`. |
+| `construct_loss_fn` and its losses | `mse_loss`, `soft_sampling_loss`, `soft_sampling_slack_loss` (with `slack_sampling_terms`), `slack_loss`, `soft_jac_loss` (with `residual_jacobian_norm`) | MSE and `slack_loss` are unchanged. The three Lipschitz penalties are corrected (see below). `functorch` becomes `torch.func`. |
 | `spectral_norm.SpectralNorm` | `ccil.models.spectral_norm` | The legacy bound `W / max(σ/c, 1)` with one power iteration per training-mode pass. The PyTorch BSD-3 notice ships as `ccil/models/LICENSE-pytorch.txt`. |
 | `WorldModel.f`, `predict` | `MLPTransitionModel.delta` | Batched, with numpy in and out. |
 | `eval_prediction_error` | `evaluate` (`one_step_metrics`) | Mean and max one-step L2 error. |
@@ -84,7 +88,7 @@ next section.
 
 ## Correctness changes (`mlp` version 2)
 
-Two legacy defects are corrected under contract §6. Their before-and-after
+Four legacy defects are corrected under contract §6. Their before-and-after
 evidence compares the port as first landed (`6074e33`, `mlp` version 1) with
 the corrected code, using the same seeds:
 
@@ -147,13 +151,36 @@ Version-1 checkpoints are refused (`CheckpointError`).
    - The Pendulum parity run (#24) has to account for this when it compares
      against legacy results.
 
-**Still open, not changed:**
-- **`soft_jac`** constrains the Jacobian of the next-state map `s + f̂`, as in
-  legacy, rather than f̂ as in the paper.
-- **`soft_sampling_slack`** keeps the legacy broadcast of the `(B, 1)` slack
-  against the `(B·n,)` per-perturbation penalty.
+3. **`soft_jac` constrains the residual.** Legacy penalized the spectral norm
+   of the Jacobian of the next-state map `s + f̂`, which is `I + ∂f̂/∂s`. That
+   norm is about 1 for any small residual, so the penalty measures the identity,
+   not the model's continuity. The penalty now uses `∂f̂/∂(s, a)`, as in the
+   paper's Eq. 3.
 
-Each is a separate correctness change, if wanted.
+   | `f(s, a) = 0.05 (sin s + a)`: ‖∂f/∂(s, a)‖ ≤ 0.087, ‖I + ∂f/∂s‖ ≈ 1; L = 0.5, λ = 1 | Before | After |
+   |---|---|---|
+   | Final penalty | 0.548 (the floor ‖I + J‖ − L) | 0 |
+   | Fitted ‖∂f̂/∂(s, a)‖, max | 0.102 | 0.104 |
+   | Residual fit error (mean; residual scale 0.051) | 0.0023 | 0.0019 |
+
+   Against the normalized MSE, the legacy floor contributed little gradient
+   here, so the fits are similar. Its value tracked the identity term rather
+   than the residual.
+
+4. **`soft_sampling_slack` pairs each sample with its own perturbations.**
+   Legacy multiplied the `(B, 1)` slack by the `(B·n,)` per-perturbation hinge,
+   which broadcasts to `(B, B·n)`, so every sample's slack weighted every
+   sample's perturbations. Each sample's term is now its slack times the mean
+   hinge over its own `n` perturbations (`slack_sampling_terms`). The legacy
+   batch-level regularizer on slack magnitude, `1 − exp(−0.1·mean|slack|)`, is
+   unchanged.
+   - With explicit noise, permuting the batch permutes the terms exactly, and a
+     sample's term is identical in a different batch. The maximum difference
+     is 0.0 for both.
+   - The pre-fix expression has shape `(8, 40)` for B = 8 and n = 5.
+
+**Legacy behavior** stays available only at the pinned pre-fix commit
+`6074e33`. `correctness.py` runs that commit as the "before" side.
 
 ## Evidence
 

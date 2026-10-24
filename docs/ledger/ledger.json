@@ -77,7 +77,7 @@
         "pendulum.sh uses seeds 41-50; every other suite uses 40-49.",
         "pendulum.sh also trains CCIL with lipschitz_type none, which no figure reports.",
         "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
-        "The ccil port (#21) corrects two legacy dynamics defects that affect this entry's labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). Evidence: docs/fixtures/evidence/m3-dynamics/correctness.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
+        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
       ],
       "inventory_capabilities": [
         "dynamics-model",
@@ -172,7 +172,7 @@
         "label-filtering changes this config from noisy_action (epsilon 0.01) to backward_euler_fast with label_err_quantile 0.3; which produced Fig. 4(c) is unknown.",
         "Issue #3 reports this result as unstable across reruns; its maintainer contract governs closure.",
         "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
-        "The ccil port (#21) corrects two legacy dynamics defects that affect this entry's labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). Evidence: docs/fixtures/evidence/m3-dynamics/correctness.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
+        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
       ],
       "inventory_capabilities": [
         "dynamics-model",

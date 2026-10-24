@@ -6,7 +6,7 @@ docs/migration/vector-dynamics.md for the function-by-function map and every
 intentional difference. It implements ccil.core.transition.TransitionModel and
 needs the ccil[torch] extra; the core never imports this module directly.
 
-The mathematics are unchanged:
+Kept from legacy:
 - inputs are normalized by their mean and mean absolute deviation; the network
   predicts the residual s_{t+1} - s_t normalized the same way; output
   dimensions whose scale is below 1e-8 are masked to zero;
@@ -16,15 +16,21 @@ The mathematics are unchanged:
 - Adam, minibatches drawn by a fresh permutation each epoch, dropping the last
   partial batch.
 
-Two correctness changes from legacy (migration contract section 6; evidence in
+Correctness changes from legacy (migration contract section 6; evidence in
 docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
 - delta and evaluate run in eval mode and restore the prior mode, so
   prediction never updates spectral-norm power-iteration buffers and labels do
   not depend on call order (legacy never called eval()).
-- the soft-sampling penalty is the paper's finite-difference Lipschitz ratio of
-  the residual model, ||f(x + dx) - f(x)|| / ||dx|| with a hinge at the
-  constraint (Ke et al. 2024, Sec. 4.2, Eq. 10). Legacy compared the normalized
-  residual with the next-state prediction and divided by the unscaled noise.
+- every Lipschitz penalty constrains the residual model f, as the paper does
+  (Ke et al. 2024, Sec. 4.2, Eqs. 3-4 and 10): soft sampling uses the
+  finite-difference ratio ||f(x + dx) - f(x)|| / ||dx|| with a hinge at the
+  constraint, and soft_jac the spectral norm of df/d(s, a). Legacy soft
+  sampling compared the normalized residual with the next-state prediction and
+  divided by the unscaled noise; legacy soft_jac constrained the next-state map
+  s + f, whose Jacobian is I + df/ds.
+- soft_sampling_slack weights each sample's perturbation penalties by that
+  sample's own slack; legacy broadcast every slack against every sample's
+  perturbations.
 """
 from __future__ import annotations
 
@@ -90,24 +96,26 @@ class DynamicsNet(nn.Module):
 
 
 # --- losses: (X, Y_pred, Y) -> dict with a differentiable "loss" ------------
-# residual_fn is the model's raw residual f(s, a); predict_fn its next-state
-# prediction s + f(s, a), which soft_jac constrains as in legacy.
+# residual_fn is the model's raw residual f(s, a), in state units.
 
 def mse_loss(_, y_pred, y):
     loss = F.mse_loss(y_pred, y)
     return {"loss": loss, "mean_error": (y_pred - y).norm(dim=-1).mean().detach()}
 
 
-def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps):
+def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps, noise=None):
     """Finite-difference Lipschitz estimates of the residual model, (B * n_samples,).
 
-    Each sample perturbs (s, a) by sampling_eps * N(0, I) and returns
+    Rows i * n_samples ... (i + 1) * n_samples - 1 belong to sample i. Each
+    perturbs (s, a) by sampling_eps * N(0, I) and gives
     ||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||, both in raw units. As in
-    legacy, state and action are perturbed together.
+    legacy, state and action are perturbed together. noise optionally supplies
+    the unit normal draws (ns, na) with the repeated shapes.
     """
     base = residual_fn(s, a).repeat_interleave(n_samples, dim=0)
     s, a = s.repeat_interleave(n_samples, dim=0), a.repeat_interleave(n_samples, dim=0)
-    ds, da = torch.randn_like(s) * sampling_eps, torch.randn_like(a) * sampling_eps
+    ns, na = noise if noise is not None else (torch.randn_like(s), torch.randn_like(a))
+    ds, da = ns * sampling_eps, na * sampling_eps
     step = torch.linalg.norm(torch.cat([ds, da], dim=-1), dim=-1)
     return torch.linalg.norm(residual_fn(s + ds, a + da) - base, dim=-1) / step
 
@@ -119,11 +127,18 @@ def soft_sampling_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
 
 
+def slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples, noise=None):
+    """Per-sample slack-weighted penalty, (B,): sample i's slack times the mean hinge over its own perturbations."""
+    hinge = torch.relu(lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps, noise) - lipschitz_constraint)
+    slack = lambda_fn(*x).reshape(-1)
+    return slack * hinge.reshape(len(slack), n_samples).mean(dim=1), slack
+
+
 def soft_sampling_slack_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples,
                              residual_fn, lambda_fn):
-    penalty = torch.relu(lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps) - lipschitz_constraint)
-    slack = lambda_fn(*x)  # (B, 1) against (B * n,): broadcasts as in legacy; see the migration doc
-    penalty = penalty_weight * (slack * penalty + 1 - torch.exp(-0.1 * torch.abs(slack).mean())).mean()
+    terms, slack = slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples)
+    # The last term is the legacy batch-level regularizer on slack magnitude, unchanged.
+    penalty = penalty_weight * (terms.mean() + 1 - torch.exp(-0.1 * torch.abs(slack).mean()))
     mse = F.mse_loss(y_pred, y)
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
 
@@ -137,11 +152,15 @@ def slack_loss(x, y_pred, y, lambda_fn, slack_weight):
             "weighted_mse_loss": weighted.detach(), "slack_penalty": avg_slack.detach(), "slack_std": slack.std().detach()}
 
 
-def soft_jac_loss(x, y_pred, y, lipschitz_constraint, penalty_weight, predict_fn):
-    s, a = x
+def residual_jacobian_norm(s, a, residual_fn):
+    """Spectral norm of df/d(s, a) per sample, (B,)."""
     d = s.shape[-1]
-    jac = torch.func.vmap(torch.func.jacrev(lambda sa: predict_fn(sa[..., :d], sa[..., d:])))(torch.cat([s, a], -1))
-    local_l = torch.linalg.norm(jac, ord=2, dim=(-2, -1))
+    jac = torch.func.vmap(torch.func.jacrev(lambda sa: residual_fn(sa[..., :d], sa[..., d:])))(torch.cat([s, a], -1))
+    return torch.linalg.norm(jac, ord=2, dim=(-2, -1))
+
+
+def soft_jac_loss(x, y_pred, y, lipschitz_constraint, penalty_weight, residual_fn):
+    local_l = residual_jacobian_norm(*x, residual_fn)
     penalty = penalty_weight * torch.relu(local_l - lipschitz_constraint).mean()
     mse = F.mse_loss(y_pred, y)
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
@@ -182,9 +201,6 @@ class MLPTransitionModel:
         if "slack" in st["lipschitz_type"]:
             self.lam = DynamicsNet(state_dim, act_dim, st["hidden_layers"], out_dim=1).to(self.device)
 
-    def _predict_next(self, s, a):
-        return s + self.net.predict(s, a)
-
     def _loss_fn(self):
         st, lt = self.settings, self.settings["lipschitz_type"]
         lam = (lambda s, a: self.lam.predict(s, a)) if self.lam is not None else None
@@ -200,7 +216,7 @@ class MLPTransitionModel:
             return partial(slack_loss, lambda_fn=lam, slack_weight=st["slack_weight"])
         if lt == "soft_jac":
             return partial(soft_jac_loss, lipschitz_constraint=st["lipschitz_constraint"],
-                           penalty_weight=st["soft_penalty_weight"], predict_fn=self._predict_next)
+                           penalty_weight=st["soft_penalty_weight"], residual_fn=self.net.predict)
         return mse_loss
 
     # --- TransitionModel ---------------------------------------------------
