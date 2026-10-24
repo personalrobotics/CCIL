@@ -5,9 +5,10 @@
 
 Cases (all by default):
 - legacy: legacy WorldModel weights, exported by legacy_export.py in the pinned
-  legacy harness environment, give the same predictions in the new model
-  (eval mode bit-identical; training mode within 1e-5 relative, with the same
-  power-iteration buffer updates).
+  legacy harness environment, give the same predictions in the new model:
+  delta (eval mode) bit-identical to legacy eval mode, and the network's
+  training-mode pass within 1e-5 relative, with the same power-iteration
+  buffer updates.
 - analytic: `ccil labels generate --recipe analytic_double_integrator_mlp` on a
   generated double-integrator dataset; accepted labels are finite and inside
   the support radius, accounting closes, each backward-Euler label differs from
@@ -124,10 +125,11 @@ def main():
             with np.load(f, allow_pickle=False) as z:
                 d = {k: z[k] for k in z.files}
             m = legacy_model(d, lt)
-            m.net.eval()
-            f_eval = m.delta(d["z"], d["a"]).astype(np.float32)
+            f_eval = m.delta(d["z"], d["a"]).astype(np.float32)  # delta always predicts in eval mode
+            # The legacy training-mode pass, through the network directly: one power iteration, then predict.
             m.net.train()
-            f_train = m.delta(d["z"], d["a"]).astype(np.float32)
+            with torch.no_grad():
+                f_train = m.net.predict(torch.as_tensor(d["z"]), torch.as_tensor(d["a"])).numpy()
             buffers = dict(m.net.named_buffers())
             after = {k[6:]: v for k, v in d.items() if k.startswith("after/")}
             scale = max(float(np.abs(d["f_train"]).max()), 1e-12)
@@ -275,7 +277,7 @@ def main():
                 ("missing_tensor", lambda: load_transition_model(variant("ck_missing.npz", lambda x: x.pop(some_key)))),
                 ("wrong_shape", lambda: load_transition_model(variant("ck_shape.npz", lambda x: x.__setitem__(some_key, x[some_key][..., :1])))),
                 ("other_version", lambda: load_transition_model(variant("ck_ver.npz", lambda x: x.__setitem__(
-                    "meta", np.array(json.dumps({**meta, "version": "2"})))))),
+                    "meta", np.array(json.dumps({**meta, "version": "99"})))))),
                 ("cuda_without_cuda", lambda: load_transition_model(ck, device="cuda"))):
             if name == "cuda_without_cuda" and torch.cuda.is_available():
                 failures[name] = "skipped: CUDA is available on this host"

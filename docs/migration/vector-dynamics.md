@@ -72,34 +72,88 @@ mask threshold (1e-8). They are part of the method, not tunable settings.
 | Device | `compute.device=cuda` without CUDA fails before any stage writes. Normalization buffers move with the model. | `checkpoint_persistence` |
 | Checkpoint format | `.npz`, never unpickled (`docs/security.md`). | `checkpoint_persistence` |
 
-There is no difference in prediction at fixed weights. Legacy `WorldModel`
-weights loaded into `MLPTransitionModel` give bit-identical eval-mode
-predictions for all seven Lipschitz types. Training-mode predictions and
-power-iteration buffers agree within 2e-7 relative, across torch 2.1.0 and the
-locked torch (`legacy_worldmodel_equivalence_at_fixed_weights`).
+At fixed weights the network computes the same function as legacy.
+- Legacy `WorldModel` weights loaded into `MLPTransitionModel` give
+  bit-identical eval-mode predictions for all seven Lipschitz types.
+- The network's training-mode pass and power-iteration buffers agree within
+  2e-7 relative, across torch 2.1.0 and the locked torch
+  (`legacy_worldmodel_equivalence_at_fixed_weights`).
 
-## Kept as-is, pending a decision
+What changed is when each mode is used, and the soft-sampling penalty. See the
+next section.
 
-These legacy behaviors are ported unchanged. Contract §6 says a correctness
-change needs its own pull request with before-and-after evidence.
+## Correctness changes (`mlp` version 2)
 
-1. **Training-mode inference.** Legacy never calls `eval()`, so a
+Two legacy defects are corrected under contract §6. Their before-and-after
+evidence compares the port as first landed (`6074e33`, `mlp` version 1) with
+the corrected code, using the same seeds:
+
+```bash
+uv run --group evidence python tools/m3_dynamics/correctness.py --out <new-dir>
+```
+
+The report is at
+[`../fixtures/evidence/m3-dynamics/correctness.json`](../fixtures/evidence/m3-dynamics/correctness.json).
+Version-1 checkpoints are refused (`CheckpointError`).
+
+1. **Eval-mode inference.** Legacy never calls `eval()`, so a
    spectral-normalized model runs a power iteration on every prediction. That
-   updates `u` and `v` in place and makes labels depend on call order. The
-   equivalence evidence shows legacy eval-mode and training-mode predictions
-   differ for exactly the two spectral-normalization types. This is fixed by
-   the follow-up correctness PR for #21.
-2. **The units of the soft-sampling penalty.** `soft_sampling` and
-   `soft_sampling_slack` compare the network's *normalized residual* `Y_pred`
-   with the *next-state prediction* `s + f(s + δ, a + δ)` of the perturbed
-   input. The two are in different units, so the penalty doesn't measure the
-   model's local Lipschitz ratio as its name says. The Pendulum recipes use
-   `soft_sampling`. Changing this changes a published configuration and needs
-   a decision.
-3. **Broadcasting in the soft-sampling slack penalty.** In
-   `soft_sampling_slack`, the per-sample slack `(B, 1)` multiplies the
-   per-perturbation penalty `(B·n,)`, which broadcasts to `(B, B·n)` instead of
-   pairing each sample with its own perturbations.
+   updates `u` and `v` in place and makes labels depend on call order. `delta`
+   and `evaluate` now predict in eval mode and restore each network's prior
+   mode. Training still runs the power iteration on every training-mode pass.
+
+   | Spectral-norm model, CPU | Before | After |
+   |---|---|---|
+   | Repeated `delta` on the same inputs | differs (1.6e-7) | identical |
+   | Power-iteration buffers changed by `delta` | yes (8.4e-3) | no |
+   | Labels, batch size 1 vs one batch | 4.4e-6 | 1.5e-8 |
+
+   - The remaining 1.5e-8 is float32 rounding that depends on batch shape. Every
+     torch model has it, including one without spectral normalization (see
+     [`../interfaces.md`](../interfaces.md)).
+   - Spectral-norm labels move by at most 1.7e-6.
+   - A model without spectral normalization gives bit-identical labels before
+     and after.
+
+2. **The soft-sampling penalty.** The paper constrains the residual model f̂:
+   Sec. 4.2 and Eqs. 3–4, with the hinge form in Appendix C.1, Eq. 10. The
+   penalty now matches it:
+
+       ratio = ‖f̂(s + δs, a + δa) − f̂(s, a)‖ / ‖(δs, δa)‖,   δ ~ ε·N(0, I)
+       penalty = λ · mean(max(ratio − L, 0))
+
+   Both terms are in raw units. As in legacy, state and action are perturbed
+   together. Legacy computed `‖Y_pred − (s + f̂(s + δs, a + δa))‖ − L‖n‖`, which
+   has two errors:
+   - it compares the network's normalized residual `Y_pred` with a next-state
+     prediction;
+   - it divides by the unscaled noise `n` instead of the step `ε·n`.
+
+   With ε = 3e-4, the bound it enforced was therefore about 3,000× looser than
+   L, applied to a quantity that isn't the Lipschitz ratio.
+
+   | Pendulum, `pendulum_cont` recipe, `backward_euler`, CPU | Before | After |
+   |---|---|---|
+   | Final Lipschitz penalty / MSE | 7.9e-4 / 9.9e-5 | 0 / 2.9e-4 |
+   | Measured ratio of f̂ (p50 / p95 / max), L = 2 | 0.074 / 0.163 / 0.229 | 0.074 / 0.163 / 0.220 |
+   | Held-out one-step L2 (mean / max) | 6.9e-4 / 4.5e-3 | 6.4e-4 / 3.4e-3 |
+   | Label model train L2 (mean) | 5.3e-4 | 7.1e-4 |
+
+   - Labels move by 1.1e-3 on average and 4.5e-3 at most.
+   - **The learned Pendulum dynamics are about 10× below the constraint, so the
+     paper's penalty never activates there.** The legacy penalty didn't make the
+     model smoother either: the measured ratio is the same before and after. It
+     acted as an unrelated regularizer.
+   - The Pendulum parity run (#24) has to account for this when it compares
+     against legacy results.
+
+**Still open, not changed:**
+- **`soft_jac`** constrains the Jacobian of the next-state map `s + f̂`, as in
+  legacy, rather than f̂ as in the paper.
+- **`soft_sampling_slack`** keeps the legacy broadcast of the `(B, 1)` slack
+  against the `(B·n,)` per-perturbation penalty.
+
+Each is a separate correctness change, if wanted.
 
 ## Evidence
 

@@ -16,10 +16,15 @@ The mathematics are unchanged:
 - Adam, minibatches drawn by a fresh permutation each epoch, dropping the last
   partial batch.
 
-Known legacy behavior kept here and changed only by its own correctness pull
-request (migration contract section 6): predictions run in the module's
-current mode, so a spectral-normalized model left in training mode updates
-its power-iteration buffers on every delta call.
+Two correctness changes from legacy (migration contract section 6; evidence in
+docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
+- delta and evaluate run in eval mode and restore the prior mode, so
+  prediction never updates spectral-norm power-iteration buffers and labels do
+  not depend on call order (legacy never called eval()).
+- the soft-sampling penalty is the paper's finite-difference Lipschitz ratio of
+  the residual model, ||f(x + dx) - f(x)|| / ||dx|| with a hinge at the
+  constraint (Ke et al. 2024, Sec. 4.2, Eq. 10). Legacy compared the normalized
+  residual with the next-state prediction and divided by the unscaled noise.
 """
 from __future__ import annotations
 
@@ -85,37 +90,39 @@ class DynamicsNet(nn.Module):
 
 
 # --- losses: (X, Y_pred, Y) -> dict with a differentiable "loss" ------------
-# predict_fn is the model's next-state prediction s + f(s, a), as in legacy.
+# residual_fn is the model's raw residual f(s, a); predict_fn its next-state
+# prediction s + f(s, a), which soft_jac constrains as in legacy.
 
 def mse_loss(_, y_pred, y):
     loss = F.mse_loss(y_pred, y)
     return {"loss": loss, "mean_error": (y_pred - y).norm(dim=-1).mean().detach()}
 
 
-def _sampled_lipschitz(s, a, y_pred, predict_fn, n_samples, sampling_eps):
-    s = s.repeat_interleave(n_samples, dim=0)
-    a = a.repeat_interleave(n_samples, dim=0)
-    y_rep = y_pred.repeat_interleave(n_samples, dim=0)
-    s_noise, a_noise = torch.randn_like(s), torch.randn_like(a)
-    noisy_output = predict_fn(s + s_noise * sampling_eps, a + a_noise * sampling_eps)
-    noise_mag = torch.linalg.norm(torch.cat([s_noise, a_noise], dim=-1), dim=-1)
-    # Legacy compares the normalized residual y_pred with the next-state prediction
-    # noisy_output; kept as-is (docs/migration/vector-dynamics.md, open decision).
-    return noise_mag, torch.linalg.norm(y_rep - noisy_output, dim=-1)
+def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps):
+    """Finite-difference Lipschitz estimates of the residual model, (B * n_samples,).
+
+    Each sample perturbs (s, a) by sampling_eps * N(0, I) and returns
+    ||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||, both in raw units. As in
+    legacy, state and action are perturbed together.
+    """
+    base = residual_fn(s, a).repeat_interleave(n_samples, dim=0)
+    s, a = s.repeat_interleave(n_samples, dim=0), a.repeat_interleave(n_samples, dim=0)
+    ds, da = torch.randn_like(s) * sampling_eps, torch.randn_like(a) * sampling_eps
+    step = torch.linalg.norm(torch.cat([ds, da], dim=-1), dim=-1)
+    return torch.linalg.norm(residual_fn(s + ds, a + da) - base, dim=-1) / step
 
 
-def soft_sampling_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples, predict_fn):
-    noise_mag, output_diff = _sampled_lipschitz(*x, y_pred, predict_fn, n_samples, sampling_eps)
-    penalty = penalty_weight * torch.relu(output_diff - lipschitz_constraint * noise_mag).mean()
+def soft_sampling_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples, residual_fn):
+    ratio = lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps)
+    penalty = penalty_weight * torch.relu(ratio - lipschitz_constraint).mean()
     mse = F.mse_loss(y_pred, y)
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
 
 
-def soft_sampling_slack_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples, predict_fn,
-                             lambda_fn):
-    noise_mag, output_diff = _sampled_lipschitz(*x, y_pred, predict_fn, n_samples, sampling_eps)
-    penalty = torch.relu(output_diff - lipschitz_constraint * noise_mag)
-    slack = lambda_fn(*x)
+def soft_sampling_slack_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples,
+                             residual_fn, lambda_fn):
+    penalty = torch.relu(lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps) - lipschitz_constraint)
+    slack = lambda_fn(*x)  # (B, 1) against (B * n,): broadcasts as in legacy; see the migration doc
     penalty = penalty_weight * (slack * penalty + 1 - torch.exp(-0.1 * torch.abs(slack).mean())).mean()
     mse = F.mse_loss(y_pred, y)
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
@@ -143,7 +150,7 @@ def soft_jac_loss(x, y_pred, y, lipschitz_constraint, penalty_weight, predict_fn
 class MLPTransitionModel:
     """TransitionModel kind "mlp": the legacy WorldModel on the core interface."""
 
-    kind, version = "mlp", "1"
+    kind, version = "mlp", "2"
 
     def __init__(self, hidden_layers, epochs, batch_size, activation="relu", lipschitz_type=None,
                  lipschitz_constraint=None, soft_penalty_weight=None, soft_sampling_eps=0.0003, soft_samples=5,
@@ -184,11 +191,11 @@ class MLPTransitionModel:
         if lt == "soft_sampling":
             return partial(soft_sampling_loss, lipschitz_constraint=st["lipschitz_constraint"],
                            sampling_eps=st["soft_sampling_eps"], penalty_weight=st["soft_penalty_weight"],
-                           n_samples=st["soft_samples"], predict_fn=self._predict_next)
+                           n_samples=st["soft_samples"], residual_fn=self.net.predict)
         if lt == "soft_sampling_slack":
             return partial(soft_sampling_slack_loss, lipschitz_constraint=st["lipschitz_constraint"],
                            sampling_eps=st["soft_sampling_eps"], penalty_weight=st["soft_penalty_weight"],
-                           n_samples=st["soft_samples"], predict_fn=self._predict_next, lambda_fn=lam)
+                           n_samples=st["soft_samples"], residual_fn=self.net.predict, lambda_fn=lam)
         if lt in ("slack", "spectral_normalization_slack"):
             return partial(slack_loss, lambda_fn=lam, slack_weight=st["slack_weight"])
         if lt == "soft_jac":
@@ -234,7 +241,7 @@ class MLPTransitionModel:
                 **one_step_metrics(self, z, a, z_next)}
 
     def delta(self, z, a) -> np.ndarray:
-        with torch.no_grad(), _determinism(self.deterministic):
+        with torch.no_grad(), _determinism(self.deterministic), _eval_mode(self.net, self.lam):
             out = [self.net.predict(torch.as_tensor(np.asarray(z[i:i + PREDICT_CHUNK]), dtype=torch.float32, device=self.device),
                                     torch.as_tensor(np.asarray(a[i:i + PREDICT_CHUNK]), dtype=torch.float32, device=self.device))
                    for i in range(0, len(z), PREDICT_CHUNK)]
@@ -280,6 +287,23 @@ def _check_device(device: str) -> str:
     if str(device).startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError(f"compute.device {device!r} requested but CUDA is not available")
     return str(device)
+
+
+class _eval_mode:
+    """Context manager: put the networks in eval mode, restoring each one's prior mode on exit."""
+
+    def __init__(self, *nets):
+        self.nets = [n for n in nets if n is not None]
+
+    def __enter__(self):
+        self.prev = [n.training for n in self.nets]
+        for n in self.nets:
+            n.eval()
+
+    def __exit__(self, *exc):
+        for n, mode in zip(self.nets, self.prev):
+            n.train(mode)
+        return False
 
 
 class _determinism:
