@@ -1,0 +1,211 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "analytic_run_complete_and_replayed_byte_identically",
+   "files": [
+    "config.json",
+    "data/dataset.npz",
+    "labels/candidates.npz",
+    "logs/run.log",
+    "metrics.json",
+    "plots/distance.png"
+   ],
+   "manifest": {
+    "code": {
+     "ccil_version": "0.1.0.dev0",
+     "git_commit": "bbeea07157e69987642f51b1adc1fba934385986",
+     "git_dirty": false
+    },
+    "config": {
+     "config_hash": "206e6689c255055a5ba6b01f8684937e7eab02de7b2cf7777506db36c656d343",
+     "path": "config.json"
+    },
+    "environment": {
+     "devices": "cpu (CUDA unavailable)",
+     "packages": {
+      "numpy": "2.4.6",
+      "pyyaml": "6.0.3",
+      "torch": "2.14.1"
+     },
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "python": "3.11.16"
+    },
+    "files": {
+     "config.json": {
+      "schema": "ccil.config",
+      "sha256": "62ca11935be0b8a026a20b02956d317250e77888805551cd632ced6cffd84b15",
+      "size": 5181,
+      "version": "1"
+     },
+     "data/dataset.npz": {
+      "schema": "ccil.trajectories",
+      "sha256": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871",
+      "size": 2120,
+      "version": "1.0"
+     },
+     "labels/candidates.npz": {
+      "schema": "ccil.candidates",
+      "sha256": "2e127254b1dfc384ef211900d87825213786080394605b4c596a6aa95d1c6367",
+      "size": 4115,
+      "version": "1.0"
+     },
+     "logs/run.log": {
+      "sha256": "5ef11d024085bb7daabe32b172218cc5d0fea3d2832212093615faf8a901ed96",
+      "size": 35
+     },
+     "metrics.json": {
+      "schema": "ccil.metrics",
+      "sha256": "2fab756706d13801fda5187703a9a27f21b9e2649c8a0ee5df5e3a2d11e6cb86",
+      "size": 144,
+      "version": "1.0"
+     },
+     "plots/distance.png": {
+      "sha256": "e9fd542b263eddcc266dc88693ca2a5ba1cea5adb9ca79df635c34cb10831a88",
+      "size": 5993
+     }
+    },
+    "inputs": {
+     "dataset": {
+      "path": "fixture.npz",
+      "sha256": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871"
+     }
+    },
+    "run_id": "analytic-0001",
+    "schema": "ccil.run-manifest",
+    "seeds": {
+     "run.seed": 0
+    },
+    "status": "complete",
+    "version": "2.0",
+    "workflow": "analytic.backward_euler"
+   },
+   "pass": true,
+   "status": "complete"
+  },
+  {
+   "accepted": 4,
+   "case": "accepted_and_rejected_share_run_and_source_ids",
+   "pass": true,
+   "rejected": 5,
+   "run_id": "analytic-0001",
+   "sources": [
+    [
+     "slow",
+     0,
+     true
+    ],
+    [
+     "slow",
+     1,
+     true
+    ],
+    [
+     "slow",
+     2,
+     false
+    ],
+    [
+     "slow",
+     3,
+     true
+    ],
+    [
+     "slow",
+     4,
+     true
+    ],
+    [
+     "fast",
+     0,
+     false
+    ],
+    [
+     "fast",
+     1,
+     false
+    ],
+    [
+     "fast",
+     2,
+     false
+    ],
+    [
+     "fast",
+     3,
+     false
+    ]
+   ]
+  },
+  {
+   "case": "data_prepare_complete_and_v1_manifest_incompatible",
+   "pass": true,
+   "prepare_run": "prepare-85dec61c77cd",
+   "stderr": ""
+  },
+  {
+   "case": "exception_leaves_previous_run_intact",
+   "pass": true,
+   "staging_left": []
+  },
+  {
+   "case": "sigkill_leaves_destination_intact_and_staging_is_reclaimed",
+   "left_after_rerun": [],
+   "pass": true,
+   "staging_name": ".analytic-0001.tmp-56882",
+   "staging_status": [
+    1,
+    "incomplete"
+   ]
+  },
+  {
+   "case": "validate[flipped_byte]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[missing_file]",
+   "expected": "incomplete",
+   "got": "incomplete",
+   "pass": true
+  },
+  {
+   "case": "validate[missing_manifest]",
+   "expected": "incomplete",
+   "got": "incomplete",
+   "pass": true
+  },
+  {
+   "case": "validate[unlisted_file]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[candidates_run_id_mismatch]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[future_component_schema]",
+   "expected": "incompatible",
+   "got": "incompatible",
+   "pass": true
+  },
+  {
+   "case": "validate[future_manifest_version]",
+   "expected": "incompatible",
+   "got": "incompatible",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "bbeea07157e69987642f51b1adc1fba934385986",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

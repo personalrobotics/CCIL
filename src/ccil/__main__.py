@@ -81,14 +81,23 @@ def _data_prepare(args) -> int:
     from .config import ConfigError
     from .data.prepare import prepare
     from .data.split import SplitError
+    from .runs import RunError
     from .schema import SchemaError
     try:
         run_dir = prepare(_resolve(args))
-    except (ConfigError, SchemaError, SplitError, FileExistsError) as e:
+    except (ConfigError, SchemaError, SplitError, FileExistsError, RunError) as e:
         print(str(e), file=sys.stderr)
         return 2
     print(f"wrote {run_dir}")
     return 0
+
+
+def _run_validate(args) -> int:
+    import json
+    from .runs import validate_run
+    status, problems = validate_run(args.run_dir)
+    print(json.dumps({"run": args.run_dir, "status": status, "problems": problems}, indent=1))
+    return 0 if status == "complete" else 1
 
 
 def _add_config_args(p) -> None:
@@ -126,6 +135,10 @@ def main(argv=None) -> int:
     prep = data.add_parser("prepare", help="validate a dataset, split it by episode, and write a run directory")
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
+    runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
+    rval = runs.add_parser("validate", help="classify a run directory: complete, corrupt, incompatible, or incomplete")
+    rval.add_argument("run_dir")
+    rval.set_defaults(fn=_run_validate)
     args = ap.parse_args(argv)
     return args.fn(args)
 
