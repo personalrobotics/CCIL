@@ -124,13 +124,16 @@ def run_integrated(cfg, trainer=None):
     trained = run_stage("policy.train", cfg, policy_inputs, train, identity={"trainer": trainer.name})
     results.append(trained)
 
+    eval_inputs = {**policy_inputs, "policy": trained.out(POLICY_CHECKPOINT)}
+
     def evaluate(run):
+        # Load the policy.train checkpoint whether that stage was written or reused.
+        policy = trainer.load(eval_inputs["policy"])
         dataset = read_trajectories(prepared.out(layout.DATASET))
         batch = transitions(dataset, rep)
         held = np.isin(batch.episode_id, split["validation"]) if split else np.ones(len(batch), bool)
-        err = np.linalg.norm(trainer.predict(batch.z[held]) - batch.a[held], axis=1)
+        err = np.linalg.norm(policy.predict(batch.z[held]) - batch.a[held], axis=1)
         run.metrics({"held_out_transitions": int(held.sum()), "action_l2_mean": float(err.mean()),
                      "action_l2_max": float(err.max()), "note": "offline action error; simulator evaluation is M7"})
-    results.append(run_stage("policy.evaluate", cfg, {**policy_inputs, "policy": trained.out(POLICY_CHECKPOINT)}, evaluate,
-                             identity={"trainer": trainer.name}))
+    results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, identity={"trainer": trainer.name}))
     return results

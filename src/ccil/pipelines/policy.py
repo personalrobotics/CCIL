@@ -5,7 +5,10 @@ Contract
   (N, A), and per-row weights (N,) >= 0, and returns self. The trainer owns its
   parameters, optimizer, and device; numpy crosses the interface.
 - predict(z) returns (N, A) actions without changing state.
-- save(path) / load(path) persist the trained policy.
+- save(path) persists the trained policy; load(path) restores a policy saved
+  by the same trainer kind into this object and returns it. Evaluation always
+  loads the policy.train checkpoint, so a reused training stage evaluates the
+  same policy a fresh one would.
 Any implementation can replace the reference trainers here without changing the
 CCIL stages (representation, transition model, labels).
 """
@@ -29,6 +32,17 @@ class PolicyTrainer(Protocol):
 
     def save(self, path) -> None: ...
 
+    def load(self, path) -> "PolicyTrainer": ...
+
+
+def _load(path, name) -> dict:
+    with np.load(path, allow_pickle=False) as z:
+        arrays = {k: z[k] for k in z.files}
+    saved = json.loads(str(arrays.pop("meta")))["trainer"]
+    if saved != name:
+        raise ValueError(f"{path} holds a {saved!r} policy, not {name!r}")
+    return arrays
+
 
 class LinearPolicyTrainer:
     """Weighted least-squares behavior cloning: a = W z + b."""
@@ -47,6 +61,11 @@ class LinearPolicyTrainer:
     def save(self, path):
         _atomic_savez(path, {"W": self.W, "b": self.b, "meta": np.array(json.dumps({"trainer": self.name}))})
 
+    def load(self, path):
+        arrays = _load(path, self.name)
+        self.W, self.b = arrays["W"], arrays["b"]
+        return self
+
 
 class MeanActionTrainer:
     """Predict the weighted mean action everywhere; a minimal alternative trainer."""
@@ -62,6 +81,10 @@ class MeanActionTrainer:
 
     def save(self, path):
         _atomic_savez(path, {"mean": self.mean, "meta": np.array(json.dumps({"trainer": self.name}))})
+
+    def load(self, path):
+        self.mean = _load(path, self.name)["mean"]
+        return self
 
 
 TRAINERS = {t.name: t for t in (LinearPolicyTrainer, MeanActionTrainer)}

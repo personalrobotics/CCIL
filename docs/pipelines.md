@@ -48,6 +48,11 @@ CCIL owns stages 1–4. The downstream trainer plugs in through `PolicyTrainer`,
 either `policy.trainer` or `run_integrated(cfg, trainer=...)`. Changing only the
 trainer reuses stages 1–4 and reruns the two policy stages.
 
+A trainer implements `fit`, `predict`, `save` and `load`. `policy.evaluate`
+always loads the policy from the `policy.train` checkpoint, so it evaluates the
+same policy whether training ran now or was reused. Changing only
+`evaluation.*` settings reuses stages 1–5.
+
 The reference components stand in for what M5 and later milestones will
 provide, and claim no image-CCIL parity:
 
@@ -76,15 +81,18 @@ uv run --group evidence python tools/m2_pipelines/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json)
-has 8 cases:
+has 10 cases:
 
 - **Offline:** analytic generation passes the #10 oracle, replays byte for
   byte, and is fully reused on rerun. It imports no trainer.
 - **Integrated:** all six stages complete, with checkpoint handoff verified by
   hash.
 - **Trainer swap:** reuses the four CCIL stages.
+- **Evaluation-only change:** reuses stages 1–5. The new evaluation loads the
+  reused policy and reproduces the original metrics.
 - **Failure and resume:** a `policy.train` failure leaves the earlier stages
-  intact, and the rerun resumes there.
+  intact, and the rerun resumes there. A `policy.evaluate` failure leaves
+  `policy.train` complete, and the rerun reuses it and completes.
 - **Preflight:** unsupported configurations fail before any stage writes.
 - **Help:** each command states its inputs, outputs, optional dependencies and
   exit codes.
