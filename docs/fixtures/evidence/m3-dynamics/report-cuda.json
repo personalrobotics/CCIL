@@ -2,24 +2,119 @@
  "all_pass": true,
  "cases": [
   {
+   "case": "legacy_worldmodel_equivalence_at_fixed_weights",
+   "pass": true,
+   "tolerance_train_mode_rel": 1e-05,
+   "torch": "2.14.1+cu130",
+   "types": {
+    "none": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_jac": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_sampling": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "soft_sampling_slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": false,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "spectral_normalization": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": true,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 0.0,
+     "train_max_rel_diff": 0.0
+    },
+    "spectral_normalization_slack": {
+     "eval_bit_identical": true,
+     "legacy_eval_differs_from_train": true,
+     "legacy_torch": "2.1.0+cu121",
+     "power_iteration_buffers_max_diff": 2.9802322387695312e-08,
+     "train_max_rel_diff": 0.0
+    }
+   }
+  },
+  {
+   "I1_accepted_finite": true,
+   "I2_accepted_in_support": true,
+   "I3_accounting": true,
+   "acceptance_agrees_with_exact_model": 0.997,
+   "accepted": 193,
+   "artifact": "<out>/analytic/runs/labels-generate-76bb6ec7ca22/labels/candidates.npz",
+   "candidates": 1000,
+   "case": "analytic_mlp_backward_euler_invariants",
+   "correction_residual_max": 0.010193187277429998,
+   "held_out_evaluation_model": {
+    "max_l2": 0.002957557406210961,
+    "mean_l2": 0.0007521879934979016,
+    "note": "evaluation model fitted on the train split; the label model saw every episode",
+    "transitions": 250
+   },
+   "label_error_vs_exact_mean": 0.0004979480566009085,
+   "label_minus_exact_equals_model_error_max_gap": 1.942890293094024e-16,
+   "label_model_train": {
+    "max_l2": 0.0021696341022106047,
+    "mean_l2": 0.0004979472022520955,
+    "transitions": 1000
+   },
+   "local_lipschitz_dz_max": 0.12076891387235365,
+   "pass": true,
+   "rejections": {
+    "action_out_of_bounds": 0,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 807
+   },
+   "residual_minus_lipschitz_bound_max": -2.699159784441289e-05,
+   "stages": {
+    "data-prepare-478f396d2a0f": "complete",
+    "labels-generate-76bb6ec7ca22": "complete",
+    "transition-fit-b23b61e7dc80": "complete"
+   }
+  },
+  {
    "case": "pendulum_held_out_metrics[cuda]",
    "device": "cuda",
    "held_out_evaluation_model": {
-    "max_l2": 0.0033142933807629293,
-    "mean_l2": 0.0006897956142079408,
+    "max_l2": 0.002655754745264082,
+    "mean_l2": 0.00031563779306793534,
     "note": "evaluation model fitted on the train split; the label model saw every episode",
     "transitions": 9980
    },
    "label_model": {
     "epochs": 100,
-    "max_l2": 0.00320275374505031,
-    "mean_l2": 0.0005015856464549422,
+    "max_l2": 0.0023888510032110508,
+    "mean_l2": 0.00024620009966670514,
     "transitions": 49900
    },
    "label_model_final_losses": {
-    "lipschitz_penalty": 0.0007894268102185397,
-    "loss": 0.0009112009219345205,
-    "mse_loss": 0.00012177411295364361
+    "lipschitz_penalty": 0.0,
+    "loss": 0.00022185602188308376,
+    "mse_loss": 0.00022185602188308376
    },
    "labels": {
     "acceptance_rate": 1.0,
@@ -40,22 +135,152 @@
    "pass": true,
    "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
    "stages": {
-    "data-prepare-65a4966e4ff7": "complete",
-    "labels-generate-fd055d068ca6": "complete",
-    "transition-fit-fa7ddf313e7c": "complete"
+    "data-prepare-9f36be9036b0": "complete",
+    "labels-generate-4ddb60253f23": "complete",
+    "transition-fit-be6996ac5b64": "complete"
    },
    "stderr": ""
+  },
+  {
+   "case": "every_lipschitz_type_trains",
+   "constraint": 1.5,
+   "pass": true,
+   "types": {
+    "none": {
+     "final_losses": {
+      "loss": 0.30773118883371353,
+      "mean_error": 0.703791543841362
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558018846239942
+    },
+    "slack": {
+     "final_losses": {
+      "loss": -0.13107051514089108,
+      "mse_loss": 0.6430021226406097,
+      "slack_penalty": 0.310627743601799,
+      "slack_std": 0.06700751557946205,
+      "weighted_mse_loss": 0.17955722846090794
+     },
+     "finite": true,
+     "train_mean_l2": 0.03607389050132326
+    },
+    "soft_jac": {
+     "final_losses": {
+      "lipschitz_penalty": 0.0,
+      "loss": 0.30773118883371353,
+      "mse_loss": 0.30773118883371353
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558018846239942
+    },
+    "soft_sampling": {
+     "final_losses": {
+      "lipschitz_penalty": 0.0,
+      "loss": 0.30773118883371353,
+      "mse_loss": 0.30773118883371353
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558018846239942
+    },
+    "soft_sampling_slack": {
+     "final_losses": {
+      "lipschitz_penalty": 4.749074491883221e-06,
+      "loss": 0.30773594230413437,
+      "mse_loss": 0.30773118883371353
+     },
+     "finite": true,
+     "train_mean_l2": 0.030558018846239942
+    },
+    "spectral_normalization": {
+     "final_losses": {
+      "loss": 0.5195979401469231,
+      "mean_error": 0.9335868433117867
+     },
+     "finite": true,
+     "layer_spectral_norms": [
+      1.5001306533813477,
+      1.4092187881469727,
+      0.7596178650856018
+     ],
+     "train_mean_l2": 0.042201126197311624,
+     "within_constraint": true
+    },
+    "spectral_normalization_slack": {
+     "final_losses": {
+      "loss": -0.02024366706609726,
+      "mse_loss": 0.9941535070538521,
+      "slack_penalty": 0.2602883577346802,
+      "slack_std": 0.046775047201663256,
+      "weighted_mse_loss": 0.24004469066858292
+     },
+     "finite": true,
+     "layer_spectral_norms": [
+      1.5000160932540894,
+      1.3672947883605957,
+      0.7275383472442627
+     ],
+     "train_mean_l2": 0.046907259002674735,
+     "within_constraint": true
+    }
+   }
+  },
+  {
+   "case": "checkpoint_persistence",
+   "failures": {
+    "cuda_without_cuda": "skipped: CUDA is available on this host",
+    "missing_tensor": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tMissing key(s) in state_dict: \"fc_layers.0.bias\". ",
+    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '99'; MLPTransitionModel reads 'mlp' version '2'",
+    "wrong_shape": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.bias: copying a param with shape torch.Size([1]) from checkpoint, the shape in cu"
+   },
+   "meta": {
+    "act_dim": 1,
+    "component": "transition_model",
+    "derived_from": {
+     "commit": "477ddb81c7adc3527c77b094c08181a98077eff3",
+     "files": [
+      "correct_il/models/nn_dynamics.py",
+      "correct_il/models/spectral_norm.py"
+     ],
+     "paper": "Ke et al., CCIL: Continuity-Based Data Augmentation for Corrective Imitation Learning, ICLR 2024, arXiv:2310.12972",
+     "ref": "archive/upstream-main-2026-10-22",
+     "repository": "personalrobotics/CCIL"
+    },
+    "kind": "mlp",
+    "state_dim": 2,
+    "training": true,
+    "version": "2"
+   },
+   "pass": true,
+   "reload_delta_identical": true,
+   "resave_byte_identical": true
+  },
+  {
+   "case": "same_seed_byte_identical_checkpoints",
+   "pass": true,
+   "sha256": {
+    "a": "39c6bccf4d6aea6a090f5ac669689647999f20a79fb8389e212bb1d6a5ddadcb",
+    "b": "39c6bccf4d6aea6a090f5ac669689647999f20a79fb8389e212bb1d6a5ddadcb",
+    "c": "625f21929665ed0bc7b70090b7c2efa2b0193369cf8be39bfa8529e5e2a1af57"
+   }
+  },
+  {
+   "case": "mlp_without_torch_fails_before_any_stage",
+   "error": "invalid configuration:\n  transition_model.kind 'mlp' needs the ccil[torch] extra (Python 3.11+): pip install 'ccil[torch]' (No module named 'torch')",
+   "exit": 2,
+   "pass": true,
+   "torch_installed": false
   }
  ],
  "environment": {
-  "code_commit": "6074e3347f4db06ff9f25d0aec1f4646ed1feaf8",
+  "code_commit": "4bf260730908fc8ee07eb6518766ea2537960520",
   "code_dirty": false,
   "cuda": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
   "device": "cuda",
   "host_load": [
-   0.64208984375,
-   0.25634765625,
-   0.08837890625
+   6.9267578125,
+   18.39990234375,
+   15.17724609375
   ],
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",

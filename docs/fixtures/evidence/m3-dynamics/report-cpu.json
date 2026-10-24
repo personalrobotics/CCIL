@@ -64,7 +64,7 @@
    "I3_accounting": true,
    "acceptance_agrees_with_exact_model": 0.997,
    "accepted": 193,
-   "artifact": "<out>/analytic/runs/labels-generate-b87070a4b3e9/labels/candidates.npz",
+   "artifact": "<out>/analytic/runs/labels-generate-2b1a1f43b02b/labels/candidates.npz",
    "candidates": 1000,
    "case": "analytic_mlp_backward_euler_invariants",
    "correction_residual_max": 0.010193168134269029,
@@ -91,30 +91,30 @@
    },
    "residual_minus_lipschitz_bound_max": -2.5075463003084873e-05,
    "stages": {
-    "data-prepare-6b6e593c8f68": "complete",
-    "labels-generate-b87070a4b3e9": "complete",
-    "transition-fit-a35ace9f010d": "complete"
+    "data-prepare-478f396d2a0f": "complete",
+    "labels-generate-2b1a1f43b02b": "complete",
+    "transition-fit-b23b61e7dc80": "complete"
    }
   },
   {
    "case": "pendulum_held_out_metrics[cpu]",
    "device": "cpu",
    "held_out_evaluation_model": {
-    "max_l2": 0.004513591570293213,
-    "mean_l2": 0.0006858649680722489,
+    "max_l2": 0.0034251521289373646,
+    "mean_l2": 0.0006395024603911497,
     "note": "evaluation model fitted on the train split; the label model saw every episode",
     "transitions": 9980
    },
    "label_model": {
     "epochs": 100,
-    "max_l2": 0.00273020644445891,
-    "mean_l2": 0.000532128977805223,
+    "max_l2": 0.0037549736402567747,
+    "mean_l2": 0.0007107174009321813,
     "transitions": 49900
    },
    "label_model_final_losses": {
-    "lipschitz_penalty": 0.000789174976873874,
-    "loss": 0.0008886501435478477,
-    "mse_loss": 9.94751670677755e-05
+    "lipschitz_penalty": 0.0,
+    "loss": 0.0002873756600389036,
+    "mse_loss": 0.0002873756600389036
    },
    "labels": {
     "acceptance_rate": 1.0,
@@ -135,9 +135,9 @@
    "pass": true,
    "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
    "stages": {
-    "data-prepare-65a4966e4ff7": "complete",
-    "labels-generate-23eb16618ec8": "complete",
-    "transition-fit-bc6df407832b": "complete"
+    "data-prepare-9f36be9036b0": "complete",
+    "labels-generate-dd35ebce240e": "complete",
+    "transition-fit-76541cb399d6": "complete"
    },
    "stderr": ""
   },
@@ -176,21 +176,21 @@
     },
     "soft_sampling": {
      "final_losses": {
-      "lipschitz_penalty": 0.0006117838729551295,
-      "loss": 0.30836571753025055,
-      "mse_loss": 0.30775392800569534
+      "lipschitz_penalty": 0.0,
+      "loss": 0.30773116275668144,
+      "mse_loss": 0.30773116275668144
      },
      "finite": true,
-     "train_mean_l2": 0.03056307251067912
+     "train_mean_l2": 0.030558017319026975
     },
     "soft_sampling_slack": {
      "final_losses": {
-      "lipschitz_penalty": 3.0097705408654862e-06,
-      "loss": 0.3077487647533417,
-      "mse_loss": 0.3077457547187805
+      "lipschitz_penalty": 4.749074491883221e-06,
+      "loss": 0.3077359162271023,
+      "mse_loss": 0.30773116275668144
      },
      "finite": true,
-     "train_mean_l2": 0.030558715898535392
+     "train_mean_l2": 0.030558017319026975
     },
     "spectral_normalization": {
      "final_losses": {
@@ -199,11 +199,11 @@
      },
      "finite": true,
      "layer_spectral_norms": [
-      1.500105619430542,
+      1.500130534172058,
       1.4092189073562622,
       0.7596179246902466
      ],
-     "train_mean_l2": 0.042201564904053614,
+     "train_mean_l2": 0.04220112507160549,
      "within_constraint": true
     },
     "spectral_normalization_slack": {
@@ -216,11 +216,11 @@
      },
      "finite": true,
      "layer_spectral_norms": [
-      1.5000039339065552,
+      1.500016212463379,
       1.367294430732727,
       0.727538526058197
      ],
-     "train_mean_l2": 0.04690745054302559,
+     "train_mean_l2": 0.04690725823721903,
      "within_constraint": true
     }
    }
@@ -230,7 +230,7 @@
    "failures": {
     "cuda_without_cuda": "RuntimeError: compute.device 'cuda' requested but CUDA is not available",
     "missing_tensor": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tMissing key(s) in state_dict: \"fc_layers.0.bias\". ",
-    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '2'; MLPTransitionMod",
+    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '99'; MLPTransiti",
     "wrong_shape": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.bias: copying a param with shape torch.Size([1]) from checkpoint, the shape in cu"
    },
    "meta": {
@@ -249,7 +249,7 @@
     "kind": "mlp",
     "state_dim": 2,
     "training": true,
-    "version": "1"
+    "version": "2"
    },
    "pass": true,
    "reload_delta_identical": true,
@@ -259,9 +259,9 @@
    "case": "same_seed_byte_identical_checkpoints",
    "pass": true,
    "sha256": {
-    "a": "3ce22ca68516c2eb95e1ab9e842defd5173a8555839086870b2c3f996100a555",
-    "b": "3ce22ca68516c2eb95e1ab9e842defd5173a8555839086870b2c3f996100a555",
-    "c": "d1af97ef244889f32c474bbe606a6becee960329b186398933b82dfa616edc6a"
+    "a": "de73caf725cbffaddd115511e25c573ca7cc6c274385e266460bb071d8f826de",
+    "b": "de73caf725cbffaddd115511e25c573ca7cc6c274385e266460bb071d8f826de",
+    "c": "df73b36d879e27f9a187ee33299ce6bf474db434c6fbe4aa1b87b451f44ec9d0"
    }
   },
   {
@@ -273,14 +273,14 @@
   }
  ],
  "environment": {
-  "code_commit": "6074e3347f4db06ff9f25d0aec1f4646ed1feaf8",
+  "code_commit": "4bf260730908fc8ee07eb6518766ea2537960520",
   "code_dirty": false,
   "cuda": null,
   "device": "cpu",
   "host_load": [
-   10.15673828125,
-   11.1728515625,
-   9.47412109375
+   212.939453125,
+   143.00244140625,
+   70.41015625
   ],
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

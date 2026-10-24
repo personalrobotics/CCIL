@@ -97,7 +97,7 @@ uv run --group evidence python tools/m3_dynamics/correctness.py --out <new-dir>
 ```
 
 The report is at
-[`../fixtures/evidence/m3-dynamics/correctness.json`](../fixtures/evidence/m3-dynamics/correctness.json).
+[`../fixtures/evidence/m3-dynamics/correctness-cpu.json`](../fixtures/evidence/m3-dynamics/correctness-cpu.json).
 Version-1 checkpoints are refused (`CheckpointError`).
 
 1. **Eval-mode inference.** Legacy never calls `eval()`, so a
