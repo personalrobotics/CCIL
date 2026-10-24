@@ -71,7 +71,7 @@ Reason codes: `non_finite`, `out_of_support`, `generation_failed`, `action_out_o
 
 ### File layout (.npz)
 
-Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `weight`. `meta` holds run_id, generator, and reason_codes.
+Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: none. `meta` holds `generator`, `inputs`, `reason_codes`, `run_id`, `seed`, `weighting`.
 
 ## Compatibility
 

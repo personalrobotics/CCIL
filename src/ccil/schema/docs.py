@@ -12,6 +12,10 @@ def _table(specs) -> list[str]:
     return rows
 
 
+def _names(keys) -> str:
+    return ", ".join(f"`{k}`" for k in sorted(keys)) or "none"
+
+
 def _fields(fields) -> list[str]:
     return ["| Field | Type | Description |", "|---|---|---|"] + [f"| `{n}` | `{t}` | {d} |".replace(" | None", " \\| None") for n, t, d in fields]
 
@@ -32,7 +36,7 @@ def render() -> str:
         f"Modality names match `{t.MODALITY.pattern}`.", "",
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.TRAJ_REQUIRED))}, and `obs/<modality>` per modality. "
-        f"Optional: {', '.join(f'`{k}`' for k in sorted(io.TRAJ_OPTIONAL))}. Per-frame arrays are concatenated "
+        f"Optional: {_names(io.TRAJ_OPTIONAL)}. Per-frame arrays are concatenated "
         "across episodes in `episode_ids` order and split by `episode_lengths`.", "",
         f"## `{c.SCHEMA}` {c.VERSION[0]}.{c.VERSION[1]}",
         "",
@@ -44,7 +48,8 @@ def render() -> str:
         f"Reason codes: {', '.join(f'`{r}`' for r in c.REASON_CODES)}.", "",
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.CAND_REQUIRED))}, plus `obs/<modality>`, "
-        "`target/<modality>`, and `meas/<name>`. Optional: `weight`. `meta` holds run_id, generator, and reason_codes.", "",
+        f"`target/<modality>`, and `meas/<name>`. Optional: {_names(io.CAND_OPTIONAL)}. "
+        f"`meta` holds {_names(io.CAND_META)}.", "",
         "## Compatibility", "",
         (io.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "), "",
     ]
