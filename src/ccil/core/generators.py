@@ -48,7 +48,13 @@ class BackwardEuler:
 
 
 class ExactPreimage:
-    """Solve z_G + f(z_G, a) = z by Newton's method; failed where it does not converge."""
+    """Solve z_G + f(z_G, a) = z by Newton's method, row by row.
+
+    A row stops iterating once its own residual is within tolerance, so its
+    result never depends on the other rows in the batch. A row whose Newton
+    system is singular, whose iterate becomes non-finite, or which does not
+    converge is marked failed; the other rows are unaffected.
+    """
 
     name, version = "exact_preimage", "1"
 
@@ -57,20 +63,40 @@ class ExactPreimage:
 
     def generate(self, batch, model, seed):
         z, a = batch.z.astype(np.float64), batch.a.astype(np.float64)
+        tol = self.params["tolerance"]
         x = z.copy()
         eye = np.eye(z.shape[1])
-        for _ in range(self.params["max_iterations"]):
-            r = x + model.delta(x, a) - z
-            if np.all(np.linalg.norm(r, axis=1) <= self.params["tolerance"]):
-                break
-            J = eye + (model.jacobian_z(x, a) if hasattr(model, "jacobian_z") else jacobian_fd(model, x, a))
-            with np.errstate(invalid="ignore"):
-                x = x - np.linalg.solve(J, r[..., None])[..., 0]
-        # Convergence is judged on the residual of the returned iterate, not a stale one.
+        broken = np.zeros(len(batch), bool)
         resid = np.linalg.norm(x + model.delta(x, a) - z, axis=1)
-        failed = ~(resid <= self.params["tolerance"])
+        for _ in range(self.params["max_iterations"]):
+            idx = np.flatnonzero(~broken & ~(resid <= tol))
+            if not len(idx):
+                break
+            xs, as_ = x[idx], a[idx]
+            r = xs + model.delta(xs, as_) - z[idx]
+            J = eye + (model.jacobian_z(xs, as_) if hasattr(model, "jacobian_z") else jacobian_fd(model, xs, as_))
+            step, ok = _solve_rows(J, r)
+            ok &= np.isfinite(xs - step).all(axis=1)
+            x[idx[ok]] = xs[ok] - step[ok]
+            broken[idx[~ok]] = True
+            moved = idx[ok]
+            resid[moved] = np.linalg.norm(x[moved] + model.delta(x[moved], a[moved]) - z[moved], axis=1)
+        # Convergence is judged on the residual of the returned iterate, not a stale one.
+        failed = broken | ~(resid <= tol)
         return CandidateBatch(source=np.arange(len(batch)), z=x.astype(batch.z.dtype), a=batch.a.copy(),
                               target=batch.z.copy(), failed=failed, measurements={"solver_residual": resid})
+
+
+def _solve_rows(J, r):
+    """Solve J[i] s[i] = r[i]; rows with a singular or non-finite system get ok=False."""
+    ok = np.isfinite(J).all(axis=(1, 2)) & np.isfinite(r).all(axis=1)
+    step = np.zeros_like(r)
+    for i in np.flatnonzero(ok):
+        try:
+            step[i] = np.linalg.solve(J[i], r[i])
+        except np.linalg.LinAlgError:
+            ok[i] = False
+    return step, ok & np.isfinite(step).all(axis=1)
 
 
 class NoisyAction:

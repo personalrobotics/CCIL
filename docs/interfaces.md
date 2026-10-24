@@ -40,7 +40,7 @@ its `distance` measured.
 | Representation | `IdentityRepresentation` | Passes a modality through unchanged (vector CCIL). |
 | Transition model | `LinearTransitionModel(A, B, c)` | f = Az + Ba + c, exact or fitted by least squares. |
 | Generator | `BackwardEuler` | z − f(z, a) |
-| Generator | `ExactPreimage` | Newton solve of z_G + f(z_G, a) = z. Convergence is judged on the returned iterate, which avoids the legacy stale-residual pattern. |
+| Generator | `ExactPreimage` | Newton solve of z_G + f(z_G, a) = z, row by row: each row stops at its own tolerance, so results are batch-invariant. A singular Newton system, a non-finite iterate, or non-convergence marks only that row `failed`. Convergence is judged on the returned iterate, which avoids the legacy stale-residual pattern. |
 | Generator | `NoisyAction(k, σ)` | z' − f(z', a + δ) |
 | Validators | `Finite`, `GenerationFailed`, `SupportRadius(ε)`, `ActionBounds`, `ModelResidual` | `SupportRadius` uses the legacy rule `distance < ε`. `ModelResidual` only measures. |
 | Weighting | `Uniform` | 1 for accepted rows, 0 for rejected. |
@@ -63,7 +63,7 @@ uv run --group evidence python tools/m2_interfaces/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-interfaces/report.json`](fixtures/evidence/m2-interfaces/report.json)
-has 6 cases:
+has 7 cases:
 
 - **The #10 oracle:** the new core passes the analytic oracle (I1–I5) for every
   method, and its run directory validates as complete.
@@ -74,3 +74,7 @@ has 6 cases:
   goes through the unchanged schema path.
 - **Interface failures:** four malformed-stage failures raise before anything is
   written.
+- **Per-candidate solver failures:** in one batch, `ExactPreimage` marks rows
+  with a singular Newton system or non-finite model output as
+  `generation_failed`. The solvable rows match the exact solution, with
+  byte-identical output at batch sizes 1, 4 and all.
