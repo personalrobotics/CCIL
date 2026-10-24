@@ -469,12 +469,330 @@
    ],
    "pass": true,
    "section": "D"
+  },
+  {
+   "case": "provenance_survives_round_trip_and_accepted_labels",
+   "pass": true,
+   "provenance": {
+    "generator": {
+     "name": "backward_euler_closed_form",
+     "params_hash": "eps=0.01",
+     "version": "1"
+    },
+    "inputs": {
+     "dataset": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871",
+     "transition_model": "7192c38c7cd309b7f475c67d8d9567b7d589a52bbd71e607931d25f81d08bf24"
+    },
+    "run_id": "analytic-fixture",
+    "seed": 0,
+    "weighting": {
+     "name": "uniform",
+     "params": {},
+     "version": "1"
+    }
+   },
+   "section": "E",
+   "weights": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "case": "missing_seed",
+   "expected_rule": "seed",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "seed must be an int, got NoneType",
+     "rule": "seed",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "inputs_without_transition_model",
+   "expected_rule": "inputs",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "inputs must map non-empty names, including transition_model, to SHA-256 hex digests",
+     "rule": "inputs",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "input_hash_not_sha256",
+   "expected_rule": "inputs",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "inputs must map non-empty names, including transition_model, to SHA-256 hex digests",
+     "rule": "inputs",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "weighting_without_params",
+   "expected_rule": "weighting",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "weighting needs non-empty string name and version and a params dict",
+     "rule": "weighting",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "missing_weight",
+   "expected_rule": "type",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "weight must be a numpy array, got NoneType",
+     "rule": "type",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "candidates_1_0_rejected_by_major_version",
+   "errors": [
+    "major version 1 is not supported (this reader supports 2.x)"
+   ],
+   "pass": true,
+   "section": "E"
+  },
+  {
+   "case": "timestamps_on_some_episodes",
+   "expected_rule": "optional_field_presence",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "timestamps is given for 1 of 2 episodes; give it for every episode or none (missing: ['second'])",
+     "rule": "optional_field_presence",
+     "where": "dataset"
+    }
+   ]
+  },
+  {
+   "case": "action_chunks_on_some_episodes",
+   "expected_rule": "optional_field_presence",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action_chunks is given for 1 of 2 episodes; give it for every episode or none (missing: ['second'])",
+     "rule": "optional_field_presence",
+     "where": "dataset"
+    }
+   ]
+  },
+  {
+   "case": "action_chunk_length_differs",
+   "expected_rule": "dimension_mismatch",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action chunk length 2, other episodes have 3",
+     "rule": "dimension_mismatch",
+     "where": "episode 1 (second)"
+    }
+   ]
+  },
+  {
+   "case": "writer_refuses_mixed_optional_fields_with_schema_error",
+   "pass": true,
+   "section": "F",
+   "writes": {
+    "action_chunks": "SchemaError: ['optional_field_presence']",
+    "chunk_length": "SchemaError: ['dimension_mismatch']",
+    "timestamps": "SchemaError: ['optional_field_presence']"
+   }
+  },
+  {
+   "case": "malformed_files_raise_schema_error",
+   "pass": true,
+   "results": {
+    "candidates:inputs_not_an_object": {
+     "error": [
+      "ccil.candidates failed validation (inputs=1):",
+      "  inputs at candidates: inputs must map non-empty names, including transition_model, to SHA-256 hex digests"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:meta_invalid_json": {
+     "error": [
+      "ccil.candidates failed validation (format=1):",
+      "  format at <out>/mc_meta_invalid_json.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:reason_codes_not_a_list": {
+     "error": [
+      "ccil.candidates failed validation (format=1):",
+      "  format at <out>/mc_reason_codes_not_a_list.npz: meta.reason_codes must be a list of strings"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:seed_not_an_int": {
+     "error": [
+      "ccil.candidates failed validation (seed=1):",
+      "  seed at candidates: seed must be an int, got str"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:zero_dim_observation": {
+     "error": [
+      "ccil.candidates failed validation (shape=1):",
+      "  shape at observations[state]: expected an array with 4 rows"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "legacy:meta_invalid_json": {
+     "error": [
+      "ccil.schema.legacy failed validation (format=1):",
+      "  format at <out>/m1_bad_meta.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:dataset_meta_not_an_object": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_ds.npz: meta.dataset must be a JSON object"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_2d": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_len2d.npz: episode_lengths has shape (1, 2) and dtype int64; expected rank 1 and kind iu"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_float": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_lenf.npz: episode_lengths has shape (2,) and dtype float64; expected rank 1 and kind iu"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_mismatch": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_lenx.npz: episode_lengths do not match the per-frame and per-episode arrays"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_invalid_json": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_json.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_json_list": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_list.npz: meta must be a JSON object, got list"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_not_a_string": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_num.npz: meta must be a JSON string"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:not_an_archive": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_garbage.npz: not a readable .npz file: This file contains pickled (object) data. If you trust the file you can load it unsafely using the `allow_pickle=` keyword argument or `pickle.load()`."
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:optional_fields_not_a_list": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_opt.npz: optional_fields must be a list of field names"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:pickled_object_array": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_pickled.npz: an array cannot be read: Object arrays cannot be loaded when allow_pickle=False"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:terminated_not_bool": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_term.npz: terminated has shape (2,) and dtype int64; expected rank 1 and kind b"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:truncated_archive": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_truncated.npz: not a readable .npz file: File is not a zip file"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:zero_dim_actions": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_act0.npz: episode_lengths do not match the per-frame and per-episode arrays"
+     ],
+     "exit": 1,
+     "traceback": false
+    }
+   },
+   "section": "G"
   }
  ],
  "environment": {
-  "code_commit": "7f07462adadc70091c181abff6c48f199a69c1ea",
+  "code_commit": "aac760f1b43f451f57d80c3cd1810b3581c91391",
   "code_dirty": false,
-  "numpy": "1.26.4",
+  "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
   "python": "3.11.16"
  }
