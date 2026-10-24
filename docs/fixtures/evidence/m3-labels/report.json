@@ -1,0 +1,246 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "accepted": 34,
+   "action_noise": {
+    "configured_std": 0.05,
+    "mean": 0.002081943391304877,
+    "std": 0.052166308913176376
+   },
+   "candidates": 36,
+   "case": "closed_form_and_measurements[noisy_action]",
+   "generator": {
+    "name": "noisy_action",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4
+    },
+    "params_hash": "dd33246fed28112b",
+    "version": "2"
+   },
+   "max_abs_vs_closed_form": 0.0,
+   "measurement_specs": {
+    "distance": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.action_noise_norm": {
+     "definition": "||a_G - a_t||: norm of the sampled action perturbation",
+     "norm": "l2",
+     "units": "action units"
+    },
+    "generator.state_displacement_norm": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "residual": {
+     "definition": "||z_G + f(z_G, a_G) - target||: one-step error of the label under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    }
+   },
+   "measurements": [
+    "distance",
+    "generator.action_noise_norm",
+    "generator.state_displacement_norm",
+    "residual"
+   ],
+   "pass": true
+  },
+  {
+   "batch_sha256": [
+    "7347cf56e4484465ef610262257a25ab4f51ca3cb38f252a6d8257324cf8c72f",
+    "7347cf56e4484465ef610262257a25ab4f51ca3cb38f252a6d8257324cf8c72f"
+   ],
+   "case": "specs_round_trip_and_batch_invariance[noisy_action]",
+   "file_version": "2.2",
+   "pass": true
+  },
+  {
+   "accepted": 34,
+   "action_noise": {
+    "configured_std": 0.05,
+    "mean": 0.002081943391304877,
+    "std": 0.052166308913176376
+   },
+   "candidates": 36,
+   "case": "closed_form_and_measurements[noisy_action_preimage]",
+   "generator": {
+    "name": "noisy_action_preimage",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4,
+     "max_iterations": 50,
+     "tolerance": 0.0001
+    },
+    "params_hash": "7c63f7a7e906c264",
+    "version": "1"
+   },
+   "max_abs_vs_closed_form": 5.453824991619172e-08,
+   "measurement_specs": {
+    "distance": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.action_noise_norm": {
+     "definition": "||a_G - a_t||: norm of the sampled action perturbation",
+     "norm": "l2",
+     "units": "action units"
+    },
+    "generator.solver_residual": {
+     "definition": "||z_G + f(z_G, a_G) - target|| of the returned Newton iterate under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.state_displacement_norm": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "residual": {
+     "definition": "||z_G + f(z_G, a_G) - target||: one-step error of the label under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    }
+   },
+   "measurements": [
+    "distance",
+    "generator.action_noise_norm",
+    "generator.solver_residual",
+    "generator.state_displacement_norm",
+    "residual"
+   ],
+   "pass": true
+  },
+  {
+   "batch_sha256": [
+    "3d0d74d84d16ee1f513b5853ade95e04ac58c346a34f3f0f6b5473a4c41c8f5e",
+    "3d0d74d84d16ee1f513b5853ade95e04ac58c346a34f3f0f6b5473a4c41c8f5e"
+   ],
+   "case": "specs_round_trip_and_batch_invariance[noisy_action_preimage]",
+   "file_version": "2.2",
+   "pass": true
+  },
+  {
+   "candidates": 36,
+   "case": "failed_proposals_rejected_never_refilled",
+   "failed": 11,
+   "pass": true,
+   "rows_per_transition": [
+    4
+   ]
+  },
+  {
+   "artifact": "<out>/pipeline/runs/labels-generate-744e72d2ae9f/labels/candidates.npz",
+   "case": "noisy_action_fe_pipeline_run",
+   "generator": {
+    "name": "noisy_action_preimage",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4,
+     "max_iterations": 50,
+     "tolerance": 0.0001
+    },
+    "params_hash": "8a4b8ad5be907a75",
+    "version": "1"
+   },
+   "pass": true,
+   "stages": {
+    "data-prepare-ab5ca3f19d36": "complete",
+    "labels-generate-744e72d2ae9f": "complete",
+    "transition-fit-669dc89c1262": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "case": "noise_bc_legacy_vs_symmetric",
+   "modes": {
+    "legacy_uniform_half_batch": {
+     "descriptor": {
+      "component": "noise_bc",
+      "distribution": "uniform on [0, scale) per observation dimension, applied to masked samples",
+      "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+      "mask_probability": 0.5,
+      "mode": "legacy_uniform_half_batch",
+      "rng": "splitmix64-counter/1",
+      "scale": 0.1,
+      "seed": 20261023,
+      "truncation": "none (bounded by construction)",
+      "units": "observation units",
+      "version": "1"
+     },
+     "input_unchanged": true,
+     "mask_rate": 0.496575,
+     "noise_max": 0.09999989718198776,
+     "noise_mean": 0.050279244780540466,
+     "noise_min": 2.1272005596983945e-06,
+     "unmasked_rows_unchanged": true
+    },
+    "symmetric_uniform_half_batch": {
+     "descriptor": {
+      "component": "noise_bc",
+      "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+      "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+      "mask_probability": 0.5,
+      "mode": "symmetric_uniform_half_batch",
+      "rng": "splitmix64-counter/1",
+      "scale": 0.1,
+      "seed": 20261023,
+      "truncation": "none (bounded by construction)",
+      "units": "observation units",
+      "version": "1"
+     },
+     "input_unchanged": true,
+     "mask_rate": 0.496575,
+     "noise_max": 0.0999997928738594,
+     "noise_mean": 0.0005584879545494914,
+     "noise_min": -0.09999574720859528,
+     "unmasked_rows_unchanged": true
+    }
+   },
+   "pass": true,
+   "samples": 40000,
+   "scale": 0.1
+  },
+  {
+   "artifact": "<out>/noise_bc_draws.npz",
+   "case": "noise_bc_per_draw_reproducible_and_independent",
+   "masked_step0": 5,
+   "masked_step1": 4,
+   "pass": true,
+   "samples": 9
+  },
+  {
+   "case": "noise_bc_trace_hash",
+   "other_seed": {
+    "draws": 5,
+    "sha256": "73d2e59b5caf7a17d5bcabcec727a5452659581f23cf74fccbf91055d37cca33"
+   },
+   "pass": true,
+   "same_seed": [
+    {
+     "draws": 5,
+     "sha256": "73f958a930dc1ef54cbdeb9ab3d411c59f23d66d96fae9697b2a0626e74c7665"
+    },
+    {
+     "draws": 5,
+     "sha256": "73f958a930dc1ef54cbdeb9ab3d411c59f23d66d96fae9697b2a0626e74c7665"
+    }
+   ]
+  }
+ ],
+ "environment": {
+  "code_commit": "e3c3bc5860f5c71cd13193b2ba2fbb0f3d2a37cd",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
