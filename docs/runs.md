@@ -41,12 +41,22 @@ destination.
 - **Success:** it adds the manifest, validates the staged run, and renames it
   into place.
 - **Replacing a run:** an existing run is replaced only with `run.overwrite=true`.
-  The old run is renamed aside first, then removed.
+  The staging directory and the destination are exchanged atomically, using
+  `renameat2(RENAME_EXCHANGE)` on Linux and `renamex_np(RENAME_SWAP)` on macOS,
+  so a valid run is at the destination at every instant. The old run, now under
+  the staging name, is then removed. On a filesystem that can't exchange, the
+  writer renames the old run to `.<run_id>.old-<pid>` and then moves staging
+  into place. If the second rename fails, the old run is renamed back.
 - **Exception:** the staging directory is removed, and any existing run is
   untouched.
-- **Hard kill:** a writer killed outright can't clean up. The destination is
-  still untouched, the staging directory validates as `incomplete`, and the next
-  writer for that run ID removes staging directories whose process is gone.
+- **Hard kill:** a writer killed outright can't clean up. Before any writer or
+  pipeline stage looks at a destination, it recovers what dead writers left:
+  - an `.old-<pid>` directory is restored if the destination is missing, and
+    removed otherwise;
+  - a staging directory, which validates as `incomplete`, is removed.
+
+  A kill between the two fallback renames is the only point at which the
+  destination is briefly absent, until this recovery runs.
 
 ## Validation
 
@@ -56,13 +66,18 @@ uv run ccil run validate RUN_DIR    # exit code 0 only when complete
 
 | Status | Meaning |
 |---|---|
-| `complete` | Manifest version 2.x, `status: complete`, every listed file present with a matching size, SHA-256 and declared schema, no unlisted files, and a candidates `run_id` equal to the manifest's. |
+| `complete` | Manifest version 2.x, `status: complete`, every listed file present with a matching size, SHA-256 and declared schema, no unlisted files, no symlinks, and a candidates `run_id` equal to the manifest's. |
 | `incomplete` | The manifest is missing or not `complete`, a listed file is missing, or the directory is a staging directory. |
-| `corrupt` | An unreadable manifest, a size or hash mismatch, a schema mismatch, an unlisted file, or a candidates `run_id` mismatch. |
+| `corrupt` | An unreadable or mistyped manifest or file entry, a listed path that isn't a canonical relative path inside the run, any symlink in the run, a size or hash mismatch, a schema mismatch, an unlisted file, or a candidates `run_id` mismatch. |
 | `incompatible` | A manifest major version other than 2, or a component schema major version newer than this ccil reads. |
 
 When several problems apply, the reported status is the first of
 incompatible, corrupt, incomplete. All problems are listed.
+
+Listed paths are parsed before any file is opened. A path must be relative,
+`/`-separated, and free of empty, `.` and `..` segments, and no component on
+the way to it may be a symlink. A manifest therefore can't make the validator
+read or vouch for a file outside the run.
 
 ## Evidence
 
@@ -71,10 +86,20 @@ uv run --group evidence python tools/m2_runs/check.py --out <new-dir>
 ```
 
 [`fixtures/evidence/m2-runs/report.json`](fixtures/evidence/m2-runs/report.json)
-has 12 cases:
+has 24 cases:
 
 - **Analytic run:** written twice and byte-identical; accepted and rejected
   rows trace to the stored dataset.
 - **`data prepare`** validates as complete, and a 1.0 manifest as incompatible.
 - **Interruption:** an exception mid-write, and a SIGKILL mid-write.
-- **Seven damaged copies,** each classified correctly.
+- **Commit boundaries,** each in its own process:
+  - a failed second rename leaves the old run in place;
+  - a SIGKILL after the first fallback rename is restored by recovery;
+  - a SIGKILL right after the atomic exchange leaves the new run complete.
+
+  The next writer also recovers before checking whether the destination exists.
+- **Fifteen damaged copies,** each classified correctly, including:
+  - entries that traverse with `..`, are absolute, or are non-canonical;
+  - a symlinked file or directory that points outside the run;
+  - mistyped `files` mappings and entries, which give a diagnostic rather than a
+    traceback.

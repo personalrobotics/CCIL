@@ -6,7 +6,9 @@
 Writes an analytic run (fixture dataset, closed-form candidates with accepted
 and rejected rows, metrics, plot, log) twice and checks byte-identical replay;
 checks data prepare under the new layout; interrupts writers by exception and
-by SIGKILL; and classifies damaged copies as corrupt, incomplete, or
+by SIGKILL; kills or fails replacement at each commit boundary and checks the
+destination and recovery; and classifies damaged copies, including manifests
+that point outside the run or through symlinks, as corrupt, incomplete, or
 incompatible. Writes DIR/report.json.
 """
 import argparse
@@ -103,9 +105,55 @@ with RunWriter("runs", {run_id!r}, "analytic.backward_euler", cfg, overwrite=Tru
 """
 
 
+COMMIT = """
+import errno, os, signal, sys
+import ccil.runs.writer as W
+from ccil.config import resolve
+from ccil.runs import RunWriter
+mode = sys.argv[1]
+real_replace, real_exchange = os.replace, W._exchange
+
+
+def die():
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+if mode in ("kill_after_first_rename", "second_rename_fails"):
+    W._exchange = lambda a, b: False  # the two-rename fallback
+if mode == "kill_after_first_rename":
+    def replace(src, dst):
+        real_replace(src, dst)
+        if ".old-" in os.path.basename(dst):
+            die()
+    os.replace = replace
+elif mode == "second_rename_fails":
+    def replace(src, dst):
+        if ".tmp-" in os.path.basename(src) and os.path.basename(dst) == {run_id!r}:
+            raise OSError(errno.EIO, "simulated failure of the second rename")
+        real_replace(src, dst)
+    os.replace = replace
+elif mode == "kill_after_exchange":
+    def exchange(a, b):
+        if real_exchange(a, b):
+            die()
+        return False
+    W._exchange = exchange
+cfg = resolve(overrides={{"run.seed": 1, "run.output_dir": "runs", "run.overwrite": True}})
+with RunWriter("runs", {run_id!r}, "replacement", cfg, overwrite=True) as run:
+    run.metrics({{"replacement": True}})
+"""
+
+
 def ccil_validate(path) -> tuple[int, str]:
     r = subprocess.run([sys.executable, "-m", "ccil", "run", "validate", str(path)], capture_output=True, text=True)
-    return r.returncode, json.loads(r.stdout)["status"]
+    try:
+        return r.returncode, json.loads(r.stdout)["status"]
+    except ValueError:
+        return r.returncode, f"no JSON output: {r.stderr.strip()[-200:]}"
+
+
+def hidden(runs: Path) -> list:
+    return sorted(p.name for p in runs.iterdir() if p.name.startswith("."))
 
 
 def refresh_entry(run: Path, rel: str, version=None):
@@ -232,6 +280,90 @@ def main():
     damaged("candidates_run_id_mismatch", mismatched_run_id, "corrupt")
     damaged("future_component_schema", future_component, "incompatible")
     damaged("future_manifest_version", future_manifest, "incompatible")
+
+    # 4b. Manifest paths are parsed and contained; entries are type-checked.
+    outside = out / "outside.txt"
+    outside.write_text("outside the run\n")
+
+    def listed(rel, target):
+        def damage(d):
+            m = json.loads((d / layout.MANIFEST).read_text())
+            m["files"][rel] = {"sha256": sha256(target), "size": target.stat().st_size}
+            (d / layout.MANIFEST).write_text(json.dumps(m))
+        return damage
+
+    def symlink_file(d):
+        shutil.copy(d / layout.METRICS, out / "metrics-outside.json")
+        (d / layout.METRICS).unlink()
+        (d / layout.METRICS).symlink_to(out / "metrics-outside.json")
+
+    def symlink_dir(d):
+        shutil.copytree(d / "data", out / "data-outside")
+        shutil.rmtree(d / "data")
+        (d / "data").symlink_to(out / "data-outside", target_is_directory=True)
+
+    def manifest_edit(edit):
+        def damage(d):
+            m = json.loads((d / layout.MANIFEST).read_text())
+            edit(m)
+            (d / layout.MANIFEST).write_text(json.dumps(m))
+        return damage
+
+    damaged("parent_traversal_entry", listed("../outside.txt", outside), "corrupt")
+    damaged("absolute_path_entry", listed(str(outside), outside), "corrupt")
+    damaged("non_canonical_entry", lambda d: listed("./" + layout.LOG, d / layout.LOG)(d), "corrupt")
+    damaged("symlinked_file_escapes", symlink_file, "corrupt")
+    damaged("symlinked_directory_escapes", symlink_dir, "corrupt")
+    damaged("files_is_a_list", manifest_edit(lambda m: m.update(files=list(m["files"]))), "corrupt")
+    damaged("entry_is_a_string", manifest_edit(lambda m: m["files"].update({layout.METRICS: "sha"})), "corrupt")
+    damaged("size_is_a_string", manifest_edit(lambda m: m["files"][layout.METRICS].update(size="12")), "corrupt")
+
+    # 3c. Replacement keeps a valid destination at every commit boundary, and leftovers are recovered.
+    from ccil.runs.writer import recover
+    script = COMMIT.format(run_id=RUN_ID)
+    previous = tree(run_a)
+    expect_after = {"second_rename_fails": "previous", "kill_after_first_rename": "previous",
+                    "kill_after_exchange": "replacement"}
+    for mode, after in expect_after.items():
+        w = out / f"commit_{mode}"
+        (w / "runs").mkdir(parents=True)
+        shutil.copytree(run_a, w / "runs" / RUN_ID)
+        r = subprocess.run([sys.executable, "-c", script, mode], cwd=w, capture_output=True, text=True)
+        dest = w / "runs" / RUN_ID
+        at_failure = {"returncode": r.returncode, "dest_status": ccil_validate(dest)[1] if dest.exists() else "missing",
+                      "hidden": hidden(w / "runs"), "stderr": r.stderr.strip()[-160:]}
+        recover(w / "runs", RUN_ID)
+        status_after = ccil_validate(dest)
+        content = "previous" if dest.exists() and tree(dest) == previous else (
+            "replacement" if dest.exists() and json.loads((dest / layout.METRICS).read_text())["values"] == {"replacement": True}
+            else "other")
+        if mode == "second_rename_fails":
+            ok = r.returncode == 1 and "simulated failure of the second rename" in r.stderr \
+                and at_failure["dest_status"] == "complete" and not at_failure["hidden"]
+        elif mode == "kill_after_first_rename":
+            # Without an atomic exchange the destination is briefly absent; recovery restores it.
+            ok = r.returncode == -signal.SIGKILL and at_failure["dest_status"] == "missing" \
+                and any(".old-" in h for h in at_failure["hidden"])
+        else:
+            ok = r.returncode == -signal.SIGKILL and at_failure["dest_status"] == "complete"
+        ok = ok and status_after == (0, "complete") and content == after and not hidden(w / "runs")
+        record(f"commit_boundary[{mode}]", ok, at_failure=at_failure, after_recovery={
+            "status": status_after[1], "content": content, "hidden": hidden(w / "runs")})
+
+    # The next writer and the stage runner recover without an explicit call.
+    w = out / "commit_recovered_by_next_writer"
+    (w / "runs").mkdir(parents=True)
+    shutil.copytree(run_a, w / "runs" / RUN_ID)
+    subprocess.run([sys.executable, "-c", script, "kill_after_first_rename"], cwd=w, capture_output=True)
+    missing = not (w / "runs" / RUN_ID).exists()
+    try:
+        with RunWriter(w / "runs", RUN_ID, "probe", resolve(overrides={"run.seed": 1})):
+            pass
+        refused = False
+    except FileExistsError:
+        refused = True
+    record("next_writer_restores_before_existence_check", missing and refused and tree(w / "runs" / RUN_ID) == previous
+           and not hidden(w / "runs"), dest_missing_after_kill=missing, refused_existing=refused)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
