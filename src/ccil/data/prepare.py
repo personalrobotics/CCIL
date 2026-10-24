@@ -42,6 +42,11 @@ def prepare_stage(cfg: Resolved):
     if not source.exists():
         raise ConfigError([f"data.path {source} does not exist"])
     dataset = load_dataset(source)
+    action_dim = dataset.episodes[0].actions.shape[1] if dataset.episodes and dataset.episodes[0].actions.ndim == 2 else None
+    for key in ("data.action_low", "data.action_high"):
+        if v[key] is not None and action_dim is not None and len(v[key]) not in (1, action_dim):
+            raise ConfigError([f"{key} has {len(v[key])} values but {source} has {action_dim}-dimensional actions; "
+                               f"give one value or {action_dim} [source: {cfg.sources[key]}]"])
     dataset.validate(action_low=v["data.action_low"], action_high=v["data.action_high"])
     split = None
     if v["data.validation_fraction"] > 0:

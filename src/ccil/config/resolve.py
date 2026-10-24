@@ -43,11 +43,35 @@ class Resolved:
         }
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects a key repeated within one mapping, at any depth."""
+
+
+def _construct_unique_mapping(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        if key_node.tag == "tag:yaml.org,2002:merge":
+            continue
+        key = loader.construct_object(key_node, deep=True)
+        try:
+            duplicate = key in seen
+        except TypeError:  # unhashable key; construct_mapping reports it
+            break
+        if duplicate:
+            raise yaml.constructor.ConstructorError("while constructing a mapping", node.start_mark,
+                                                    f"found duplicate key {key!r}", key_node.start_mark)
+        seen.add(key)
+    return loader.construct_mapping(node, deep)
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping)
+
+
 def _load_yaml(path: Path, errors: list):
     """Parsed YAML, or None after recording why it could not be used."""
     try:
         with open(path) as f:
-            raw = yaml.safe_load(f)
+            raw = yaml.load(f, Loader=_StrictLoader)
     except (OSError, yaml.YAMLError) as e:
         errors.append(f"cannot read {path}: {e}")
         return None

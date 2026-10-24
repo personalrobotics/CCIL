@@ -72,7 +72,7 @@ class TrajectoryDataset:
             out.raise_if_any()
         if (action_low is None) != (action_high is None):
             raise ValueError("declare both action_low and action_high, or neither")
-        seen, shared = set(), {}
+        seen, shared, bounds_reported = set(), {}, False
         modalities = None
         for e, ep in enumerate(self.episodes):
             where = f"episode {e}"
@@ -144,6 +144,13 @@ class TrajectoryDataset:
                     if not np.isfinite(vals).all():
                         out.add("non_finite", where, "action_chunks has non-finite values at valid entries")
             if action_low is not None:
+                sizes = {np.size(action_low), np.size(action_high)}
+                if not sizes <= {1, dims["A"]}:
+                    if not bounds_reported:
+                        out.add("dimension_mismatch", "action bounds", f"bounds have {sorted(sizes)} values but actions "
+                                                                       f"have {dims['A']} dimensions; give 1 or {dims['A']}")
+                    bounds_reported = True
+                    continue
                 low = np.broadcast_to(np.asarray(action_low, float), (dims["A"],))
                 high = np.broadcast_to(np.asarray(action_high, float), (dims["A"],))
                 with np.errstate(invalid="ignore"):

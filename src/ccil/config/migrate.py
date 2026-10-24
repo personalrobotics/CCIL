@@ -37,13 +37,14 @@ RENAMED = {legacy: p.key for p in REGISTRY.values() for legacy in p.legacy
 
 
 def flatten(d: dict, prefix: str = "") -> dict:
+    """Nested mapping -> dotted keys; ValueError if two spellings name one key (run: {seed} and run.seed)."""
     out = {}
     for k, v in d.items():
         key = f"{prefix}{k}"
-        if isinstance(v, dict):
-            out.update(flatten(v, key + "."))
-        else:
-            out[key] = v
+        for name, value in (flatten(v, key + ".") if isinstance(v, dict) else {key: v}).items():
+            if name in out:
+                raise ValueError(f"key {name!r} is given more than once")
+            out[name] = value
     return out
 
 
@@ -94,6 +95,13 @@ def read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
     """A parsed YAML layer -> (canonical flat values, notes, errors), migrating when needed."""
     if not isinstance(raw, dict):
         return {}, [], [f"configuration must be a mapping, got {type(raw).__name__}"]
+    try:
+        return _read_layer(raw)
+    except ValueError as e:
+        return {}, [], [str(e)]
+
+
+def _read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
     version = raw.get("config_version", 0)
     if version == 0:
         values, notes, errors = migrate_v0(raw)

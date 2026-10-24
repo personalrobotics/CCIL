@@ -5,7 +5,9 @@
 
 Runs `ccil data prepare` on the Pendulum data with defaults and with an
 override, checks per-value provenance, byte-identical replay, failures before
-any output, legacy migration, and generated-docs drift. Writes DIR/report.json.
+any output (including duplicate YAML keys at any level and action bounds whose
+length is neither 1 nor the action dimension), legacy migration, and
+generated-docs drift. Writes DIR/report.json.
 """
 import argparse
 import hashlib
@@ -22,7 +24,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "correct_il"))
 from ccil.config import ConfigError, resolve  # noqa: E402
-from ccil.schema import read_trajectories, write_trajectories  # noqa: E402
+from ccil.schema import SchemaError, read_trajectories, write_trajectories  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from trajectory_io import convert_legacy_pickle  # noqa: E402
 
@@ -123,6 +125,31 @@ def main():
     fails("incompatible_combination", ["data.action_low=-1"], "must be declared together")
     fails("noise_bc_without_scale", ["policy.method=noise_bc"], "requires a positive policy.noise_scale")
     fails("unknown_recipe_value", ["generation.method=magic"], "is not one of")
+    fails("action_bounds_wrong_dimension", ["data.action_low=-3,-3", "data.action_high=3,3"],
+          "data.action_low has 2 values but data/pendulum_cont_100.npz has 1-dimensional actions")
+    tb = [c for c in cases if c["case"] == "fails_before_output[action_bounds_wrong_dimension]"][0]
+    tb["pass"] = tb["pass"] and "Traceback" not in tb["error"]
+    try:
+        from_m1_npz(work[0] / "data/pendulum_cont_100.npz").validate(action_low=[-3, -3], action_high=[3, 3])
+        got = None
+    except SchemaError as e:
+        got = str(e)
+    record("schema_rejects_wrong_dimension_bounds", got is not None and "dimension_mismatch" in got, error=(got or "")[:300])
+    dup_files = {
+        "nested": "config_version: 1\nrun:\n  seed: 1\n  seed: 2\n",
+        "top_level": "config_version: 1\nrun: {seed: 1}\nrun: {overwrite: true}\n",
+        "dotted_and_nested": "config_version: 1\nrun: {seed: 1}\nrun.seed: 2\n",
+    }
+    for name, text in dup_files.items():
+        d = out / f"fail_duplicate_{name}"
+        d.mkdir()
+        shutil.copytree(work[0] / "data", d / "data")
+        (d / "dup.yml").write_text(text)
+        r = ccil("data", "prepare", "--config", "dup.yml", "--recipe", "pendulum_cont", "--set", "run.output_dir=runs", cwd=d)
+        needle = "is given more than once" if name == "dotted_and_nested" else "found duplicate key"
+        record(f"fails_before_output[duplicate_keys_{name}]", r.returncode == 2 and needle in r.stderr
+               and "Traceback" not in r.stderr and not (d / "runs").exists()
+               and not any(p.name.startswith(".") for p in d.iterdir() if p.is_dir()), error=r.stderr.strip()[-300:])
     bad = out / "fail_invalid_data"
     bad.mkdir()
     ds = from_m1_npz(work[0] / "data/pendulum_cont_100.npz")

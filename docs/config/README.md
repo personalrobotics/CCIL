@@ -40,6 +40,12 @@ Everything is checked before any output is written or any model is built:
   the declared unit. Nothing is converted.
 - **Cross-field rules,** such as declaring action bounds together and
   `noise_bc` requiring a noise scale.
+- **No ambiguity:** a key repeated in one YAML mapping fails at any level, as
+  does one key spelled both nested and dotted (`run: {seed: 1}` with
+  `run.seed: 2`).
+- **Data-dependent rules,** checked once the dataset is read and before any
+  run is written: each action bound is either one value or exactly the
+  dataset's action dimension.
 
 ## Files and migration
 
@@ -72,13 +78,16 @@ uv run python tools/m2_config/check.py --out <new-dir>
 ```
 
 [`../fixtures/evidence/m2-config/report.json`](../fixtures/evidence/m2-config/report.json)
-has 18 cases:
+has 23 cases:
 
 - **Provenance:** default and override runs, with per-value sources, run IDs,
   the seed and output hashes.
 - **Replay:** byte-identical from another working directory.
 - **Overwrite:** an existing run is refused, then replaced atomically.
-- **Failures before output:** nine misconfigurations and a corrupt dataset.
+- **Failures before output:** twelve misconfigurations and a corrupt dataset.
+  These include duplicate YAML keys at three levels and wrong-dimension action
+  bounds, each with no traceback. The public `TrajectoryDataset.validate`
+  reports wrong-dimension bounds as a `SchemaError`.
 - **Parsing:** typed values and units, and Python-interface precedence.
 - **Migration:** the legacy config replays to the recipe's values; an
   unsupported key fails with guidance; an unknown config version is rejected.
