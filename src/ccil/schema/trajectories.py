@@ -23,9 +23,11 @@ STATE = ArraySpec("observations[state*]", "float", ("T", "D"), "task-defined",
 IMAGE = ArraySpec("observations[image*]", "uint8", ("T", "H", "W", "C"), "pixel intensity 0-255",
                   "Camera frames per frame; a modality named image.<camera>, C in {1, 3, 4}.")
 ACTIONS = ArraySpec("actions", "float", ("T", "A"), "task-defined", "Action applied at each frame.")
-TIMESTAMPS = ArraySpec("timestamps", "float", ("T",), "seconds", "Frame times; strictly increasing.", required=False)
+TIMESTAMPS = ArraySpec("timestamps", "float", ("T",), "seconds",
+                       "Frame times; strictly increasing. Given for every episode or none.", required=False)
 CHUNKS = ArraySpec("action_chunks", "float", ("T", "K", "A"), "task-defined",
-                   "action_chunks[t, k] is the action intended at frame t + k.", required=False)
+                   "action_chunks[t, k] is the action intended at frame t + k. Given for every episode or none, with one K.",
+                   required=False)
 CHUNK_MASK = ArraySpec("action_chunk_mask", "bool", ("T", "K"), "-",
                        "True exactly where t + k < T; required with action_chunks. A chunk never crosses the episode end.",
                        required=False)
@@ -132,6 +134,8 @@ class TrajectoryDataset:
                 ok = CHUNK_MASK.check(ep.action_chunk_mask, where, cdims, out) and ok
                 if ok:
                     K = cdims["K"]
+                    if shared.setdefault("K", K) != K:
+                        out.add("dimension_mismatch", where, f"action chunk length {K}, other episodes have {shared['K']}")
                     within = (np.arange(T)[:, None] + np.arange(K)[None, :]) < T
                     cross = ep.action_chunk_mask & ~within
                     for t in np.flatnonzero(cross.any(axis=1))[:5]:
@@ -157,6 +161,14 @@ class TrajectoryDataset:
                     oob = ((ep.actions < low) | (ep.actions > high)).any(axis=1)
                 for f in np.flatnonzero(oob):
                     out.add("action_out_of_bounds", f"{where}, frame {int(f)}", f"actions {ep.actions[f].tolist()} outside bounds")
+        # Optional per-frame fields are stored as one array across episodes, so each is all-or-none.
+        eps = [ep for ep in self.episodes if isinstance(ep, Episode)]
+        for name in ("timestamps", "action_chunks"):
+            have = [getattr(ep, name) is not None for ep in eps]
+            if any(have) and not all(have):
+                missing = [ep.episode_id for ep, h in zip(eps, have) if not h]
+                out.add("optional_field_presence", "dataset", f"{name} is given for {sum(have)} of {len(have)} episodes; "
+                                                              f"give it for every episode or none (missing: {missing[:5]})")
         out.raise_if_any()
         return self
 

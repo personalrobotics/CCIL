@@ -116,7 +116,7 @@ def run_integrated(cfg, trainer=None):
             from_train = np.isin(cands.source_episode_id, split["train"]) if split else np.ones(len(cands.accepted), bool)
             z.append(cands.observations[rep.output_modality][from_train])
             a.append(cands.actions[from_train])
-            w.append(np.ones(int(from_train.sum())) if cands.weight is None else cands.weight[from_train])
+            w.append(cands.weight[from_train])
         trainer.fit(np.concatenate(z), np.concatenate(a), np.concatenate(w))
         trainer.save(run.path(POLICY_CHECKPOINT))
         run.metrics({"trainer": trainer.name, "policy_method": v["policy.method"], "rows": int(sum(len(x) for x in z)),

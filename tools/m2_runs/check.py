@@ -70,6 +70,10 @@ def analytic_run(workdir: Path, overwrite=False, fail_after_partial=False) -> Pa
                              source_episode_id=ids, source_frame=frames.astype(np.int64),
                              observations={"state": s_g.astype(np.float32)}, actions=a, target_observations={"state": s},
                              accepted=~reasons.any(axis=1), reasons=reasons,
+                             weight=(~reasons.any(axis=1)).astype(np.float64), seed=0,
+                             inputs={"transition_model": hashlib.sha256(np.hstack([sys_.A, sys_.B])).hexdigest(),
+                                     "dataset": sha256("fixture.npz")},
+                             weighting={"name": "uniform", "version": "1", "params": {}},
                              measurements={"distance": dist, "residual": sys_.residual(s_g, a64, s64)})
         with RunWriter(cfg["run.output_dir"], RUN_ID, "analytic.backward_euler", cfg, overwrite=overwrite) as run:
             run.add_input("dataset", "fixture.npz")

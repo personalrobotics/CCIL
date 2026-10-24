@@ -20,7 +20,7 @@ METRICS_SCHEMA = "ccil.metrics"
 # Component schema -> highest major version this ccil can read.
 READABLE = {
     "ccil.trajectories": 1,
-    "ccil.candidates": 1,
+    "ccil.candidates": 2,
     "ccil.config": 1,
     "ccil.split": 1,
     METRICS_SCHEMA: 1,

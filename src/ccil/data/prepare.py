@@ -7,23 +7,20 @@ data, so identical inputs produce identical run directories.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
-
-import numpy as np
 
 from ..config import ConfigError, Resolved
 from ..runs import layout
 from ..runs.writer import dump_json
 from ..schema import read_trajectories, write_trajectories
+from ..schema.io import read_meta
 from ..schema.legacy import LEGACY_FORMAT, from_m1_npz
 from .split import make_split
 
 
 def load_dataset(path):
     """Read a ccil.trajectories file or an M1 ccil-trajectories/1 file, by its declared format."""
-    with np.load(path, allow_pickle=False) as z:
-        meta = json.loads(str(z["meta"])) if "meta" in z.files else {}
+    meta = read_meta(path, "ccil.trajectories")
     if meta.get("schema") == "ccil.trajectories":
         return read_trajectories(path)
     if meta.get("format") == LEGACY_FORMAT:

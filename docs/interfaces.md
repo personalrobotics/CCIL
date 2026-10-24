@@ -53,7 +53,7 @@ onto these interfaces.
 A learned encoder implements `Representation` with
 `output_modality = "latent.<name>"`, and a latent transition model implements
 `TransitionModel`. Labels then live in latent space as `latent.<name>`
-candidates. `ccil.candidates` 1.0 accepts that modality, so no schema change is
+candidates. `ccil.candidates` 2.0 accepts that modality, so no schema change is
 needed. Trajectories still store only `state` and `image` modalities.
 
 ## Evidence

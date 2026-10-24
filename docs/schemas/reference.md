@@ -14,9 +14,9 @@ An episode is T frames. Frame t has one entry per observation modality and an ac
 | `observations` | `dict[str, array]` | Named modalities matching state, state.<name>, or image.<camera>. |
 | `actions` | `array` | Action applied at each frame. |
 | `terminated` | `bool` | True if the episode ended in a terminal state; False if it was truncated. |
-| `timestamps` | `array \| None` | Frame times; strictly increasing. |
+| `timestamps` | `array \| None` | Frame times; strictly increasing. Given for every episode or none. |
 | `task` | `str \| None` | Task identifier or instruction. |
-| `action_chunks` | `array \| None` | action_chunks[t, k] is the action intended at frame t + k. |
+| `action_chunks` | `array \| None` | action_chunks[t, k] is the action intended at frame t + k. Given for every episode or none, with one K. |
 | `action_chunk_mask` | `array \| None` | True exactly where t + k < T; required with action_chunks. A chunk never crosses the episode end. |
 
 ### Arrays
@@ -26,8 +26,8 @@ An episode is T frames. Frame t has one entry per observation modality and an ac
 | `observations[state*]` | float | (T, D) | task-defined | yes | Low-dimensional state per frame; a modality named state or state.<name>. |
 | `observations[image*]` | uint8 | (T, H, W, C) | pixel intensity 0-255 | yes | Camera frames per frame; a modality named image.<camera>, C in {1, 3, 4}. |
 | `actions` | float | (T, A) | task-defined | yes | Action applied at each frame. |
-| `timestamps` | float | (T,) | seconds | no | Frame times; strictly increasing. |
-| `action_chunks` | float | (T, K, A) | task-defined | no | action_chunks[t, k] is the action intended at frame t + k. |
+| `timestamps` | float | (T,) | seconds | no | Frame times; strictly increasing. Given for every episode or none. |
+| `action_chunks` | float | (T, K, A) | task-defined | no | action_chunks[t, k] is the action intended at frame t + k. Given for every episode or none, with one K. |
 | `action_chunk_mask` | bool | (T, K) | - | no | True exactly where t + k < T; required with action_chunks. A chunk never crosses the episode end. |
 
 Modality names match `^(state|image)(\.[a-z0-9_]+)?$`.
@@ -36,9 +36,9 @@ Modality names match `^(state|image)(\.[a-z0-9_]+)?$`.
 
 Required: `actions`, `episode_ids`, `episode_lengths`, `terminated`, and `obs/<modality>` per modality. Optional: `action_chunk_mask`, `action_chunks`, `task`, `task_present`, `timestamps`. Per-frame arrays are concatenated across episodes in `episode_ids` order and split by `episode_lengths`.
 
-## `ccil.candidates` 1.0
+## `ccil.candidates` 2.0
 
-One row per attempted candidate, accepted or rejected. A row is accepted exactly when it carries no rejection reason; a rejected row may carry several independent reasons. Source identity (episode_id, frame) and measurements are required on every row so accepted labels can always be traced and replayed.
+One row per attempted candidate, accepted or rejected. A row is accepted exactly when it carries no rejection reason; a rejected row may carry several independent reasons. Source identity (episode_id, frame), measurements, and a training weight are required on every row, and the file records the run, seed, generator, input hashes (always including the transition model), and weighting that produced it, so an accepted label can be traced and replayed from the candidate file alone.  2.0 made weight, seed, inputs, and weighting required (1.0 had none of them).
 
 ### Fields
 
@@ -46,6 +46,9 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 |---|---|---|
 | `run_id` | `str` | Identifier of the run that produced the candidates. |
 | `generator` | `dict` | name, version, and params_hash of the generator. |
+| `seed` | `int` | Seed the generator drew its randomness from. |
+| `inputs` | `dict[str, str]` | SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from. |
+| `weighting` | `dict` | name, version, and params of the weighting that produced weight. |
 | `reason_codes` | `tuple[str]` | Column labels of reasons; each one of ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds']. |
 | `observations` | `dict[str, array (N, ...)]` | Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation. |
 | `target_observations` | `dict[str, array (N, ...)]` | Observation the candidate action should reach, per modality. |
@@ -60,7 +63,7 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 | `accepted` | bool | (N,) | - | yes | True exactly when the row has no rejection reason. |
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] rejects row i. |
 | `measurements[name]` | float | (N,) | per measurement | yes | Validity measurements (e.g. distance, residual); NaN allowed only on rejected rows. |
-| `weight` | float | (N,) | - | no | Optional training weight; finite and >= 0, and 0 on rejected rows. |
+| `weight` | float | (N,) | - | yes | Training weight; finite and >= 0 on accepted rows, 0 on rejected rows. |
 
 Candidate modality names match `^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$`.
 
@@ -68,8 +71,8 @@ Reason codes: `non_finite`, `out_of_support`, `generation_failed`, `action_out_o
 
 ### File layout (.npz)
 
-Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `weight`. `meta` holds run_id, generator, and reason_codes.
+Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `weight`. `meta` holds run_id, generator, and reason_codes.
 
 ## Compatibility
 
-Files are written atomically and read with allow_pickle=False. `meta` is a JSON string with schema, version "MAJOR.MINOR", and optional_fields. Compatibility: a minor version only adds optional fields; a reader accepts its own major version, ignores ext/<name> keys, ignores unknown keys only when the file declares them optional (written by a newer minor), and rejects anything else.
+Files are written atomically and read with allow_pickle=False. `meta` is a JSON string with schema, version "MAJOR.MINOR", and optional_fields. A file that cannot be decoded (not an archive, truncated, pickled arrays, non-JSON or mistyped meta, inconsistent array layout) raises SchemaError, never a raw decoding error. Compatibility: a minor version only adds optional fields; a reader accepts its own major version, ignores ext/<name> keys, ignores unknown keys only when the file declares them optional (written by a newer minor), and rejects anything else.
