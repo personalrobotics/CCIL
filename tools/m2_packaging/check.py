@@ -86,8 +86,14 @@ def main():
            wheel_files=names, unexpected=bad + sbad, local_paths=leaks, missing=sorted(needed - set(names)))
     requires = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Dist:"))
     pyreq = [l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Python:")]
-    record("metadata_declares_core_dependencies_only", requires == ["numpy>=1.24", "pyyaml>=6.0"] and pyreq == [">=3.10"]
-           and "ccil = ccil.__main__:main" in entry, requires_dist=requires, requires_python=pyreq, entry_points=entry.strip())
+    extras = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Provides-Extra:"))
+    core = [r for r in requires if "extra ==" not in r]
+    optional = [r for r in requires if "extra ==" in r]
+    record("metadata_declares_core_dependencies_only", core == ["numpy>=1.24", "pyyaml>=6.0"] and pyreq == [">=3.10"]
+           and extras == ["torch"] and len(optional) == 1 and optional[0].startswith("torch>=2.9.1")
+           and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", optional[0]) is not None
+           and "ccil = ccil.__main__:main" in entry,
+           requires_dist=requires, requires_python=pyreq, extras=extras, entry_points=entry.strip())
 
     for py in PYTHONS:
         venv = out / f"venv-{py}"

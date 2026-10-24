@@ -9,16 +9,29 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.optional-dependencies]
+# 2.9.1 is the lowest torch with no known critical, high, or medium advisory.
+# Python 3.11+ only: torch needs filelock, whose fixed releases (>= 4.2.1)
+# require 3.11. ccil never unpickles checkpoints. See docs/security.md.
+torch = ["torch>=2.9.1; python_version >= '3.11'"]
+
 [project.scripts]
 ccil = "ccil.__main__:main"
 
 [dependency-groups]
-# Evidence tools for the ccil core (tools/m2_*). The M1 legacy-harness tools pin
-# historical versions in their own requirements.txt and run with `uv run --no-project`.
+# Evidence tools for the ccil core (tools/m2_*), pinned exactly. The M1
+# legacy-harness tools pin historical versions in their own requirements.txt
+# and run with `uv run --no-project`, outside this environment.
 evidence = [
-    "matplotlib>=3.10.9",
-    "torch>=2.1",
+    "matplotlib==3.10.9",
+    "pillow==13.0.0",
+    "torch==2.14.1",
 ]
+
+[tool.uv.dependency-groups]
+# Patched Pillow and filelock exist only for Python 3.11+, so the evidence
+# environment is 3.11+; the ccil package itself still supports 3.10.
+evidence = { requires-python = ">=3.11" }
 
 [build-system]
 requires = ["uv_build>=0.12,<0.14"]
