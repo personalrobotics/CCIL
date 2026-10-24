@@ -29,19 +29,20 @@ import json, sys
 import numpy as np
 import torch
 import ccil
-from ccil.schema.io import _atomic_savez
-torch.manual_seed(0)
-net = torch.nn.Sequential(torch.nn.Linear(3, 8), torch.nn.Tanh(), torch.nn.Linear(8, 2)).eval()
-x = torch.randn(5, 3)
-# The #21 checkpoint path: state_dict -> numpy -> .npz without pickle -> state_dict.
-_atomic_savez(sys.argv[1], {k: v.detach().cpu().numpy() for k, v in net.state_dict().items()})
-with np.load(sys.argv[1], allow_pickle=False) as z:
-    state = {k: torch.from_numpy(z[k]) for k in z.files}
-twin = torch.nn.Sequential(torch.nn.Linear(3, 8), torch.nn.Tanh(), torch.nn.Linear(8, 2)).eval()
-twin.load_state_dict(state)
-with torch.no_grad():
-    same = bool(torch.equal(net(x), twin(x)))
-print(json.dumps({"torch": torch.__version__, "ccil": ccil.__file__, "npz_round_trip_identical": same}))
+from ccil.core import load_transition_model
+from ccil.models.mlp import MLPTransitionModel
+rng = np.random.default_rng(0)
+z, a = rng.normal(size=(256, 3)), rng.normal(size=(256, 1))
+model = MLPTransitionModel([16, 16], epochs=2, batch_size=32, lipschitz_type="spectral_normalization",
+                           lipschitz_constraint=1.5)
+model.fit(z, a, z + 0.1 * np.tanh(z), seed=0)
+# The ccil checkpoint path: state_dict -> numpy -> .npz without pickle -> state_dict.
+model.save(sys.argv[1])
+back = load_transition_model(sys.argv[1])
+for net in (model.net, back.net):
+    net.eval()  # compare at fixed power-iteration buffers
+print(json.dumps({"torch": torch.__version__, "ccil": ccil.__file__,
+                  "npz_round_trip_identical": bool(np.array_equal(model.delta(z, a), back.delta(z, a)))}))
 """
 
 
