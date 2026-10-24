@@ -1,0 +1,155 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "offline_analytic_run",
+   "oracle": {
+    "I1_accepted_finite": true,
+    "I2_accepted_in_support": true,
+    "I3_accounting": true,
+    "I4_closed_form": true,
+    "I5_expected_acceptance": true
+   },
+   "pass": true,
+   "replay_identical": true,
+   "report": {
+    "acceptance_rate": 0.4444444444444444,
+    "accepted": 4,
+    "candidates": 9,
+    "generator": {
+     "name": "backward_euler",
+     "params_hash": "5d685d4c029a7da0",
+     "version": "1"
+    },
+    "rejections_by_reason": {
+     "action_out_of_bounds": 0,
+     "generation_failed": 0,
+     "non_finite": 0,
+     "out_of_support": 5
+    }
+   },
+   "rerun_output": [
+    "data.prepare       reused runs/data-prepare-efca32e9dca0",
+    "transition.fit     reused runs/transition-fit-c5e9f32b4a0c",
+    "labels.generate    reused runs/labels-generate-7b39ed244531"
+   ],
+   "stages": {
+    "data-prepare-efca32e9dca0": "complete",
+    "labels-generate-7b39ed244531": "complete",
+    "transition-fit-c5e9f32b4a0c": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "case": "offline_imports_no_trainer",
+   "loaded": [],
+   "pass": true,
+   "stderr": ""
+  },
+  {
+   "accepted": 56,
+   "candidates": 56,
+   "case": "integrated_stub_flow",
+   "checkpoint_handoff_by_hash": true,
+   "evaluation": {
+    "action_l2_max": 2.837125567400956,
+    "action_l2_mean": 1.5138090919159464,
+    "held_out_transitions": 14,
+    "note": "offline action error; simulator evaluation is M7"
+   },
+   "label_modality": [
+    "latent.pca"
+   ],
+   "labels_inputs": [
+    "dataset",
+    "representation",
+    "transition_model"
+   ],
+   "pass": true,
+   "same_manifest_vocabulary": true,
+   "stages": {
+    "data-prepare-62a903922f57": "complete",
+    "labels-generate-727e61b37945": "complete",
+    "policy-evaluate-839e8a27c609": "complete",
+    "policy-train-3926339c39cd": "complete",
+    "representation-fit-ae5b91bb5c7e": "complete",
+    "transition-fit-cf1fb08aedc1": "complete"
+   }
+  },
+  {
+   "case": "downstream_trainer_replaceable",
+   "pass": true,
+   "stage_status": {
+    "data.prepare": "reused",
+    "labels.generate": "reused",
+    "policy.evaluate": "wrote",
+    "policy.train": "wrote",
+    "representation.fit": "reused",
+    "transition.fit": "reused"
+   }
+  },
+  {
+   "case": "failure_leaves_earlier_stages_and_resumes",
+   "failed_stage": "policy.train",
+   "pass": true,
+   "resume": [
+    [
+     "data.prepare",
+     true
+    ],
+    [
+     "representation.fit",
+     true
+    ],
+    [
+     "transition.fit",
+     true
+    ],
+    [
+     "labels.generate",
+     true
+    ],
+    [
+     "policy.train",
+     false
+    ],
+    [
+     "policy.evaluate",
+     false
+    ]
+   ],
+   "stages_after_failure": {
+    "data-prepare-62a903922f57": "complete",
+    "labels-generate-727e61b37945": "complete",
+    "representation-fit-ae5b91bb5c7e": "complete",
+    "transition-fit-cf1fb08aedc1": "complete"
+   },
+   "staging_left": []
+  },
+  {
+   "case": "fails_before_any_stage[unsupported_method]",
+   "error": "invalid configuration:\n  generation.method 'backward_model' is not available yet; it is ported in #22",
+   "pass": true
+  },
+  {
+   "case": "fails_before_any_stage[mlp_model]",
+   "error": "invalid configuration:\n  transition_model.kind 'mlp' (the legacy WorldModel) is ported in #21; use transition_model.kind=linear until then",
+   "pass": true
+  },
+  {
+   "case": "help_states_inputs_outputs_dependencies_exit_codes",
+   "help": {
+    "labels generate": "usage: ccil labels generate [-h] [--recipe RECIPE] [--config CONFIG]\n                            [--set KEY=VALUE]\n\nRun offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n",
+    "pipeline integrated": "usage: ccil pipeline integrated [-h] [--recipe RECIPE] [--config CONFIG]\n                                [--set KEY=VALUE]\n\nRun the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n"
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "26ce594b571bcf435e2f4a995e555d3b68214769",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

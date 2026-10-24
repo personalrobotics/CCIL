@@ -7,15 +7,13 @@ data, so identical inputs produce identical run directories.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 
 from ..config import ConfigError, Resolved
-from ..runs import RunWriter, layout
-from ..runs.provenance import sha256
+from ..runs import layout
 from ..runs.writer import dump_json
 from ..schema import read_trajectories, write_trajectories
 from ..schema.legacy import LEGACY_FORMAT, from_m1_npz
@@ -33,10 +31,13 @@ def load_dataset(path):
     raise ConfigError([f"data.path {path}: neither ccil.trajectories nor {LEGACY_FORMAT}"])
 
 
-def prepare(cfg: Resolved) -> Path:
+def prepare_stage(cfg: Resolved):
+    """Validate and split the dataset, then write (or reuse) the data.prepare stage run."""
+    from ..pipelines.stages import run_stage  # stage runner; imported here to keep data importable alone
+
     v = cfg.values
     if v["data.path"] is None:
-        raise ConfigError(["data.path is required for data prepare"])
+        raise ConfigError(["data.path is required"])
     source = Path(v["data.path"])
     if not source.exists():
         raise ConfigError([f"data.path {source} does not exist"])
@@ -46,9 +47,7 @@ def prepare(cfg: Resolved) -> Path:
     if v["data.validation_fraction"] > 0:
         split = make_split([ep.episode_id for ep in dataset.episodes], v["data.validation_fraction"], v["run.seed"])
 
-    run_id = "prepare-" + hashlib.sha256(f"{cfg.config_hash()}:{sha256(source)}".encode()).hexdigest()[:12]
-    with RunWriter(v["run.output_dir"], run_id, "data.prepare", cfg, overwrite=v["run.overwrite"]) as run:
-        run.add_input("dataset", source)
+    def body(run):
         write_trajectories(dataset, run.path(layout.DATASET))
         if split is not None:
             dump_json(split, run.path(layout.SPLIT))
@@ -57,4 +56,8 @@ def prepare(cfg: Resolved) -> Path:
                      "train_episodes": None if split is None else len(split["train"]),
                      "validation_episodes": None if split is None else len(split["validation"])})
         run.log(f"validated {len(dataset.episodes)} episodes from {source}")
-    return run.run_dir
+    return run_stage("data.prepare", cfg, {"dataset": source}, body)
+
+
+def prepare(cfg: Resolved) -> Path:
+    return prepare_stage(cfg).run_dir

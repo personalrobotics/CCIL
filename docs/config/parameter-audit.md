@@ -4,7 +4,7 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 33, deferred 11, derived 3, dropped 8, implemented 9, invariant 1, retired 5.
+Status counts: declared 26, deferred 11, derived 3, dropped 8, implemented 16, invariant 1, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
@@ -32,11 +32,11 @@ Status counts: declared 33, deferred 11, derived 3, dropped 8, implemented 9, in
 | `dynamics.activation` | tunable | `transition_model.activation` | declared | M3 (#21) |
 | `dynamics.train_epochs` | tunable | `transition_model.epochs` | declared | M3 (#21) |
 | `dynamics.batch_size` | tunable | `transition_model.batch_size` | declared | M3 (#21) |
-| `aug.type` | tunable | `generation.method` | declared | M3 (#21, #22) |
-| `aug.max_iter` | tunable | `generation.max_iterations` | declared | M3 (#21) |
-| `aug.num_labels` | tunable | `generation.labels_per_transition` | declared | M3 (#22) |
-| `aug.delta` | tunable | `generation.action_noise_std` | declared | M3 (#22) |
-| `aug.epsilon` | tunable | `generation.support_radius` | declared | M3 (#22) |
+| `aug.type` | tunable | `generation.method` | implemented |  |
+| `aug.max_iter` | tunable | `generation.max_iterations` | implemented |  |
+| `aug.num_labels` | tunable | `generation.labels_per_transition` | implemented |  |
+| `aug.delta` | tunable | `generation.action_noise_std` | implemented |  |
+| `aug.epsilon` | tunable | `generation.support_radius` | implemented |  |
 | `aug.balance_data` | tunable | `policy.balance_noisy_labels` | declared | M3 (#22) |
 | `aug.label_err_quantile` | tunable | - | deferred | label-error filtering from label-filtering; ported in #22 |
 | `aug.max_label_err` | tunable | - | deferred | label-error filtering from label-filtering; ported in #22 |
@@ -53,7 +53,7 @@ Status counts: declared 33, deferred 11, derived 3, dropped 8, implemented 9, in
 | `state_encoder.target_network_tau` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
 | `dynamics.val_percentage` | tunable | - | dropped | never read by the legacy code (#13) |
 | `aug.use_expert_label` | tunable | - | dropped | never read by the legacy code |
-| `policy.naive` | invariant | `policy.method` | declared | M3 |
+| `policy.naive` | invariant | `policy.method` | implemented |  |
 | `policy.noise_bc` | invariant | `policy.noise_scale` | declared | M3 |
 | `literal:eval.n_trials=100` | invariant | `evaluation.episodes` | declared |  |
 | `literal:eval.success_denominator=100` | derived | - | derived | equals evaluation.episodes |
@@ -67,7 +67,7 @@ Status counts: declared 33, deferred 11, derived 3, dropped 8, implemented 9, in
 | `literal:bc.action_scaler=min_max` | tunable | `policy.action_scaler` | declared |  |
 | `literal:bc.tycho_loss_weights` | tunable | - | retired | real-robot special case; real-robot results are cited as published (contract, section 3) |
 | `literal:bc.epoch_scaling` | derived | - | derived | policy epochs divided by labels per transition when noisy labels are balanced |
-| `literal:root_finder.threshold=1e-4` | tunable | `generation.root_tolerance` | declared |  |
+| `literal:root_finder.threshold=1e-4` | tunable | `generation.root_tolerance` | implemented |  |
 | `literal:backward_euler_fast.fail_distance=0.01` | derived | - | retired | diagnostic counter removed in #11 |
 | `literal:dynamics.input_normalization` | derived | - | derived | shift and scale computed from the training data |
 | `literal:seeding` | invariant | `run.seed` | implemented | CUDA determinism is compute.deterministic |

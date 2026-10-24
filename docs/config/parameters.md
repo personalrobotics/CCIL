@@ -32,10 +32,19 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `data.action_low` | floats | `null` | action units | - | implemented | Declared lower action bound per dimension (or one value for all). | Opt-in (#14); no shipped config declares bounds. | `data.action_low` |
 | `data.action_high` | floats | `null` | action units | - | implemented | Declared upper action bound per dimension (or one value for all). | Opt-in (#14); no shipped config declares bounds. | `data.action_high` |
 
+## representation
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `representation.kind` | choice | `"identity"` | - | `identity`, `pca` | implemented | Representation the labels live in. | identity reproduces vector CCIL; pca is the integrated pipeline's reference learned representation. | - |
+| `representation.modality` | str | `"state"` | - | - | implemented | Stored modality the representation reads. | Vector CCIL reads the state modality. | - |
+| `representation.dim` | int | `null` | - | [1, inf] | implemented | Latent dimension of a learned representation. | Required by pca; unused by identity. | - |
+
 ## transition_model
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
+| `transition_model.kind` | choice | `"mlp"` | - | `linear`, `mlp` | implemented | Transition-model family: linear (least squares) or mlp. | Legacy code used an MLP (WorldModel); its port is #21, so mlp fails with guidance until then. | - |
 | `transition_model.direction` | choice | `"forward"` | - | `forward`, `backward` | declared (M3 (#21)) | Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t). | Legacy dynamics.backward, absent (forward) in every config. | `dynamics.backward` |
 | `transition_model.lipschitz_type` | choice | `null` | - | `none`, `spectral_normalization`, `slack`, `spectral_normalization_slack`, `soft_sampling`, `soft_sampling_slack`, `soft_jac` | declared (M3 (#21)) | Lipschitz regularization of the transition model. | Task-specific in legacy configs. | `dynamics.lipschitz_type` |
 | `transition_model.lipschitz_constraint` | float | `null` | - | (0.0, inf] | declared (M3 (#21)) | Target Lipschitz bound. | Task-specific (1.0-4.0) in legacy configs. | `dynamics.lipschitz_constraint` |
@@ -54,18 +63,19 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `generation.method` | choice | `null` | - | `backward_euler`, `backward_euler_fast`, `forward_euler`, `noisy_action`, `noisy_action_fe`, `backward_model` | declared (M3 (#21, #22)) | Corrective-label generator. | Task-specific in legacy configs. | `aug.type` |
-| `generation.max_iterations` | int | `null` | - | [1, inf] | declared (M3 (#21)) | Root-finder iterations. | Task-specific (30 or 50) in legacy configs. | `aug.max_iter` |
-| `generation.root_tolerance` | float | `0.0001` | state units | (0.0, inf] | declared (M3 (#21)) | Residual norm at which the root finder stops. | Legacy literal in utils.root_finder_s. | - |
-| `generation.labels_per_transition` | int | `null` | - | [1, inf] | declared (M3 (#22)) | Noisy-action candidates per transition. | Task-specific (10 or 20) in legacy configs. | `aug.num_labels` |
-| `generation.action_noise_std` | float | `null` | action units | (0.0, inf] | declared (M3 (#22)) | Standard deviation of the noisy-action perturbation. | Task-specific in legacy configs. | `aug.delta` |
-| `generation.support_radius` | float | `null` | state units | (0.0, inf] | declared (M3 (#22)) | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
+| `generation.method` | choice | `null` | - | `backward_euler`, `backward_euler_fast`, `forward_euler`, `noisy_action`, `noisy_action_fe`, `backward_model` | implemented | Corrective-label generator. noisy_action_fe and backward_model are ported in #22. | Task-specific in legacy configs. | `aug.type` |
+| `generation.max_iterations` | int | `null` | - | [1, inf] | implemented | Root-finder iterations. | Task-specific (30 or 50) in legacy configs. | `aug.max_iter` |
+| `generation.root_tolerance` | float | `0.0001` | state units | (0.0, inf] | implemented | Residual norm at which the root finder stops. | Legacy literal in utils.root_finder_s. | - |
+| `generation.labels_per_transition` | int | `null` | - | [1, inf] | implemented | Noisy-action candidates per transition. | Task-specific (10 or 20) in legacy configs. | `aug.num_labels` |
+| `generation.action_noise_std` | float | `null` | action units | (0.0, inf] | implemented | Standard deviation of the noisy-action perturbation. | Task-specific in legacy configs. | `aug.delta` |
+| `generation.support_radius` | float | `null` | state units | (0.0, inf] | implemented | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
 
 ## policy
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `policy.method` | choice | `"ccil"` | - | `ccil`, `bc`, `noise_bc` | declared (M3) | Policy training data: expert plus accepted labels, expert only, or NoiseBC. | Replaces the policy.naive and policy.noise_bc flag combination. | `policy.naive`, `policy.noise_bc` |
+| `policy.method` | choice | `"ccil"` | - | `ccil`, `bc`, `noise_bc` | implemented | Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3). | Replaces the policy.naive and policy.noise_bc flag combination. | `policy.naive`, `policy.noise_bc` |
+| `policy.trainer` | choice | `"linear_least_squares"` | - | `linear_least_squares`, `mean_action` | implemented | Downstream policy trainer of the integrated pipeline. | Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. | - |
 | `policy.noise_scale` | float | `null` | - | [0.0, inf] | declared (M3) | NoiseBC observation-noise scale. | Set per suite by the legacy scripts. | `policy.noise_bc` |
 | `policy.noise_model` | choice | `"legacy_uniform_half_batch"` | - | `legacy_uniform_half_batch` | declared (M3) | NoiseBC noise distribution. | Legacy CustomBC adds noise_cov * U[0,1) to half of each batch (non-negative, not zero-mean). | - |
 | `policy.learning_rate` | float | `0.001` | - | (0.0, inf] | declared (M3) | Policy learning rate. | Same value in every legacy config. | `policy.lr` |
@@ -91,5 +101,6 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 ## Cross-field rules
 
+- `pca_dim`: `representation.kind`, `representation.dim`
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `noise_bc_scale`: `policy.method`, `policy.noise_scale`

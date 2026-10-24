@@ -107,13 +107,20 @@ def main():
         metrics = json.loads((runs[0] / "metrics.json").read_text())["values"] if len(runs) == 1 else {}
         validated = json.loads(run(venv / "bin" / "ccil", "run", "validate", runs[0], cwd=work, check=False).stdout)["status"] \
             if len(runs) == 1 else None
+        labels = run(venv / "bin" / "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
+                     "--set", "data.path=tiny.npz", "--set", "run.output_dir=label_runs", cwd=work, check=False)
+        label_runs = sorted((work / "label_runs").iterdir()) if (work / "label_runs").exists() else []
+        label_status = sorted(json.loads(run(venv / "bin" / "ccil", "run", "validate", d, cwd=work, check=False).stdout)["status"]
+                              for d in label_runs)
         from_wheel = str(venv) in info["file"] and str(REPO) not in info["file"]
         record(f"clean_install_runs[python {py}]",
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
                and prep.returncode == 0 and validated == "complete"
-               and (metrics.get("train_episodes"), metrics.get("validation_episodes")) == (4, 1),
+               and (metrics.get("train_episodes"), metrics.get("validation_episodes")) == (4, 1)
+               and labels.returncode == 0 and label_status == ["complete"] * 3,
                python=info["python"], installed=installed, imported_from_venv=from_wheel,
-               prepare_stderr=prep.stderr[-300:], run_status=validated, metrics=metrics)
+               prepare_stderr=prep.stderr[-300:], run_status=validated, metrics=metrics,
+               labels_generate_stages=label_status, labels_stderr=labels.stderr[-300:])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
