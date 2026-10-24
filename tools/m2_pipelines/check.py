@@ -8,8 +8,12 @@
 2. Offline generation never imports the integrated pipeline or a policy trainer.
 3. Integrated stub flow on a synthetic state+image dataset: six complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
-4. Replacing the downstream trainer reuses the four CCIL stages.
+4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
+   evaluation settings reuses stages 1-5, and the new evaluation, which loads
+   the reused policy checkpoint, reproduces the original metrics.
 5. A failure in policy.train leaves earlier stages valid; the rerun resumes there.
+   A failure in policy.evaluate leaves policy.train complete; the rerun reuses
+   it and completes.
    Unsupported configurations fail before any stage writes.
 6. Help output states inputs, outputs, optional dependencies, and exit codes.
 Writes DIR/report.json.
@@ -154,6 +158,23 @@ def main():
            and reuse.get("policy.train") == "wrote" and reuse.get("policy.evaluate") == "wrote" and len(runs(wi / "runs")) == 8,
            stage_status=reuse)
 
+    # 4b. Changing only evaluation settings reuses stages 1-5; the evaluation loads the reused policy.
+    first_eval = {n: p for n, p in runs(wi / "runs").items() if n.startswith("policy-evaluate")}
+    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "evaluation.episodes=7", cwd=wi)
+    lines = [l.split() for l in r.stdout.strip().splitlines()]
+    status = {l[0]: l[1] for l in lines if len(l) > 1}
+    new_eval = [p for n, p in runs(wi / "runs").items() if n.startswith("policy-evaluate") and n not in first_eval]
+    same_metrics = None
+    if r.returncode == 0 and len(new_eval) == 1:
+        orig = json.loads((by_stage["policy.evaluate"] / layout.METRICS).read_text())["values"]
+        same_metrics = json.loads((new_eval[0] / layout.METRICS).read_text())["values"] == orig
+    record("evaluation_only_change_reuses_trained_policy", r.returncode == 0 and len(new_eval) == 1 and same_metrics
+           and all(status.get(s) == "reused" for s in ("data.prepare", "representation.fit", "transition.fit",
+                                                        "labels.generate", "policy.train"))
+           and status.get("policy.evaluate") == "wrote",
+           stage_status=status, new_evaluate_runs=len(new_eval), metrics_equal_original=same_metrics,
+           stderr=r.stderr.strip()[-300:])
+
     # 5. Failure in policy.train, then resume; unsupported configs fail before writing.
     wf = out / "failure"
     wf.mkdir()
@@ -189,6 +210,38 @@ def main():
            and set(after_fail.values()) == {"complete"} and not staging and resume_ok,
            failed_stage=failed_stage, stages_after_failure=after_fail, staging_left=staging,
            resume=[[r.stage, r.reused] for r in resumed])
+
+    class FlakyEvalTrainer(LinearPolicyTrainer):
+        name = "flaky_eval"
+        fail = True
+
+        def predict(self, z):
+            if FlakyEvalTrainer.fail:
+                raise RuntimeError("simulated evaluation failure")
+            return super().predict(z)
+
+    before_eval_fail = set(runs(wf / "runs"))
+    os.chdir(wf)
+    try:
+        try:
+            run_integrated(cfg, trainer=FlakyEvalTrainer())
+            failed_stage = None
+        except StageError as e:
+            failed_stage = e.stage
+        new_runs = {n: validate_run(p)[0] for n, p in runs(wf / "runs").items() if n not in before_eval_fail}
+        FlakyEvalTrainer.fail = False
+        try:
+            resumed = run_integrated(cfg, trainer=FlakyEvalTrainer())
+            resume_error = None
+        except StageError as e:
+            resumed, resume_error = [], str(e)
+    finally:
+        os.chdir(cwd)
+    record("evaluate_failure_resumes_with_reused_policy", failed_stage == "policy.evaluate"
+           and [n.split("-")[1] for n in new_runs] == ["train"] and set(new_runs.values()) == {"complete"}
+           and [r.reused for r in resumed] == [True, True, True, True, True, False],
+           failed_stage=failed_stage, runs_after_failure=new_runs, resume=[[r.stage, r.reused] for r in resumed],
+           resume_error=resume_error)
     for name, extra in (("unsupported_method", ["--set", "generation.method=backward_model"]),
                         ("mlp_model", ["--set", "transition_model.kind=mlp"])):
         w = out / f"preflight_{name}"

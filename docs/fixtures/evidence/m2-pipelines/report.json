@@ -89,6 +89,21 @@
    }
   },
   {
+   "case": "evaluation_only_change_reuses_trained_policy",
+   "metrics_equal_original": true,
+   "new_evaluate_runs": 1,
+   "pass": true,
+   "stage_status": {
+    "data.prepare": "reused",
+    "labels.generate": "reused",
+    "policy.evaluate": "wrote",
+    "policy.train": "reused",
+    "representation.fit": "reused",
+    "transition.fit": "reused"
+   },
+   "stderr": ""
+  },
+  {
    "case": "failure_leaves_earlier_stages_and_resumes",
    "failed_stage": "policy.train",
    "pass": true,
@@ -127,6 +142,41 @@
    "staging_left": []
   },
   {
+   "case": "evaluate_failure_resumes_with_reused_policy",
+   "failed_stage": "policy.evaluate",
+   "pass": true,
+   "resume": [
+    [
+     "data.prepare",
+     true
+    ],
+    [
+     "representation.fit",
+     true
+    ],
+    [
+     "transition.fit",
+     true
+    ],
+    [
+     "labels.generate",
+     true
+    ],
+    [
+     "policy.train",
+     true
+    ],
+    [
+     "policy.evaluate",
+     false
+    ]
+   ],
+   "resume_error": null,
+   "runs_after_failure": {
+    "policy-train-8ff41f9fa78b": "complete"
+   }
+  },
+  {
    "case": "fails_before_any_stage[unsupported_method]",
    "error": "invalid configuration:\n  generation.method 'backward_model' is not available yet; it is ported in #22",
    "pass": true
@@ -146,7 +196,7 @@
   }
  ],
  "environment": {
-  "code_commit": "26ce594b571bcf435e2f4a995e555d3b68214769",
+  "code_commit": "7e9a75817b4a217de9e574098133de4df1f166e0",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
