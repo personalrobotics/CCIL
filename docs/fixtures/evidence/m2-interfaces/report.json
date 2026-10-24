@@ -109,12 +109,12 @@
    "pass": true,
    "sha256": {
     "exact_preimage": [
-     "d9b2e58b85f91e831c0961160940f0e7db682d29c888e7f3719452250998ad92",
-     "d9b2e58b85f91e831c0961160940f0e7db682d29c888e7f3719452250998ad92"
+     "1b31dea8a5de358d49001c825ccf39491d43703402915ce5f23d0a75c6a542a3",
+     "1b31dea8a5de358d49001c825ccf39491d43703402915ce5f23d0a75c6a542a3"
     ],
     "noisy_action": [
-     "021c4f9739786657d0fcc99f3e1aee52bdcdb22cbf0556c58cb6c65d522d9ee8",
-     "021c4f9739786657d0fcc99f3e1aee52bdcdb22cbf0556c58cb6c65d522d9ee8"
+     "96422fe47e5d5dbafa16f3cfb4f3119e64f9cbb53e676d1eb809ba643043e784",
+     "96422fe47e5d5dbafa16f3cfb4f3119e64f9cbb53e676d1eb809ba643043e784"
     ]
    }
   },
@@ -159,10 +159,28 @@
    "rows": 9,
    "singular_rows": 3,
    "solvable_rows_match_exact_model": true
+  },
+  {
+   "case": "transition_model_persistence_contract",
+   "checkpoint_meta": {
+    "component": "transition_model",
+    "kind": "linear",
+    "version": "1"
+   },
+   "delta_identical": true,
+   "failures": {
+    "future_version": "CheckpointError: <out>/ck_ver.npz holds 'linear' version '2'; LinearTransitionModel reads 'linear' version '1'",
+    "not_a_checkpoint": "CheckpointError: <out>/not_a_checkpoint.npz is not a transition_model checkpoint: This file contains pickled (object) data. If you trust the file you can load it unsafely using the `allow_pickle=` keyword argument or `pickle.load()`.",
+    "other_component": "CheckpointError: <out>/ck_comp.npz is not a transition_model checkpoint",
+    "unavailable_device": "ValueError: LinearTransitionModel runs on cpu only",
+    "unknown_kind": "CheckpointError: <out>/ck_kind.npz holds transition model kind 'spline'; this ccil reads ['linear']"
+   },
+   "pass": true,
+   "save_load_save_identical": true
   }
  ],
  "environment": {
-  "code_commit": "68534af39f315037afcc25f2c6f2a328b7fb5413",
+  "code_commit": "816999c610588c548af4cc3691a939a9fa6a7c68",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
