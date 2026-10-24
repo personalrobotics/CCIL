@@ -65,7 +65,8 @@ def main():
     for n in (1, 2):
         d = out / f"dist{n}"
         run("uv", "build", "--out-dir", d, cwd=REPO)
-        builds.append({p.suffix if p.suffix == ".whl" else ".tar.gz": p for p in d.iterdir()})
+        # Select by name: newer uv also writes a .gitignore into the output directory.
+        builds.append({kind: p for p in d.iterdir() for kind in (".whl", ".tar.gz") if p.name.endswith(kind)})
     wheel, sdist = builds[0][".whl"], builds[0][".tar.gz"]
     record("builds_are_reproducible", all(sha(builds[0][k]) == sha(builds[1][k]) for k in builds[0]),
            wheel_sha256=sha(wheel), sdist_sha256=sha(sdist))
