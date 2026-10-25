@@ -241,17 +241,27 @@ class CandidateSet:
                 and CHUNK_MASK.check(self.action_chunk_mask, "candidates", dims, out)):
             return False
         spec = self.action_chunk_spec
-        if not (isinstance(spec, dict) and set(spec) == {"chunk_size", "alignment", "guarantee", "truncation"}
-                and spec["chunk_size"] == dims["K"] and all(isinstance(spec[k], str) and spec[k]
-                                                            for k in ("alignment", "guarantee", "truncation"))):
-            out.add("action_chunk_spec", "candidates", "action_chunk_spec needs chunk_size (= K) and non-empty "
-                                                       "alignment, guarantee, and truncation")
+        keys = {"chunk_size", "target_frame_offset", "alignment", "guarantee", "truncation"}
+        if not (isinstance(spec, dict) and set(spec) == keys and type(spec["chunk_size"]) is int
+                and spec["chunk_size"] == dims["K"] and spec["target_frame_offset"] in (0, 1)
+                and type(spec["target_frame_offset"]) is int
+                and all(isinstance(spec[k], str) and spec[k] for k in ("alignment", "guarantee", "truncation"))):
+            out.add("action_chunk_spec", "candidates", "action_chunk_spec needs integer chunk_size (= K), "
+                                                       "target_frame_offset 0 or 1, and non-empty alignment, guarantee, "
+                                                       "and truncation")
             return False
-        if "chunk_target_frame" not in self.measurements:
+        tau = self.measurements.get("chunk_target_frame")
+        if tau is None:
             out.add("action_chunks", "candidates", "action chunks need the measurement chunk_target_frame")
             return False
+        expected = self.source_frame.astype(np.float64) + spec["target_frame_offset"]
+        for i in np.flatnonzero(~(np.isfinite(tau) & (tau == expected)))[:5]:
+            out.add("action_chunks", f"row {int(i)}", f"chunk_target_frame {float(tau[i])} must equal source_frame + "
+                                                      f"target_frame_offset = {expected[i]:g}")
         if not self.action_chunk_mask[:, 0].all() or not np.array_equal(self.action_chunks[:, 0], self.actions):
             out.add("action_chunks", "candidates", "chunk position 0 must be valid and equal the label action")
+        if (self.action_chunks[~self.action_chunk_mask] != 0).any():
+            out.add("action_chunks", "candidates", "masked chunk positions must be exactly zero (truncated, never padded)")
         valid = self.action_chunks[self.accepted][self.action_chunk_mask[self.accepted]]
         if not np.isfinite(valid).all():
             out.add("non_finite", "accepted rows", "action_chunks has non-finite values at valid positions")
@@ -264,8 +274,12 @@ class CandidateSet:
         K = self.action_chunks.shape[1]
         for i in range(len(self.accepted)):
             ep = episodes.get(str(self.source_episode_id[i]))
-            if ep is None or not float(tau[i]).is_integer():
-                continue  # unknown episodes are reported by the source-identity check
+            if ep is None or not (np.isfinite(tau[i]) and float(tau[i]).is_integer()):
+                continue  # reported by the source-identity and target-frame checks
+            if not 0 <= tau[i] <= ep.length - 1:
+                out.add("action_chunks", f"row {i}", f"chunk_target_frame {int(tau[i])} is outside the {ep.length}-frame "
+                                                     "episode")
+                continue
             frames = int(tau[i]) + np.arange(K - 1)
             inside = frames <= ep.length - 1
             if not np.array_equal(self.action_chunk_mask[i, 1:], inside) or not np.array_equal(

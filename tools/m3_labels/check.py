@@ -50,7 +50,10 @@ Action chunks (#22 part 3):
   condition, padding, and off-by-one disturbed-action continuation;
 - chunk files are 2.3, round-trip through accepted_labels, and the 2.2
   reader (8071952) reads them, ignoring the chunks; the pipeline writes a
-  complete run with chunks, and aug.chunk_size migrates.
+  complete run with chunks, and aug.chunk_size migrates;
+- wrong or non-finite target frames, nonzero or non-finite masked positions, a
+  forged 2.2 file with chunks, undeclared chunk arrays, a spec without its
+  target-frame offset, and non-integer chunk sizes are all rejected.
 Writes DIR/report.json.
 """
 import argparse
@@ -714,6 +717,66 @@ def main():
            and file_meta(clab / "labels/candidates.npz")["version"] == "2.3" and rc5["generation.action_chunk_size"] == 5,
            stages=cstat, migrated_chunk_size=rc5["generation.action_chunk_size"],
            artifact=f"<out>/pipeline_chunks/runs/{clab.name}/labels/candidates.npz" if clab else None, stderr=rcmd.stderr[-300:])
+
+    # 32. Malformed chunks and chunk files are rejected (review of #93).
+    def schema_rejects(build):
+        try:
+            build()
+            return "accepted"
+        except SchemaError as e:
+            return f"SchemaError: {sorted(e.counts)}: {e.violations[0]['detail'][:120]}"
+
+    def mutated_set(base, edit):
+        c = copy.deepcopy(base)
+        edit(c)
+        return lambda: c.validate(dataset)
+
+    def bump_frame(c):
+        c.measurements["chunk_target_frame"][0] += 1
+
+    rej_row = int(np.flatnonzero(~cfail.accepted)[0])
+
+    def nan_rejected_frame(c):
+        c.measurements["chunk_target_frame"][rej_row] = np.nan
+
+    masked = np.argwhere(~cda.action_chunk_mask)
+
+    def nonzero_tail(c):
+        c.action_chunks[tuple(masked[0])] = 5.0
+
+    def nan_tail(c):
+        c.action_chunks[tuple(masked[0])] = np.nan
+
+    def edited_file(name, edit):
+        with np.load(out / "chunks.npz", allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        meta = json.loads(str(arrays["meta"]))
+        edit(meta)
+        arrays["meta"] = np.array(json.dumps(meta))
+        np.savez(out / name, **arrays)
+        return lambda: read_candidates(out / name)
+
+    malformed = {
+        "wrong_integral_target_frame": schema_rejects(mutated_set(cda, bump_frame)),
+        "non_finite_target_frame_on_rejected_row": schema_rejects(mutated_set(cfail, nan_rejected_frame)),
+        "nonzero_masked_position": schema_rejects(mutated_set(cda, nonzero_tail)),
+        "non_finite_masked_position": schema_rejects(mutated_set(cda, nan_tail)),
+        "forged_2_2_file_with_chunks": schema_rejects(edited_file("forged22.npz", lambda m: m.update(version="2.2"))),
+        "chunk_arrays_not_declared_optional": schema_rejects(edited_file("undeclared.npz", lambda m: m.update(optional_fields=[]))),
+        "spec_without_target_frame_offset": schema_rejects(edited_file(
+            "no_offset.npz", lambda m: m["action_chunk_spec"].pop("target_frame_offset"))),
+    }
+    api = {}
+    for value in (2.5, True, 0):
+        try:
+            generate_labels(dataset, rep, model, BackwardEuler(), [Finite()], run_id="k", seed=SEED, action_chunk_size=value)
+            api[repr(value)] = "accepted"
+        except InterfaceError as e:
+            api[repr(value)] = f"InterfaceError: {e}"
+    record("malformed_chunks_and_chunk_files_rejected",
+           all(v.startswith("SchemaError") for v in malformed.values()) and all(v.startswith("InterfaceError") for v in api.values())
+           and cda.action_chunk_spec["target_frame_offset"] == 1 and cbt.action_chunk_spec["target_frame_offset"] == 0,
+           malformed=malformed, action_chunk_size=api)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

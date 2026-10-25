@@ -175,7 +175,10 @@ The source is `gen_aug_label_chunking.py` on the label-filtering branch
   - BackTrack labels (backward Euler, exact preimage) reach frame t, so τ = t;
   - DisturbedAction labels (noisy action) reach frame t + 1, so τ = t + 1.
 
-  τ is recorded per row as `chunk_target_frame`.
+  τ is recorded per row as `chunk_target_frame`, and the offset (0 or 1) as
+  `action_chunk_spec.target_frame_offset`. Validation requires every row,
+  accepted or rejected, to have a finite τ equal to `source_frame` plus the
+  offset, and inside its episode.
 - **Truncation, not padding.** Positions past the episode's last frame are
   masked and zero. A chunk never reads another episode. The final frame's
   action is part of `ccil.trajectories`, so a label reaching the last frame
@@ -189,7 +192,10 @@ The source is `gen_aug_label_chunking.py` on the label-filtering branch
   (N, K, A) and `action_chunk_mask` (N, K), and the meta `action_chunk_spec`.
   - A file declares 2.3 only when it carries chunks, and lists the arrays in
     `optional_fields`, so a 2.2 reader ignores them.
-  - Validation checks every valid position against the source episode.
+  - Validation checks every valid position against the source episode, and
+    requires every masked position to be exactly zero.
+  - Readers reject chunk fields in a file that declares less than 2.3, and a
+    2.3 chunk file that doesn't list its chunk arrays in `optional_fields`.
 
 **Legacy defects corrected** (the evidence transcribes the branch's code and
 runs it on the same labels):

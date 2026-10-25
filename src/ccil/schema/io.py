@@ -234,6 +234,16 @@ def read_candidates(path, dataset: TrajectoryDataset | None = None) -> Candidate
     codes = meta.get("reason_codes", [])
     if not isinstance(codes, list) or not all(isinstance(c, str) for c in codes):
         raise _format_error(labels.SCHEMA, path, ["meta.reason_codes must be a list of strings"])
+    # Chunks are a 2.3 feature: a file claiming an earlier version must not carry them (a reader of that version
+    # could not read it), and a chunk file must declare its chunk arrays optional so 2.2 readers can skip them.
+    chunk_fields = sorted(k for k in CAND_OPTIONAL if k in z) + (["action_chunk_spec"] if "action_chunk_spec" in meta else [])
+    if chunk_fields:
+        minor = int(str(meta.get("version")).split(".")[1])
+        if minor < 3:
+            raise _format_error(labels.SCHEMA, path, [f"version {meta.get('version')} cannot carry {chunk_fields}; "
+                                                      "action chunks need 2.3"])
+        if not CAND_OPTIONAL <= set(meta.get("optional_fields", [])):
+            raise _format_error(labels.SCHEMA, path, [f"a chunk file must list {sorted(CAND_OPTIONAL)} in optional_fields"])
     cands = CandidateSet(
         run_id=meta.get("run_id"), generator=meta.get("generator"),
         source_episode_id=z["source_episode_id"], source_frame=z["source_frame"],

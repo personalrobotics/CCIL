@@ -36,8 +36,8 @@ def action_chunks(dataset, generator, episode_ids, frames, label_actions, chunk_
     if profile not in TARGET_OFFSET:
         raise InterfaceError(f"{type(generator).__name__} declares no label_error_profile, so the frame its labels "
                              "arrive at, and their chunk alignment, is undefined")
-    if int(chunk_size) < 1:
-        raise InterfaceError(f"chunk_size must be >= 1, got {chunk_size!r}")
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, (int, np.integer)) or chunk_size < 1:
+        raise InterfaceError(f"action_chunk_size must be an integer >= 1, got {chunk_size!r}")
     K = int(chunk_size)
     n, A = label_actions.shape
     chunks = np.zeros((n, K, A), dtype=label_actions.dtype)
@@ -54,4 +54,4 @@ def action_chunks(dataset, generator, episode_ids, frames, label_actions, chunk_
         block = chunks[rows]  # a copy (fancy indexing); written back below
         block[:, 1:][inside] = ep.actions[pos[inside]].astype(label_actions.dtype)
         chunks[rows] = block
-    return chunks, mask, tau.astype(np.float64)
+    return chunks, mask, tau.astype(np.float64), TARGET_OFFSET[profile]

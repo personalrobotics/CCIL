@@ -118,12 +118,13 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
 
     chunk_fields = {}
     if action_chunk_size is not None:
-        chunks, mask, tau = action_chunks(dataset, generator, batch.episode_id[cands.source],
-                                          batch.frame[cands.source], cands.a, action_chunk_size)
+        chunks, mask, tau, offset = action_chunks(dataset, generator, batch.episode_id[cands.source],
+                                                  batch.frame[cands.source], cands.a, action_chunk_size)
         measurements["chunk_target_frame"] = tau
         specs["chunk_target_frame"] = dict(CHUNK_TARGET_FRAME_SPEC)
         chunk_fields = {"action_chunks": chunks, "action_chunk_mask": mask,
-                        "action_chunk_spec": {"chunk_size": int(action_chunk_size), **CHUNK_SPEC}}
+                        "action_chunk_spec": {"chunk_size": int(action_chunk_size), "target_frame_offset": offset,
+                                              **CHUNK_SPEC}}
 
     modality = representation.output_modality
     return CandidateSet(
