@@ -18,7 +18,8 @@ import zipfile
 
 import numpy as np
 
-from . import labels, trajectories
+from . import certificates, labels, trajectories
+from .certificates import CertificateSet
 from .fields import SchemaError
 from .labels import CandidateSet
 from .trajectories import Episode, TrajectoryDataset
@@ -256,3 +257,54 @@ def read_candidates(path, dataset: TrajectoryDataset | None = None) -> Candidate
         measurement_specs=meta.get("measurement_specs"), action_chunks=z.get("action_chunks"),
         action_chunk_mask=z.get("action_chunk_mask"), action_chunk_spec=meta.get("action_chunk_spec"))
     return cands.validate(dataset)
+
+
+# --- certificates ---------------------------------------------------------
+CERT_REQUIRED = {"source_episode_id", "source_frame", "model_error_value", "total_error_value", "classification",
+                 "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"}
+CERT_META = ("descriptor", "admission", "selection", "candidates_sha256", "inputs", "components")
+
+
+def write_certificates(cert: CertificateSet, path) -> None:
+    cert.validate()
+    arrays = {"source_episode_id": cert.source_episode_id, "source_frame": cert.source_frame,
+              "model_error_value": cert.model_error_value, "total_error_value": cert.total_error_value,
+              "classification": certificates.code_classifications(cert.classification),
+              "is_upper_bound": cert.is_upper_bound, "in_neighborhood": cert.in_neighborhood,
+              "admissible": cert.admissible, "selected": cert.selected, "reasons": cert.reasons}
+    arrays.update({f"term/{k}": v for k, v in cert.terms.items()})
+    arrays["meta"] = _meta(certificates.SCHEMA, certificates.VERSION, set(), **{k: getattr(cert, k) for k in CERT_META},
+                           classification_codes=list(certificates.CLASSIFICATIONS),
+                           reason_codes=list(certificates.REASON_CODES))
+    _atomic_savez(path, arrays)
+
+
+def read_certificates(path) -> CertificateSet:
+    """Read and validate a ccil.certificates file."""
+    s = certificates.SCHEMA
+    z, meta = _open(path, s, certificates.VERSION, CERT_REQUIRED, ("term/",))
+    problems = []
+    missing = sorted(CERT_REQUIRED - set(z))
+    if missing:
+        problems.append(f"missing required fields {missing}")
+    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "classification_codes", "reason_codes", *CERT_META})
+    if unknown:
+        problems.append(f"unknown meta fields {unknown}")
+    if meta.get("classification_codes") != list(certificates.CLASSIFICATIONS):
+        problems.append(f"classification_codes must be {list(certificates.CLASSIFICATIONS)}")
+    if meta.get("reason_codes") != list(certificates.REASON_CODES):
+        problems.append(f"reason_codes must be {list(certificates.REASON_CODES)}")
+    codes = z.get("classification")
+    if codes is not None and (codes.ndim != 1 or codes.dtype.kind not in "iu"
+                              or ((codes < 0) | (codes >= len(certificates.CLASSIFICATIONS))).any()):
+        problems.append("classification must be rank-1 integer codes into classification_codes")
+    if problems:
+        raise _format_error(s, path, problems)
+    cert = CertificateSet(
+        source_episode_id=z["source_episode_id"], source_frame=z["source_frame"],
+        terms={k[5:]: z[k] for k in z if k.startswith("term/")},
+        model_error_value=z["model_error_value"], total_error_value=z["total_error_value"],
+        classification=certificates.decode_classifications(codes), is_upper_bound=z["is_upper_bound"],
+        in_neighborhood=z["in_neighborhood"], admissible=z["admissible"], selected=z["selected"], reasons=z["reasons"],
+        **{k: meta.get(k) for k in CERT_META})
+    return cert.validate()

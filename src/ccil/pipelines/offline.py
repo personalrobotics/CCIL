@@ -19,8 +19,9 @@ from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimag
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..runs.provenance import sha256
-from ..core.certificates import CLASSIFICATIONS, certify, write_certificates
-from ..schema import read_candidates, read_trajectories, write_candidates
+from ..core.certificates import Sources, certify
+from ..schema.certificates import CLASSIFICATIONS
+from ..schema import read_candidates, read_trajectories, write_candidates, write_certificates
 from .stages import StageResult, run_stage
 
 MODEL_CHECKPOINT = f"{layout.CHECKPOINTS}/transition_model.npz"
@@ -162,37 +163,41 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 
 
 def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: StageResult, representation, profile,
-                  max_total_error: float | None = None, selection_quantile: float | None = None,
-                  extra_inputs=None) -> StageResult:
+                  admission: str = "upper_bound", threshold: float | None = None,
+                  selection_quantile: float | None = None, references: dict | None = None,
+                  state_scale=None, action_scale=None, extra_inputs=None) -> StageResult:
     """labels.certify: write labels/certificates.npz for the labels stage's candidates (#88).
 
     The candidates are an input and are never modified; consumers train on
-    candidate.accepted & certificate.admissible & certificate.selected. The
-    profile's descriptor (constants, sources, neighborhood) and the thresholds
-    enter the stage identity.
+    candidate.accepted & certificate.admissible & certificate.selected.
+    references are artifacts bound providers compute constants from; they are
+    stage inputs. The profile's specification, the admission policy, the
+    selection, and the scales enter the stage identity.
     """
     v = cfg.values
+    references = dict(references or {})
     inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT),
-              "candidates": labeled.out(layout.CANDIDATES), **(extra_inputs or {})}
+              "candidates": labeled.out(layout.CANDIDATES), **(extra_inputs or {}),
+              **{f"reference.{k}": p for k, p in references.items()}}
 
     def body(run):
-        dataset = read_trajectories(inputs["dataset"])
-        candidates = read_candidates(inputs["candidates"], dataset)
-        device = "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
-        model = load_transition_model(inputs["transition_model"], device=device)
-        hashes = {name: sha256(path) for name, path in inputs.items()}
-        cert = certify(candidates, dataset, representation, model, profile, hashes["candidates"],
-                       max_total_error=max_total_error, selection_quantile=selection_quantile, inputs=hashes)
+        sources = Sources(inputs["candidates"], inputs["dataset"], inputs["transition_model"], representation,
+                          extra=dict(extra_inputs or {}), references=references,
+                          device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"])
+        cert = certify(sources, profile, admission=admission, threshold=threshold,
+                       selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale)
         write_certificates(cert, run.path(layout.CERTIFICATES))
-        usable = np.asarray(candidates.accepted) & cert.admissible & cert.selected
-        run.metrics({"certificates": int(len(cert.selected)), "profile": profile.name,
+        accepted = read_candidates(inputs["candidates"]).accepted
+        usable = np.asarray(accepted) & cert.admissible & cert.selected
+        run.metrics({"certificates": int(len(cert.selected)), "profile": profile.name, "admission": cert.admission,
                      "by_classification": {c: int((cert.classification == c).sum()) for c in CLASSIFICATIONS},
                      "admissible": int(cert.admissible.sum()), "selected": int(cert.selected.sum()),
                      "usable": int(usable.sum())})
         run.log(f"certified {len(cert.selected)} candidates with {profile.name}; usable {int(usable.sum())}")
+    scales = {k: None if x is None else [float(e) for e in x] for k, x in (("state", state_scale), ("action", action_scale))}
     return run_stage("labels.certify", cfg, inputs, body, components={"representation": representation},
-                     parameters={"profile": profile.descriptor(), "max_total_error": max_total_error,
-                                 "selection_quantile": selection_quantile})
+                     parameters={"profile": profile.spec(), "admission": admission, "threshold": threshold,
+                                 "selection_quantile": selection_quantile, "scales": scales})
 
 
 def generate_offline(cfg) -> list[StageResult]:

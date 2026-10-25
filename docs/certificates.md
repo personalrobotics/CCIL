@@ -11,11 +11,21 @@ modified. Training uses the rows where
 
     usable = candidate.accepted ∧ certificate.admissible ∧ certificate.selected
 
+The file format, `ccil.certificates` 1.0, is specified in
+[`schemas/reference.md`](schemas/reference.md).
+
 ## What a certificate claims
 
 For a label (q, y), with q = (z_G, a_G), the quantity of interest is the true
-label error ‖T(q) − y‖, where T(z, a) = z + f(z, a) is the true dynamics. Every
-certificate row persists the terms it used:
+label error ‖T(q) − y‖, where T(z, a) = z + f(z, a) is the true dynamics.
+
+**Coordinates.** Norms are taken in scaled coordinates, z / `state_scale` and
+a / `action_scale`. Errors are measured in the scaled state coordinates. The
+modality, dimensions and scales are part of the descriptor (all scales
+default to 1). Units are derived from them, never supplied as free text.
+
+**Global terms.** Every certificate persists four terms, as diagnostics at
+least:
 
 | Term | Value |
 |---|---|
@@ -24,33 +34,83 @@ certificate row persists the terms it used:
 | `anchor_model_error` | ‖z_t + f̂(z_t, a_t) − z_{t+1}‖ |
 | `solver_error` | ‖T̂(q) − y‖, with the learned T̂ = z + f̂ |
 
-A row also persists `model_error_value`, `total_error_value`, `classification`,
-`is_upper_bound`, `in_neighborhood`, the `admissible` and `selected` masks, and
-its reasons.
+**Profile terms.** A profile may declare more terms. It provides a computation
+for every row, and a per-row recomputation that the source audit uses. A
+profile also names the terms it *requires*: a row is supported only when its
+required terms and its total are finite and the label lies in the profile's
+neighborhood. A non-finite term that the profile does not require never makes
+a row unsupported.
 
-A profile declares one of two derivation forms:
+**Forms.** A profile declares one of three:
 
 | Form | Total |
 |---|---|
-| **Additive** | `total = solver_error + model_error`, by the triangle inequality ‖T(q) − y‖ ≤ ‖T̂(q) − y‖ + ‖f(q) − f̂(q)‖ |
-| **Direct** | The profile bounds ‖T(q) − y‖ itself, so `model_error_value` is not used (NaN). `solver_error` is still recorded as a diagnostic and is never added a second time. |
+| **Additive** | `total = solver_error + model_error`, by ‖T(q) − y‖ ≤ ‖T̂(q) − y‖ + ‖f(q) − f̂(q)‖ |
+| **Direct** | The profile bounds ‖T(q) − y‖ itself, so `model_error_value` is NaN. `solver_error` is still recorded as a diagnostic and is never added a second time. |
+| **Score** | An empirical score, not a bound. `model_error_value` is NaN. |
 
-## Classification
+## Constants are specified, never asserted
+
+A profile's constants are given as one of two specifications:
+
+| Specification | Meaning | Classification |
+|---|---|---|
+| `Declared(value, rationale)` | An assumption | Always `conditional`, whatever its value |
+| `Provided(provider, reference)` | Computed during certification by a registered bound provider, from artifacts whose SHA-256 the certificate records | The provider's source: `analytic_bound` or `model_bound`, both `certified` |
+
+A raw value cannot carry a bound source. The API refuses anything else, and
+the schema refuses a provided source without provenance or a declared
+constant with provenance. The source audit recomputes every provided
+constant.
+
+**Registered provider.** `linear_discrepancy` (`analytic_bound`). It takes a
+`ccil.reference-dynamics` 1.0 file (true linear dynamics A, B; see
+`write_reference_dynamics`) and a linear transition model. It returns the
+exact operator norms of the scaled differences:
+- state: ‖S_z⁻¹ (A − Â) S_z‖₂;
+- action: ‖S_z⁻¹ (B − B̂) S_a‖₂.
+
+Providers for neural models (`model_bound`) arrive with the theorem profiles.
+
+## Classification and admission
 
 Each row's classification is the weakest of what it relies on.
 
-| Classification | Meaning | `is_upper_bound` |
+| Classification | When | `is_upper_bound` |
 |---|---|---|
-| `certified` | Every constant is an `analytic_bound` or a proven `model_bound`, over the declared neighborhood. | true |
-| `conditional` | Some constant is `declared`: an assumption, with its rationale. | true, under that assumption |
+| `certified` | Every constant is provided. | true |
+| `conditional` | Some constant is declared. | true, under that assumption |
 | `calibrated` | Reserved for #92. | true, at its stated confidence |
-| `empirical` | A score: for example, point Jacobians in place of constants. | false |
-| `unsupported` | A non-finite term, or a label outside the neighborhood. | false |
+| `empirical` | A score profile. | false |
+| `unsupported` | A required term or the total is not finite, or the label is outside the neighborhood. | false |
 
-A score is never presented as a bound. Only bound rows can be admissible.
+**Admission** is a policy, chosen explicitly, and separate from
+classification:
 
-Every constant records its value, source, rationale and units. The sources are
-`analytic_bound`, `model_bound`, `declared` and `point_jacobian`.
+| Mode | Admits |
+|---|---|
+| `upper_bound` (default) | Bound rows with `total_error_value ≤ threshold` (when a threshold is set). Supported rows that are not bounds get `certificate.not_upper_bound`. |
+| `score` | Any supported row with `total_error_value ≤ threshold`. Its rows keep their classification and `is_upper_bound`, so a score is never presented as a bound. |
+
+`require_upper_bound(cert)` raises unless admission is `upper_bound` and
+every supported row is a bound.
+
+**Selection** is a budget choice:
+- With a `selection_quantile`, the selected rows are the accepted, admissible
+  rows whose total is at most that quantile of their totals. If no row is
+  eligible, none is selected and the threshold is null.
+- Without one, every row is selected.
+
+Selection never changes a candidate's acceptance or a row's classification.
+
+**Reasons** are independent:
+
+| Reason | Set when |
+|---|---|
+| `certificate.unsupported` | The row is unsupported. |
+| `certificate.not_upper_bound` | Under `upper_bound` admission, a supported row is not a bound. |
+| `certificate.exceeds_threshold` | A row that the admission mode considers is over the threshold. |
+| `certificate.not_selected` | An eligible row is not selected. |
 
 ## Profiles
 
@@ -60,77 +120,35 @@ Every constant records its value, source, rationale and units. The sources are
 
 C_z and C_a bound the variation of f − f̂ over the neighborhood. When C comes
 from separate bounds on the true and learned dynamics, it is
-C = K_true + K_learned. Rows outside the neighborhood radii are unsupported.
-The bound also assumes that the demonstration transition is exact. A point
-Jacobian is not a constant over a neighborhood, so `continuity` refuses one.
+C = K_true + K_learned. The bound also assumes that the demonstration
+transition is exact. Rows outside the optional neighborhood radii are
+unsupported.
 
 The CCIL theorem profiles (`backtrack`, `disturbed_action`) and the paper's
-empirical proxies follow in later parts of #88.
-
-## Masks and reasons
-
-**`admissible`.** The row is a bound, and `total_error_value ≤ max_total_error`
-when that threshold is set.
-
-**`selected`.** A budget choice. When `selection_quantile` is set, a row is
-selected if it is accepted, admissible, and its total is at most that quantile
-of the totals of accepted, admissible rows. When the quantile is not set,
-every row is selected. Selection never changes a candidate's acceptance or a
-row's classification.
-
-**Reasons.** They are independent, and namespaced so they cannot be confused
-with candidate rejection reasons:
-
-| Reason | Set when |
-|---|---|
-| `certificate.unsupported` | The row is unsupported. |
-| `certificate.exceeds_bound` | A bound row is over `max_total_error`. |
-| `certificate.not_selected` | An eligible row is not selected. |
+proxies follow in later parts of #88. A profile is a `Profile` subclass
+registered with `register_profile`.
 
 ## Verification
 
 | Level | Uses | Checks |
 |---|---|---|
-| **Structural** (`verify_structure`) | The certificate and its candidates | The candidates' SHA-256 and row identity, then every value, classification, mask and threshold, recomputed from the persisted terms and descriptor. It cannot tell whether the terms themselves are right. |
-| **Source audit** (`audit_sources`) | Also the dataset, representation and transition model | Recomputes every source term per row, independently of the batch path, and compares it with the persisted terms. |
+| **Structural** (`verify_structure`) | The certificate and its candidates file | The schema, the candidates' SHA-256 and row identity, and the registered profile and version. The descriptor must be exactly what the profile writes for its constants and coordinates, so edited units are caught. Every provider must be registered and match its claimed source. Every value, classification, mask and threshold is recomputed from the persisted terms. It cannot tell whether the terms or provided constants are right. |
+| **Source audit** (`audit_sources`) | Also the sources (`Sources`: the candidates, dataset, transition model, representation, any other inputs, and references) | Every supplied file's SHA-256 must match the recorded one, and nothing may be missing or extra. The representation's kind, version and modality and the model's kind and version must match the record, as must the dimensions. It then recomputes every term per row (including profile terms) and every provided constant. |
 
 Hashes establish artifact identity, not mathematical correctness.
-
-## The `ccil.certificates` 1.0 file
-
-`labels/certificates.npz` has one row per candidate row, in the same order,
-with `source_episode_id` and `source_frame` repeated for joining.
-
-| Field | Contents |
-|---|---|
-| `term/<name>` | The four terms above |
-| `model_error_value`, `total_error_value` | float64 |
-| `classification` | int8 codes into `meta.classification_codes` |
-| `is_upper_bound`, `in_neighborhood`, `admissible`, `selected` | bool |
-| `reasons` | bool, (N, 3), in the order of `meta.reason_codes` |
-
-The meta records the profile `descriptor`: the profile and version, the form,
-constants, neighborhood, norms, units and assumptions. It also records the
-`thresholds` (`max_total_error`, `selection_quantile`, the resulting
-`selection_threshold`), the candidates' SHA-256, and the SHA-256 of every stage
-input.
-
-The reader rejects:
-- other major versions;
-- missing fields;
-- unknown classification or reason codes;
-- out-of-range codes;
-- arrays that disagree on the row count.
 
 ## The `labels.certify` stage
 
 `ccil.pipelines.offline.certify_stage(cfg, prepared, fitted, labeled,
-representation, profile, max_total_error=None, selection_quantile=None)`.
+representation, profile, admission="upper_bound", threshold=None,
+selection_quantile=None, references=None, state_scale=None,
+action_scale=None)`.
 
-- **Inputs:** the dataset, the transition model checkpoint, and the labels
-  stage's candidates.
-- **Identity:** the profile's descriptor and the thresholds are part of the
-  stage identity, so a changed constant produces a new run.
+- **Inputs:** the dataset, the transition model checkpoint, the labels
+  stage's candidates, and each reference as `reference.<name>`.
+- **Identity:** the profile's specification, the admission, the selection
+  and the scales are part of the stage identity, so a changed constant
+  specification, threshold or reference produces a new run.
 - **Metrics:** counts by classification, and the admissible, selected and
   usable rows.
 
@@ -144,23 +162,28 @@ uv run --group evidence python tools/m3_certificates/check.py --out <new-dir>
 
 The report is
 [`fixtures/evidence/m3-certificates/report.json`](fixtures/evidence/m3-certificates/report.json),
-with `report-siddh.json` from the CUDA host. It covers the following, on the
-analytic double integrator:
+with `report-siddh.json` from the CUDA host. It uses the analytic double
+integrator, with the true label error computed independently from the true
+dynamics.
 
-- **Oracle coverage.** The true label error is computed independently from the
-  true dynamics.
-  - With an exact model and C = 0, every row is certified and tight.
-  - With a wrong linear model and C = ‖A − Â‖, ‖B − B̂‖, every row is
-    covered, for both generators.
-- **Underestimated constant.** An underestimated declared constant fails
-  coverage.
+- **Oracle coverage.** Provider constants give a certified, tight bound with
+  the exact model. With a wrong linear model, every row of both generators is
+  covered, in unit and non-unit scales.
+- **Asserted values.** A raw value cannot become a bound. A declared zero is
+  conditional and fails coverage. A forged certified zero passes the
+  structural check but not the audit.
 - **Neighborhood.** Labels outside it are unsupported.
-- **Masks and acceptance.** The masks follow their rules, and
-  `candidate.accepted` is unchanged.
-- **Two verification levels.** Structural recomputation detects arithmetic,
-  classification, mask, descriptor and candidate-file corruptions. Only the
-  source audit detects a falsified term that is consistent with the totals.
-- **Reader.** Malformed files are rejected.
-- **Pipeline.** The pipeline writes a complete `labels.certify` run beside the
-  unchanged candidates. A rerun is reused, and a changed constant produces a
-  new run.
+- **Admission.** Admission is separate from classification, for an empirical
+  test profile under both modes.
+- **Masks.** They follow their rules, including a quantile with no eligible
+  row.
+- **Profile terms.** They round-trip and are audited. Only required terms
+  gate support.
+- **Two verification levels.** They detect different corruptions, and the
+  audit binds input hashes and component identity.
+- **Schema.** The reader and writer enforce it, each malformed case failing on
+  its intended rule.
+- **API.** Malformed constants, policies and scales are refused.
+- **Pipeline.** The pipeline writes a complete, covered and audited
+  `labels.certify` run next to unchanged candidates, and reuses or re-runs it
+  correctly.

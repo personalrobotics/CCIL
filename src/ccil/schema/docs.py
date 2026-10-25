@@ -1,7 +1,7 @@
 """Generate the normative schema reference from the specs, its one canonical source."""
 from __future__ import annotations
 
-from . import io, labels, trajectories
+from . import certificates, io, labels, trajectories
 
 
 def _table(specs) -> list[str]:
@@ -51,6 +51,21 @@ def render() -> str:
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.CAND_REQUIRED))}, plus `obs/<modality>`, "
         f"`target/<modality>`, and `meas/<name>`. Optional: {_names(io.CAND_OPTIONAL)}. "
         f"`meta` holds {_names(io.CAND_META)}.", "",
+        f"## `{certificates.SCHEMA}` {certificates.VERSION[0]}.{certificates.VERSION[1]}",
+        "",
+        (certificates.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "),
+        "",
+        "### Fields", "", *_fields(certificates.FIELDS), "",
+        "### Arrays", "", *_table(certificates.ARRAY_SPECS), "",
+        f"Classifications: {', '.join(f'`{c}`' for c in certificates.CLASSIFICATIONS)}; bounds: "
+        f"{', '.join(f'`{c}`' for c in certificates.BOUND_CLASSES)}. Reason codes, in column order: "
+        f"{', '.join(f'`{r}`' for r in certificates.REASON_CODES)}. Global terms, persisted by every profile: "
+        f"{', '.join(f'`{t}`' for t in certificates.GLOBAL_TERMS)}. Constant sources: "
+        f"{', '.join(f'`{c}`' for c in certificates.SOURCES)}.", "",
+        "### File layout (.npz)", "",
+        f"Required: {', '.join(f'`{k}`' for k in sorted(io.CERT_REQUIRED))}, and `term/<name>` for exactly the "
+        f"descriptor's terms. `meta` holds {_names(io.CERT_META)}, `classification_codes`, and `reason_codes`; "
+        "no other array or meta field is accepted.", "",
         "## Compatibility", "",
         (io.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "), "",
     ]

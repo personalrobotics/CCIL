@@ -2,339 +2,572 @@
 
     generate candidates -> certify candidates -> select / admit labels -> train policy
 
-Candidate files are never modified. A certificate set has one row per candidate
-(joined by source identity and position) and records, per row:
+Candidate files are never modified; certify() writes a ccil.certificates set
+(src/ccil/schema/certificates.py) with one row per candidate row. Consumers
+train on candidate.accepted & admissible & selected.
 
-- the terms it used: state and action displacement from the anchor, the
-  anchor's observed model error, and the solver error ||T_hat(q) - y|| of the
-  candidate under the learned model T_hat(z, a) = z + f_hat(z, a);
-- model_error_value and total_error_value. An additive profile gives
-  total = solver_error + model_error; a direct profile gives the total itself
-  (and leaves model_error_value NaN). solver_error is always a diagnostic and is
-  never added twice;
-- classification (certified, conditional, calibrated, empirical, unsupported)
-  and is_upper_bound, which is true only for certified, conditional, and
-  calibrated rows: a score is never presented as a bound;
-- in_neighborhood, admissible, and selected, and the reasons a row is not.
+Constants. A profile's constants are specified, never asserted: Declared(value,
+rationale) is an assumption and always conditional, whatever its value;
+Provided(provider, reference) is computed during certification by a registered
+bound provider from artifacts whose SHA-256 the certificate records, and the
+source audit recomputes it. Only provided constants can be certified.
 
-Consumers train on usable = candidate.accepted & admissible & selected.
-Selection is a data-budget choice over eligible rows and never changes a
-candidate's acceptance or a row's classification.
+Terms. Every certificate persists the four global terms (displacements,
+anchor model error, solver error); a profile may declare more, with a
+computation and a per-row recomputation hook, and says which terms it
+requires. Only required terms gate support.
 
-A certificate can be verified at two levels: structurally, from the
-certificate and its candidates (identity, formulas, classifications, masks),
-and by source audit, which recomputes the source terms from the dataset,
-representation, and model. Hashes establish artifact identity, not correctness.
+Coordinates. Norms are taken in scaled coordinates, z / state_scale and
+a / action_scale, and errors in the scaled state coordinates; the scales and
+dimensions are part of the descriptor and the units are derived from them.
+
+Admission is a policy separate from classification: "upper_bound" admits only
+bound rows (certified, conditional, calibrated) within the threshold; "score"
+is an explicit opt-in that admits any supported row whose score is within the
+threshold, and its rows stay visibly non-bound. Selection is a budget quantile
+over accepted, admissible rows and never changes a candidate's acceptance.
+
+Verification has two levels. verify_structure uses the certificate and the
+candidates file: identity, the descriptor, and every value, classification,
+mask, and threshold recomputed from the persisted terms. audit_sources also
+takes the source artifacts: it checks each against its recorded SHA-256 and
+component identity, then recomputes every term and provided constant.
+Hashes establish artifact identity, not mathematical correctness.
 """
 from __future__ import annotations
 
-import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
+from ..runs.provenance import sha256
+from ..schema import read_candidates, read_trajectories
+from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS, REASON_CODES, SCHEMA,
+                                   VERSION, CertificateSet)
 from ..schema.fields import SchemaError
-from ..schema.io import _atomic_savez, _format_error, _load_npz
+from ..schema.io import _atomic_savez, _format_error, _open
 from .batch import InterfaceError
 from .representation import transitions
+from .transition import load_transition_model
 
-SCHEMA, VERSION = "ccil.certificates", (1, 0)
-# Strongest first; a row's classification is the weakest of what it relies on.
-CLASSIFICATIONS = ("certified", "conditional", "calibrated", "empirical", "unsupported")
-BOUND_CLASSES = ("certified", "conditional", "calibrated")
-SOURCE_CLASS = {"analytic_bound": "certified", "model_bound": "certified", "declared": "conditional",
-                "point_jacobian": "empirical"}
-REASON_CODES = ("certificate.unsupported", "certificate.exceeds_bound", "certificate.not_selected")
-TERMS = ("state_displacement", "action_displacement", "anchor_model_error", "solver_error")
-REP = "representation units (state units for representation.kind=identity)"
+SOURCE_CLASS = {"analytic_bound": "certified", "model_bound": "certified", "declared": "conditional"}
+STATE_UNITS = "scaled state (z / state_scale)"
+ACTION_UNITS = "scaled action (a / action_scale)"
+GLOBAL_TERM_SPECS = {
+    "state_displacement": {"definition": "||(z_G - z_t) / state_scale||_2", "units": STATE_UNITS},
+    "action_displacement": {"definition": "||(a_G - a_t) / action_scale||_2", "units": ACTION_UNITS},
+    "anchor_model_error": {"definition": "||(z_t + f_hat(z_t, a_t) - z_{t+1}) / state_scale||_2", "units": STATE_UNITS},
+    "solver_error": {"definition": "||(z_G + f_hat(z_G, a_G) - y) / state_scale||_2", "units": STATE_UNITS},
+}
 
 
 def _weakest(classes) -> str:
     return max(classes, key=CLASSIFICATIONS.index)
 
 
+def _nonneg(x, name, allow_none=True):
+    if x is None and allow_none:
+        return
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or x < 0:
+        raise InterfaceError(f"{name} must be finite and >= 0{' or None' if allow_none else ''}, got {x!r}")
+
+
+# --- constants -------------------------------------------------------------
+
 @dataclass(frozen=True)
-class Constant:
-    """A constant a profile relies on, with where its value comes from."""
+class Declared:
+    """An assumed constant: conditional, whatever its value."""
 
     value: float
-    source: str
     rationale: str
-    units: str
 
     def __post_init__(self):
-        if self.source not in SOURCE_CLASS:
-            raise InterfaceError(f"constant source must be one of {sorted(SOURCE_CLASS)}, got {self.source!r}")
-        if isinstance(self.value, bool) or not (np.isfinite(self.value) and self.value >= 0):
-            raise InterfaceError(f"constant value must be finite and >= 0, got {self.value!r}")
-        if not (isinstance(self.rationale, str) and self.rationale and isinstance(self.units, str) and self.units):
-            raise InterfaceError("a constant needs a rationale and units")
+        _nonneg(self.value, "a declared constant", allow_none=False)
+        if not isinstance(self.rationale, str) or not self.rationale:
+            raise InterfaceError("a declared constant needs a rationale")
 
-    def to_dict(self) -> dict:
-        return {"value": float(self.value), "source": self.source, "rationale": self.rationale, "units": self.units}
+    def spec(self) -> dict:
+        return {"declared": float(self.value), "rationale": self.rationale}
 
 
-class ContinuityProfile:
-    """Continuity / discrepancy profile: an additive certificate.
+@dataclass(frozen=True)
+class Provided:
+    """A constant a registered bound provider computes from a named reference artifact."""
 
-    model_error_value = anchor_model_error + C_z ||z_G - z_t|| + C_a ||a_G - a_t||,
-    where C_z and C_a bound the local variation of f - f_hat with respect to state
-    and action over the neighborhood (for example C = K_true + K_hat when derived
-    from separate bounds). By the triangle inequality the true label error
-    ||T(q) - y|| is at most solver_error + model_error_value whenever the
-    constants hold. Rows outside the neighborhood are unsupported.
+    provider: str
+    reference: str
+
+    def __post_init__(self):
+        if self.provider not in PROVIDERS:
+            raise InterfaceError(f"unknown bound provider {self.provider!r}; registered: {sorted(PROVIDERS)}")
+        if not isinstance(self.reference, str) or not self.reference:
+            raise InterfaceError("a provided constant names its reference artifact")
+
+    def spec(self) -> dict:
+        return {"provider": self.provider, "version": PROVIDERS[self.provider].version, "reference": self.reference}
+
+
+REFERENCE_SCHEMA, REFERENCE_VERSION = "ccil.reference-dynamics", (1, 0)
+
+
+def write_reference_dynamics(path, A, B, description: str) -> None:
+    """A known linear system f(z, a) = A z + B a, the true dynamics an analytic bound is computed against."""
+    A, B = np.asarray(A, np.float64), np.asarray(B, np.float64)
+    _check_reference(A, B, path)
+    meta = {"schema": REFERENCE_SCHEMA, "version": f"{REFERENCE_VERSION[0]}.{REFERENCE_VERSION[1]}",
+            "optional_fields": [], "kind": "linear", "description": description}
+    _atomic_savez(path, {"A": A, "B": B, "meta": np.array(json.dumps(meta, sort_keys=True))})
+
+
+def _check_reference(A, B, path):
+    if not (A.ndim == 2 and A.shape[0] == A.shape[1] and B.ndim == 2 and B.shape[0] == A.shape[0]
+            and A.dtype.kind == "f" and B.dtype.kind == "f" and np.isfinite(A).all() and np.isfinite(B).all()):
+        raise _format_error(REFERENCE_SCHEMA, path, [f"A must be finite float (D, D) and B finite float (D, A); "
+                                                     f"got {A.shape} {A.dtype}, {B.shape} {B.dtype}"])
+
+
+def read_reference_dynamics(path) -> tuple[np.ndarray, np.ndarray]:
+    z, meta = _open(path, REFERENCE_SCHEMA, REFERENCE_VERSION, {"A", "B"}, ())
+    if meta.get("kind") != "linear" or set(z) != {"A", "B"}:
+        raise _format_error(REFERENCE_SCHEMA, path, ["a linear reference holds exactly A and B, kind 'linear'"])
+    _check_reference(z["A"], z["B"], path)
+    return z["A"], z["B"]
+
+
+class LinearDiscrepancy:
+    """analytic_bound: the exact variation of f - f_hat when both are linear.
+
+    With f = A z + B a and f_hat = A_hat z + B_hat a + c, f - f_hat changes by
+    (A - A_hat) dz + (B - B_hat) da, so in scaled coordinates the state constant
+    is ||S_z^-1 (A - A_hat) S_z||_2 and the action constant ||S_z^-1 (B - B_hat) S_a||_2,
+    over any neighborhood.
+    """
+
+    name, version, source = "linear_discrepancy", "1", "analytic_bound"
+
+    def resolve(self, maps: str, reference: str, ctx: "Context") -> dict:
+        path = ctx.references.get(reference)
+        if path is None:
+            raise InterfaceError(f"{self.name} needs reference artifact {reference!r}; given {sorted(ctx.references)}")
+        A, B = read_reference_dynamics(path)
+        model = ctx.model
+        if getattr(model, "kind", None) != "linear":
+            raise InterfaceError(f"{self.name} needs a linear transition model, got {getattr(model, 'kind', None)!r}")
+        sz, sa = ctx.state_scale, ctx.action_scale
+        if A.shape != model.A.shape or B.shape != model.B.shape or len(sz) != len(A) or len(sa) != B.shape[1]:
+            raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the model "
+                                 f"{model.A.shape}, {model.B.shape} and coordinates ({len(sz)}, {len(sa)})")
+        D = (A - model.A) if maps == "state" else (B - model.B)
+        scaled = D / sz[:, None] * (sz if maps == "state" else sa)[None, :]
+        return {"value": float(np.linalg.norm(scaled, 2)), "source": self.source, "maps": maps,
+                "rationale": f"exact operator norm of the scaled {'A - A_hat' if maps == 'state' else 'B - B_hat'} "
+                             f"against reference {reference!r}",
+                "provenance": {"provider": self.name, "version": self.version, "params": {"reference": reference},
+                               "inputs": {"reference": ctx.hashes[f"reference.{reference}"],
+                                          "transition_model": ctx.hashes["transition_model"]}}}
+
+
+PROVIDERS = {LinearDiscrepancy.name: LinearDiscrepancy()}
+
+
+def resolve_constant(spec, maps: str, ctx: "Context") -> dict:
+    if isinstance(spec, Declared):
+        return {"value": float(spec.value), "source": "declared", "maps": maps, "rationale": spec.rationale,
+                "provenance": None}
+    if isinstance(spec, Provided):
+        return PROVIDERS[spec.provider].resolve(maps, spec.reference, ctx)
+    raise InterfaceError(f"a constant must be Declared(...) or Provided(...), got {type(spec).__name__}; "
+                         "a value cannot be asserted as a bound")
+
+
+# --- profiles --------------------------------------------------------------
+
+class Profile:
+    """A certificate profile. Subclasses set the class attributes and evaluate().
+
+    roles maps each constant to the input it maps from ("state" or "action");
+    extra_terms declares terms beyond the global ones, which compute_terms()
+    computes for every row and audit_term() recomputes for one; required names
+    the terms a row needs finite to be supported; intrinsic is the strongest
+    classification the profile can give regardless of constants (None, or
+    "empirical" for a score).
+    """
+
+    name = version = form = ""
+    roles: dict = {}
+    extra_terms: dict = {}
+    required: tuple = GLOBAL_TERMS
+    intrinsic: str | None = None
+    assumptions: tuple = ()
+
+    def __init__(self, constants: dict, neighborhood_state=None, neighborhood_action=None):
+        if set(constants) != set(self.roles):
+            raise InterfaceError(f"{self.name} needs constants {sorted(self.roles)}, got {sorted(constants)}")
+        for role, c in constants.items():
+            if not isinstance(c, (Declared, Provided)):
+                raise InterfaceError(f"constant {role} must be Declared(...) or Provided(...), got {type(c).__name__}; "
+                                     "a value cannot be asserted as a bound")
+        for r in (neighborhood_state, neighborhood_action):
+            if r is not None and (isinstance(r, bool) or not isinstance(r, (int, float)) or not math.isfinite(r) or r <= 0):
+                raise InterfaceError(f"neighborhood radii must be finite and > 0, or None for unbounded; got {r!r}")
+        self.constants = dict(constants)
+        self.neighborhood = {"state": neighborhood_state, "action": neighborhood_action}
+
+    def spec(self) -> dict:
+        """The unresolved profile, for stage identity."""
+        return {"profile": self.name, "version": self.version, "neighborhood": self.neighborhood,
+                "constants": {r: c.spec() for r, c in sorted(self.constants.items())}}
+
+    def term_specs(self) -> dict:
+        specs = {**GLOBAL_TERM_SPECS, **self.extra_terms}
+        return {n: {**s, "required": n in self.required} for n, s in specs.items()}
+
+    def descriptor(self, constants: dict, coordinates: dict) -> dict:
+        return {"profile": self.name, "version": self.version, "form": self.form, "terms": self.term_specs(),
+                "constants": constants, "neighborhood": dict(self.neighborhood), "coordinates": coordinates,
+                "norms": {"state": "l2 of scaled coordinates", "action": "l2 of scaled coordinates",
+                          "error": "l2 of scaled state coordinates"},
+                "units": {"state": STATE_UNITS, "action": ACTION_UNITS, "error": STATE_UNITS,
+                          **{r: f"error per {m}" for r, m in self.roles.items()}},
+                "assumptions": list(self.assumptions)}
+
+    def compute_terms(self, ctx: "Context") -> dict:
+        return {}
+
+    def audit_term(self, name: str, row: dict) -> float:
+        raise InterfaceError(f"{self.name} declares no term {name!r}")
+
+    def evaluate(self, terms: dict, values: dict) -> tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError
+
+    def in_neighborhood(self, terms: dict) -> np.ndarray:
+        inside = np.ones(len(terms["state_displacement"]), bool)
+        with np.errstate(invalid="ignore"):
+            for key, term in (("state", "state_displacement"), ("action", "action_displacement")):
+                if self.neighborhood[key] is not None:
+                    inside &= terms[term] <= self.neighborhood[key]
+        return inside
+
+    def base_classification(self, constants: dict) -> str:
+        return _weakest([SOURCE_CLASS[c["source"]] for c in constants.values()]
+                        + ([self.intrinsic] if self.intrinsic else []) + ["certified"])
+
+    @classmethod
+    def from_descriptor(cls, d: dict) -> "Profile":
+        """The profile a descriptor names; its constants come from the descriptor, already resolved."""
+        profile = cls.__new__(cls)
+        profile.constants = None
+        profile.neighborhood = dict(d["neighborhood"])
+        return profile
+
+
+class ContinuityProfile(Profile):
+    """Additive: model_error = anchor_model_error + C_z ||dz|| + C_a ||da||.
+
+    C_z and C_a bound the variation of f - f_hat with respect to state and action
+    over the neighborhood (C = K_true + K_learned when derived from separate
+    bounds); with the demonstration transition exact,
+    ||T(q) - y|| <= solver_error + model_error.
     """
 
     name, version, form = "continuity", "1", "additive"
+    roles = {"C_z": "state", "C_a": "action"}
+    assumptions = ("C_z and C_a bound the variation of f - f_hat over the neighborhood",
+                   "the demonstration transition (z_t, a_t, z_{t+1}) is exact")
 
-    def __init__(self, state_constant: Constant, action_constant: Constant, neighborhood_state: float = np.inf,
-                 neighborhood_action: float = np.inf):
-        for c in (state_constant, action_constant):
-            if c.source == "point_jacobian":
-                raise InterfaceError("continuity needs constants over the neighborhood; a point Jacobian is a score, "
-                                     "not a constant (the paper-proxy profiles use it)")
-        for r in (neighborhood_state, neighborhood_action):
-            if not r > 0:
-                raise InterfaceError(f"neighborhood radii must be > 0 (inf for global), got {r!r}")
-        self.state_constant, self.action_constant = state_constant, action_constant
-        self.neighborhood = {"state": float(neighborhood_state), "action": float(neighborhood_action)}
+    def __init__(self, C_z, C_a, neighborhood_state=None, neighborhood_action=None):
+        super().__init__({"C_z": C_z, "C_a": C_a}, neighborhood_state, neighborhood_action)
 
-    def descriptor(self) -> dict:
-        return {"profile": self.name, "version": self.version, "form": self.form,
-                "constants": {"C_z": self.state_constant.to_dict(), "C_a": self.action_constant.to_dict()},
-                "neighborhood": {k: (None if np.isinf(v) else v) for k, v in self.neighborhood.items()},
-                "norms": {"state": "l2", "action": "l2", "output": "l2"},
-                "metric": "separate state and action displacements; no joint metric",
-                "units": {"state": REP, "action": "action units", "error": REP},
-                "assumptions": ["C_z and C_a bound the variation of f - f_hat over the neighborhood",
-                                "the demonstration transition (z_t, a_t, z_{t+1}) is exact"]}
-
-    @classmethod
-    def from_descriptor(cls, d: dict) -> "ContinuityProfile":
-        c = d["constants"]
-        nb = d["neighborhood"]
-        return cls(Constant(**c["C_z"]), Constant(**c["C_a"]),
-                   np.inf if nb["state"] is None else nb["state"], np.inf if nb["action"] is None else nb["action"])
-
-    def evaluate(self, terms: dict) -> tuple[np.ndarray, np.ndarray]:
-        """(model_error_value, total_error_value) from persisted terms."""
-        model = (terms["anchor_model_error"] + self.state_constant.value * terms["state_displacement"]
-                 + self.action_constant.value * terms["action_displacement"])
+    def evaluate(self, terms, values):
+        model = (terms["anchor_model_error"] + values["C_z"] * terms["state_displacement"]
+                 + values["C_a"] * terms["action_displacement"])
         return model, terms["solver_error"] + model
 
-    def in_neighborhood(self, terms: dict) -> np.ndarray:
-        with np.errstate(invalid="ignore"):
-            return ((terms["state_displacement"] <= self.neighborhood["state"])
-                    & (terms["action_displacement"] <= self.neighborhood["action"]))
 
-    def base_classification(self) -> str:
-        return _weakest([SOURCE_CLASS[self.state_constant.source], SOURCE_CLASS[self.action_constant.source]])
+PROFILES: dict = {}
 
 
-PROFILES = {ContinuityProfile.name: ContinuityProfile}
+def register_profile(cls) -> type:
+    if PROFILES.get(cls.name, cls) is not cls:
+        raise InterfaceError(f"profile name {cls.name!r} is already registered")
+    PROFILES[cls.name] = cls
+    return cls
 
 
-def source_terms(dataset, representation, candidates, model) -> dict:
-    """The per-candidate terms every profile draws on, from the dataset, representation, and model."""
-    batch = transitions(dataset, representation)
-    index = {(str(e), int(f)): i for i, (e, f) in enumerate(zip(batch.episode_id, batch.frame))}
-    try:
-        src = np.array([index[(str(e), int(f))] for e, f in zip(candidates.source_episode_id, candidates.source_frame)])
-    except KeyError as e:
-        raise InterfaceError(f"candidate source {e} is not a transition of the dataset") from None
-    modality = representation.output_modality
-    z_g = np.asarray(candidates.observations[modality], np.float64)
-    a_g = np.asarray(candidates.actions, np.float64)
-    target = np.asarray(candidates.target_observations[modality], np.float64)
-    z, a, zn = (np.asarray(x, np.float64) for x in (batch.z, batch.a, batch.z_next))
-    anchor_error = np.linalg.norm(z + model.delta(z, a) - zn, axis=1)
-    return {"state_displacement": np.linalg.norm(z_g - z[src], axis=1),
-            "action_displacement": np.linalg.norm(a_g - a[src], axis=1),
-            "anchor_model_error": anchor_error[src],
-            "solver_error": np.linalg.norm(z_g + model.delta(z_g, a_g) - target, axis=1)}
+register_profile(ContinuityProfile)
+
+
+# --- sources and computation ---------------------------------------------
+
+@dataclass
+class Sources:
+    """The artifacts a certificate is computed from, by path; their SHA-256 are recorded and audited."""
+
+    candidates: Path
+    dataset: Path
+    transition_model: Path
+    representation: object
+    extra: dict = field(default_factory=dict)        # e.g. {"representation": checkpoint} for a learned one
+    references: dict = field(default_factory=dict)   # name -> path, for bound providers
+    device: str = "cpu"
+
+    def paths(self) -> dict:
+        return {"candidates": Path(self.candidates), "dataset": Path(self.dataset),
+                "transition_model": Path(self.transition_model), **{k: Path(v) for k, v in self.extra.items()},
+                **{f"reference.{k}": Path(v) for k, v in self.references.items()}}
+
+    def hashes(self) -> dict:
+        return {k: sha256(p) for k, p in sorted(self.paths().items())}
 
 
 @dataclass
-class CertificateSet:
-    source_episode_id: np.ndarray
-    source_frame: np.ndarray
-    terms: dict
-    model_error_value: np.ndarray
-    total_error_value: np.ndarray
-    classification: np.ndarray        # (N,) str, one of CLASSIFICATIONS
-    is_upper_bound: np.ndarray
-    in_neighborhood: np.ndarray
-    admissible: np.ndarray
-    selected: np.ndarray
-    reasons: np.ndarray               # (N, len(REASON_CODES)) bool
-    descriptor: dict
-    thresholds: dict                  # max_total_error, selection_quantile, selection_threshold
-    candidates_sha256: str
-    inputs: dict = field(default_factory=dict)
+class Context:
+    """Loaded sources, in the coordinates of one certificate."""
+
+    candidates: object
+    dataset: object
+    representation: object
+    model: object
+    state_scale: np.ndarray
+    action_scale: np.ndarray
+    references: dict
+    hashes: dict
 
     @property
-    def usable_given(self):
-        """admissible & selected; combine with candidate.accepted for training rows."""
-        return self.admissible & self.selected
+    def modality(self) -> str:
+        return self.representation.output_modality
 
 
-def _decide(profile, terms, accepted, max_total_error, selection_quantile):
-    """Values, classification, and masks from persisted terms: shared by certify and structural verification."""
-    model, total = profile.evaluate(terms)
-    finite = np.isfinite(total) & np.all([np.isfinite(terms[k]) for k in TERMS], axis=0)
+def _components(representation, model) -> dict:
+    return {"representation": {"kind": str(representation.kind), "version": str(representation.version),
+                               "modality": str(representation.output_modality)},
+            "transition_model": {"kind": str(model.kind), "version": str(model.version)}}
+
+
+def _scales(value, dim, name) -> np.ndarray:
+    s = np.ones(dim) if value is None else np.asarray(value, np.float64)
+    if s.shape != (dim,) or not (np.isfinite(s).all() and (s > 0).all()):
+        raise InterfaceError(f"{name} must be {dim} finite positive values, got {value!r}")
+    return s
+
+
+def global_terms(ctx: Context) -> dict:
+    """The global terms for every candidate row, in scaled coordinates."""
+    batch = transitions(ctx.dataset, ctx.representation)
+    index = {(str(e), int(f)): i for i, (e, f) in enumerate(zip(batch.episode_id, batch.frame))}
+    c = ctx.candidates
+    src = np.array([index[(str(e), int(f))] for e, f in zip(c.source_episode_id, c.source_frame)], dtype=np.int64)
+    z_g = np.asarray(c.observations[ctx.modality], np.float64)
+    a_g = np.asarray(c.actions, np.float64)
+    y = np.asarray(c.target_observations[ctx.modality], np.float64)
+    z, a, zn = (np.asarray(x, np.float64) for x in (batch.z, batch.a, batch.z_next))
+    sz, sa = ctx.state_scale, ctx.action_scale
+    anchor = np.linalg.norm((z + ctx.model.delta(z, a) - zn) / sz, axis=1)
+    return {"state_displacement": np.linalg.norm((z_g - z[src]) / sz, axis=1),
+            "action_displacement": np.linalg.norm((a_g - a[src]) / sa, axis=1),
+            "anchor_model_error": anchor[src],
+            "solver_error": np.linalg.norm((z_g + ctx.model.delta(z_g, a_g) - y) / sz, axis=1)}
+
+
+def decide(profile: Profile, constants: dict, terms: dict, accepted, admission: dict, quantile):
+    """Values, classification, masks, reasons, and selection threshold from persisted terms.
+
+    Shared by certify() and verify_structure(), so the structural check recomputes
+    exactly what certification decided.
+    """
+    model, total = profile.evaluate(terms, {r: c["value"] for r, c in constants.items()})
+    required = [n for n, s in profile.term_specs().items() if s["required"]]
     inside = profile.in_neighborhood(terms)
-    supported = finite & inside
-    cls = np.where(supported, profile.base_classification(), "unsupported").astype("<U12")
+    supported = inside & np.isfinite(total) & np.all([np.isfinite(terms[n]) for n in required], axis=0)
+    cls = np.where(supported, profile.base_classification(constants), "unsupported").astype("<U12")
     bound = np.isin(cls, BOUND_CLASSES)
+    candidate = bound if admission["mode"] == "upper_bound" else supported
     with np.errstate(invalid="ignore"):
-        within = np.ones(len(total), bool) if max_total_error is None else (total <= max_total_error)
-    admissible = bound & within
-    eligible = accepted & admissible
+        within = np.ones(len(total), bool) if admission["threshold"] is None else total <= admission["threshold"]
+    admissible = candidate & within
+    eligible = np.asarray(accepted, bool) & admissible
     threshold = None
-    if selection_quantile is not None and eligible.any():
-        threshold = float(np.quantile(total[eligible], selection_quantile))
+    if quantile is None:
+        selected = np.ones(len(total), bool)
+    elif eligible.any():
+        threshold = float(np.quantile(total[eligible], quantile))
         selected = eligible & (total <= threshold)
     else:
-        selected = np.ones(len(total), bool)
-    reasons = np.stack([~supported, supported & bound & ~within, eligible & ~selected], axis=1)
-    return model, total, cls, bound, inside, admissible, selected, reasons, threshold
+        selected = np.zeros(len(total), bool)
+    reasons = np.stack([~supported, (admission["mode"] == "upper_bound") & supported & ~bound,
+                        candidate & ~within, eligible & ~selected], axis=1)
+    return {"model_error_value": model, "total_error_value": total, "classification": cls, "is_upper_bound": bound,
+            "in_neighborhood": inside, "admissible": admissible, "selected": selected, "reasons": reasons}, threshold
 
 
-def certify(candidates, dataset, representation, model, profile, candidates_sha256: str,
-            max_total_error: float | None = None, selection_quantile: float | None = None,
-            inputs: dict | None = None) -> CertificateSet:
-    """Certify every candidate row with profile; the candidates are not modified."""
-    if selection_quantile is not None and not 0 < selection_quantile <= 1:
-        raise InterfaceError(f"selection_quantile must be in (0, 1], got {selection_quantile!r}")
-    terms = source_terms(dataset, representation, candidates, model)
-    model_v, total, cls, bound, inside, admissible, selected, reasons, thr = _decide(
-        profile, terms, np.asarray(candidates.accepted), max_total_error, selection_quantile)
+def _admission(mode, threshold) -> dict:
+    if mode not in ("upper_bound", "score"):
+        raise InterfaceError(f"admission must be 'upper_bound' or 'score', got {mode!r}")
+    _nonneg(threshold, "the admission threshold")
+    return {"mode": mode, "threshold": None if threshold is None else float(threshold)}
+
+
+def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", threshold: float | None = None,
+            selection_quantile: float | None = None, state_scale=None, action_scale=None) -> CertificateSet:
+    """Certify every candidate row of sources.candidates with profile; the candidates are not modified."""
+    if not isinstance(profile, Profile) or profile.constants is None:
+        raise InterfaceError("certify needs a profile built from Declared/Provided constants")
+    adm = _admission(admission, threshold)
+    if selection_quantile is not None and (isinstance(selection_quantile, bool) or not isinstance(selection_quantile, (int, float))
+                                           or not 0 < selection_quantile <= 1):
+        raise InterfaceError(f"selection_quantile must be in (0, 1] or None, got {selection_quantile!r}")
+    hashes = sources.hashes()
+    dataset = read_trajectories(sources.dataset)
+    candidates = read_candidates(sources.candidates, dataset)
+    model = load_transition_model(sources.transition_model, device=sources.device)
+    rep = sources.representation
+    probe = transitions(dataset, rep)
+    ctx = Context(candidates, dataset, rep, model, _scales(state_scale, probe.z.shape[1], "state_scale"),
+                  _scales(action_scale, probe.a.shape[1], "action_scale"),
+                  {k: Path(v) for k, v in sources.references.items()}, hashes)
+    terms = {**global_terms(ctx), **profile.compute_terms(ctx)}
+    if set(terms) != set(profile.term_specs()):
+        raise InterfaceError(f"{profile.name} computed terms {sorted(terms)}, declares {sorted(profile.term_specs())}")
+    constants = {role: resolve_constant(spec, profile.roles[role], ctx) for role, spec in sorted(profile.constants.items())}
+    coordinates = {"modality": ctx.modality, "state_dim": int(probe.z.shape[1]), "action_dim": int(probe.a.shape[1]),
+                   "state_scale": ctx.state_scale.tolist(), "action_scale": ctx.action_scale.tolist()}
+    rows, thr = decide(profile, constants, terms, candidates.accepted, adm, selection_quantile)
     return CertificateSet(
         source_episode_id=np.asarray(candidates.source_episode_id), source_frame=np.asarray(candidates.source_frame),
-        terms=terms, model_error_value=model_v, total_error_value=total, classification=cls, is_upper_bound=bound,
-        in_neighborhood=inside, admissible=admissible, selected=selected, reasons=reasons,
-        descriptor=profile.descriptor(), candidates_sha256=candidates_sha256, inputs=dict(inputs or {}),
-        thresholds={"max_total_error": max_total_error, "selection_quantile": selection_quantile,
-                    "selection_threshold": thr})
-
-
-# --- persistence ---------------------------------------------------------------
-
-def write_certificates(cert: CertificateSet, path) -> None:
-    arrays = {"source_episode_id": cert.source_episode_id, "source_frame": cert.source_frame,
-              "model_error_value": cert.model_error_value, "total_error_value": cert.total_error_value,
-              "classification": np.array([CLASSIFICATIONS.index(c) for c in cert.classification], np.int8),
-              "is_upper_bound": cert.is_upper_bound, "in_neighborhood": cert.in_neighborhood,
-              "admissible": cert.admissible, "selected": cert.selected, "reasons": cert.reasons}
-    arrays.update({f"term/{k}": v for k, v in cert.terms.items()})
-    meta = {"schema": SCHEMA, "version": f"{VERSION[0]}.{VERSION[1]}", "optional_fields": [],
-            "descriptor": cert.descriptor, "thresholds": cert.thresholds, "candidates_sha256": cert.candidates_sha256,
-            "inputs": cert.inputs, "classification_codes": list(CLASSIFICATIONS), "reason_codes": list(REASON_CODES)}
-    arrays["meta"] = np.array(json.dumps(meta, sort_keys=True))
-    _atomic_savez(path, arrays)
-
-
-def read_certificates(path) -> CertificateSet:
-    arrays, meta = _load_npz(path, SCHEMA)
-    if meta.get("schema") != SCHEMA or str(meta.get("version", "")).split(".")[0] != str(VERSION[0]):
-        raise _format_error(SCHEMA, path, [f"not a {SCHEMA} {VERSION[0]}.x file"])
-    need = {"source_episode_id", "source_frame", "model_error_value", "total_error_value", "classification",
-            "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"} | {f"term/{k}" for k in TERMS}
-    missing = sorted(need - set(arrays))
-    if missing:
-        raise _format_error(SCHEMA, path, [f"missing fields {missing}"])
-    if meta.get("classification_codes") != list(CLASSIFICATIONS) or meta.get("reason_codes") != list(REASON_CODES):
-        raise _format_error(SCHEMA, path, ["unknown classification or reason codes"])
-    n = len(arrays["source_episode_id"])
-    if any(np.asarray(v).shape[:1] != (n,) for v in arrays.values()):
-        raise _format_error(SCHEMA, path, ["arrays do not share one row count"])
-    codes = arrays["classification"]
-    if codes.dtype.kind not in "iu" or ((codes < 0) | (codes >= len(CLASSIFICATIONS))).any():
-        raise _format_error(SCHEMA, path, ["classification codes out of range"])
-    return CertificateSet(
-        source_episode_id=arrays["source_episode_id"], source_frame=arrays["source_frame"],
-        terms={k: arrays[f"term/{k}"] for k in TERMS}, model_error_value=arrays["model_error_value"],
-        total_error_value=arrays["total_error_value"],
-        classification=np.array([CLASSIFICATIONS[c] for c in codes], dtype="<U12"),
-        is_upper_bound=arrays["is_upper_bound"], in_neighborhood=arrays["in_neighborhood"],
-        admissible=arrays["admissible"], selected=arrays["selected"], reasons=arrays["reasons"],
-        descriptor=meta.get("descriptor"), thresholds=meta.get("thresholds"),
-        candidates_sha256=meta.get("candidates_sha256"), inputs=meta.get("inputs") or {})
+        terms=terms, descriptor=profile.descriptor(constants, coordinates), admission=adm,
+        selection={"quantile": None if selection_quantile is None else float(selection_quantile), "threshold": thr},
+        candidates_sha256=hashes["candidates"], inputs=hashes, components=_components(rep, model), **rows).validate()
 
 
 # --- verification --------------------------------------------------------------
 
-def verify_structure(cert: CertificateSet, candidates, candidates_path=None) -> list[str]:
-    """Problems found from the certificate and its candidates alone (empty when consistent).
+def _profile_of(cert: CertificateSet):
+    cls = PROFILES.get(cert.descriptor.get("profile"))
+    if cls is None:
+        raise InterfaceError(f"profile {cert.descriptor.get('profile')!r} is not registered")
+    if cert.descriptor.get("version") != cls.version:
+        raise InterfaceError(f"profile {cls.name} version {cert.descriptor.get('version')!r} is not {cls.version!r}")
+    return cls.from_descriptor(cert.descriptor)
 
-    Checks the candidate hash and row identity, then recomputes every value,
-    classification, mask, and threshold from the persisted terms and descriptor.
-    It cannot tell whether the persisted terms themselves are right: that is
-    the source audit's job.
+
+def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
+    """Problems found from the certificate and its candidates file alone (empty when consistent).
+
+    It cannot tell whether the persisted terms or provided constants are right:
+    that is the source audit's job.
     """
     problems = []
-    if candidates_path is not None:
-        digest = hashlib.sha256(Path(candidates_path).read_bytes()).hexdigest()
-        if digest != cert.candidates_sha256:
-            problems.append(f"candidates SHA-256 {digest} != recorded {cert.candidates_sha256}")
+    digest = sha256(Path(candidates_path))
+    if digest != cert.candidates_sha256:
+        problems.append(f"candidates SHA-256 {digest} != recorded {cert.candidates_sha256}")
+    try:
+        cert.validate()
+        candidates = read_candidates(candidates_path)
+    except SchemaError as e:
+        return problems + [f"schema: {e}"]
     if not (np.array_equal(cert.source_episode_id.astype(str), np.asarray(candidates.source_episode_id).astype(str))
             and np.array_equal(cert.source_frame, candidates.source_frame)):
         return problems + ["certificate rows do not match the candidate rows"]
     try:
-        profile = PROFILES[cert.descriptor["profile"]].from_descriptor(cert.descriptor)
-    except (KeyError, TypeError, InterfaceError) as e:
-        return problems + [f"descriptor does not define a known profile: {e}"]
-    if json.dumps(profile.descriptor(), sort_keys=True) != json.dumps(cert.descriptor, sort_keys=True):
+        profile = _profile_of(cert)
+    except InterfaceError as e:
+        return problems + [str(e)]
+    d = cert.descriptor
+    if set(d["constants"]) != set(profile.roles):
+        return problems + [f"descriptor constants {sorted(d['constants'])} != profile roles {sorted(profile.roles)}"]
+    for role, c in d["constants"].items():
+        p = c["provenance"]
+        if p is not None and (p["provider"] not in PROVIDERS or PROVIDERS[p["provider"]].source != c["source"]
+                              or PROVIDERS[p["provider"]].version != p["version"]):
+            problems.append(f"constant {role} claims {c['source']} from an unregistered or mismatched provider {p}")
+    if json.dumps(profile.descriptor(d["constants"], d["coordinates"]), sort_keys=True) != json.dumps(d, sort_keys=True):
         problems.append("descriptor is not the one this version of the profile writes")
-    t = cert.thresholds
-    model, total, cls, bound, inside, admissible, selected, reasons, thr = _decide(
-        profile, cert.terms, np.asarray(candidates.accepted), t.get("max_total_error"), t.get("selection_quantile"))
-    checks = {"model_error_value": (model, cert.model_error_value), "total_error_value": (total, cert.total_error_value)}
-    for name, (want, got) in checks.items():
-        if not np.allclose(got, want, rtol=1e-12, atol=0.0, equal_nan=True):
-            problems.append(f"{name} does not follow from the persisted terms on {int((~np.isclose(got, want, rtol=1e-12, atol=0.0, equal_nan=True)).sum())} rows")
-    for name, want, got in (("classification", cls, cert.classification), ("is_upper_bound", bound, cert.is_upper_bound),
-                            ("in_neighborhood", inside, cert.in_neighborhood), ("admissible", admissible, cert.admissible),
-                            ("selected", selected, cert.selected), ("reasons", reasons, cert.reasons)):
-        if not np.array_equal(np.asarray(got), np.asarray(want)):
-            problems.append(f"{name} does not follow from the persisted terms and descriptor")
-    if (thr is None) != (t.get("selection_threshold") is None) or (thr is not None and not np.isclose(thr, t["selection_threshold"], rtol=1e-12)):
-        problems.append("selection_threshold does not follow from the persisted totals")
+    rows, thr = decide(profile, d["constants"], cert.terms, candidates.accepted, cert.admission, cert.selection["quantile"])
+    for name in ("model_error_value", "total_error_value"):
+        close = np.isclose(getattr(cert, name), rows[name], rtol=1e-12, atol=0.0, equal_nan=True)
+        if not close.all():
+            problems.append(f"{name} does not follow from the persisted terms on {int((~close).sum())} rows")
+    for name in ("classification", "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"):
+        if not np.array_equal(np.asarray(getattr(cert, name)), rows[name]):
+            problems.append(f"{name} does not follow from the persisted terms, descriptor, and policy")
+    rec = cert.selection["threshold"]
+    if (thr is None) != (rec is None) or (thr is not None and not np.isclose(thr, rec, rtol=1e-12, atol=0.0)):
+        problems.append(f"selection threshold {rec!r} does not follow from the persisted totals ({thr!r})")
     return problems
 
 
-def audit_sources(cert: CertificateSet, candidates, dataset, representation, model, rtol: float = 1e-9) -> list[str]:
-    """Problems found by recomputing every source term independently (per episode, per row)."""
-    episodes = {ep.episode_id: ep for ep in dataset.episodes}
-    modality = representation.output_modality
-    encoded = {eid: np.asarray(representation.encode(ep.observations), np.float64) for eid, ep in episodes.items()}
+def audit_sources(cert: CertificateSet, sources: Sources, rtol: float = 1e-9) -> list[str]:
+    """Problems found by checking each source against the certificate's record and recomputing every term."""
     problems = []
+    given = sources.hashes()
+    for name, recorded in sorted(cert.inputs.items()):
+        if name not in given:
+            problems.append(f"input {name!r} was recorded but not supplied")
+        elif given[name] != recorded:
+            problems.append(f"input {name!r} SHA-256 {given[name]} != recorded {recorded}")
+    for name in sorted(set(given) - set(cert.inputs)):
+        problems.append(f"input {name!r} was supplied but is not recorded")
+    if problems:
+        return problems  # recomputing from other artifacts would audit something else
+    dataset = read_trajectories(sources.dataset)
+    candidates = read_candidates(sources.candidates, dataset)
+    model = load_transition_model(sources.transition_model, device=sources.device)
+    rep = sources.representation
+    if _components(rep, model) != cert.components:
+        return [f"components {_components(rep, model)} != recorded {cert.components}"]
+    try:
+        profile = _profile_of(cert)
+    except InterfaceError as e:
+        return [str(e)]
+    co = cert.descriptor["coordinates"]
+    sz, sa = np.asarray(co["state_scale"], np.float64), np.asarray(co["action_scale"], np.float64)
+    episodes = {ep.episode_id: ep for ep in dataset.episodes}
+    encoded = {eid: np.asarray(rep.encode(ep.observations), np.float64) for eid, ep in episodes.items()}
+    dims = (next(iter(encoded.values())).shape[1], dataset.episodes[0].actions.shape[1])
+    if dims != (co["state_dim"], co["action_dim"]):
+        return [f"sources have state and action dims {dims}; recorded ({co['state_dim']}, {co['action_dim']})"]
+    m = co["modality"]
+    extra = [n for n in cert.terms if n not in GLOBAL_TERMS]
     for i in range(len(cert.source_frame)):
         eid, t = str(cert.source_episode_id[i]), int(cert.source_frame[i])
         ep, zs = episodes[eid], encoded[eid]
-        z_t, z_n, a_t = zs[t:t + 1], zs[t + 1:t + 2], np.asarray(ep.actions[t:t + 1], np.float64)
-        z_g = np.asarray(candidates.observations[modality][i:i + 1], np.float64)
-        a_g = np.asarray(candidates.actions[i:i + 1], np.float64)
-        y = np.asarray(candidates.target_observations[modality][i:i + 1], np.float64)
-        expected = {"state_displacement": float(np.linalg.norm(z_g - z_t)),
-                    "action_displacement": float(np.linalg.norm(a_g - a_t)),
-                    "anchor_model_error": float(np.linalg.norm(z_t + model.delta(z_t, a_t) - z_n)),
-                    "solver_error": float(np.linalg.norm(z_g + model.delta(z_g, a_g) - y))}
+        row = {"z_t": zs[t:t + 1], "z_next": zs[t + 1:t + 2], "a_t": np.asarray(ep.actions[t:t + 1], np.float64),
+               "z_g": np.asarray(candidates.observations[m][i:i + 1], np.float64),
+               "a_g": np.asarray(candidates.actions[i:i + 1], np.float64),
+               "y": np.asarray(candidates.target_observations[m][i:i + 1], np.float64),
+               "model": model, "state_scale": sz, "action_scale": sa}
+        expected = {
+            "state_displacement": float(np.linalg.norm((row["z_g"] - row["z_t"]) / sz)),
+            "action_displacement": float(np.linalg.norm((row["a_g"] - row["a_t"]) / sa)),
+            "anchor_model_error": float(np.linalg.norm((row["z_t"] + model.delta(row["z_t"], row["a_t"]) - row["z_next"]) / sz)),
+            "solver_error": float(np.linalg.norm((row["z_g"] + model.delta(row["z_g"], row["a_g"]) - row["y"]) / sz))}
+        expected.update({n: float(profile.audit_term(n, row)) for n in extra})
         for name, want in expected.items():
             got = float(cert.terms[name][i])
-            if not np.isclose(got, want, rtol=rtol, atol=1e-12):
+            if not (np.isclose(got, want, rtol=rtol, atol=1e-12) or (np.isnan(got) and np.isnan(want))):
                 problems.append(f"row {i}: persisted {name} {got!r} != recomputed {want!r}")
+    ctx = Context(candidates, dataset, rep, model, sz, sa, {k: Path(v) for k, v in sources.references.items()}, given)
+    for role, c in cert.descriptor["constants"].items():
+        p = c["provenance"]
+        if p is None:
+            continue
+        again = PROVIDERS[p["provider"]].resolve(c["maps"], p["params"]["reference"], ctx)
+        if again != c:
+            problems.append(f"constant {role} {c['value']!r} does not match its provider's recomputation {again['value']!r}")
     return problems
 
 
 def require_upper_bound(cert: CertificateSet) -> None:
-    """Raise unless every row the caller would use is an upper bound (certified, conditional, or calibrated)."""
-    if not cert.is_upper_bound[cert.admissible].all() or not np.isin(cert.classification[cert.admissible], BOUND_CLASSES).all():
-        raise InterfaceError(f"profile {cert.descriptor.get('profile')!r} does not give upper bounds")
+    """Raise unless every supported row is an upper bound and admission admits only bounds."""
+    supported = cert.classification != "unsupported"
+    if cert.admission["mode"] != "upper_bound" or not cert.is_upper_bound[supported].all():
+        raise InterfaceError(f"certificate ({cert.descriptor.get('profile')}, admission {cert.admission['mode']!r}) "
+                             "does not admit rows as upper bounds")
 
 
-__all__ = ["Constant", "ContinuityProfile", "CertificateSet", "certify", "write_certificates", "read_certificates",
-           "verify_structure", "audit_sources", "require_upper_bound", "source_terms", "PROFILES", "SCHEMA",
-           "VERSION", "CLASSIFICATIONS", "BOUND_CLASSES", "SOURCE_CLASS", "REASON_CODES", "SchemaError"]
+__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "Sources", "Context", "certify", "decide",
+           "verify_structure", "audit_sources", "require_upper_bound", "register_profile", "write_reference_dynamics",
+           "read_reference_dynamics", "PROFILES", "PROVIDERS", "SCHEMA", "VERSION", "REASON_CODES"]
