@@ -57,6 +57,11 @@ imports the integrated pipeline or a policy trainer.
 uv run ccil labels generate --recipe analytic_double_integrator --set data.path=fixture.npz
 ```
 
+A `labels.certify` stage can follow `labels.generate`. It writes
+`labels-certify-*/labels/certificates.npz` and leaves the candidates unchanged.
+The profile's constants and thresholds are part of its identity. See
+[certificates.md](certificates.md).
+
 ## Integrated pipeline: `ccil pipeline integrated`
 
     data.prepare → representation.fit → transition.fit → labels.generate → policy.train → policy.evaluate

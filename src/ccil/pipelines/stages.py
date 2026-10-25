@@ -2,8 +2,9 @@
 
 A stage's run ID hashes its name, the configuration keys that stage consumes
 (STAGE_KEYS), the components it uses (kind or name, and version), the running
-implementation (the ccil source hash and dependency versions), and the SHA-256
-of every input artifact. The full identity is written to stage.json in the run.
+implementation (the ccil source hash and dependency versions), any parameters
+passed outside the configuration (such as a certificate profile's descriptor),
+and the SHA-256 of every input artifact. The full identity is written to stage.json in the run.
 Upstream checkpoints hand off through the manifest `inputs`, so a change
 upstream produces a new downstream run, while a change that only affects later
 stages (for example the policy trainer) reuses every earlier stage. Each run
@@ -53,6 +54,7 @@ STAGE_KEYS = {
     "transition.fit": ("run.seed", "transition_model.", "representation.modality", "compute."),
     "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
                         "compute."),
+    "labels.certify": ("representation.modality", "compute."),
     "policy.train": ("run.seed", "policy."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }
@@ -64,7 +66,8 @@ def component(obj) -> dict:
     return {key: getattr(obj, key), "version": obj.version}
 
 
-def stage_identity(stage: str, cfg, inputs: dict, components: dict | None = None) -> dict:
+def stage_identity(stage: str, cfg, inputs: dict, components: dict | None = None,
+                   parameters: dict | None = None) -> dict:
     """Everything the reuse decision depends on; its hash is the run ID."""
     prefixes = STAGE_KEYS[stage]
     consumed = {k: v for k, v in cfg.values.items() if any(k == p or (p.endswith(".") and k.startswith(p)) for p in prefixes)}
@@ -72,8 +75,11 @@ def stage_identity(stage: str, cfg, inputs: dict, components: dict | None = None
         impl = implementation()
     except ImplementationUnknown as e:
         raise StageError(stage, e) from e
-    return {"stage": stage, "config": consumed, "components": components or {}, "implementation": impl,
-            "inputs": {k: sha256(p) for k, p in sorted(inputs.items())}}
+    identity = {"stage": stage, "config": consumed, "components": components or {}, "implementation": impl,
+                "inputs": {k: sha256(p) for k, p in sorted(inputs.items())}}
+    if parameters:
+        identity["parameters"] = parameters
+    return identity
 
 
 def stage_run_id(identity: dict) -> str:
@@ -81,13 +87,16 @@ def stage_run_id(identity: dict) -> str:
     return f"{identity['stage'].replace('.', '-')}-{hashlib.sha256(blob.encode()).hexdigest()[:12]}"
 
 
-def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = None) -> StageResult:
+def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = None,
+              parameters: dict | None = None) -> StageResult:
     """Run body(run) inside a RunWriter for this stage, or reuse a complete prior run.
 
-    components maps roles to component objects (see component()).
+    components maps roles to component objects (see component()); parameters is
+    JSON data that affects the output but is not configuration.
     """
     out_dir = Path(cfg["run.output_dir"])
-    identity = stage_identity(stage, cfg, inputs, {role: component(c) for role, c in (components or {}).items()})
+    identity = stage_identity(stage, cfg, inputs, {role: component(c) for role, c in (components or {}).items()},
+                              parameters)
     run_id = stage_run_id(identity)
     dest = out_dir / run_id
     if out_dir.is_dir():
