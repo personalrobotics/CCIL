@@ -5,9 +5,9 @@ the `ccil` core. #22 runs as three PRs, and this page grows with each:
 
 | PR | Contents |
 |---|---|
-| 1 | Noisy-action generation and NoiseBC (this page so far) |
+| 1 | Noisy-action generation and NoiseBC |
 | 2 | Filtering, weighting, and the label-filtering branch inventory |
-| 3 | Action chunks |
+| 3 | Action chunks (to come) |
 
 **Ownership.** #22 owns the *measurements* each label carries. #88 owns their
 mathematical interpretation: proof profiles, bounds, and the certified,
@@ -98,6 +98,69 @@ It removes the positive bias and the in-place write:
 scale, units, truncation, masking probability, seed, RNG, and draw schedule.
 `NoiseTrace` gives a running SHA-256 over every draw, for reproducibility
 without storing the draws.
+
+## Filtering and weighting (PR 2)
+
+The label-filtering branch (`archive/upstream-label-filtering-2026-10-22`) adds
+two filters to legacy `main`'s support radius. Validity, acceptance and
+training weight stay separate:
+- a **validator** rejects a row with a reason, and records measurements;
+- a row is **accepted** exactly when no validator rejects it;
+- a **weighting** sets the training weight of accepted rows, and can't change
+  acceptance or reasons.
+
+| Legacy | New | Reason | Notes |
+|---|---|---|---|
+| `aug.epsilon` (`distance < ε`) | `SupportRadius` (`generation.support_radius`) | `out_of_support` | Unchanged (#11). |
+| `aug.model_err_thresh` (`model_fits_data`) | `ModelMisfit` (`generation.model_error_threshold`) | `model_misfit` | Legacy generated nothing for a misfit transition, recording only a failure count. Its candidates are now generated and rejected, so the decision is in provenance. It measures `anchor_model_error`. |
+| `label_error` with `aug.max_label_err` / `aug.label_err_quantile` | `LabelError` (`generation.max_label_error`, `generation.label_error_quantile`) | `label_error` | Corrected estimate (below). The quantile is taken over the finite estimates of candidates generation produced (not failed), as in legacy. The applied threshold is recorded per row as `label_error_threshold`. |
+
+`model_misfit` and `label_error` are built-in reasons added in
+`ccil.candidates` 2.3. A file has their columns only when a validator uses
+them.
+
+**The label-error estimate (correctness change).**
+- **The branch** computed `label_err = L · ‖(s_G, a_G) − (s_t, a_t)‖`, with `L`
+  the spectral norm of the Jacobian of `WorldModel.predict`, the next-state map
+  `s + f`. That Jacobian is `[I + ∂f/∂s, ∂f/∂a]`, whose norm is about 1 for any
+  small residual. The estimate therefore came out close to the bare distance,
+  whatever the model's continuity.
+- **`LabelError`** uses the residual Jacobian `∂f/∂(z, a)` at the anchor, which
+  is the continuity the method assumes of f. It is the same correction as
+  `soft_jac` in #21.
+- **Its scope:** `L` is a pointwise value at the anchor, so the estimate is
+  empirical, not a bound over the neighborhood. #88 classifies it.
+- The evidence shows both formulas on the analytic system.
+
+**Weighting.**
+- **No per-label soft weighting exists in any branch.** The only weights are
+  the per-action-dimension policy-loss weights in `CustomBC` and the expert
+  repetition `aug.balance_data`. Both are policy-side, owned by #89.
+- `Uniform` remains the label weighting.
+- The schema keeps weights from affecting acceptance: rejected rows must have
+  weight 0, and a weight of 0 on an accepted row leaves it accepted.
+
+## Label-filtering branch inventory
+
+Each capability of `docs/inventory/capabilities.json` that the branch changes,
+with its terminal classification. The evidence checks that none is missing.
+
+| Capability | Branch change | Classification |
+|---|---|---|
+| `dynamics-model` | `local_lipschitz_coeff()`; unreduced prediction errors | Ported: `jacobian_za` and `residual_jacobian_za` (residual, corrected); per-row errors as `anchor_model_error` |
+| `corrective-labels` | `forward_euler` as fixed-point iteration; `model_err_thresh`; original actions recorded | Fixed-point iteration superseded by `ExactPreimage` (same equation; Newton doesn't need ‖∂f/∂z‖ < 1, and no hardcoded 1e-4); `model_err_thresh` ported as `ModelMisfit`; source actions are carried by the source identity |
+| `label-filtering` | label-error estimate; `label_err_quantile`; `max_label_err`; combined with `epsilon` | Ported, with a correctness change: `LabelError`, alongside `SupportRadius` |
+| `action-chunking-labels` | `gen_aug_label_chunking.py` | #22 PR 3 |
+| `bc-policy` | removes the tycho case; configurable encoder layers; callable loss weights | Moved to #89 (vector BC training) |
+| `data-fraction-ablation` | `data.data_frac` | Superseded by the M7 low-data subsets (#51–#55) |
+| `dynamics-training-tool` | paper-style plots; error-distribution plot | Out of scope; plotting is left to analysis tools |
+| `f1-evaluation` | success-rate metric; hardcoded `/home/prl/dev/CCIL` | Out of scope: the F1 suite is retired (#3) |
+| `results-analysis` | `tabulate_sweep.py`, `plot_ablation.py` | Out of scope (analysis scripts) |
+| `task-configs` | all 14 configs retuned, e.g. pendulum to `backward_euler_fast` with `label_err_quantile: 0.3` | Recorded as variants; each migrates to the keys above. Which variant produced each figure is a ledger question (#24) |
+| `pipeline-scripts` | eval flag; training steps commented out | Out of scope: superseded by `ccil` pipelines |
+| `cluster-sweeps` | sweep scripts | Excluded (inventory disposition) |
+| `repo-hygiene` | `.gitignore` | Out of scope |
+| `documentation` | README usage | Out of scope; superseded by the `ccil` docs |
 
 ## Evidence
 

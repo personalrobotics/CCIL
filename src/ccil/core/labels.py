@@ -78,6 +78,7 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         why = None if v.reason is None else reason_code_problem(v.reason)
         if why:
             raise InterfaceError(f"{type(v).__name__}.reason: {why}")
+    # REASON_CODES are always columns; later built-ins and extensions only when a validator uses them.
     codes = canonical_reason_order(set(REASON_CODES) | {v.reason for v in validators if v.reason is not None})
     reasons = np.zeros((len(cands), len(codes)), bool)
     measurements = {f"generator.{k}": v.astype(np.float64) for k, v in cands.measurements.items()}

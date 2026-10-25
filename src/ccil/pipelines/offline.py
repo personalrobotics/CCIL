@@ -14,7 +14,7 @@ import numpy as np
 from ..config import ConfigError
 from ..config.params import mlp_settings_problem
 from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
-                    IdentityRepresentation, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
+                    IdentityRepresentation, LabelError, ModelMisfit, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
                     load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
@@ -46,6 +46,10 @@ def build_validators(v):
         validators.append(SupportRadius(v["generation.support_radius"]))
     if v["data.action_low"] is not None:
         validators.append(ActionBounds(v["data.action_low"], v["data.action_high"]))
+    if v["generation.model_error_threshold"] is not None:
+        validators.append(ModelMisfit(v["generation.model_error_threshold"]))
+    if v["generation.max_label_error"] is not None or v["generation.label_error_quantile"] is not None:
+        validators.append(LabelError(v["generation.max_label_error"], v["generation.label_error_quantile"]))
     return validators
 
 

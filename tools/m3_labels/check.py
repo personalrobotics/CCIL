@@ -27,9 +27,20 @@ NoiseBC, on fixed observations (full masks and noise kept in noise_bc_draws.npz)
   step or draw, and independent of batch order and composition;
 - perturb never modifies its input and rejects inputs it could not perturb as
   configured; the trace hash is reproducible and changes with the seed.
+Filtering and weighting (#22 part 2):
+- the label-error estimate equals ||df/d(z, a)|| times the state-action
+  distance on the analytic system (the branch's next-state Jacobian shown
+  beside it); model_misfit rejects and records the candidates of misfit
+  transitions; the quantile and absolute label-error filters are
+  reconstructible from the file and batch-invariant; reasons stay
+  independent; a weighting never changes validity; the branch's fixed-point
+  forward_euler reaches Newton's root; the branch's keys migrate; every
+  label-filtering capability of the inventory is classified; and the pipeline
+  writes a complete 2.3 run with the filters.
 Writes DIR/report.json.
 """
 import argparse
+import copy
 import hashlib
 import json
 import platform
@@ -322,6 +333,151 @@ def main():
     t1, t2, t3 = trace(SEED), trace(SEED), trace(SEED + 1)
     record("noise_bc_trace_hash", t1 == t2 and t1["sha256"] != t3["sha256"] and t1["draws"] == 5,
            same_seed=[t1, t2], other_seed=t3)
+
+    # ---------------- PR 2: filtering, weighting, inventory ----------------
+    from ccil.core import BackwardEuler, LabelError, ModelMisfit
+    from ccil.schema import SchemaError
+
+    def file_meta(path):
+        with np.load(path, allow_pickle=False) as z:
+            return json.loads(str(z["meta"]))
+
+    # 12. The label-error estimate is the residual-Jacobian closed form (the branch used the next-state map).
+    ce = generate_labels(dataset, rep, model, BackwardEuler(), [Finite(), LabelError()], run_id="le", seed=SEED)
+    L_res = float(np.linalg.norm(np.hstack([sys_.A, sys_.B]), 2))
+    L_next = float(np.linalg.norm(np.hstack([np.eye(2) + sys_.A, sys_.B]), 2))
+    dist = ce.measurements["state_action_distance"]
+    est = ce.measurements["label_error_estimate"]
+    record("label_error_estimate_uses_the_residual_jacobian",
+           np.allclose(est, L_res * dist, rtol=1e-12, atol=1e-15) and np.allclose(ce.measurements["anchor_local_lipschitz"], L_res)
+           and "label_error" not in ce.reason_codes and ce.accepted.all(),
+           residual_jacobian_norm=L_res, branch_next_state_jacobian_norm=L_next,
+           estimate_mean=float(est.mean()), branch_estimate_mean=float((L_next * dist).mean()),
+           distance_mean=float(dist.mean()))
+
+    # 13. model_misfit: the misfit transitions' candidates are recorded as rejected, not dropped.
+    frames_all = np.concatenate([np.arange(ep.length - 1) for ep in dataset.episodes])
+    wrong = copy.deepcopy(dataset)
+    for ep in wrong.episodes:  # perturb the stored next state of frame 2, so the exact model misfits it
+        if ep.length > 3:
+            ep.observations["state"] = ep.observations["state"].copy()
+            ep.observations["state"][3] += np.float32(1.0)
+    cm = generate_labels(wrong, rep, model, NoisyAction(K, SIGMA), [Finite(), ModelMisfit(0.5)], run_id="misfit",
+                         seed=SEED)
+    mm = cm.reasons[:, cm.reason_codes.index("model_misfit")]
+    expect = cm.measurements["anchor_model_error"] >= 0.5
+    record("model_misfit_rejects_and_records",
+           mm.any() and np.array_equal(mm, expect) and not cm.accepted[mm].any() and len(cm.accepted) == K * len(frames_all)
+           and set(np.unique(cm.source_frame[mm]).tolist()) <= {2, 3},
+           rejected=int(mm.sum()), candidates=int(len(cm.accepted)), rejected_source_frames=sorted(set(cm.source_frame[mm].tolist())))
+
+    # 14. Filters: quantile and absolute, threshold recorded and reconstructible, batch-invariant.
+    filt = {}
+    for name, val in (("quantile", LabelError(quantile=0.5)), ("absolute", LabelError(max_error=0.002))):
+        paths = []
+        for bs in (1, None):
+            cf = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), [Finite(), GenerationFailed(), val],
+                                 run_id=f"filter-{name}", seed=SEED, batch_size=bs)
+            path = out / f"filter-{name}-{bs}.npz"
+            write_candidates(cf, path)
+            paths.append(path)
+        with np.load(paths[1], allow_pickle=False) as z:
+            e = z["meas/label_error_estimate"]
+            thr = z["meas/label_error_threshold"]
+            codes = json.loads(str(z["meta"]))["reason_codes"]
+            rej = z["reasons"][:, codes.index("label_error")]
+        expected_thr = float(np.quantile(e, 0.5)) if name == "quantile" else 0.002
+        filt[name] = {"rows": int(len(e)), "rejected": int(rej.sum()), "threshold": float(thr[0]),
+                      "recomputed_threshold": expected_thr, "kept_fraction": float((~rej).mean()),
+                      "batch_invariant": sha(paths[0]) == sha(paths[1]), "file_version": file_meta(paths[1])["version"]}
+        filt[name]["ok"] = (np.allclose(thr, expected_thr) and np.array_equal(rej, ~(e <= expected_thr))
+                            and filt[name]["batch_invariant"] and filt[name]["file_version"] == "2.3" and 0 < rej.sum() < len(e))
+    record("label_error_filters_reconstructible_from_the_file", all(v["ok"] for v in filt.values()), results=filt)
+
+    # 15. Independent reasons: support and label error together; accounting closes.
+    cb = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA),
+                         [Finite(), SupportRadius(0.005), LabelError(max_error=0.0005), ModelResidual()], run_id="both",
+                         seed=SEED)
+    both = cb.reasons[:, cb.reason_codes.index("out_of_support")] & cb.reasons[:, cb.reason_codes.index("label_error")]
+    record("filters_record_independent_reasons", both.any() and np.array_equal(cb.accepted, ~cb.reasons.any(axis=1)),
+           rows_with_both=int(both.sum()), accepted=int(cb.accepted.sum()), candidates=int(len(cb.accepted)))
+
+    # 16. Weighting never changes validity.
+    class ZeroSomeAccepted:
+        name, version, params = "zero_even_frames", "1", {}
+
+        def weights(self, cands, accepted):
+            return np.where(accepted & (np.arange(len(accepted)) % 2 == 0), 0.0, accepted.astype(float))
+
+    class WeightRejected:
+        name, version, params = "weights_rejected", "1", {}
+
+        def weights(self, cands, accepted):
+            return np.ones(len(accepted))
+
+    vals = [Finite(), SupportRadius(0.005), ModelResidual()]
+    base = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), vals, run_id="w", seed=SEED)
+    zero = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), vals, run_id="w", seed=SEED, weighting=ZeroSomeAccepted())
+    try:
+        generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), vals, run_id="w", seed=SEED, weighting=WeightRejected())
+        rejected_weight = "accepted"
+    except SchemaError as e:
+        rejected_weight = f"SchemaError: {sorted(e.counts)}"
+    record("weighting_never_changes_validity",
+           np.array_equal(zero.accepted, base.accepted) and np.array_equal(zero.reasons, base.reasons)
+           and (zero.weight[zero.accepted] == 0).any() and (~base.accepted).any() and rejected_weight.startswith("SchemaError"),
+           accepted_with_zero_weight=int((zero.weight[zero.accepted] == 0).sum()), rejected_rows=int((~base.accepted).sum()),
+           positive_weight_on_rejected=rejected_weight)
+
+    # 17. The branch's fixed-point forward_euler reaches the same root as Newton on a contraction.
+    def fixed_point(z_star, act, iters=50):  # label-filtering gen_forward_euler: s <- s* - f(s, a)
+        x = z_star.copy()
+        for _ in range(iters):
+            x = z_star - model.delta(x, act)
+        return x
+    newton = sys_.exact_preimage(s, a)
+    fp = fixed_point(s, a)
+    record("fixed_point_forward_euler_superseded_by_newton",
+           float(np.linalg.norm(sys_.A, 2)) < 1 and float(np.abs(fp - newton).max()) < 1e-6,
+           contraction_norm=float(np.linalg.norm(sys_.A, 2)), max_abs_difference=float(np.abs(fp - newton).max()))
+
+    # 18. Migration of the branch's keys.
+    from ccil.config import resolve
+    legacy_yml = out / "legacy_filtering.yml"
+    legacy_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace(
+        "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
+    rc = resolve(config=legacy_yml)
+    record("branch_filter_keys_migrate",
+           (rc["generation.label_error_quantile"], rc["generation.max_label_error"], rc["generation.model_error_threshold"])
+           == (0.3, 0.5, 0.1), values={k: rc[k] for k in ("generation.label_error_quantile", "generation.max_label_error",
+                                                            "generation.model_error_threshold")})
+
+    # 19. Every label-filtering capability of the inventory is classified.
+    inventory = json.loads((REPO / "docs/inventory/capabilities.json").read_text())
+    caps = inventory["capabilities"] if isinstance(inventory, dict) else inventory
+    touched = sorted(c["id"] for c in caps if "label-filtering" in json.dumps(c))
+    table = (REPO / "docs/migration/label-methods.md").read_text().split("## Label-filtering branch inventory", 1)[1]
+    classified = {line.split("|")[1].strip().strip("`") for line in table.splitlines() if line.startswith("| `")}
+    missing = [c for c in touched if c not in classified]
+    record("label_filtering_inventory_fully_classified", not missing and touched, capabilities=touched, missing=missing)
+
+    # 20. The pipeline with filters writes a complete 2.3 run.
+    wf = out / "pipeline_filters"
+    wf.mkdir()
+    write_trajectories(dataset, wf / "fixture.npz")
+    r = subprocess.run([sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
+                        "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
+                        "--set", "generation.method=noisy_action", "--set", f"generation.labels_per_transition={K}",
+                        "--set", f"generation.action_noise_std={SIGMA}", "--set", "generation.label_error_quantile=0.5",
+                        "--set", "generation.model_error_threshold=0.5"], cwd=wf, capture_output=True, text=True)
+    fruns = {p.name: p for p in sorted((wf / "runs").iterdir()) if p.is_dir()} if (wf / "runs").exists() else {}
+    fstat = {n: validate_run(p)[0] for n, p in fruns.items()}
+    flab = next((p for n, p in fruns.items() if n.startswith("labels-generate")), None)
+    fmeta = file_meta(flab / "labels/candidates.npz") if flab else {}
+    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 3
+           and fmeta.get("version") == "2.3" and {"model_misfit", "label_error"} <= set(fmeta.get("reason_codes", [])),
+           stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
+           artifact=f"<out>/pipeline_filters/runs/{flab.name}/labels/candidates.npz" if flab else None, stderr=r.stderr[-300:])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
