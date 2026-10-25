@@ -24,7 +24,6 @@ DROPPED = {
 }
 # Legacy keys that affected behavior but have no supported home yet.
 UNSUPPORTED = {
-    "aug.chunk_size": "action-chunk labels from label-filtering; ported in #22",
     "data.data_frac": "trajectory subsampling; superseded by M7 low-data subsets (#51-#55)",
     "state_encoder": "image-observation encoder from the fork image branch; deferred to M5",
     "policy.layers": "policy encoder width from label-filtering; ported with the policy stage in M3",

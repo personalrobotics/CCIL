@@ -14,6 +14,9 @@ import numpy as np
 from ..schema import REASON_CODES, CandidateSet, TrajectoryDataset
 from ..schema.labels import canonical_reason_order, reason_code_problem
 from .batch import InterfaceError, check_candidates, concat
+from .chunks import SPEC as CHUNK_SPEC
+from .chunks import TARGET_FRAME_SPEC as CHUNK_TARGET_FRAME_SPEC
+from .chunks import action_chunks
 from .representation import transitions
 
 
@@ -54,13 +57,15 @@ def checkpoint_sha256(model) -> str:
 
 
 def generate_labels(dataset: TrajectoryDataset, representation, model, generator, validators, run_id: str, seed: int,
-                    weighting=None, batch_size: int | None = None, inputs: dict | None = None) -> CandidateSet:
+                    weighting=None, batch_size: int | None = None, inputs: dict | None = None,
+                    action_chunk_size: int | None = None) -> CandidateSet:
     """Generate, validate, and weight candidates; return a schema-valid CandidateSet.
 
     batch_size splits generation into chunks; generators are batch-invariant, so it
     changes memory use, not results. weighting defaults to Uniform. inputs maps
     input names to SHA-256 digests for the candidate provenance; a missing
     transition_model entry is the hash of the checkpoint model.save() writes.
+    action_chunk_size adds action chunks of that size (ccil.core.chunks).
     """
     dataset.validate()
     batch = transitions(dataset, representation)
@@ -111,6 +116,15 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
                                  "record its checkpoint hash")
         inputs["transition_model"] = checkpoint_sha256(model)
 
+    chunk_fields = {}
+    if action_chunk_size is not None:
+        chunks, mask, tau = action_chunks(dataset, generator, batch.episode_id[cands.source],
+                                          batch.frame[cands.source], cands.a, action_chunk_size)
+        measurements["chunk_target_frame"] = tau
+        specs["chunk_target_frame"] = dict(CHUNK_TARGET_FRAME_SPEC)
+        chunk_fields = {"action_chunks": chunks, "action_chunk_mask": mask,
+                        "action_chunk_spec": {"chunk_size": int(action_chunk_size), **CHUNK_SPEC}}
+
     modality = representation.output_modality
     return CandidateSet(
         run_id=run_id,
@@ -120,5 +134,5 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         observations={modality: cands.z}, actions=cands.a, target_observations={modality: cands.target},
         accepted=accepted, reasons=reasons, weight=weight, seed=int(seed), inputs=inputs,
         weighting={"name": weighting.name, "version": weighting.version, "params": dict(weighting.params)},
-        reason_codes=codes, measurements=measurements, measurement_specs=specs,
+        reason_codes=codes, measurements=measurements, measurement_specs=specs, **chunk_fields,
     ).validate(dataset)

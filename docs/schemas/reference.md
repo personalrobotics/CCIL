@@ -36,9 +36,9 @@ Modality names match `^(state|image)(\.[a-z0-9_]+)?$`.
 
 Required: `actions`, `episode_ids`, `episode_lengths`, `terminated`, and `obs/<modality>` per modality. Optional: `action_chunk_mask`, `action_chunks`, `task`, `task_present`, `timestamps`. Per-frame arrays are concatenated across episodes in `episode_ids` order and split by `episode_lengths`.
 
-## `ccil.candidates` 2.2
+## `ccil.candidates` 2.3
 
-One row per attempted candidate, accepted or rejected. A row is accepted exactly when it carries no rejection reason; a rejected row may carry several independent reasons. Source identity (episode_id, frame), measurements, and a training weight are required on every row, and the file records the run, seed, generator, input hashes (always including the transition model), and weighting that produced it, so an accepted label can be traced and replayed from the candidate file alone.  Reason columns are the built-in codes, whose meanings are fixed, and namespaced extension codes <namespace>.<reason> that a method's own validators declare (the ccil namespace is reserved). Built-ins come first in their canonical order, then extensions sorted. A consumer that does not know an extension's namespace still treats the row as rejected: accepted is True exactly when no column, built-in or extension, rejects the row.  2.0 made weight, seed, inputs, and weighting required (1.0 had none of them). 2.1 added extension reason codes; a file declares 2.1 only when it uses one, so files with built-in reasons alone stay 2.0. 2.2 added the optional measurement_specs, the definition, norm, and units of every measurement, and the generator's full params; a file declares 2.2 only when it carries specs.
+One row per attempted candidate, accepted or rejected. A row is accepted exactly when it carries no rejection reason; a rejected row may carry several independent reasons. Source identity (episode_id, frame), measurements, and a training weight are required on every row, and the file records the run, seed, generator, input hashes (always including the transition model), and weighting that produced it, so an accepted label can be traced and replayed from the candidate file alone.  Reason columns are the built-in codes, whose meanings are fixed, and namespaced extension codes <namespace>.<reason> that a method's own validators declare (the ccil namespace is reserved). Built-ins come first in their canonical order, then extensions sorted. A consumer that does not know an extension's namespace still treats the row as rejected: accepted is True exactly when no column, built-in or extension, rejects the row.  2.0 made weight, seed, inputs, and weighting required (1.0 had none of them). 2.1 added extension reason codes; a file declares 2.1 only when it uses one, so files with built-in reasons alone stay 2.0. 2.2 added the optional measurement_specs, the definition, norm, and units of every measurement, and the generator's full params; a file declares 2.2 only when it carries specs. 2.3 added optional action chunks (action_chunks, action_chunk_mask, and the meta action_chunk_spec); a file declares 2.3 only when it carries chunks, and lists the arrays in optional_fields so 2.2 readers ignore them.
 
 ### Fields
 
@@ -50,6 +50,7 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 | `inputs` | `dict[str, str]` | SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from. |
 | `weighting` | `dict` | name, version, and params of the weighting that produced weight. |
 | `measurement_specs` | `dict \| None` | Optional (2.2): for every measurement name, its definition, norm (or null), and units. |
+| `action_chunk_spec` | `dict \| None` | Optional (2.3), with action chunks: chunk_size, alignment, guarantee, and truncation; requires the measurement chunk_target_frame. |
 | `reason_codes` | `tuple[str]` | Column labels of reasons, distinct and in canonical order: built-ins ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] first, then extension codes <namespace>.<reason> sorted. |
 | `observations` | `dict[str, array (N, ...)]` | Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation. |
 | `target_observations` | `dict[str, array (N, ...)]` | Observation the candidate action should reach, per modality. |
@@ -65,6 +66,8 @@ One row per attempted candidate, accepted or rejected. A row is accepted exactly
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] rejects row i. |
 | `measurements[name]` | float | (N,) | per measurement | yes | Validity measurements (e.g. distance, residual); NaN allowed only on rejected rows. |
 | `weight` | float | (N,) | - | yes | Training weight; finite and >= 0 on accepted rows, 0 on rejected rows. |
+| `action_chunks` | float | (N, K, A) | task-defined | no | Optional (2.3): position 0 is the label action; position k >= 1 is the source episode's action at chunk_target_frame + k - 1. Only position 0 carries the label's one-step claim. |
+| `action_chunk_mask` | bool | (N, K) | - | no | Optional (2.3): True exactly at positions inside the source episode; never padded. |
 
 Candidate modality names match `^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$`.
 
@@ -72,7 +75,7 @@ Built-in reason codes: `non_finite`, `out_of_support`, `generation_failed`, `act
 
 ### File layout (.npz)
 
-Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: none. `meta` holds `generator`, `inputs`, `measurement_specs`, `reason_codes`, `run_id`, `seed`, `weighting`.
+Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `action_chunk_mask`, `action_chunks`. `meta` holds `action_chunk_spec`, `generator`, `inputs`, `measurement_specs`, `reason_codes`, `run_id`, `seed`, `weighting`.
 
 ## Compatibility
 

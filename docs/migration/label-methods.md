@@ -7,7 +7,7 @@ the `ccil` core. #22 runs as three PRs, and this page grows with each:
 |---|---|
 | 1 | Noisy-action generation and NoiseBC |
 | 2 | Filtering, weighting, and the label-filtering branch inventory |
-| 3 | Action chunks (to come) |
+| 3 | Action chunks |
 
 **Ownership.** #22 owns the *measurements* each label carries. #88 owns their
 mathematical interpretation: proof profiles, bounds, and the certified,
@@ -160,6 +160,46 @@ transition (z_t, a_t) (Ke et al., §4.3):
 - The schema keeps weights from affecting acceptance: rejected rows must have
   weight 0, and a weight of 0 on an accepted row leaves it accepted.
 
+## Action chunks (PR 3)
+
+The source is `gen_aug_label_chunking.py` on the label-filtering branch
+(commit 73d187d). `generate_labels(…, action_chunk_size=K)`, configured with
+`generation.action_chunk_size`, adds to every label a chunk of K actions:
+
+| Position | Content |
+|---|---|
+| 0 | the label action a_G, the corrective action |
+| k ≥ 1 | the source episode's action at frame τ + k − 1, where τ is the frame the label reaches |
+
+- **The target frame τ:**
+  - BackTrack labels (backward Euler, exact preimage) reach frame t, so τ = t;
+  - DisturbedAction labels (noisy action) reach frame t + 1, so τ = t + 1.
+
+  τ is recorded per row as `chunk_target_frame`.
+- **Truncation, not padding.** Positions past the episode's last frame are
+  masked and zero. A chunk never reads another episode. The final frame's
+  action is part of `ccil.trajectories`, so a label reaching the last frame
+  still has one continuation action.
+- **The scope of the guarantee.** The CCIL results are one-step (Ke et al.,
+  Thms. 4.2 and 4.3), so only position 0 carries the label's claim. Positions
+  k ≥ 1 are demonstration actions with no corrective-label guarantee. The
+  file's `action_chunk_spec` records this, with the alignment and truncation
+  rules.
+- **Schema.** `ccil.candidates` 2.3 adds the optional `action_chunks`
+  (N, K, A) and `action_chunk_mask` (N, K), and the meta `action_chunk_spec`.
+  - A file declares 2.3 only when it carries chunks, and lists the arrays in
+    `optional_fields`, so a 2.2 reader ignores them.
+  - Validation checks every valid position against the source episode.
+
+**Legacy defects corrected** (the evidence transcribes the branch's code and
+runs it on the same labels):
+
+| Defect | Legacy behavior | Corrected |
+|---|---|---|
+| Inverted size condition (contract §6) | A configured `chunk_size` is ignored (always 8); unset gives `None` | The configured size is used |
+| Padding | Repeats the last action past the episode end | Masked, never padded |
+| Alignment | The continuation always starts at a_t, which is one frame early for DisturbedAction labels; one label per transition only | It starts at the label's target frame, for any number of labels |
+
 ## Label-filtering branch inventory
 
 Each capability of `docs/inventory/capabilities.json` that the branch changes,
@@ -170,7 +210,7 @@ with its terminal classification. The evidence checks that none is missing.
 | `dynamics-model` | `local_lipschitz_coeff()`; unreduced prediction errors | Ported: exact `jacobian_za`, split into state and action Jacobians per the paper's definitions; per-row errors as `anchor_model_error` |
 | `corrective-labels` | `forward_euler` as fixed-point iteration; `model_err_thresh`; original actions recorded | Fixed-point iteration superseded by `ExactPreimage` (same equation; Newton doesn't need ‖∂f/∂z‖ < 1, and no hardcoded 1e-4); `model_err_thresh` ported as `ModelMisfit`; source actions are carried by the source identity |
 | `label-filtering` | label-error estimate; `label_err_quantile`; `max_label_err`; combined with `epsilon` | Ported, with a correctness change: `LabelError` (the paper's BackTrack or DisturbedAction definition, gated on model error), alongside `SupportRadius` |
-| `action-chunking-labels` | `gen_aug_label_chunking.py` | #22 PR 3 |
+| `action-chunking-labels` | `gen_aug_label_chunking.py` | Ported with three defects corrected: `generation.action_chunk_size`, `ccil.core.chunks` (see Action chunks) |
 | `bc-policy` | removes the tycho case; configurable encoder layers; callable loss weights | Moved to #89 (vector BC training) |
 | `data-fraction-ablation` | `data.data_frac` | Superseded by the M7 low-data subsets (#51–#55) |
 | `dynamics-training-tool` | paper-style plots; error-distribution plot | Out of scope; plotting is left to analysis tools |

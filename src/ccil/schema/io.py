@@ -199,8 +199,9 @@ def read_trajectories(path) -> TrajectoryDataset:
 
 # --- candidates -----------------------------------------------------------
 CAND_REQUIRED = {"source_episode_id", "source_frame", "actions", "accepted", "reasons", "weight"}
-CAND_OPTIONAL: set = set()
-CAND_META = ("run_id", "generator", "reason_codes", "seed", "inputs", "weighting", "measurement_specs")  # CandidateSet attributes in meta; measurement_specs only when set
+CAND_OPTIONAL = {"action_chunks", "action_chunk_mask"}  # 2.3; declared in optional_fields when written
+CAND_META = ("run_id", "generator", "reason_codes", "seed", "inputs", "weighting", "measurement_specs",
+             "action_chunk_spec")  # CandidateSet attributes in meta; the last two only when set
 
 
 def write_candidates(cands: CandidateSet, path, validate: bool = True) -> None:
@@ -211,12 +212,16 @@ def write_candidates(cands: CandidateSet, path, validate: bool = True) -> None:
     arrays.update({f"obs/{k}": v for k, v in cands.observations.items()})
     arrays.update({f"target/{k}": v for k, v in cands.target_observations.items()})
     arrays.update({f"meas/{k}": v for k, v in cands.measurements.items()})
+    chunked = cands.action_chunks is not None
+    if chunked:
+        arrays.update(action_chunks=cands.action_chunks, action_chunk_mask=cands.action_chunk_mask)
     meta = {k: getattr(cands, k) for k in CAND_META}
     meta["reason_codes"] = list(meta["reason_codes"])
-    if meta["measurement_specs"] is None:
-        del meta["measurement_specs"]  # files without specs keep their 2.0 / 2.1 bytes
-    version = labels.file_version(meta["reason_codes"], meta.get("measurement_specs"))
-    arrays["meta"] = _meta(labels.SCHEMA, version, CAND_OPTIONAL, **meta)
+    for k in ("measurement_specs", "action_chunk_spec"):
+        if meta[k] is None:
+            del meta[k]  # files without them keep their earlier version and bytes
+    version = labels.file_version(meta["reason_codes"], meta.get("measurement_specs"), chunks=chunked)
+    arrays["meta"] = _meta(labels.SCHEMA, version, CAND_OPTIONAL if chunked else set(), **meta)
     _atomic_savez(path, arrays)
 
 
@@ -238,5 +243,6 @@ def read_candidates(path, dataset: TrajectoryDataset | None = None) -> Candidate
         accepted=z["accepted"], reasons=z["reasons"], weight=z["weight"], seed=meta.get("seed"),
         inputs=meta.get("inputs"), weighting=meta.get("weighting"), reason_codes=tuple(codes),
         measurements={k[5:]: z[k] for k in z if k.startswith("meas/")},
-        measurement_specs=meta.get("measurement_specs"))
+        measurement_specs=meta.get("measurement_specs"), action_chunks=z.get("action_chunks"),
+        action_chunk_mask=z.get("action_chunk_mask"), action_chunk_spec=meta.get("action_chunk_spec"))
     return cands.validate(dataset)

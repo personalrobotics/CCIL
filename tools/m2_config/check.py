@@ -179,13 +179,13 @@ def main():
     record("legacy_config_replays_to_recipe_values", legacy.values == recipe.values,
            migration_notes=len(legacy.notes), differing=sorted(k for k in recipe.values if legacy.values[k] != recipe.values[k]))
     lf = out / "label_filtering.yml"
-    lf.write_text((REPO / "config/pendulum_cont.yml").read_text().replace("  epsilon:", "  chunk_size: 5\n  epsilon:"))
+    lf.write_text((REPO / "config/pendulum_cont.yml").read_text() + "state_encoder: resnet18\n")
     try:
         resolve(config=lf)
         got = None
     except ConfigError as e:
         got = e.errors
-    record("unsupported_legacy_key_fails_with_guidance", got is not None and any("ported in #22" in g for g in got), errors=got)
+    record("unsupported_legacy_key_fails_with_guidance", got is not None and any("deferred to M5" in g for g in got), errors=got)
     v2 = out / "future.yml"
     v2.write_text("config_version: 2\nrun: {seed: 1}\n")
     try:
