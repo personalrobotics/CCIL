@@ -51,7 +51,8 @@ Action chunks (#22 part 3):
 - chunk files are 2.3, round-trip through accepted_labels, and the 2.2
   reader (8071952) reads them, ignoring the chunks; the pipeline writes a
   complete run with chunks, and aug.chunk_size migrates;
-- wrong or non-finite target frames, nonzero or non-finite masked positions, a
+- target frames of the wrong dtype or shape, wrong or non-finite target
+  frames, nonzero or non-finite masked positions, a
   forged 2.2 file with chunks, undeclared chunk arrays, a spec without its
   target-frame offset, and non-integer chunk sizes are all rejected.
 Writes DIR/report.json.
@@ -756,7 +757,19 @@ def main():
         np.savez(out / name, **arrays)
         return lambda: read_candidates(out / name)
 
+    def edited_arrays(name, edit):
+        with np.load(out / "chunks.npz", allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        edit(arrays)
+        np.savez(out / name, **arrays)
+        return lambda: read_candidates(out / name)
+
     malformed = {
+        "target_frame_string_dtype": schema_rejects(edited_arrays(
+            "tau_str.npz", lambda a: a.__setitem__("meas/chunk_target_frame", a["meas/chunk_target_frame"].astype(str)))),
+        "target_frame_wrong_shape": schema_rejects(edited_arrays(
+            "tau_2d.npz", lambda a: a.__setitem__("meas/chunk_target_frame",
+                                                  np.stack([a["meas/chunk_target_frame"]] * 2, axis=1)))),
         "wrong_integral_target_frame": schema_rejects(mutated_set(cda, bump_frame)),
         "non_finite_target_frame_on_rejected_row": schema_rejects(mutated_set(cfail, nan_rejected_frame)),
         "nonzero_masked_position": schema_rejects(mutated_set(cda, nonzero_tail)),

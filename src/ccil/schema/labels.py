@@ -254,6 +254,12 @@ class CandidateSet:
         if tau is None:
             out.add("action_chunks", "candidates", "action chunks need the measurement chunk_target_frame")
             return False
+        if not (isinstance(tau, np.ndarray) and np.issubdtype(tau.dtype, np.floating) and tau.shape == (n,)):
+            # The generic measurement check records the violation; stop before any arithmetic on it.
+            out.add("action_chunks", "candidates", f"chunk_target_frame must be a float array of shape ({n},), "
+                                                   f"got {getattr(tau, 'dtype', type(tau).__name__)} "
+                                                   f"{getattr(tau, 'shape', '')}")
+            return False
         expected = self.source_frame.astype(np.float64) + spec["target_frame_offset"]
         for i in np.flatnonzero(~(np.isfinite(tau) & (tau == expected)))[:5]:
             out.add("action_chunks", f"row {int(i)}", f"chunk_target_frame {float(tau[i])} must equal source_frame + "
