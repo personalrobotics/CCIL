@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evidence for #88 part 1: the label-error certificate contract and the continuity profile.
+"""Evidence for #88 parts 1 and 2: the certificate contract, continuity, and the CCIL theorem profiles.
 
     uv run --group evidence python tools/m3_certificates/check.py --out DIR
 
@@ -29,6 +29,8 @@ true label error ||T(q) - y|| is computed independently of the certificate):
 - the pipeline writes a complete labels.certify run next to an unchanged
   candidates file, covered against the true dynamics; a rerun reuses it, and a
   changed reference or threshold is a new run (the inspectable artifact).
+Part 2, the backtrack and disturbed_action theorem profiles and MLP
+model_bound extraction, is described in theorems.py.
 Writes DIR/report.json.
 """
 import argparse
@@ -436,6 +438,10 @@ def main():
            min_slack_vs_true=float((pcert.total_error_value - perr).min()),
            usable=int((pc.accepted & pcert.admissible & pcert.selected).sum()), rows=int(len(pc.accepted)),
            artifact=f"<out>/pipeline/runs/{first_run.run_dir.name}/labels/certificates.npz")
+
+    # Part 2: the theorem profiles and model_bound extraction (tools/m3_certificates/theorems.py).
+    import theorems
+    theorems.run(out, record, dataset, data_path, sys_, truth)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
