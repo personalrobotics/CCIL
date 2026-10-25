@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-3630dd2b7362/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-105219511f78/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-e2ed3c48d5e9": "complete",
-    "labels-generate-3630dd2b7362": "complete",
-    "transition-fit-e993ffedc128": "complete"
+    "data-prepare-4129cfd9c45e": "complete",
+    "labels-generate-105219511f78": "complete",
+    "transition-fit-2333b48e8682": "complete"
    },
    "stderr": ""
   },
@@ -430,7 +430,7 @@
    "pass": true
   },
   {
-   "artifact": "<out>/pipeline_filters/runs/labels-generate-dd0542457c72/labels/candidates.npz",
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-f9a7d9c00389/labels/candidates.npz",
    "case": "filters_pipeline_run",
    "file_version": "2.2",
    "pass": true,
@@ -443,15 +443,79 @@
     "label_filter.model_misfit"
    ],
    "stages": {
-    "data-prepare-e2ed3c48d5e9": "complete",
-    "labels-generate-dd0542457c72": "complete",
-    "transition-fit-e993ffedc128": "complete"
+    "data-prepare-4129cfd9c45e": "complete",
+    "labels-generate-f9a7d9c00389": "complete",
+    "transition-fit-2333b48e8682": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "backtrack_target": "t",
+   "case": "action_chunks_align_to_the_label_target",
+   "chunk_size": 4,
+   "disturbed_action_target": "t + 1",
+   "masked_positions": {
+    "backtrack": 2,
+    "disturbed_action": 24
+   },
+   "pass": true
+  },
+  {
+   "all_values_from_their_own_episode": true,
+   "case": "action_chunks_never_cross_or_pad_episodes",
+   "chunk_size": 7,
+   "episode_lengths": [
+    6,
+    2,
+    4
+   ],
+   "failed_rows_with_chunks": 10,
+   "pass": true,
+   "two_frame_episode_valid_positions": 2
+  },
+  {
+   "case": "legacy_chunking_defects_corrected",
+   "configured_chunk_size": 4,
+   "disturbed_action_rows": 9,
+   "disturbed_action_rows_whose_legacy_continuation_differs": 8,
+   "legacy_chunk_sizes": [
+    8
+   ],
+   "legacy_padded_positions": 29,
+   "of_which_inside_our_chunk_and_masked": 2,
+   "pass": true
+  },
+  {
+   "action_chunk_spec": {
+    "alignment": "position 0 is the label action a_G; position k >= 1 is the source episode's action at frame chunk_target_frame + k - 1, taken from the state the label reaches",
+    "chunk_size": 4,
+    "guarantee": "one-step: only position 0 carries the label's CCIL claim; positions k >= 1 are demonstration actions",
+    "truncation": "positions past the source episode's last frame are masked and zero; never padded"
+   },
+   "case": "action_chunk_schema_round_trip_and_compatibility",
+   "file_version": "2.3",
+   "optional_fields": [
+    "action_chunk_mask",
+    "action_chunks"
+   ],
+   "pass": true,
+   "read_by_8071952": "36 False"
+  },
+  {
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-ce6ba8520f03/labels/candidates.npz",
+   "case": "action_chunks_pipeline_and_migration",
+   "migrated_chunk_size": 5,
+   "pass": true,
+   "stages": {
+    "data-prepare-4129cfd9c45e": "complete",
+    "labels-generate-ce6ba8520f03": "complete",
+    "transition-fit-2333b48e8682": "complete"
    },
    "stderr": ""
   }
  ],
  "environment": {
-  "code_commit": "beca081a4454c669ffe1a268b03cac5448986fc5",
+  "code_commit": "93f87de0f13e5539cadc8d4aca018317e8d57d83",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
