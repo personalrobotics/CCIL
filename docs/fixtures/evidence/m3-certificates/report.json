@@ -1,0 +1,158 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "exact_model_certified_and_tight[backward_euler]",
+   "max_abs_gap": 5.1468360565219e-08,
+   "max_anchor_model_error": 5.1468360565207944e-08,
+   "max_bound": 0.0030000299215315884,
+   "max_true_error": 0.0030000001192092007,
+   "pass": true,
+   "rows": 9
+  },
+  {
+   "case": "exact_model_certified_and_tight[noisy_action]",
+   "max_abs_gap": 5.1468360565219e-08,
+   "max_anchor_model_error": 5.1468360565207944e-08,
+   "max_bound": 0.003334503471851269,
+   "max_true_error": 0.0033344736695288812,
+   "pass": true,
+   "rows": 36
+  },
+  {
+   "C_a": 0.060000000000000026,
+   "C_z": 0.10051926163545423,
+   "case": "wrong_model_covered_with_analytic_constants[backward_euler]",
+   "max_bound": 0.11630974935082392,
+   "max_bound_over_true": 9.634864401548816,
+   "max_solver_error": 0.01185056969668907,
+   "max_true_error": 0.0868847100411143,
+   "min_slack": 0.0008532356953450093,
+   "pass": true,
+   "rows": 9
+  },
+  {
+   "C_a": 0.060000000000000026,
+   "C_z": 0.10051926163545423,
+   "case": "wrong_model_covered_with_analytic_constants[noisy_action]",
+   "max_bound": 0.116277721702927,
+   "max_bound_over_true": 3.2895119336509917,
+   "max_solver_error": 0.012708028992361606,
+   "max_true_error": 0.09245421433033205,
+   "min_slack": 0.0008663364641781916,
+   "pass": true,
+   "rows": 36
+  },
+  {
+   "case": "underestimated_constant_fails_coverage",
+   "classification": "conditional",
+   "pass": true,
+   "rows": 36,
+   "violated_rows": 10,
+   "worst_shortfall": 0.004868571097325742
+  },
+  {
+   "case": "outside_neighborhood_unsupported",
+   "inside": 18,
+   "outside": 18,
+   "pass": true,
+   "radius": 0.01587118264703288
+  },
+  {
+   "accepted": 36,
+   "admissible": 18,
+   "case": "masks_follow_rules_and_acceptance_unchanged",
+   "max_total_error": 0.10840225279719094,
+   "pass": true,
+   "selected": 9,
+   "selection_threshold": 0.005962044658825309,
+   "usable": 9
+  },
+  {
+   "case": "structure_and_audit_detect_different_corruptions",
+   "clean": {
+    "audit": [],
+    "structure": []
+   },
+   "detected": {
+    "admissible_flipped": {
+     "audit": false,
+     "structure": true
+    },
+    "anchor_error_falsified_consistently": {
+     "audit": true,
+     "structure": false
+    },
+    "candidates_file_changed": {
+     "audit": false,
+     "structure": true
+    },
+    "descriptor_constant_lowered": {
+     "audit": false,
+     "structure": true
+    },
+    "solver_error_falsified_consistently": {
+     "audit": true,
+     "structure": false
+    },
+    "total_halved": {
+     "audit": false,
+     "structure": true
+    },
+    "unsupported_marked_certified": {
+     "audit": false,
+     "structure": true
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "malformed_certificate_files_rejected",
+   "malformed": {
+    "classification_code_out_of_range": "SchemaError: ccil.certificates failed validation (format=1):\n  format at <out>/malformed.npz: classification codes out of range",
+    "missing_term": "SchemaError: ccil.certificates failed validation (format=1):\n  format at <out>/malformed.npz: missing fields ['term/anchor_model_error']",
+    "next_major_version": "SchemaError: ccil.certificates failed validation (format=1):\n  format at <out>/malformed.npz: not a ccil.certificates 1.x file",
+    "row_count_mismatch": "SchemaError: ccil.certificates failed validation (format=1):\n  format at <out>/malformed.npz: arrays do not share one row count",
+    "unknown_reason_codes": "SchemaError: ccil.certificates failed validation (format=1):\n  format at <out>/malformed.npz: unknown classification or reason codes"
+   },
+   "pass": true
+  },
+  {
+   "case": "constants_validated",
+   "pass": true,
+   "refused": {
+    "negative_value": "InterfaceError: constant value must be finite and >= 0, got -1.0",
+    "no_rationale": "InterfaceError: a constant needs a rationale and units",
+    "point_jacobian_in_continuity": "InterfaceError: continuity needs constants over the neighborhood; a point Jacobian is a score, not a constant (the paper-proxy profiles use it)",
+    "unknown_source": "InterfaceError: constant source must be one of ['analytic_bound', 'declared', 'model_bound', 'point_jacobian'], got 'guess'"
+   }
+  },
+  {
+   "artifact": "<out>/pipeline/runs/labels-certify-a54bfbc96599/labels/certificates.npz",
+   "candidates_sha256": "58f03f13f63f5063e5e40ad6b5925599148495ddce3527eca88603cbf4620491",
+   "case": "pipeline_certify_stage",
+   "changed_constant_new_run": true,
+   "classification": [
+    "conditional"
+   ],
+   "pass": true,
+   "reused": true,
+   "rows": 36,
+   "stages": {
+    "data-prepare-59759b04c6bd": "complete",
+    "labels-certify-96b40d3d91f9": "complete",
+    "labels-certify-a54bfbc96599": "complete",
+    "labels-generate-9dcf6b3d4ac8": "complete",
+    "transition-fit-1306c54eff8c": "complete"
+   },
+   "usable": 27
+  }
+ ],
+ "environment": {
+  "code_commit": "6ad9df2d25c8e49bac56b85bdd651903f2a069d7",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
