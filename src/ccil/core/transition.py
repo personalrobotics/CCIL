@@ -31,6 +31,7 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 
 from ..schema.io import _atomic_savez
+from .verified import gamma, is_spectral_upper_bound, up, verified_spectral_norm
 
 
 class CheckpointError(ValueError):
@@ -92,6 +93,7 @@ class LinearTransitionModel:
     """f(z, a) = A z + B a + c. Exact for linear systems; fitted by least squares."""
 
     kind, version = "linear", "1"
+    evaluation_dtype = "float64"
 
     def __init__(self, A=None, B=None, c=None):
         self.A = None if A is None else np.asarray(A, dtype=np.float64)
@@ -121,11 +123,22 @@ class LinearTransitionModel:
         return one_step_metrics(self, z, a, z_next)
 
     def lipschitz_bound(self, maps: str, state_scale, action_scale) -> dict:
-        """The exact Lipschitz constant of f_hat in state or action, in scaled coordinates (#88)."""
+        """The Lipschitz constant of f_hat in state or action, in scaled coordinates, as a verified upper bound (#88)."""
         sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
-        W = self.A * (sz[None, :] / sz[:, None]) if maps == "state" else self.B * (sa[None, :] / sz[:, None])
-        value = float(np.linalg.norm(W, 2))
-        return {"value": value, "factors": [value], "activation": None, "activation_lipschitz": None}
+        M, cols = (self.A, sz) if maps == "state" else (self.B, sa)
+        value = verified_spectral_norm(M, row_div=sz, col_mul=cols)
+        return {"value": value, "factors": [value], "activation": None, "activation_lipschitz": None, "verified": True}
+
+    def verify_lipschitz_bound(self, maps: str, value: float, state_scale, action_scale) -> bool:
+        sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
+        return is_spectral_upper_bound(self.A if maps == "state" else self.B, value, row_div=sz,
+                                       col_mul=sz if maps == "state" else sa)
+
+    def delta_error_bound(self, z, a) -> np.ndarray:
+        """Componentwise bound on |delta(z, a) - (A z + B a + c)| for this float64 evaluation (Higham, Sec. 3.1)."""
+        n = self.A.shape[1] + self.B.shape[1] + 1
+        mag = np.abs(np.asarray(z, np.float64)) @ np.abs(self.A).T + np.abs(np.asarray(a, np.float64)) @ np.abs(self.B).T + np.abs(self.c)
+        return up(gamma(n) * mag * (1 + gamma(n + 2)))
 
     @classmethod
     def from_config(cls, v) -> "LinearTransitionModel":

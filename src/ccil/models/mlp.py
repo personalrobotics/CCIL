@@ -170,6 +170,7 @@ class MLPTransitionModel:
     """TransitionModel kind "mlp": the legacy WorldModel on the core interface."""
 
     kind, version = "mlp", "2"
+    evaluation_dtype = "float32"
 
     def __init__(self, hidden_layers, epochs, batch_size, activation="relu", lipschitz_type=None,
                  lipschitz_constraint=None, soft_penalty_weight=None, soft_sampling_eps=0.0003, soft_samples=5,
@@ -296,7 +297,9 @@ class MLPTransitionModel:
         applies: for spectral normalization, weight_orig / max(sigma_hat / c, 1)
         with the stored u, v, whose sigma_hat estimate and the constraint c are
         never used as a bound. ReLU and tanh are 1-Lipschitz; any other
-        activation is refused. Floating-point evaluation error is not included.
+        activation is refused. The value holds for the network in exact real
+        arithmetic; neither the float32 evaluation of the network nor the
+        float64 rounding of the norms is enclosed, so it is not "verified".
         """
         act = self.settings["activation"]
         if act not in ("relu", "tanh"):
@@ -317,7 +320,8 @@ class MLPTransitionModel:
         else:
             factors = ([float(np.linalg.norm(first, 2))] + [float(np.linalg.norm(w, 2)) for w in weights[1:-1]]
                        + [float(np.linalg.norm(rows * weights[-1], 2))])
-        return {"value": float(np.prod(factors)), "factors": factors, "activation": act, "activation_lipschitz": 1.0}
+        return {"value": float(np.prod(factors)), "factors": factors, "activation": act, "activation_lipschitz": 1.0,
+                "verified": False}
 
     # --- persistence ---------------------------------------------------------
     def save(self, path) -> None:
