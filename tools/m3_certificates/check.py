@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evidence for #88 parts 1 and 2: the certificate contract, continuity, and the CCIL theorem profiles.
+"""Evidence for #88: the certificate contract, continuity, the CCIL theorem profiles, and the score profiles.
 
     uv run --group evidence python tools/m3_certificates/check.py --out DIR
 
@@ -29,8 +29,9 @@ true label error ||T(q) - y|| is computed independently of the certificate):
 - the pipeline writes a complete labels.certify run next to an unchanged
   candidates file, covered against the true dynamics; a rerun reuses it, and a
   changed reference or threshold is a new run (the inspectable artifact).
-Part 2, the backtrack and disturbed_action theorem profiles and MLP
-model_bound extraction, is described in theorems.py.
+Part 2, the backtrack and disturbed_action theorem profiles and model bounds,
+is described in theorems.py; part 3, the score profiles, selection,
+configuration, and migration, in proxies.py.
 Writes DIR/report.json.
 """
 import argparse
@@ -494,6 +495,10 @@ def main():
     # Part 2: the theorem profiles and model bounds (tools/m3_certificates/theorems.py).
     import theorems
     theorems.run(out, record, dataset, data_path, sys_, truth, bundle)
+
+    # Part 3: score profiles, selection, configuration, and migration (tools/m3_certificates/proxies.py).
+    import proxies
+    proxies.run(out, record, dataset, data_path, sys_, truth, REPO)
 
     # A bundle of certificates with their sources, for audit on another host (tools/m3_certificates/audit_bundle.py).
     bundle_sha256 = write_bundle(out / "bundle", bundle)
