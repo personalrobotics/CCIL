@@ -312,12 +312,12 @@
     "threshold_nan": "InterfaceError: the admission threshold must be finite and >= 0 or None, got nan",
     "threshold_negative": "InterfaceError: the admission threshold must be finite and >= 0 or None, got -1.0",
     "unknown_admission": "InterfaceError: admission must be 'upper_bound' or 'score', got 'maybe'",
-    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy']"
+    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy', 'model_lipschitz', 'reference_lipschitz']"
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-2304bdae3a08/labels/certificates.npz",
-   "candidates_sha256": "e7e65e78fbe5b53eec0e8e09cb59ebf637ef6a68644df5161d2842d42867dcae",
+   "artifact": "<out>/pipeline/runs/labels-certify-b0fe886f45d5/labels/certificates.npz",
+   "candidates_sha256": "0b919db136ef561b6c3eda05a7126fde26f77e16a708c3c6433ad1e54f9fc437",
    "case": "pipeline_certify_stage",
    "constants": {
     "C_a": 1.7700020475152152e-07,
@@ -328,18 +328,406 @@
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-edefe2250d61": "complete",
-    "labels-certify-08c086444653": "complete",
-    "labels-certify-2304bdae3a08": "complete",
-    "labels-certify-42bef5ccf14b": "complete",
-    "labels-generate-9892fae0aa1c": "complete",
-    "transition-fit-e7e7316cb5a8": "complete"
+    "data-prepare-cd2696f5d208": "complete",
+    "labels-certify-7505fe528de7": "complete",
+    "labels-certify-a63371a782de": "complete",
+    "labels-certify-b0fe886f45d5": "complete",
+    "labels-generate-faf4a6f12553": "complete",
+    "transition-fit-6a3dd683485c": "complete"
    },
    "usable": 27
+  },
+  {
+   "case": "backtrack_certified_and_covered[backward_euler]",
+   "constants": {
+    "K_hat_z": 0.11180339887498952,
+    "K_z": 0.1
+   },
+   "continuity_comparison": {
+    "max_backtrack_over_continuity": 1.4809373890837754,
+    "note": "K_hat_z + K_z >= ||A - A_hat||, so backtrack is never tighter than continuity"
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.13101262556383336,
+    "max_demo_residual": 5.1468360565207944e-08,
+    "max_true_error": 0.0868847100411143,
+    "min_slack": 0.0013111114445135306,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "pass": true
+  },
+  {
+   "case": "backtrack_certified_and_covered[exact_preimage]",
+   "constants": {
+    "K_hat_z": 0.11180339887498952,
+    "K_z": 0.1
+   },
+   "continuity_comparison": {
+    "max_backtrack_over_continuity": 1.7748248054485571,
+    "note": "K_hat_z + K_z >= ||A - A_hat||, so backtrack is never tighter than continuity"
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.11801796521751505,
+    "max_demo_residual": 5.1468360565207944e-08,
+    "max_true_error": 0.07891050421403295,
+    "min_slack": 0.0007312270321871599,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "pass": true
+  },
+  {
+   "K_hat_z": {
+    "wrong": 0.11180339887498952,
+    "wrong_action_x100": 0.11180339887498952
+   },
+   "case": "backtrack_has_no_action_term",
+   "coverage_action_x100": {
+    "covered": true,
+    "max_bound": 6.216665356572978,
+    "max_demo_residual": 5.1468360565207944e-08,
+    "max_true_error": 4.731827243993987,
+    "min_slack": 0.0014987604628118418,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "model_action_lipschitz": {
+    "wrong": 0.16000000000000003,
+    "wrong_action_x100": 16.000000000000004
+   },
+   "pass": true,
+   "rows_with_moved_action_unsupported": 3
+  },
+  {
+   "case": "disturbed_action_direct_and_covered[noisy_action]",
+   "constants": {
+    "K_a": 0.1,
+    "K_z": 0.1
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.11167410847914223,
+    "max_demo_residual": 5.1468360565207944e-08,
+    "max_true_error": 0.09245421433033205,
+    "min_slack": 0.00013137854924523168,
+    "rows": 36,
+    "violated_rows": 0
+   },
+   "declared_zero": {
+    "classification": "conditional",
+    "rows": 36,
+    "violated_rows": 9
+   },
+   "max_target_offset": 0.0,
+   "pass": true,
+   "solver_error": {
+    "double_counted_over_direct_max": 1.4701948560651878,
+    "double_counted_over_direct_mean": 1.1365318789538756,
+    "recorded_max": 0.012708028992361606,
+    "rows_positive": 36
+   }
+  },
+  {
+   "case": "disturbed_action_direct_and_covered[noisy_action_preimage]",
+   "constants": {
+    "K_a": 0.1,
+    "K_z": 0.1
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.10281208837458233,
+    "max_demo_residual": 5.1468360565207944e-08,
+    "max_true_error": 0.08427428521204026,
+    "min_slack": 6.83247373123475e-05,
+    "rows": 36,
+    "violated_rows": 0
+   },
+   "declared_zero": {
+    "classification": "conditional",
+    "rows": 36,
+    "violated_rows": 7
+   },
+   "max_target_offset": 0.0,
+   "pass": true,
+   "solver_error": {
+    "double_counted_over_direct_max": 1.0000006691341754,
+    "double_counted_over_direct_mean": 1.0000002182053507,
+    "recorded_max": 5.228927662451806e-08,
+    "rows_positive": 36
+   }
+  },
+  {
+   "case": "mlp_model_bound_covers_sampled_jacobians",
+   "cases": {
+    "relu, scale=[1.0, 1.0]": {
+     "K_a": 0.32002153989681575,
+     "K_z": 0.30863990810553954,
+     "covered": true,
+     "factors_z": [
+      4.635581127124111,
+      1.560023770511535,
+      0.04267924018121761
+     ],
+     "max_finite_difference_a": 0.15058900733838507,
+     "max_finite_difference_z": 0.13768314023291583,
+     "max_sampled_jacobian_a": 0.15058908569916732,
+     "max_sampled_jacobian_z": 0.1379590064816336,
+     "naive_violated": false,
+     "naive_weight_product": 3.3508242428692463
+    },
+    "relu, scale=[2.0, 0.5]": {
+     "K_a": 2.5545157522273048,
+     "K_z": 0.7490768423040985,
+     "covered": true,
+     "factors_z": [
+      5.63779257126898,
+      1.560023770511535,
+      0.08516988526082156
+     ],
+     "max_finite_difference_a": 1.1248200932284764,
+     "max_finite_difference_z": 0.06200380460160215,
+     "max_sampled_jacobian_a": 1.190768358153458,
+     "max_sampled_jacobian_z": 0.10616407101050479,
+     "naive_violated": false,
+     "naive_weight_product": 3.3508242428692463
+    },
+    "relu_masked_output, scale=[1.0, 1.0]": {
+     "K_a": 0.31931103135220734,
+     "K_z": 0.30795466894324175,
+     "covered": true,
+     "factors_z": [
+      4.635581127124111,
+      1.560023770511535,
+      0.042584484169369385
+     ],
+     "max_finite_difference_a": 0.1487291927313035,
+     "max_finite_difference_z": 0.02541493265780103,
+     "max_sampled_jacobian_a": 0.1487291157245636,
+     "max_sampled_jacobian_z": 0.03087606224709153,
+     "naive_violated": false,
+     "naive_weight_product": 3.3508242428692463
+    },
+    "relu_masked_output, scale=[2.0, 0.5]": {
+     "K_a": 2.5544882508176587,
+     "K_z": 0.7490687778914682,
+     "covered": true,
+     "factors_z": [
+      5.63779257126898,
+      1.560023770511535,
+      0.08516896833873877
+     ],
+     "max_finite_difference_a": 1.2368159204113096,
+     "max_finite_difference_z": 0.05452145397992185,
+     "max_sampled_jacobian_a": 1.1898329257965088,
+     "max_sampled_jacobian_z": 0.10602635832888035,
+     "naive_violated": false,
+     "naive_weight_product": 3.3508242428692463
+    },
+    "relu_milli_action_units, scale=[1.0, 1.0]": {
+     "K_a": 320.01606138339713,
+     "K_z": 0.30863487975728804,
+     "covered": true,
+     "factors_z": [
+      4.635556077727566,
+      1.5599972835599318,
+      0.042679500113435444
+     ],
+     "max_finite_difference_a": 141.46712709961128,
+     "max_finite_difference_z": 0.12798754585028413,
+     "max_sampled_jacobian_a": 150.58182353063765,
+     "max_sampled_jacobian_z": 0.13794512464423953,
+     "naive_violated": true,
+     "naive_weight_product": 3.3508252280564856
+    },
+    "relu_milli_action_units, scale=[2.0, 0.5]": {
+     "K_a": 2554.4709093094907,
+     "K_z": 0.7490577419381119,
+     "covered": true,
+     "factors_z": [
+      5.63771265423078,
+      1.5599972835599318,
+      0.08517036691247946
+     ],
+     "max_finite_difference_a": 1135.3713229614148,
+     "max_finite_difference_z": 0.06563338056095272,
+     "max_sampled_jacobian_a": 1190.7155904409708,
+     "max_sampled_jacobian_z": 0.10616646341494852,
+     "naive_violated": true,
+     "naive_weight_product": 3.3508252280564856
+    },
+    "spectral_relu, scale=[1.0, 1.0]": {
+     "K_a": 0.012120815895488964,
+     "K_z": 0.012145726414225826,
+     "covered": true,
+     "factors_z": [
+      0.9668604847110732,
+      0.5000488662217314,
+      0.025121596529689674
+     ],
+     "max_finite_difference_a": 0.0065322493845703855,
+     "max_finite_difference_z": 0.011579200937177464,
+     "max_sampled_jacobian_a": 0.00652970060900357,
+     "max_sampled_jacobian_z": 0.011579198556972849,
+     "naive_violated": false,
+     "naive_weight_product": 0.12546394328853244
+    },
+    "spectral_relu, scale=[2.0, 0.5]": {
+     "K_a": 0.07581044141533506,
+     "K_z": 0.025232960338314563,
+     "covered": true,
+     "factors_z": [
+      1.284610130500188,
+      0.5000488662217314,
+      0.03928117006303426
+     ],
+     "max_finite_difference_a": 0.052300384366278665,
+     "max_finite_difference_z": 0.005647547545134756,
+     "max_sampled_jacobian_a": 0.05223646533855463,
+     "max_sampled_jacobian_z": 0.005825555037596791,
+     "naive_violated": false,
+     "naive_weight_product": 0.12546394328853244
+    },
+    "tanh, scale=[1.0, 1.0]": {
+     "K_a": 0.26073968931728947,
+     "K_z": 0.258739350103266,
+     "covered": true,
+     "factors_z": [
+      4.143620868266068,
+      1.4850915728921048,
+      0.04204644067020554
+     ],
+     "max_finite_difference_a": 0.1298593064861542,
+     "max_finite_difference_z": 0.12499473959150018,
+     "max_sampled_jacobian_a": 0.1301765478193741,
+     "max_sampled_jacobian_z": 0.12496392376140857,
+     "naive_violated": false,
+     "naive_weight_product": 2.728599659651943
+    },
+    "tanh, scale=[2.0, 0.5]": {
+     "K_a": 2.0455738549272136,
+     "K_z": 0.5288545718558588,
+     "covered": true,
+     "factors_z": [
+      4.318229923776171,
+      1.4850915728921048,
+      0.08246644378625628
+     ],
+     "max_finite_difference_a": 1.0362257552472827,
+     "max_finite_difference_z": 0.05309821694807367,
+     "max_sampled_jacobian_a": 1.0411379901106885,
+     "max_sampled_jacobian_z": 0.05741393779613373,
+     "naive_violated": false,
+     "naive_weight_product": 2.728599659651943
+    }
+   },
+   "pass": true,
+   "sampled_points": 2000,
+   "unsupported_activation": "InterfaceError: model_lipschitz: no Lipschitz constant for activation 'gelu'; supported: relu, tanh"
+  },
+  {
+   "case": "spectral_norm_estimates_not_used",
+   "constraint_times_normalization": 0.012600292731540931,
+   "exact_bound": 0.18778355998844717,
+   "layers": [
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 2.0565320730846524,
+     "sigma_hat": -0.37778106331825256
+    },
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 1.3621331036891862,
+     "sigma_hat": -0.15414157509803772
+    },
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 0.6924652312392368,
+     "sigma_hat": -0.04678899422287941
+    }
+   ],
+   "max_sampled_jacobian_z": 0.17902454298976947,
+   "pass": true
+  },
+  {
+   "audit": [],
+   "case": "backtrack_with_mlp_certified_and_audited",
+   "constants": {
+    "K_hat_z": 0.30863990810553954,
+    "K_z": 0.1
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.07586593575988732,
+    "max_demo_residual": 2.2681114167409046e-07,
+    "max_true_error": 0.01481656479850271,
+    "min_slack": 0.0017948904497796553,
+    "rows": 720,
+    "violated_rows": 0
+   },
+   "pass": true,
+   "rationale": "product of exact layer operator norms [4.63558, 1.56002, 0.0426792] of the mlp model, with normalization and output scales folded in; activation relu",
+   "structure": []
+  },
+  {
+   "case": "provider_kinds_and_applicability_enforced",
+   "forged_kind_structure": [
+    "constant K_z claims model_bound from an unregistered or mismatched provider {'provider': 'model_lipschitz', 'version': '1', 'params': {}, 'inputs': {'transition_model': 'b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3'}}",
+    "model_error_value does not follow from the persisted terms on 9 rows",
+    "total_error_value does not follow from the persisted terms on 9 rows"
+   ],
+   "pass": true,
+   "refused": {
+    "backtrack_on_disturbed_action_labels": "InterfaceError: profile backtrack certifies ['backtrack'] labels; generator 'noisy_action' produces 'disturbed_action'",
+    "discrepancy_provider_for_learned_constant": "InterfaceError: provider 'linear_discrepancy' bounds the discrepancy dynamics; this constant needs a bound on the learned dynamics",
+    "disturbed_action_on_backtrack_labels": "InterfaceError: profile disturbed_action certifies ['disturbed_action'] labels; generator 'backward_euler' produces 'backtrack'",
+    "learned_provider_for_true_constant": "InterfaceError: provider 'model_lipschitz' bounds the learned dynamics; this constant needs a bound on the true dynamics",
+    "reference_given_to_model_provider": "InterfaceError: provider 'model_lipschitz' takes no reference artifact"
+   }
+  },
+  {
+   "case": "pipeline_theorem_profiles",
+   "pass": true,
+   "runs": {
+    "backtrack": {
+     "classification": [
+      "certified"
+     ],
+     "coverage": {
+      "covered": true,
+      "max_bound": 0.014833801279117565,
+      "max_demo_residual": 5.1468360565207944e-08,
+      "max_true_error": 0.002999990854506979,
+      "min_slack": 0.000788933438033413,
+      "rows": 9,
+      "violated_rows": 0
+     },
+     "run": "labels-certify-c5d944e78d3e",
+     "status": "complete"
+    },
+    "disturbed_action": {
+     "classification": [
+      "certified"
+     ],
+     "coverage": {
+      "covered": true,
+      "max_bound": 0.019482878956682798,
+      "max_demo_residual": 5.1468360565207944e-08,
+      "max_true_error": 0.0033829584709624684,
+      "min_slack": 0.00010386746037347968,
+      "rows": 36,
+      "violated_rows": 0
+     },
+     "run": "labels-certify-4fb5e18eced8",
+     "status": "complete"
+    }
+   }
   }
  ],
  "environment": {
-  "code_commit": "307fb8d92d34f7c36262c89230e227577d5b32d9",
+  "code_commit": "f599253f6e27ac600bf1fa1a9a10837c34be30af",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
