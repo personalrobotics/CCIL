@@ -4,7 +4,7 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 13, deferred 11, derived 3, dropped 8, implemented 29, invariant 1, retired 5.
+Status counts: declared 13, deferred 8, derived 3, dropped 8, implemented 32, invariant 1, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
@@ -38,9 +38,9 @@ Status counts: declared 13, deferred 11, derived 3, dropped 8, implemented 29, i
 | `aug.delta` | tunable | `generation.action_noise_std` | implemented |  |
 | `aug.epsilon` | tunable | `generation.support_radius` | implemented |  |
 | `aug.balance_data` | tunable | `policy.balance_noisy_labels` | declared | M3 (#22) |
-| `aug.label_err_quantile` | tunable | - | deferred | label-error filtering from label-filtering; ported in #22 |
-| `aug.max_label_err` | tunable | - | deferred | label-error filtering from label-filtering; ported in #22 |
-| `aug.model_err_thresh` | tunable | - | deferred | model-fit filtering from label-filtering; ported in #22 |
+| `aug.label_err_quantile` | tunable | `generation.label_error_quantile` | implemented |  |
+| `aug.max_label_err` | tunable | `generation.max_label_error` | implemented |  |
+| `aug.model_err_thresh` | tunable | `generation.model_error_threshold` | implemented |  |
 | `aug.chunk_size` | tunable | - | deferred | action-chunk labels from label-filtering; ported in #22 |
 | `policy.lr` | tunable | `policy.learning_rate` | declared | M3 |
 | `policy.batch_size` | tunable | `policy.batch_size` | declared | M3 |

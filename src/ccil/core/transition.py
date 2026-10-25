@@ -6,7 +6,9 @@ Contract
 - delta(z, a) returns f(z, a) as (N, D) float for (N, D) and (N, A) inputs; it is
   batched, deterministic, and has no side effects (no training-mode updates).
 - jacobian_z(z, a) is optional and returns df/dz as (N, D, D); generators fall back
-  to central finite differences (jacobian_fd) when it is absent.
+  to central finite differences (jacobian_fd) when it is absent. jacobian_za is
+  optional and returns df/d(z, a) as (N, D, D + A); label-error estimates
+  require it and have no finite-difference fallback.
 - evaluate(z, a, z_next) returns one-step error metrics without changing state.
 - kind and version identify the implementation; kind is the
   transition_model.kind value that selects it, and version changes whenever
@@ -111,6 +113,9 @@ class LinearTransitionModel:
 
     def jacobian_z(self, z, a) -> np.ndarray:
         return np.broadcast_to(self.A, (len(z),) + self.A.shape)
+
+    def jacobian_za(self, z, a) -> np.ndarray:
+        return np.broadcast_to(np.hstack([self.A, self.B]), (len(z), self.A.shape[0], self.A.shape[1] + self.B.shape[1]))
 
     def evaluate(self, z, a, z_next) -> dict:
         return one_step_metrics(self, z, a, z_next)

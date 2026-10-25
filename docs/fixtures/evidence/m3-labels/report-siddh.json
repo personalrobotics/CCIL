@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-d1e1d7bbbf83/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-3630dd2b7362/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-b0706492dc6a": "complete",
-    "labels-generate-d1e1d7bbbf83": "complete",
-    "transition-fit-6bed080842c0": "complete"
+    "data-prepare-e2ed3c48d5e9": "complete",
+    "labels-generate-3630dd2b7362": "complete",
+    "transition-fit-e993ffedc128": "complete"
    },
    "stderr": ""
   },
@@ -312,10 +312,146 @@
      "sha256": "a817cb6b75ee04b5dced7f8e4ef80e9f3dc2100a5165ff05acc473fe67c833c9"
     }
    ]
+  },
+  {
+   "action_jacobian_norm": 0.1,
+   "backtrack_mean": 0.0028044221411083104,
+   "case": "label_error_profiles_match_the_paper",
+   "disturbed_action_mean": 0.007334690071136786,
+   "pass": true,
+   "profile_mismatch": {
+    "backtrack_validator_on_noisy_action": "InterfaceError: LabelError uses the 'backtrack' label-error profile, but NoisyAction labels follow 'disturbed_action'",
+    "disturbed_validator_on_backward_euler": "InterfaceError: LabelError uses the 'disturbed_action' label-error profile, but BackwardEuler labels follow 'backtrack'"
+   },
+   "replaced_joint_formula_mean_on_disturbed_action": 0.0033643547691713975,
+   "state_jacobian_norm": 0.1
+  },
+  {
+   "candidates": 36,
+   "case": "model_misfit_measured_rejected_and_excluded_from_quantile",
+   "pass": true,
+   "rejected_label_error": 26,
+   "rejected_model_misfit": 16,
+   "rejected_source_frames": [
+    2,
+    3
+   ],
+   "threshold_if_misfit_rows_were_included": 0.01636269217396705,
+   "threshold_over_eligible": 0.004959325851968125
+  },
+  {
+   "case": "label_error_filter_requires_the_model_error_gate",
+   "error": "invalid configuration:\n  label-error filtering (generation.max_label_error / label_error_quantile) requires generation.model_error_threshold: the CCIL label-error definitions assume a small anchor model error, which the threshold enforces",
+   "exit": 2,
+   "pass": true
+  },
+  {
+   "case": "label_error_filters_reconstructible_and_2_2_compatible",
+   "pass": true,
+   "results": {
+    "absolute": {
+     "batch_invariant": true,
+     "file_version": "2.2",
+     "ok": true,
+     "read_by_520f343": true,
+     "recomputed_threshold": 0.006,
+     "rejected": 20,
+     "rows": 36,
+     "threshold": 0.006
+    },
+    "quantile": {
+     "batch_invariant": true,
+     "file_version": "2.2",
+     "ok": true,
+     "read_by_520f343": true,
+     "recomputed_threshold": 0.006471043440196538,
+     "rejected": 18,
+     "rows": 36,
+     "threshold": 0.006471043440196538
+    }
+   }
+  },
+  {
+   "case": "label_error_requires_exact_jacobians",
+   "float32_finite_difference_at_1e4": 0.0,
+   "mlp_exact_jacobian_z": true,
+   "pass": true,
+   "refusal": "InterfaceError: LabelError needs the exact model Jacobian: Float32Quadratic has no jacobian_za",
+   "true_derivative": 19999.0
+  },
+  {
+   "accepted": 16,
+   "candidates": 36,
+   "case": "filters_record_independent_reasons",
+   "pass": true,
+   "rows_with_both": 10
+  },
+  {
+   "accepted_with_zero_weight": 13,
+   "case": "weighting_never_changes_validity",
+   "pass": true,
+   "positive_weight_on_rejected": "SchemaError: ['weight']",
+   "rejected_rows": 10
+  },
+  {
+   "case": "fixed_point_forward_euler_superseded_by_newton",
+   "contraction_norm": 0.1,
+   "max_abs_difference": 1.734723475976807e-18,
+   "pass": true
+  },
+  {
+   "case": "branch_filter_keys_migrate",
+   "pass": true,
+   "values": {
+    "generation.label_error_quantile": 0.3,
+    "generation.max_label_error": 0.5,
+    "generation.model_error_threshold": 0.1
+   }
+  },
+  {
+   "capabilities": [
+    "action-chunking-labels",
+    "bc-policy",
+    "cluster-sweeps",
+    "corrective-labels",
+    "data-fraction-ablation",
+    "documentation",
+    "dynamics-model",
+    "dynamics-training-tool",
+    "f1-evaluation",
+    "label-filtering",
+    "pipeline-scripts",
+    "repo-hygiene",
+    "results-analysis",
+    "task-configs"
+   ],
+   "case": "label_filtering_inventory_fully_classified",
+   "missing": [],
+   "pass": true
+  },
+  {
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-dd0542457c72/labels/candidates.npz",
+   "case": "filters_pipeline_run",
+   "file_version": "2.2",
+   "pass": true,
+   "reason_codes": [
+    "non_finite",
+    "out_of_support",
+    "generation_failed",
+    "action_out_of_bounds",
+    "label_filter.label_error",
+    "label_filter.model_misfit"
+   ],
+   "stages": {
+    "data-prepare-e2ed3c48d5e9": "complete",
+    "labels-generate-dd0542457c72": "complete",
+    "transition-fit-e993ffedc128": "complete"
+   },
+   "stderr": ""
   }
  ],
  "environment": {
-  "code_commit": "471c92a78d99a1b5e139fb03e39b1f03b87c366b",
+  "code_commit": "beca081a4454c669ffe1a268b03cac5448986fc5",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",

@@ -24,9 +24,6 @@ DROPPED = {
 }
 # Legacy keys that affected behavior but have no supported home yet.
 UNSUPPORTED = {
-    "aug.label_err_quantile": "label-error filtering from label-filtering; ported in #22",
-    "aug.max_label_err": "label-error filtering from label-filtering; ported in #22",
-    "aug.model_err_thresh": "model-fit filtering from label-filtering; ported in #22",
     "aug.chunk_size": "action-chunk labels from label-filtering; ported in #22",
     "data.data_frac": "trajectory subsampling; superseded by M7 low-data subsets (#51-#55)",
     "state_encoder": "image-observation encoder from the fork image branch; deferred to M5",

@@ -14,7 +14,7 @@ import numpy as np
 from ..config import ConfigError
 from ..config.params import mlp_settings_problem
 from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
-                    IdentityRepresentation, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
+                    IdentityRepresentation, LabelError, ModelMisfit, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
                     load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
@@ -46,7 +46,16 @@ def build_validators(v):
         validators.append(SupportRadius(v["generation.support_radius"]))
     if v["data.action_low"] is not None:
         validators.append(ActionBounds(v["data.action_low"], v["data.action_high"]))
+    if v["generation.model_error_threshold"] is not None:
+        validators.append(ModelMisfit(v["generation.model_error_threshold"]))
+    if label_error_enabled(v):
+        validators.append(LabelError(build_generator(v).label_error_profile, v["generation.model_error_threshold"],
+                                     v["generation.max_label_error"], v["generation.label_error_quantile"]))
     return validators
+
+
+def label_error_enabled(v) -> bool:
+    return v["generation.max_label_error"] is not None or v["generation.label_error_quantile"] is not None
 
 
 def build_model(v):
@@ -76,6 +85,10 @@ def preflight(cfg) -> None:
             v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
         errors.append(f"generation.method {v['generation.method']} requires generation.labels_per_transition and "
                       "generation.action_noise_std")
+    if label_error_enabled(v) and v["generation.model_error_threshold"] is None:
+        errors.append("label-error filtering (generation.max_label_error / label_error_quantile) requires "
+                      "generation.model_error_threshold: the CCIL label-error definitions assume a small anchor model "
+                      "error, which the threshold enforces")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
