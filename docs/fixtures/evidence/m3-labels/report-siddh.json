@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-105219511f78/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-5039c9f53dca/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-4129cfd9c45e": "complete",
-    "labels-generate-105219511f78": "complete",
-    "transition-fit-2333b48e8682": "complete"
+    "data-prepare-77ffb0e75d27": "complete",
+    "labels-generate-5039c9f53dca": "complete",
+    "transition-fit-6bc4aec33bdd": "complete"
    },
    "stderr": ""
   },
@@ -430,7 +430,7 @@
    "pass": true
   },
   {
-   "artifact": "<out>/pipeline_filters/runs/labels-generate-f9a7d9c00389/labels/candidates.npz",
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-ed9338831699/labels/candidates.npz",
    "case": "filters_pipeline_run",
    "file_version": "2.2",
    "pass": true,
@@ -443,9 +443,9 @@
     "label_filter.model_misfit"
    ],
    "stages": {
-    "data-prepare-4129cfd9c45e": "complete",
-    "labels-generate-f9a7d9c00389": "complete",
-    "transition-fit-2333b48e8682": "complete"
+    "data-prepare-77ffb0e75d27": "complete",
+    "labels-generate-ed9338831699": "complete",
+    "transition-fit-6bc4aec33bdd": "complete"
    },
    "stderr": ""
   },
@@ -490,6 +490,7 @@
     "alignment": "position 0 is the label action a_G; position k >= 1 is the source episode's action at frame chunk_target_frame + k - 1, taken from the state the label reaches",
     "chunk_size": 4,
     "guarantee": "one-step: only position 0 carries the label's CCIL claim; positions k >= 1 are demonstration actions",
+    "target_frame_offset": 1,
     "truncation": "positions past the source episode's last frame are masked and zero; never padded"
    },
    "case": "action_chunk_schema_round_trip_and_compatibility",
@@ -502,20 +503,38 @@
    "read_by_8071952": "36 False"
   },
   {
-   "artifact": "<out>/pipeline_chunks/runs/labels-generate-ce6ba8520f03/labels/candidates.npz",
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-bd3eb5d714b9/labels/candidates.npz",
    "case": "action_chunks_pipeline_and_migration",
    "migrated_chunk_size": 5,
    "pass": true,
    "stages": {
-    "data-prepare-4129cfd9c45e": "complete",
-    "labels-generate-ce6ba8520f03": "complete",
-    "transition-fit-2333b48e8682": "complete"
+    "data-prepare-77ffb0e75d27": "complete",
+    "labels-generate-bd3eb5d714b9": "complete",
+    "transition-fit-6bc4aec33bdd": "complete"
    },
    "stderr": ""
+  },
+  {
+   "action_chunk_size": {
+    "0": "InterfaceError: action_chunk_size must be an integer >= 1, got 0",
+    "2.5": "InterfaceError: action_chunk_size must be an integer >= 1, got 2.5",
+    "True": "InterfaceError: action_chunk_size must be an integer >= 1, got True"
+   },
+   "case": "malformed_chunks_and_chunk_files_rejected",
+   "malformed": {
+    "chunk_arrays_not_declared_optional": "SchemaError: ['format']: a chunk file must list ['action_chunk_mask', 'action_chunks'] in optional_fields",
+    "forged_2_2_file_with_chunks": "SchemaError: ['format']: version 2.2 cannot carry ['action_chunk_mask', 'action_chunks', 'action_chunk_spec']; action chunks need 2.3",
+    "non_finite_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "non_finite_target_frame_on_rejected_row": "SchemaError: ['action_chunks']: chunk_target_frame nan must equal source_frame + target_frame_offset = 3",
+    "nonzero_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "spec_without_target_frame_offset": "SchemaError: ['action_chunk_spec']: action_chunk_spec needs integer chunk_size (= K), target_frame_offset 0 or 1, and non-empty alignment, guarantee, and tr",
+    "wrong_integral_target_frame": "SchemaError: ['action_chunks']: chunk_target_frame 2.0 must equal source_frame + target_frame_offset = 1"
+   },
+   "pass": true
   }
  ],
  "environment": {
-  "code_commit": "93f87de0f13e5539cadc8d4aca018317e8d57d83",
+  "code_commit": "effef76eeaec018c897a84e707509bb11cf394b1",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
