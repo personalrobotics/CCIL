@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-5039c9f53dca/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-84a3853cfb01/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-77ffb0e75d27": "complete",
-    "labels-generate-5039c9f53dca": "complete",
-    "transition-fit-6bc4aec33bdd": "complete"
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-84a3853cfb01": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
    },
    "stderr": ""
   },
@@ -430,7 +430,7 @@
    "pass": true
   },
   {
-   "artifact": "<out>/pipeline_filters/runs/labels-generate-ed9338831699/labels/candidates.npz",
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-f5dbb7e49b19/labels/candidates.npz",
    "case": "filters_pipeline_run",
    "file_version": "2.2",
    "pass": true,
@@ -443,9 +443,9 @@
     "label_filter.model_misfit"
    ],
    "stages": {
-    "data-prepare-77ffb0e75d27": "complete",
-    "labels-generate-ed9338831699": "complete",
-    "transition-fit-6bc4aec33bdd": "complete"
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-f5dbb7e49b19": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
    },
    "stderr": ""
   },
@@ -503,14 +503,14 @@
    "read_by_8071952": "36 False"
   },
   {
-   "artifact": "<out>/pipeline_chunks/runs/labels-generate-bd3eb5d714b9/labels/candidates.npz",
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-53ee254e73f2/labels/candidates.npz",
    "case": "action_chunks_pipeline_and_migration",
    "migrated_chunk_size": 5,
    "pass": true,
    "stages": {
-    "data-prepare-77ffb0e75d27": "complete",
-    "labels-generate-bd3eb5d714b9": "complete",
-    "transition-fit-6bc4aec33bdd": "complete"
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-53ee254e73f2": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
    },
    "stderr": ""
   },
@@ -528,13 +528,15 @@
     "non_finite_target_frame_on_rejected_row": "SchemaError: ['action_chunks']: chunk_target_frame nan must equal source_frame + target_frame_offset = 3",
     "nonzero_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
     "spec_without_target_frame_offset": "SchemaError: ['action_chunk_spec']: action_chunk_spec needs integer chunk_size (= K), target_frame_offset 0 or 1, and non-empty alignment, guarantee, and tr",
+    "target_frame_string_dtype": "SchemaError: ['action_chunks', 'dtype']: measurements[name] dtype <U32 is not float",
+    "target_frame_wrong_shape": "SchemaError: ['action_chunks', 'rank']: measurements[name] has shape (36, 2); expected rank 1 ('N',)",
     "wrong_integral_target_frame": "SchemaError: ['action_chunks']: chunk_target_frame 2.0 must equal source_frame + target_frame_offset = 1"
    },
    "pass": true
   }
  ],
  "environment": {
-  "code_commit": "effef76eeaec018c897a84e707509bb11cf394b1",
+  "code_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
