@@ -38,6 +38,7 @@ import copy
 import hashlib
 import json
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -54,15 +55,14 @@ from ccil.core import (BackwardEuler, Finite, IdentityRepresentation, InterfaceE
                        LinearTransitionModel, NoisyAction, generate_labels)
 from ccil.core.certificates import (GLOBAL_TERM_SPECS, ContinuityProfile, Declared, Profile, Provided,  # noqa: E402
                                     Sources, audit_sources, certify, decide, register_profile, require_upper_bound,
-                                    verify_structure, write_reference_dynamics)
+                                    resolved_of, verify_structure, write_reference_dynamics)
 from ccil.runs import validate_run  # noqa: E402
-from ccil.schema import (SchemaError, read_candidates, read_certificates, write_candidates,  # noqa: E402
-                         write_certificates, write_trajectories)
+from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates,  # noqa: E402
+                         write_candidates, write_certificates, write_trajectories)
 from ccil.schema.io import _atomic_savez  # noqa: E402
 
 SEED, K, SIGMA = 20261025, 4, 0.05
-# Stored candidates and states are float32; the demonstration transition is exact only up to that rounding.
-COVER_TOL = 1e-6
+DEMO = Provided("reference_residual", "true")
 
 
 @register_profile
@@ -83,10 +83,28 @@ class AnchorActionScore(Profile):
         return {"anchor_action_norm": np.linalg.norm(a / ctx.action_scale, axis=1)}
 
     def audit_term(self, name, row):
-        return float(np.linalg.norm(row["a_t"] / row["action_scale"]))
+        return float(np.linalg.norm(row["a_t"] / row["action_scale"])), 1e-12
 
     def evaluate(self, terms, values):
         return np.full(len(terms["solver_error"]), np.nan), terms["solver_error"] + 0.1 * terms["anchor_action_norm"]
+
+
+def write_bundle(root, bundle):
+    """Each certificate with copies of its sources and a manifest; audit_bundle.py audits it on any host."""
+    root.mkdir()
+    manifest = {}
+    for name, (cert, src) in sorted(bundle.items()):
+        d = root / name
+        d.mkdir()
+        files = {}
+        for key, p in sorted(src.paths().items()):
+            shutil.copyfile(p, d / f"{key}.npz")
+            files[key] = f"{key}.npz"
+        write_certificates(cert, d / "certificates.npz")
+        manifest[name] = {"files": files, "certificates": "certificates.npz",
+                          "modality": cert.components["representation"]["modality"]}
+    (root / "manifest.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
+    return {str(p.relative_to(root)): sha(p) for p in sorted(root.rglob("*")) if p.is_file()}
 
 
 def sha(path) -> str:
@@ -116,6 +134,7 @@ def main():
     out = ap.parse_args().out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = []
+    bundle = {}  # name -> (certificate, sources), written for audit on another host
 
     def record(name, ok, **detail):
         cases.append({"case": name, "pass": bool(ok), **detail})
@@ -135,7 +154,7 @@ def main():
     for name, m in models.items():
         m.save(out / f"model-{name}.npz")
     generators = {"backward_euler": BackwardEuler(), "noisy_action": NoisyAction(K, SIGMA)}
-    provided = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"))
+    provided = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"), DEMO)
 
     def sources(model, gen):
         c = generate_labels(dataset, rep, models[model], generators[gen], [Finite()], run_id=f"{model}-{gen}", seed=SEED)
@@ -151,7 +170,7 @@ def main():
         err = true_label_error(read_candidates(s.candidates), sys_)
         gap = cert.total_error_value - err
         record(f"exact_model_certified_and_tight[{g}]",
-               (cert.classification == "certified").all() and (gap >= -COVER_TOL).all() and float(np.abs(gap).max()) <= 1e-5
+               (cert.classification == "certified").all() and (gap >= 0).all() and float(np.abs(gap).max()) <= 1e-5
                and all(c["value"] == 0.0 and c["provenance"]["provider"] == "linear_discrepancy" for c in cert.descriptor["constants"].values()),
                rows=int(len(err)), constants={r: c["value"] for r, c in cert.descriptor["constants"].items()},
                max_true_error=float(err.max()), max_abs_gap=float(np.abs(gap).max()))
@@ -165,7 +184,7 @@ def main():
             slack = cert.total_error_value - err
             values = {r: c["value"] for r, c in cert.descriptor["constants"].items()}
             record(f"wrong_model_covered_by_provider_constants[{g}, scale={scale}]",
-                   (cert.classification == "certified").all() and (slack >= -COVER_TOL).all()
+                   (cert.classification == "certified").all() and (slack >= 0).all()
                    and (scale is not None or (np.isclose(values["C_z"], Cz) and np.isclose(values["C_a"], Ca)))
                    and float(cert.terms["anchor_model_error"].max()) > 1e-3,
                    constants=values, unscaled_norms={"A - A_hat": Cz, "B - B_hat": Ca},
@@ -176,33 +195,33 @@ def main():
     s = src[("wrong", "noisy_action")]
     cands = read_candidates(s.candidates)
     err = true_label_error(cands, sys_)
-    refused = {"raw_float": outcome(lambda: ContinuityProfile(0.0, 0.0)),
+    refused = {"raw_float": outcome(lambda: ContinuityProfile(0.0, 0.0, DEMO)),
                "raw_dict_claiming_analytic": outcome(lambda: ContinuityProfile(
-                   {"value": 0.0, "source": "analytic_bound"}, Declared(0.0, "x")))}
+                   {"value": 0.0, "source": "analytic_bound"}, Declared(0.0, "x"), DEMO))}
     declared = certify(s, ContinuityProfile(Declared(0.0, "assumed (wrongly) that the model is exact"),
-                                            Declared(0.0, "assumed (wrongly) that the model is exact")))
-    violated = declared.total_error_value < err - COVER_TOL
+                                            Declared(0.0, "assumed (wrongly) that the model is exact"), DEMO))
+    violated = declared.total_error_value < err
     good = certify(s, provided)
     forged = copy.deepcopy(good)
     for c in forged.descriptor["constants"].values():
         c["value"] = 0.0
-    rows, thr = decide(provided, forged.descriptor["constants"], forged.terms, cands.accepted, forged.admission, None)
+    rows, thr = decide(provided, resolved_of(forged.descriptor), forged.terms, cands.accepted, forged.admission, None)
     for k, v in rows.items():
         setattr(forged, k, v)
     record("values_cannot_be_asserted_as_bounds",
            all(v.startswith("InterfaceError") for v in refused.values())
            and (declared.classification == "conditional").all() and violated.any()
-           and (forged.classification == "certified").all() and (forged.total_error_value < err - COVER_TOL).any()
+           and (forged.classification == "certified").all() and (forged.total_error_value < err).any()
            and verify_structure(forged, s.candidates) == [] and any("recomputation" in p for p in audit_sources(forged, s)),
            refused=refused, declared_zero={"classification": "conditional", "violated_rows": int(violated.sum()),
                                            "rows": int(len(err)), "worst_shortfall": float((err - declared.total_error_value).max())},
-           forged_certified_zero={"violated_rows": int((forged.total_error_value < err - COVER_TOL).sum()),
+           forged_certified_zero={"violated_rows": int((forged.total_error_value < err).sum()),
                                   "structure": verify_structure(forged, s.candidates),
                                   "audit": [p for p in audit_sources(forged, s) if "constant" in p]})
 
     # 4. Outside the neighborhood: unsupported, not a bound, not admissible.
     radius = float(np.median(good.terms["state_displacement"]))
-    nb = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"), neighborhood_state=radius)
+    nb = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"), DEMO, neighborhood_state=radius)
     cn = certify(s, nb)
     outside = cn.terms["state_displacement"] > radius
     record("outside_neighborhood_unsupported",
@@ -256,14 +275,17 @@ def main():
     i = int(np.flatnonzero(sc.admissible)[0])
     falsified = copy.deepcopy(back)
     falsified.terms["anchor_action_norm"][i] *= 0.5
-    rows, _ = decide(score, {}, falsified.terms, cands.accepted, falsified.admission, None)
+    rows, _ = decide(score, resolved_of(falsified.descriptor), falsified.terms, cands.accepted, falsified.admission, None)
     for k, v in rows.items():
         setattr(falsified, k, v)
     nan_terms = {k: v.copy() for k, v in back.terms.items()}
     nan_terms["anchor_model_error"][:] = np.nan
     adm = {"mode": "score", "threshold": None}
-    score_rows, _ = decide(score, {}, nan_terms, cands.accepted, adm, None)
-    cont_rows, _ = decide(provided, cont.descriptor["constants"], nan_terms, cands.accepted, {"mode": "upper_bound", "threshold": None}, None)
+    score_rows, _ = decide(score, resolved_of(back.descriptor), nan_terms, cands.accepted, adm, None)
+    cont_terms = {k: v.copy() for k, v in cont.terms.items()}
+    cont_terms["anchor_model_error"][:] = np.nan
+    cont_rows, _ = decide(provided, resolved_of(cont.descriptor), cont_terms, cands.accepted,
+                          {"mode": "upper_bound", "threshold": None}, None)
     record("profile_terms_round_trip_and_audit",
            set(back.terms) == set(GLOBAL_TERM_SPECS) | {"anchor_action_norm"}
            and np.array_equal(back.terms["anchor_action_norm"], sc.terms["anchor_action_norm"])
@@ -291,7 +313,7 @@ def main():
         """Falsify one term at row j and rederive every value and mask, as a careful forger would."""
         cs = copy.deepcopy(cs)
         cs.terms[term][j] += delta
-        rows, thr = decide(nb, cs.descriptor["constants"], cs.terms, cands.accepted, cs.admission, cs.selection["quantile"])
+        rows, thr = decide(nb, resolved_of(cs.descriptor), cs.terms, cands.accepted, cs.admission, cs.selection["quantile"])
         for k, v in rows.items():
             setattr(cs, k, v)
         cs.selection = {**cs.selection, "threshold": thr}
@@ -389,7 +411,7 @@ def main():
         "declared_negative": outcome(lambda: Declared(-1.0, "x")),
         "declared_no_rationale": outcome(lambda: Declared(1.0, "")),
         "unknown_provider": outcome(lambda: Provided("guess", "true")),
-        "neighborhood_zero": outcome(lambda: ContinuityProfile(Declared(0.0, "x"), Declared(0.0, "x"), neighborhood_state=0.0)),
+        "neighborhood_zero": outcome(lambda: ContinuityProfile(Declared(0.0, "x"), Declared(0.0, "x"), DEMO, neighborhood_state=0.0)),
         "threshold_nan": outcome(lambda: certify(s, provided, threshold=float("nan"))),
         "threshold_negative": outcome(lambda: certify(s, provided, threshold=-1.0)),
         "threshold_bool": outcome(lambda: certify(s, provided, threshold=True)),
@@ -431,7 +453,7 @@ def main():
            set(status.values()) == {"complete"} and len(status) == 6 and sha(cand_file) == cand_sha
            and pcert.candidates_sha256 == cand_sha and again.reused and again.run_dir == first_run.run_dir
            and len({first_run.run_dir, changed_ref.run_dir, changed_thr.run_dir}) == 3
-           and (pcert.classification == "certified").all() and (pcert.total_error_value >= perr - COVER_TOL).all()
+           and (pcert.classification == "certified").all() and (pcert.total_error_value >= perr).all()
            and verify_structure(pcert, cand_file) == [] and audit_sources(pcert, psrc) == [],
            stages=status, candidates_sha256=cand_sha, reused=again.reused,
            constants={r: c["value"] for r, c in pcert.descriptor["constants"].items()},
@@ -439,12 +461,45 @@ def main():
            usable=int((pc.accepted & pcert.admissible & pcert.selected).sum()), rows=int(len(pc.accepted)),
            artifact=f"<out>/pipeline/runs/{first_run.run_dir.name}/labels/certificates.npz")
 
-    # Part 2: the theorem profiles and model_bound extraction (tools/m3_certificates/theorems.py).
+    # 12. The audit's tolerance is row-local: one extreme state does not loosen any other row.
+    big = np.array([[1e6, 0.0]])
+    acts = np.array([[0.01], [-0.02], [0.03]])
+    for t in range(len(acts)):
+        big = np.vstack([big, sys_.step_np(big[-1:], acts[t:t + 1])])
+    extreme = TrajectoryDataset(list(dataset.episodes) + [Episode("extreme", {"state": big.astype(np.float32)},
+                                                                  np.vstack([acts, [[0.0]]]).astype(np.float32))]).validate()
+    xpath = out / "fixture-extreme.npz"
+    write_trajectories(extreme, xpath)
+    xc = generate_labels(extreme, rep, models["wrong"], generators["backward_euler"], [Finite()], run_id="extreme", seed=SEED)
+    write_candidates(xc, out / "candidates-extreme.npz")
+    xs = Sources(out / "candidates-extreme.npz", xpath, out / "model-wrong.npz", rep, references={"true": truth})
+    xcert = certify(xs, provided)
+    k = int(np.flatnonzero(xcert.source_episode_id != "extreme")[0])
+    delta = 1e-6
+    xforged = copy.deepcopy(xcert)
+    xforged.terms["anchor_model_error"][k] += delta
+    rows, thr = decide(provided, resolved_of(xforged.descriptor), xforged.terms, xc.accepted, xforged.admission, None)
+    for name, v in rows.items():
+        setattr(xforged, name, v)
+    xaudit = audit_sources(xforged, xs)
+    old_tol = 1e-6 * (1 + float(np.abs(big).max())) + 1e-5 * float(xcert.terms["anchor_model_error"][k])
+    record("audit_tolerance_is_row_local",
+           audit_sources(xcert, xs) == [] and verify_structure(xforged, xs.candidates) == []
+           and any(f"row {k}: persisted anchor_model_error" in p for p in xaudit) and delta < old_tol,
+           extreme_state=float(np.abs(big).max()), corrupted_row=k, corruption=delta,
+           term=float(xcert.terms["anchor_model_error"][k]), previous_global_tolerance=old_tol,
+           audit=[p for p in xaudit if p.startswith(f"row {k}:")])
+    bundle["continuity_linear"] = (cm, s)
+
+    # Part 2: the theorem profiles and model bounds (tools/m3_certificates/theorems.py).
     import theorems
-    theorems.run(out, record, dataset, data_path, sys_, truth)
+    theorems.run(out, record, dataset, data_path, sys_, truth, bundle)
+
+    # A bundle of certificates with their sources, for audit on another host (tools/m3_certificates/audit_bundle.py).
+    bundle_sha256 = write_bundle(out / "bundle", bundle)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
-    report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
+    report = {"all_pass": all(c["pass"] for c in cases), "cases": cases, "bundle_sha256": bundle_sha256,
               "environment": {"code_commit": git("rev-parse", "HEAD"),
                               "code_dirty": bool(git("status", "--porcelain", "--", "src", "tools", "pyproject.toml", "uv.lock")),
                               "python": platform.python_version(), "platform": platform.platform(), "numpy": np.__version__}}

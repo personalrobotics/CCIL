@@ -1,33 +1,35 @@
-"""Evidence for #88 part 2: the CCIL theorem profiles and model_bound extraction (called by check.py).
+"""Evidence for #88 part 2: the CCIL theorem profiles and model bounds (called by check.py).
 
 On the analytic double integrator, with the true label error computed
-independently from the true dynamics:
+independently from the true dynamics, and every bound including the
+demonstration residual from the reference dynamics, so coverage is asserted
+directly (true error <= total, no tolerance):
 - backtrack (Thm 4.2) with K_hat_z from model_lipschitz and K_z from
-  reference_lipschitz is certified and covers every row of both backtrack
-  generators; its bound has no action term, so a model with 100x the action
-  sensitivity gets the same formula, and rows that move the action are
-  unsupported;
-- disturbed_action (Thm 4.3) uses the true constants only: it is certified and
-  covers every row of both disturbed-action generators, records solver_error
-  without adding it (compared with the double-counted total), and a declared
-  zero constant fails coverage;
-- MLP model_bound: the bound of relu, tanh, and spectral-normalized MLPs (also
-  with a masked output and non-unit scales) covers every sampled exact
+  reference_lipschitz, both verified exactly for linear maps, is certified and
+  covers every row of both backtrack generators; its bound has no action term,
+  so a model with 100x the action sensitivity gets the same formula, and rows
+  that move the action are unsupported;
+- disturbed_action (a direct corollary of the proof of Thm 4.3) uses the true
+  constants only: it is certified and covers every row of both
+  disturbed-action generators, records solver_error without adding it
+  (compared with the double-counted total), and declared zero constants fail
+  coverage;
+- MLP lipschitz_bound: the bound of relu, tanh, and spectral-normalized MLPs
+  (also with a masked output and non-unit scales) covers every sampled exact
   Jacobian and finite difference; for a model whose actions are in
   milli-units, the raw weight product without the normalization constants
-  falls short of the sampled action sensitivity; a spectral-normalized layer whose stored power-iteration estimate is
-  stale exceeds its constraint, so the constraint is not a bound, while the
-  exact bound covers; unsupported activations are refused;
-- backtrack with an MLP model is certified, covered, and passes structural
-  verification and the source audit, which recomputes the MLP bound;
-- providers of the wrong kind, forged provider kinds, and profiles applied to
-  the other generator family are refused; the pipeline writes complete
-  backtrack and disturbed_action certify runs.
-
-Coverage is checked to each row's demonstration rounding: stored float32
-transitions satisfy z_{t+1} = z_t + f(z_t, a_t) only up to
-r = ||z_{t+1} - z_t - f(z_t, a_t)||, and both theorems' bounds can fall short
-of the true error by at most r.
+  falls short of the sampled action sensitivity; a spectral-normalized layer
+  whose stored power-iteration estimate is stale exceeds its constraint, so
+  the constraint is not a bound, while the exact-norm bound covers;
+  unsupported activations are refused;
+- with an MLP model, backtrack is conditional (its MLP bound and model terms
+  hold in exact real arithmetic only) and disturbed_action, which uses no
+  learned quantity, is certified; both cover every row and pass structural
+  verification and the source audit;
+- providers of the wrong kind, forged provider kinds, a missing demonstration
+  specification, and profiles applied to the other generator family are
+  refused; the pipeline writes complete backtrack and disturbed_action
+  certify runs.
 """
 import copy
 
@@ -37,7 +39,7 @@ from ccil.core import (BackwardEuler, ExactPreimage, Finite, IdentityRepresentat
                        LinearTransitionModel, NoisyAction, NoisyActionPreimage, generate_labels)
 from ccil.core.certificates import (PROVIDERS, BackTrackProfile, ContinuityProfile, Context, Declared,
                                     DisturbedActionProfile, Provided, Sources, audit_sources, certify, decide,
-                                    verify_structure)
+                                    resolved_of, verify_structure)
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates, write_candidates,
                          write_trajectories)
 
@@ -71,13 +73,14 @@ def true_label_error(c, sys_, scale=None):
 
 
 def coverage(cert, c, dataset, sys_, scale=None):
+    """true_error <= total_error_value on every row, asserted directly (no tolerance)."""
     err = true_label_error(c, sys_, scale)
     r = demo_residual(c, dataset, sys_, scale)
-    short = err - cert.total_error_value
-    return {"rows": int(len(err)), "covered": bool((short <= r + 1e-12).all()),
-            "violated_rows": int((short > r + 1e-12).sum()), "min_slack": float((cert.total_error_value - err).min()),
-            "max_demo_residual": float(r.max()), "max_true_error": float(err.max()),
-            "max_bound": float(cert.total_error_value.max())}
+    return {"rows": int(len(err)), "covered": bool((err <= cert.total_error_value).all()),
+            "violated_rows": int((err > cert.total_error_value).sum()), "min_slack": float((cert.total_error_value - err).min()),
+            "max_demonstration_residual": float(r.max()),
+            "max_persisted_demonstration_residual": float(np.nanmax(cert.terms["demonstration_residual"])),
+            "max_true_error": float(err.max()), "max_bound": float(cert.total_error_value.max())}
 
 
 def synthetic(sys_, seed, episodes=30, length=25):
@@ -101,7 +104,7 @@ def scaled_jacobians(model, z, a, sz, sa):
     return np.linalg.norm(Jz, 2, axis=(1, 2)), np.linalg.norm(Ja, 2, axis=(1, 2))
 
 
-def run(out, record, dataset, data_path, sys_, truth):
+def run(out, record, dataset, data_path, sys_, truth, bundle):
     import torch
     from ccil.models.mlp import MLPTransitionModel, _effective_weight
 
@@ -120,9 +123,10 @@ def run(out, record, dataset, data_path, sys_, truth):
         write_candidates(c, path)
         return Sources(path, dpath, model_path or out / f"model-{model}.npz", rep, references={"true": truth})
 
-    backtrack = BackTrackProfile(Provided("model_lipschitz"), Provided("reference_lipschitz", "true"))
-    disturbed = DisturbedActionProfile(Provided("reference_lipschitz", "true"), Provided("reference_lipschitz", "true"))
-    continuity = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"))
+    demo = Provided("reference_residual", "true")
+    backtrack = BackTrackProfile(Provided("model_lipschitz"), Provided("reference_lipschitz", "true"), demo)
+    disturbed = DisturbedActionProfile(Provided("reference_lipschitz", "true"), Provided("reference_lipschitz", "true"), demo)
+    continuity = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"), demo)
 
     # T1. BackTrack: certified and covered for both backtrack generators.
     bt = {}
@@ -136,7 +140,9 @@ def run(out, record, dataset, data_path, sys_, truth):
         consts = {r: v["value"] for r, v in cert.descriptor["constants"].items()}
         record(f"backtrack_certified_and_covered[{g}]",
                (cert.classification == "certified").all() and cov["covered"]
-               and np.isclose(consts["K_hat_z"], np.linalg.norm(A_hat, 2)) and np.isclose(consts["K_z"], np.linalg.norm(sys_.A, 2))
+               and consts["K_hat_z"] >= np.linalg.norm(A_hat, 2) and np.isclose(consts["K_hat_z"], np.linalg.norm(A_hat, 2), rtol=1e-9)
+               and consts["K_z"] >= np.linalg.norm(sys_.A, 2) and np.isclose(consts["K_z"], np.linalg.norm(sys_.A, 2), rtol=1e-9)
+               and all(v["source"] == "analytic_bound" for v in cert.descriptor["constants"].values())
                and (cert.total_error_value >= cont.total_error_value - 1e-15).all(),
                constants=consts, coverage=cov,
                continuity_comparison={"note": "K_hat_z + K_z >= ||A - A_hat||, so backtrack is never tighter than continuity",
@@ -148,12 +154,12 @@ def run(out, record, dataset, data_path, sys_, truth):
     c2 = certify(s2, backtrack)
     cand2 = read_candidates(s2.candidates)
     action_bounds = {name: m.lipschitz_bound("action", np.ones(2), np.ones(1))["value"] for name, m in models.items()}
-    formula = all(np.allclose(c.model_error_value, c.terms["anchor_model_error"]
+    formula = all(np.allclose(c.model_error_value, c.terms["anchor_model_error"] + c.terms["demonstration_residual"]
                               + sum(v["value"] for v in c.descriptor["constants"].values()) * c.terms["state_displacement"],
-                              rtol=0, atol=0) for c in (c1, c2))
+                              rtol=1e-14, atol=0) for c in (c1, c2))
     moved = {k: v.copy() for k, v in c1.terms.items()}
     moved["action_displacement"][:3] = 1e-3
-    rows, _ = decide(backtrack, c1.descriptor["constants"], moved, np.ones(len(c1.selected), bool),
+    rows, _ = decide(backtrack, resolved_of(c1.descriptor), moved, np.ones(len(c1.selected), bool),
                      {"mode": "upper_bound", "threshold": None}, None)
     record("backtrack_has_no_action_term",
            formula and c1.descriptor["constants"]["K_hat_z"]["value"] == c2.descriptor["constants"]["K_hat_z"]["value"]
@@ -174,14 +180,14 @@ def run(out, record, dataset, data_path, sys_, truth):
         double = cert.total_error_value + cert.terms["solver_error"]
         kv = {r: v["value"] for r, v in cert.descriptor["constants"].items()}
         direct = (kv["K_a"] * cert.terms["action_displacement"] + (1 + kv["K_z"]) * cert.terms["state_displacement"]
-                  + cert.terms["target_offset"])
+                  + cert.terms["demonstration_residual"] + cert.terms["target_offset"])
         declared = certify(s, DisturbedActionProfile(Declared(0.0, "assumed (wrongly) f is constant"),
-                                                      Declared(0.0, "assumed (wrongly) f is constant")))
+                                                      Declared(0.0, "assumed (wrongly) f is constant"), demo))
         dcov = coverage(declared, c, dataset, sys_)
         record(f"disturbed_action_direct_and_covered[{g}]",
                (cert.classification == "certified").all() and cov["covered"] and np.isnan(cert.model_error_value).all()
                and float(cert.terms["target_offset"].max()) == 0.0 and (cert.terms["solver_error"] > 0).any()
-               and np.array_equal(cert.total_error_value, direct)
+               and np.allclose(cert.total_error_value, direct, rtol=1e-14, atol=0) and (cert.total_error_value >= direct).all()
                and (declared.classification == "conditional").all() and not dcov["covered"],
                constants={r: v["value"] for r, v in cert.descriptor["constants"].items()}, coverage=cov,
                solver_error={"recorded_max": float(cert.terms["solver_error"].max()),
@@ -278,7 +284,8 @@ def run(out, record, dataset, data_path, sys_, truth):
            layers=stale, constraint_times_normalization=constraint_bound, exact_bound=Kz["value"],
            max_sampled_jacobian_z=float(jz.max()))
 
-    # T6. BackTrack with an MLP model: certified, covered, structurally verified, audited.
+    # T6. With an MLP model: backtrack uses f_hat's bound and terms, so it is conditional on exact real arithmetic;
+    # disturbed_action uses no learned quantity, so it stays certified.
     mlp = trained["relu"]
     mlp_path = out / "model-mlp.npz"
     mlp.save(mlp_path)
@@ -287,19 +294,35 @@ def run(out, record, dataset, data_path, sys_, truth):
     cert = certify(s, backtrack)
     cov = coverage(cert, c, syn, sys_)
     struct, audit = verify_structure(cert, s.candidates), audit_sources(cert, s)
-    record("backtrack_with_mlp_certified_and_audited",
-           (cert.classification == "certified").all() and cov["covered"] and struct == [] and audit == []
-           and np.isclose(cert.descriptor["constants"]["K_hat_z"]["value"], mlp.lipschitz_bound("state", np.ones(2), np.ones(1))["value"]),
-           constants={r: v["value"] for r, v in cert.descriptor["constants"].items()},
-           rationale=cert.descriptor["constants"]["K_hat_z"]["rationale"], coverage=cov, structure=struct, audit=audit)
+    sd = sources("mlp", "noisy_action", data=syn, dpath=syn_path, model_obj=mlp, model_path=mlp_path)
+    cd = read_candidates(sd.candidates)
+    cert_da = certify(sd, disturbed)
+    cov_da = coverage(cert_da, cd, syn, sys_)
+    struct_da, audit_da = verify_structure(cert_da, sd.candidates), audit_sources(cert_da, sd)
+    bundle["backtrack_mlp"] = (cert, s)
+    bundle["disturbed_action_mlp"] = (cert_da, sd)
+    record("mlp_models_classified_by_what_the_bound_uses",
+           (cert.classification == "conditional").all() and cert.is_upper_bound.all() and cov["covered"]
+           and cert.descriptor["constants"]["K_hat_z"]["source"] == "model_bound"
+           and cert.descriptor["model_evaluation"] == "assumed_exact" and struct == [] and audit == []
+           and np.isclose(cert.descriptor["constants"]["K_hat_z"]["value"], mlp.lipschitz_bound("state", np.ones(2), np.ones(1))["value"])
+           and (cert_da.classification == "certified").all() and cov_da["covered"] and struct_da == [] and audit_da == [],
+           backtrack={"classification": "conditional", "constants": {r: {k: v[k] for k in ("value", "source")}
+                                                                     for r, v in cert.descriptor["constants"].items()},
+                      "model_evaluation": cert.descriptor["model_evaluation"],
+                      "rationale": cert.descriptor["constants"]["K_hat_z"]["rationale"], "coverage": cov,
+                      "structure": struct, "audit": audit},
+           disturbed_action={"classification": "certified", "coverage": cov_da, "structure": struct_da, "audit": audit_da})
 
     # T7. Kinds and applicability.
     s_be, cert_be = bt["backward_euler"]
     forged = copy.deepcopy(cert_be)
     forged.descriptor["constants"]["K_z"] = {**forged.descriptor["constants"]["K_hat_z"], "maps": "state"}
     refused = {
-        "learned_provider_for_true_constant": outcome(lambda: certify(s_be, BackTrackProfile(Provided("model_lipschitz"), Provided("model_lipschitz")))),
-        "discrepancy_provider_for_learned_constant": outcome(lambda: certify(s_be, BackTrackProfile(Provided("linear_discrepancy", "true"), Provided("reference_lipschitz", "true")))),
+        "learned_provider_for_true_constant": outcome(lambda: certify(s_be, BackTrackProfile(Provided("model_lipschitz"), Provided("model_lipschitz"), demo))),
+        "discrepancy_provider_for_learned_constant": outcome(lambda: certify(s_be, BackTrackProfile(Provided("linear_discrepancy", "true"), Provided("reference_lipschitz", "true"), demo))),
+        "residual_provider_for_a_constant": outcome(lambda: certify(s_be, BackTrackProfile(Provided("reference_residual", "true"), Provided("reference_lipschitz", "true"), demo))),
+        "missing_demonstration": outcome(lambda: BackTrackProfile(Provided("model_lipschitz"), Provided("reference_lipschitz", "true"), None)),
         "reference_given_to_model_provider": outcome(lambda: Provided("model_lipschitz", "true")),
         "backtrack_on_disturbed_action_labels": outcome(lambda: certify(sources("wrong", "noisy_action"), backtrack)),
         "disturbed_action_on_backtrack_labels": outcome(lambda: certify(s_be, disturbed)),
