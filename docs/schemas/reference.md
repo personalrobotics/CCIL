@@ -77,6 +77,45 @@ Built-in reason codes: `non_finite`, `out_of_support`, `generation_failed`, `act
 
 Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `action_chunk_mask`, `action_chunks`. `meta` holds `action_chunk_spec`, `generator`, `inputs`, `measurement_specs`, `reason_codes`, `run_id`, `seed`, `weighting`.
 
+## `ccil.certificates` 1.0
+
+One row per candidate row of a ccil.candidates file, in the same order, with the source identity repeated for joining; the candidates file is never modified. A row records the terms its profile used (every term the descriptor declares is persisted), model_error_value and total_error_value, a classification, is_upper_bound (true exactly for certified, conditional, and calibrated rows), whether the label lies in the profile's neighborhood, and the admissible and selected masks with independent certificate reasons. The file records the profile descriptor (form, terms, constants with their sources and provenance, neighborhood, coordinates and scales, derived units, assumptions), the admission policy, the selection, the SHA-256 of every input (always the candidates, dataset, and transition model), and the identity of the representation and transition model. Training uses candidate.accepted & admissible & selected.
+
+### Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `descriptor` | `dict` | profile, version, form (additive, direct, score), terms {name: {definition, units, required}}, constants {role: {value, source, maps, rationale, provenance}}, neighborhood {state, action} (null = unbounded), coordinates {modality, state_dim, action_dim, state_scale, action_scale}, units, norms, assumptions. |
+| `admission` | `dict` | mode ['upper_bound', 'score'] and threshold (null or finite >= 0) on total_error_value. |
+| `selection` | `dict` | quantile (null or in (0, 1]) and the resulting threshold (null when no quantile or no eligible row). |
+| `candidates_sha256` | `str` | SHA-256 of the candidates file. |
+| `inputs` | `dict[str, str]` | SHA-256 of each input by name; always ['candidates', 'dataset', 'transition_model']. |
+| `components` | `dict` | representation {kind, version, modality} and transition_model {kind, version}. |
+| `classification_codes` | `list[str]` | Exactly ['certified', 'conditional', 'calibrated', 'empirical', 'unsupported']. |
+| `reason_codes` | `list[str]` | Exactly ['certificate.unsupported', 'certificate.not_upper_bound', 'certificate.exceeds_threshold', 'certificate.not_selected']. |
+
+### Arrays
+
+| Field | Kind | Shape | Units | Required | Description |
+|---|---|---|---|---|---|
+| `source_episode_id` | str | (N,) | - | yes | Episode of the candidate row; equals the candidates file's. |
+| `source_frame` | int | (N,) | frames | yes | Transition index of the candidate row; equals the candidates file's. |
+| `term/<name>` | float | (N,) | per descriptor.terms | yes | Every term the descriptor declares; NaN allowed only where the row is unsupported or the term is not required. |
+| `model_error_value` | float | (N,) | error | yes | Additive profiles: the bound on ||f(q) - f_hat(q)||. NaN for direct and score profiles. |
+| `total_error_value` | float | (N,) | error | yes | The bound (bound classifications) or score (empirical) on ||T(q) - y||; finite and >= 0 unless unsupported. |
+| `classification` | int | (N,) | - | yes | Index into classification_codes. |
+| `is_upper_bound` | bool | (N,) | - | yes | True exactly for certified, conditional, and calibrated rows. |
+| `in_neighborhood` | bool | (N,) | - | yes | The label lies in the profile's neighborhood. |
+| `admissible` | bool | (N,) | - | yes | Passes the admission policy; never set on unsupported rows. |
+| `selected` | bool | (N,) | - | yes | Budget selection; with a quantile, a subset of accepted & admissible rows, otherwise every row. |
+| `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
+
+Classifications: `certified`, `conditional`, `calibrated`, `empirical`, `unsupported`; bounds: `certified`, `conditional`, `calibrated`. Reason codes, in column order: `certificate.unsupported`, `certificate.not_upper_bound`, `certificate.exceeds_threshold`, `certificate.not_selected`. Global terms, persisted by every profile: `state_displacement`, `action_displacement`, `anchor_model_error`, `solver_error`. Constant sources: `analytic_bound`, `model_bound`, `declared`.
+
+### File layout (.npz)
+
+Required: `admissible`, `classification`, `in_neighborhood`, `is_upper_bound`, `model_error_value`, `reasons`, `selected`, `source_episode_id`, `source_frame`, `total_error_value`, and `term/<name>` for exactly the descriptor's terms. `meta` holds `admission`, `candidates_sha256`, `components`, `descriptor`, `inputs`, `selection`, `classification_codes`, and `reason_codes`; no other array or meta field is accepted.
+
 ## Compatibility
 
 Files are written atomically and read with allow_pickle=False. `meta` is a JSON string with schema, version "MAJOR.MINOR", and optional_fields. A file that cannot be decoded (not an archive, truncated, pickled arrays, non-JSON or mistyped meta, inconsistent array layout) raises SchemaError, never a raw decoding error. Compatibility: a minor version only adds optional fields; a reader accepts its own major version, ignores ext/<name> keys, ignores unknown keys only when the file declares them optional (written by a newer minor), and rejects anything else.

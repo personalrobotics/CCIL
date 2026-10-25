@@ -1,0 +1,348 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "exact_model_certified_and_tight[backward_euler]",
+   "constants": {
+    "C_a": 0.0,
+    "C_z": 0.0
+   },
+   "max_abs_gap": 5.1468360565219e-08,
+   "max_true_error": 0.0030000001192092007,
+   "pass": true,
+   "rows": 9
+  },
+  {
+   "case": "exact_model_certified_and_tight[noisy_action]",
+   "constants": {
+    "C_a": 0.0,
+    "C_z": 0.0
+   },
+   "max_abs_gap": 5.1468360565219e-08,
+   "max_true_error": 0.0033344736695288812,
+   "pass": true,
+   "rows": 36
+  },
+  {
+   "case": "wrong_model_covered_by_provider_constants[backward_euler, scale=None]",
+   "constants": {
+    "C_a": 0.060000000000000026,
+    "C_z": 0.10051926163545423
+   },
+   "coordinates": {
+    "action_dim": 1,
+    "action_scale": [
+     1.0
+    ],
+    "modality": "state",
+    "state_dim": 2,
+    "state_scale": [
+     1.0,
+     1.0
+    ]
+   },
+   "max_bound": 0.11630974935082392,
+   "max_true_error": 0.0868847100411143,
+   "min_slack": 0.0008532356953450093,
+   "pass": true,
+   "rows": 9,
+   "unscaled_norms": {
+    "A - A_hat": 0.10051926163545423,
+    "B - B_hat": 0.060000000000000026
+   }
+  },
+  {
+   "case": "wrong_model_covered_by_provider_constants[backward_euler, scale=(2.0, 0.5)]",
+   "constants": {
+    "C_a": 0.4800000000000002,
+    "C_z": 0.3262858073217678
+   },
+   "coordinates": {
+    "action_dim": 1,
+    "action_scale": [
+     4.0
+    ],
+    "modality": "state",
+    "state_dim": 2,
+    "state_scale": [
+     2.0,
+     0.5
+    ]
+   },
+   "max_bound": 0.21838563310944387,
+   "max_true_error": 0.1435262123576719,
+   "min_slack": 0.0017416719687582218,
+   "pass": true,
+   "rows": 9,
+   "unscaled_norms": {
+    "A - A_hat": 0.10051926163545423,
+    "B - B_hat": 0.060000000000000026
+   }
+  },
+  {
+   "case": "wrong_model_covered_by_provider_constants[noisy_action, scale=None]",
+   "constants": {
+    "C_a": 0.060000000000000026,
+    "C_z": 0.10051926163545423
+   },
+   "coordinates": {
+    "action_dim": 1,
+    "action_scale": [
+     1.0
+    ],
+    "modality": "state",
+    "state_dim": 2,
+    "state_scale": [
+     1.0,
+     1.0
+    ]
+   },
+   "max_bound": 0.116277721702927,
+   "max_true_error": 0.09245421433033205,
+   "min_slack": 0.0008663364641781916,
+   "pass": true,
+   "rows": 36,
+   "unscaled_norms": {
+    "A - A_hat": 0.10051926163545423,
+    "B - B_hat": 0.060000000000000026
+   }
+  },
+  {
+   "case": "wrong_model_covered_by_provider_constants[noisy_action, scale=(2.0, 0.5)]",
+   "constants": {
+    "C_a": 0.4800000000000002,
+    "C_z": 0.3262858073217678
+   },
+   "coordinates": {
+    "action_dim": 1,
+    "action_scale": [
+     4.0
+    ],
+    "modality": "state",
+    "state_dim": 2,
+    "state_scale": [
+     2.0,
+     0.5
+    ]
+   },
+   "max_bound": 0.22422068156055244,
+   "max_true_error": 0.1546711820809267,
+   "min_slack": 0.0021396419828781854,
+   "pass": true,
+   "rows": 36,
+   "unscaled_norms": {
+    "A - A_hat": 0.10051926163545423,
+    "B - B_hat": 0.060000000000000026
+   }
+  },
+  {
+   "case": "values_cannot_be_asserted_as_bounds",
+   "declared_zero": {
+    "classification": "conditional",
+    "rows": 36,
+    "violated_rows": 10,
+    "worst_shortfall": 0.004868571097325742
+   },
+   "forged_certified_zero": {
+    "audit": [
+     "constant C_a 0.0 does not match its provider's recomputation 0.060000000000000026",
+     "constant C_z 0.0 does not match its provider's recomputation 0.10051926163545423"
+    ],
+    "structure": [],
+    "violated_rows": 10
+   },
+   "pass": true,
+   "refused": {
+    "raw_dict_claiming_analytic": "InterfaceError: constant C_z must be Declared(...) or Provided(...), got dict; a value cannot be asserted as a bound",
+    "raw_float": "InterfaceError: constant C_z must be Declared(...) or Provided(...), got float; a value cannot be asserted as a bound"
+   }
+  },
+  {
+   "case": "outside_neighborhood_unsupported",
+   "inside": 18,
+   "outside": 18,
+   "pass": true,
+   "radius": 0.01587118264703288
+  },
+  {
+   "case": "admission_is_separate_from_classification",
+   "pass": true,
+   "require_upper_bound": {
+    "continuity_provider": "accepted",
+    "empirical_score_mode": "InterfaceError: certificate (evidence_anchor_action_score, admission 'score') does not admit rows as upper bounds",
+    "empirical_upper_bound_mode": "InterfaceError: certificate (evidence_anchor_action_score, admission 'upper_bound') does not admit rows as upper bounds"
+   },
+   "score_mode": {
+    "admissible": 27,
+    "is_upper_bound": 0,
+    "threshold": 0.0225547904074031
+   },
+   "upper_bound_mode": {
+    "admissible": 0,
+    "not_upper_bound": 36
+   }
+  },
+  {
+   "accepted": 36,
+   "admissible": 14,
+   "case": "masks_follow_rules",
+   "no_eligible": {
+    "admissible": 0,
+    "selected": 0,
+    "threshold": null
+   },
+   "pass": true,
+   "selected": 7,
+   "selection_threshold": 0.005288309932616161,
+   "threshold": 0.011122775093891977
+  },
+  {
+   "case": "profile_terms_round_trip_and_audit",
+   "falsified_term_audit": [
+    "row 0: persisted anchor_action_norm 0.019999999552965164 != recomputed 0.03999999910593033"
+   ],
+   "non_required_nan": {
+    "continuity_supported": 0,
+    "score_profile_supported": 36
+   },
+   "pass": true,
+   "required": [
+    "anchor_action_norm",
+    "solver_error"
+   ],
+   "terms": [
+    "action_displacement",
+    "anchor_action_norm",
+    "anchor_model_error",
+    "solver_error",
+    "state_displacement"
+   ]
+  },
+  {
+   "case": "structure_and_audit_detect_different_corruptions",
+   "clean": {
+    "audit": [],
+    "structure": []
+   },
+   "detected": {
+    "anchor_error_falsified_consistently": {
+     "audit": true,
+     "structure": false
+    },
+    "audited_against_another_model": {
+     "audit": true,
+     "structure": false
+    },
+    "candidates_file_changed": {
+     "audit": false,
+     "structure": true
+    },
+    "constant_lowered_without_rederiving": {
+     "audit": true,
+     "structure": true
+    },
+    "recorded_model_hash_zeroed": {
+     "audit": true,
+     "structure": false
+    },
+    "representation_identity_changed": {
+     "audit": true,
+     "structure": false
+    },
+    "selected_flipped": {
+     "audit": false,
+     "structure": true
+    },
+    "solver_error_falsified_consistently": {
+     "audit": true,
+     "structure": false
+    },
+    "total_halved": {
+     "audit": false,
+     "structure": true
+    },
+    "unit_string_edited": {
+     "audit": false,
+     "structure": true
+    },
+    "unsupported_marked_certified": {
+     "audit": false,
+     "structure": true
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "schema_ingress_enforced",
+   "malformed": {
+    "admissible_unsupported_row": "SchemaError: rules=['admissible']: an unsupported row cannot be admissible",
+    "admission_null": "SchemaError: rules=['admission']: admission must be {mode: ['upper_bound', 'score'], threshold: null or finite >= 0}",
+    "analytic_constant_without_provenance": "SchemaError: rules=['descriptor']: a provided constant needs provenance {provider, version, params, inputs (SHA-256)}",
+    "bad_sha256": "SchemaError: rules=['inputs']: candidates_sha256 must be 64 lowercase hex",
+    "classification_out_of_range": "SchemaError: rules=['format']: classification must be rank-1 integer codes into classification_codes",
+    "declared_constant_with_provenance": "SchemaError: rules=['descriptor']: a declared constant has no provenance",
+    "integer_selected_mask": "SchemaError: rules=['dtype']: selected dtype int64 is not bool",
+    "is_upper_bound_inconsistent": "SchemaError: rules=['admissible', 'is_upper_bound']: is_upper_bound must be true exactly for certified, conditional, and calibrated rows",
+    "missing_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'solver_error', 'state_displacement'] != declared ['action_displacement', 'anchor_model_error', 'sol",
+    "negative_admission_threshold": "SchemaError: rules=['admission']: admission must be {mode: ['upper_bound', 'score'], threshold: null or finite >= 0}",
+    "next_major_version": "SchemaError: rules=['format']: major version 2 is not supported (this reader supports 1.x)",
+    "rank_2_total": "SchemaError: rules=['rank']: total_error_value has shape (36, 1); expected rank 1 ('N',)",
+    "row_count_mismatch": "SchemaError: rules=['shape']: selected axis 0 (N) is 35, expected 36",
+    "scale_of_wrong_length": "SchemaError: rules=['descriptor']: coordinates must be {modality, state_dim, action_dim, state_scale, action_scale} with positive finite scales of the stated dimensions",
+    "selection_threshold_without_quantile": "SchemaError: rules=['selection']: selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0}, with no threshold without a quantile",
+    "undeclared_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'anchor_model_error', 'extra', 'solver_error', 'state_displacement'] != declared ['action_displaceme",
+    "unknown_array_field": "SchemaError: rules=['format']: unknown field 'extra'",
+    "unknown_meta_field": "SchemaError: rules=['format']: unknown meta fields ['note']",
+    "writer_integer_mask": "SchemaError: rules=['dtype']: is_upper_bound dtype int64 is not bool"
+   },
+   "pass": true
+  },
+  {
+   "case": "api_validation",
+   "pass": true,
+   "refused": {
+    "declared_negative": "InterfaceError: a declared constant must be finite and >= 0, got -1.0",
+    "declared_no_rationale": "InterfaceError: a declared constant needs a rationale",
+    "missing_reference": "InterfaceError: linear_discrepancy needs reference artifact 'true'; given []",
+    "neighborhood_zero": "InterfaceError: neighborhood radii must be finite and > 0, or None for unbounded; got 0.0",
+    "quantile_zero": "InterfaceError: selection_quantile must be in (0, 1] or None, got 0.0",
+    "scale_wrong_length": "InterfaceError: state_scale must be 2 finite positive values, got (1.0,)",
+    "scale_zero": "InterfaceError: action_scale must be 1 finite positive values, got (0.0,)",
+    "threshold_bool": "InterfaceError: the admission threshold must be finite and >= 0 or None, got True",
+    "threshold_nan": "InterfaceError: the admission threshold must be finite and >= 0 or None, got nan",
+    "threshold_negative": "InterfaceError: the admission threshold must be finite and >= 0 or None, got -1.0",
+    "unknown_admission": "InterfaceError: admission must be 'upper_bound' or 'score', got 'maybe'",
+    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy']"
+   }
+  },
+  {
+   "artifact": "<out>/pipeline/runs/labels-certify-2304bdae3a08/labels/certificates.npz",
+   "candidates_sha256": "e7e65e78fbe5b53eec0e8e09cb59ebf637ef6a68644df5161d2842d42867dcae",
+   "case": "pipeline_certify_stage",
+   "constants": {
+    "C_a": 1.7700020475152152e-07,
+    "C_z": 1.3926379621413786e-06
+   },
+   "min_slack_vs_true": -1.1666367117251278e-08,
+   "pass": true,
+   "reused": true,
+   "rows": 36,
+   "stages": {
+    "data-prepare-edefe2250d61": "complete",
+    "labels-certify-08c086444653": "complete",
+    "labels-certify-2304bdae3a08": "complete",
+    "labels-certify-42bef5ccf14b": "complete",
+    "labels-generate-9892fae0aa1c": "complete",
+    "transition-fit-e7e7316cb5a8": "complete"
+   },
+   "usable": 27
+  }
+ ],
+ "environment": {
+  "code_commit": "307fb8d92d34f7c36262c89230e227577d5b32d9",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
