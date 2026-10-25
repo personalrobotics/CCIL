@@ -56,21 +56,41 @@ A profile's constants are given as one of two specifications:
 | Specification | Meaning | Classification |
 |---|---|---|
 | `Declared(value, rationale)` | An assumption | Always `conditional`, whatever its value |
-| `Provided(provider, reference)` | Computed during certification by a registered bound provider, from artifacts whose SHA-256 the certificate records | The provider's source: `analytic_bound` or `model_bound`, both `certified` |
+| `Provided(provider[, reference])` | Computed during certification by a registered bound provider, from artifacts whose SHA-256 the certificate records | The provider's source: `analytic_bound` or `model_bound`, both `certified` |
 
 A raw value cannot carry a bound source. The API refuses anything else, and
 the schema refuses a provided source without provenance or a declared
 constant with provenance. The source audit recomputes every provided
 constant.
 
-**Registered provider.** `linear_discrepancy` (`analytic_bound`). It takes a
-`ccil.reference-dynamics` 1.0 file (true linear dynamics A, B; see
-`write_reference_dynamics`) and a linear transition model. It returns the
-exact operator norms of the scaled differences:
-- state: ‖S_z⁻¹ (A − Â) S_z‖₂;
-- action: ‖S_z⁻¹ (B − B̂) S_a‖₂.
+Each profile role says what its constant bounds: the true f, the learned f̂,
+or the discrepancy f − f̂. A provider must bound the same thing.
 
-Providers for neural models (`model_bound`) arrive with the theorem profiles.
+**Registered providers.** A reference is a `ccil.reference-dynamics` 1.0 file
+holding a known linear system f = A z + B a (see `write_reference_dynamics`).
+
+| Provider | Source | Bounds | Value (state; action) |
+|---|---|---|---|
+| `linear_discrepancy` | `analytic_bound` | f − f̂ | ‖S_z⁻¹ (A − Â) S_z‖₂; ‖S_z⁻¹ (B − B̂) S_a‖₂, for a reference and a linear model |
+| `reference_lipschitz` | `analytic_bound` | the true f | ‖S_z⁻¹ A S_z‖₂; ‖S_z⁻¹ B S_a‖₂, for a reference |
+| `model_lipschitz` | `model_bound` | f̂ | The model's own `lipschitz_bound`. For a linear model it is exact. For an MLP it is the bound below. |
+
+**The MLP bound.** f̂ = M (out_scale + 1e-8) g(x) + out_shift, where x is the
+normalized input and g = W_L σ(… σ(W_1 x + b_1) …) + b_L. In scaled
+coordinates:
+
+    K ≤ ‖S_z⁻¹ M D_out W_L‖ · ‖W_{L−1}‖ ⋯ ‖W_2‖ · ‖W_1[:, cols] D_in S‖ · L_σ^{L−1}
+
+- **Scales.** D_in = 1 / (scale + 1e-8) and D_out = out_scale + 1e-8, as the
+  float32 forward pass computes them. M is the output mask.
+- **Activation.** σ is ReLU or tanh, so L_σ = 1. Any other activation is
+  refused.
+- **Norms.** Every norm is an exact spectral norm (an SVD in float64) of the
+  weight the eval-mode forward pass applies. For spectral normalization that
+  weight is `weight_orig / max(σ̂ / c, 1)` with the stored u and v. Neither
+  the power-iteration estimate σ̂ nor the constraint c is ever taken as a
+  bound, because a stale estimate leaves a layer above c.
+- **Not included:** floating-point evaluation error.
 
 ## Classification and admission
 
@@ -124,16 +144,39 @@ C = K_true + K_learned. The bound also assumes that the demonstration
 transition is exact. Rows outside the optional neighborhood radii are
 unsupported.
 
-The CCIL theorem profiles (`backtrack`, `disturbed_action`) and the paper's
-proxies follow in later parts of #88. A profile is a `Profile` subclass
-registered with `register_profile`.
+**`backtrack` (Ke et al., Thm 4.2; additive).** It certifies the labels of
+the backtrack generators (`backward_euler`, `exact_preimage`).
+
+    model_error = anchor_model_error + (K̂_z + K_z) ‖Δz‖
+
+K̂_z bounds the learned f̂ and K_z the true f, both in state. A BackTrack
+label keeps the anchor's action, so no action constant enters. A row whose
+action differs from its anchor's is outside the neighborhood, and
+unsupported. Because K̂_z + K_z ≥ ‖A − Â‖, it is never tighter than
+`continuity` with the discrepancy constant.
+
+**`disturbed_action` (Ke et al., Thm 4.3; direct).** It certifies the labels
+of the disturbed-action generators (`noisy_action`, `noisy_action_preimage`).
+
+    total = K_a ‖Δa‖ + (1 + K_z) ‖Δz‖ + target_offset
+
+K_z and K_a bound the true f. With the demonstration transition exact,
+T(q) − y = Δz + f(z_G, a_G) − f(z_t, a_t) + (z_{t+1} − y). The bound
+therefore needs no learned model:
+- `solver_error` is recorded, never added;
+- `target_offset` = ‖y − z_{t+1}‖ is a profile term, and is 0 for these
+  generators.
+
+A profile names the generator family it applies to, and certifying another
+family's candidates raises. The paper's proxies follow in part 3. A profile
+is a `Profile` subclass registered with `register_profile`.
 
 ## Verification
 
 | Level | Uses | Checks |
 |---|---|---|
 | **Structural** (`verify_structure`) | The certificate and its candidates file | The schema, the candidates' SHA-256 and row identity, and the registered profile and version. The descriptor must be exactly what the profile writes for its constants and coordinates, so edited units are caught. Every provider must be registered and match its claimed source. Every value, classification, mask and threshold is recomputed from the persisted terms. It cannot tell whether the terms or provided constants are right. |
-| **Source audit** (`audit_sources`) | Also the sources (`Sources`: the candidates, dataset, transition model, representation, any other inputs, and references) | Every supplied file's SHA-256 must match the recorded one, and nothing may be missing or extra. The representation's kind, version and modality and the model's kind and version must match the record, as must the dimensions. It then recomputes every term per row (including profile terms) and every provided constant. |
+| **Source audit** (`audit_sources`) | Also the sources (`Sources`: the candidates, dataset, transition model, representation, any other inputs, and references) | Every supplied file's SHA-256 must match the recorded one, and nothing may be missing or extra. The representation's kind, version and modality and the model's kind and version must match the record, as must the dimensions. It then recomputes every term one row at a time (including profile terms) and every provided constant. Terms match to 1e-5 relative plus 1e-6 · (1 + max ‖scaled z‖) absolute: a float32 network rounds differently in a batch than alone. Constants must match exactly. |
 
 Hashes establish artifact identity, not mathematical correctness.
 
@@ -152,7 +195,7 @@ action_scale=None)`.
 - **Metrics:** counts by classification, and the admissible, selected and
   usable rows.
 
-Configuration keys (`certificate.*`) arrive with the theorem profiles.
+Configuration keys (`certificate.*`) arrive in part 3 of #88.
 
 ## Evidence
 
@@ -187,3 +230,30 @@ dynamics.
 - **Pipeline.** The pipeline writes a complete, covered and audited
   `labels.certify` run next to unchanged candidates, and reuses or re-runs it
   correctly.
+
+The theorem-profile cases, in
+[`tools/m3_certificates/theorems.py`](../tools/m3_certificates/theorems.py),
+check coverage to each row's float32 demonstration rounding. Their bounds can
+fall short of the true error by at most that rounding.
+
+- **`backtrack`.** It is certified and covered for both backtrack generators.
+  It has no action term: a model with 100× the action sensitivity gets the
+  same K̂_z, and rows that move the action are unsupported.
+- **`disturbed_action`.** It is certified and covered for both
+  disturbed-action generators. Its total equals the direct formula, and
+  adding the solver error would inflate it by up to 47%. Declared zero
+  constants fail coverage.
+- **MLP `model_lipschitz`.**
+  - It covers every sampled exact Jacobian and finite difference of ReLU,
+    tanh, spectral-normalized and output-masked MLPs, in unit and non-unit
+    scales.
+  - For actions in milli-units, the raw weight product falls short of the
+    sampled action sensitivity.
+  - A stale power-iteration estimate leaves layers above the constraint, so
+    the constraint-based bound is broken while the exact bound covers.
+  - An unsupported activation is refused.
+- **`backtrack` with an MLP.** It is certified and covered, and passes the
+  structural check and the audit, which recomputes the MLP bound.
+- **Provider kinds and families.** Mismatched provider kinds, forged
+  provider kinds, and the wrong generator family are refused. The pipeline
+  writes complete runs for both theorem profiles.

@@ -8,7 +8,7 @@ train on candidate.accepted & admissible & selected.
 
 Constants. A profile's constants are specified, never asserted: Declared(value,
 rationale) is an assumption and always conditional, whatever its value;
-Provided(provider, reference) is computed during certification by a registered
+Provided(provider[, reference]) is computed during certification by a registered
 bound provider from artifacts whose SHA-256 the certificate records, and the
 source audit recomputes it. Only provided constants can be certified.
 
@@ -50,6 +50,7 @@ from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS,
 from ..schema.fields import SchemaError
 from ..schema.io import _atomic_savez, _format_error, _open
 from .batch import InterfaceError
+from .generators import BackwardEuler, ExactPreimage, NoisyAction, NoisyActionPreimage
 from .representation import transitions
 from .transition import load_transition_model
 
@@ -95,16 +96,19 @@ class Declared:
 
 @dataclass(frozen=True)
 class Provided:
-    """A constant a registered bound provider computes from a named reference artifact."""
+    """A constant a registered bound provider computes, from a named reference artifact when it needs one."""
 
     provider: str
-    reference: str
+    reference: str | None = None
 
     def __post_init__(self):
         if self.provider not in PROVIDERS:
             raise InterfaceError(f"unknown bound provider {self.provider!r}; registered: {sorted(PROVIDERS)}")
-        if not isinstance(self.reference, str) or not self.reference:
-            raise InterfaceError("a provided constant names its reference artifact")
+        needs = PROVIDERS[self.provider].needs_reference
+        if needs and (not isinstance(self.reference, str) or not self.reference):
+            raise InterfaceError(f"provider {self.provider!r} needs a reference artifact name")
+        if not needs and self.reference is not None:
+            raise InterfaceError(f"provider {self.provider!r} takes no reference artifact")
 
     def spec(self) -> dict:
         return {"provider": self.provider, "version": PROVIDERS[self.provider].version, "reference": self.reference}
@@ -137,6 +141,23 @@ def read_reference_dynamics(path) -> tuple[np.ndarray, np.ndarray]:
     return z["A"], z["B"]
 
 
+def _reference(provider, reference, ctx):
+    path = ctx.references.get(reference)
+    if path is None:
+        raise InterfaceError(f"{provider} needs reference artifact {reference!r}; given {sorted(ctx.references)}")
+    A, B = read_reference_dynamics(path)
+    sz, sa = ctx.state_scale, ctx.action_scale
+    if len(sz) != len(A) or len(sa) != B.shape[1]:
+        raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the coordinates ({len(sz)}, {len(sa)})")
+    return A, B
+
+
+def _scaled(M, maps, ctx) -> np.ndarray:
+    """S_z^-1 M S_z for state maps, S_z^-1 M S_a for action maps."""
+    sz = ctx.state_scale
+    return M / sz[:, None] * (sz if maps == "state" else ctx.action_scale)[None, :]
+
+
 class LinearDiscrepancy:
     """analytic_bound: the exact variation of f - f_hat when both are linear.
 
@@ -146,22 +167,16 @@ class LinearDiscrepancy:
     over any neighborhood.
     """
 
-    name, version, source = "linear_discrepancy", "1", "analytic_bound"
+    name, version, source, bounds, needs_reference = "linear_discrepancy", "1", "analytic_bound", "discrepancy", True
 
     def resolve(self, maps: str, reference: str, ctx: "Context") -> dict:
-        path = ctx.references.get(reference)
-        if path is None:
-            raise InterfaceError(f"{self.name} needs reference artifact {reference!r}; given {sorted(ctx.references)}")
-        A, B = read_reference_dynamics(path)
+        A, B = _reference(self.name, reference, ctx)
         model = ctx.model
         if getattr(model, "kind", None) != "linear":
             raise InterfaceError(f"{self.name} needs a linear transition model, got {getattr(model, 'kind', None)!r}")
-        sz, sa = ctx.state_scale, ctx.action_scale
-        if A.shape != model.A.shape or B.shape != model.B.shape or len(sz) != len(A) or len(sa) != B.shape[1]:
-            raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the model "
-                                 f"{model.A.shape}, {model.B.shape} and coordinates ({len(sz)}, {len(sa)})")
-        D = (A - model.A) if maps == "state" else (B - model.B)
-        scaled = D / sz[:, None] * (sz if maps == "state" else sa)[None, :]
+        if A.shape != model.A.shape or B.shape != model.B.shape:
+            raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the model {model.A.shape}, {model.B.shape}")
+        scaled = _scaled((A - model.A) if maps == "state" else (B - model.B), maps, ctx)
         return {"value": float(np.linalg.norm(scaled, 2)), "source": self.source, "maps": maps,
                 "rationale": f"exact operator norm of the scaled {'A - A_hat' if maps == 'state' else 'B - B_hat'} "
                              f"against reference {reference!r}",
@@ -170,15 +185,64 @@ class LinearDiscrepancy:
                                           "transition_model": ctx.hashes["transition_model"]}}}
 
 
-PROVIDERS = {LinearDiscrepancy.name: LinearDiscrepancy()}
+class ReferenceLipschitz:
+    """analytic_bound: the exact Lipschitz constant of the true f when it is a known linear system.
+
+    ||S_z^-1 A S_z||_2 in state and ||S_z^-1 B S_a||_2 in action.
+    """
+
+    name, version, source, bounds, needs_reference = "reference_lipschitz", "1", "analytic_bound", "true", True
+
+    def resolve(self, maps: str, reference: str, ctx: "Context") -> dict:
+        A, B = _reference(self.name, reference, ctx)
+        return {"value": float(np.linalg.norm(_scaled(A if maps == "state" else B, maps, ctx), 2)),
+                "source": self.source, "maps": maps,
+                "rationale": f"exact operator norm of the scaled {'A' if maps == 'state' else 'B'} of reference {reference!r}",
+                "provenance": {"provider": self.name, "version": self.version, "params": {"reference": reference},
+                               "inputs": {"reference": ctx.hashes[f"reference.{reference}"]}}}
 
 
-def resolve_constant(spec, maps: str, ctx: "Context") -> dict:
+class ModelLipschitz:
+    """model_bound: a global Lipschitz bound of the frozen transition model, from its own lipschitz_bound().
+
+    The model computes it from its weights with exact operator norms (see
+    LinearTransitionModel.lipschitz_bound and MLPTransitionModel.lipschitz_bound);
+    a model without one is refused.
+    """
+
+    name, version, source, bounds, needs_reference = "model_lipschitz", "1", "model_bound", "learned", False
+
+    def resolve(self, maps: str, reference, ctx: "Context") -> dict:
+        fn = getattr(ctx.model, "lipschitz_bound", None)
+        if fn is None:
+            raise InterfaceError(f"transition model kind {getattr(ctx.model, 'kind', None)!r} has no lipschitz_bound")
+        try:
+            b = fn(maps, ctx.state_scale, ctx.action_scale)
+        except ValueError as e:
+            raise InterfaceError(f"{self.name}: {e}") from None
+        factors = ", ".join(f"{f:.6g}" for f in b["factors"])
+        return {"value": float(b["value"]), "source": self.source, "maps": maps,
+                "rationale": f"product of exact layer operator norms [{factors}] of the {ctx.model.kind} model, with "
+                             f"normalization and output scales folded in; activation {b['activation']}",
+                "provenance": {"provider": self.name, "version": self.version, "params": {},
+                               "inputs": {"transition_model": ctx.hashes["transition_model"]}}}
+
+
+PROVIDERS = {p.name: p for p in (LinearDiscrepancy(), ReferenceLipschitz(), ModelLipschitz())}
+
+
+def resolve_constant(spec, role: tuple, ctx: "Context") -> dict:
+    """Resolve a role's (maps, bounds) constant from its specification."""
+    maps, bounds = role
     if isinstance(spec, Declared):
         return {"value": float(spec.value), "source": "declared", "maps": maps, "rationale": spec.rationale,
                 "provenance": None}
     if isinstance(spec, Provided):
-        return PROVIDERS[spec.provider].resolve(maps, spec.reference, ctx)
+        provider = PROVIDERS[spec.provider]
+        if provider.bounds != bounds:
+            raise InterfaceError(f"provider {spec.provider!r} bounds the {provider.bounds} dynamics; this constant "
+                                 f"needs a bound on the {bounds} dynamics")
+        return provider.resolve(maps, spec.reference, ctx)
     raise InterfaceError(f"a constant must be Declared(...) or Provided(...), got {type(spec).__name__}; "
                          "a value cannot be asserted as a bound")
 
@@ -188,7 +252,12 @@ def resolve_constant(spec, maps: str, ctx: "Context") -> dict:
 class Profile:
     """A certificate profile. Subclasses set the class attributes and evaluate().
 
-    roles maps each constant to the input it maps from ("state" or "action");
+    roles maps each constant to (maps, bounds): the input it maps from ("state"
+    or "action") and what it bounds ("true" f, "learned" f_hat, or the
+    "discrepancy" f - f_hat); a provided constant must come from a provider
+    of that kind. applies_to names the generator label-error profiles
+    (generators.label_error_profile) whose candidates the profile can certify,
+    or None for any;
     extra_terms declares terms beyond the global ones, which compute_terms()
     computes for every row and audit_term() recomputes for one; required names
     the terms a row needs finite to be supported; intrinsic is the strongest
@@ -202,6 +271,7 @@ class Profile:
     required: tuple = GLOBAL_TERMS
     intrinsic: str | None = None
     assumptions: tuple = ()
+    applies_to: tuple | None = None
 
     def __init__(self, constants: dict, neighborhood_state=None, neighborhood_action=None):
         if set(constants) != set(self.roles):
@@ -231,7 +301,7 @@ class Profile:
                 "norms": {"state": "l2 of scaled coordinates", "action": "l2 of scaled coordinates",
                           "error": "l2 of scaled state coordinates"},
                 "units": {"state": STATE_UNITS, "action": ACTION_UNITS, "error": STATE_UNITS,
-                          **{r: f"error per {m}" for r, m in self.roles.items()}},
+                          **{r: f"error per {m}" for r, (m, _) in self.roles.items()}},
                 "assumptions": list(self.assumptions)}
 
     def compute_terms(self, ctx: "Context") -> dict:
@@ -274,7 +344,7 @@ class ContinuityProfile(Profile):
     """
 
     name, version, form = "continuity", "1", "additive"
-    roles = {"C_z": "state", "C_a": "action"}
+    roles = {"C_z": ("state", "discrepancy"), "C_a": ("action", "discrepancy")}
     assumptions = ("C_z and C_a bound the variation of f - f_hat over the neighborhood",
                    "the demonstration transition (z_t, a_t, z_{t+1}) is exact")
 
@@ -287,6 +357,75 @@ class ContinuityProfile(Profile):
         return model, terms["solver_error"] + model
 
 
+class BackTrackProfile(Profile):
+    """Ke et al., Thm 4.2 (additive): model_error = anchor_model_error + (K_hat_z + K_z) ||dz||.
+
+    A BackTrack label keeps the anchor's action, so ||f(q) - f_hat(q)|| <=
+    ||(f - f_hat)(z_t, a_t)|| + (K_hat_z + K_z) ||z_G - z_t||, and with the
+    demonstration transition exact the first term is the anchor model error.
+    Then ||T(q) - y|| <= solver_error + model_error. K_hat_z bounds the learned
+    f_hat and K_z the true f, both in state. No action constant enters; a row
+    whose action differs from its anchor's is outside the profile's
+    neighborhood and unsupported.
+    """
+
+    name, version, form = "backtrack", "1", "additive"
+    roles = {"K_hat_z": ("state", "learned"), "K_z": ("state", "true")}
+    applies_to = ("backtrack",)
+    assumptions = ("K_hat_z bounds the state Lipschitz constant of f_hat and K_z that of the true f over the neighborhood",
+                   "the label keeps the anchor's action",
+                   "the demonstration transition (z_t, a_t, z_{t+1}) is exact")
+
+    def __init__(self, K_hat_z, K_z, neighborhood_state=None):
+        super().__init__({"K_hat_z": K_hat_z, "K_z": K_z}, neighborhood_state, None)
+
+    def in_neighborhood(self, terms):
+        with np.errstate(invalid="ignore"):
+            return super().in_neighborhood(terms) & (terms["action_displacement"] == 0)
+
+    def evaluate(self, terms, values):
+        model = terms["anchor_model_error"] + (values["K_hat_z"] + values["K_z"]) * terms["state_displacement"]
+        return model, terms["solver_error"] + model
+
+
+class DisturbedActionProfile(Profile):
+    """Ke et al., Thm 4.3 (direct): total = K_a ||da|| + (1 + K_z) ||dz|| + ||y - z_{t+1}||.
+
+    With the demonstration transition exact, z_{t+1} = z_t + f(z_t, a_t), so
+    T(q) - y = dz + f(z_G, a_G) - f(z_t, a_t) + (z_{t+1} - y), bounded by the
+    true constants alone. The learned model enters only through which labels
+    were generated: solver_error is recorded as a diagnostic and never added.
+    The target offset is 0 for disturbed-action generators, whose target is
+    z_{t+1}.
+    """
+
+    name, version, form = "disturbed_action", "1", "direct"
+    roles = {"K_z": ("state", "true"), "K_a": ("action", "true")}
+    applies_to = ("disturbed_action",)
+    extra_terms = {"target_offset": {"definition": "||(y - z_{t+1}) / state_scale||_2", "units": STATE_UNITS}}
+    required = ("state_displacement", "action_displacement", "target_offset")
+    assumptions = ("K_z and K_a bound the state and action Lipschitz constants of the true f over the neighborhood",
+                   "the demonstration transition (z_t, a_t, z_{t+1}) is exact")
+
+    def __init__(self, K_z, K_a, neighborhood_state=None, neighborhood_action=None):
+        super().__init__({"K_z": K_z, "K_a": K_a}, neighborhood_state, neighborhood_action)
+
+    def compute_terms(self, ctx):
+        _, _, zn = _anchor_rows(ctx)
+        y = np.asarray(ctx.candidates.target_observations[ctx.modality], np.float64)
+        return {"target_offset": np.linalg.norm((y - zn) / ctx.state_scale, axis=1)}
+
+    def audit_term(self, name, row):
+        if name != "target_offset":
+            return super().audit_term(name, row)
+        return float(np.linalg.norm((row["y"] - row["z_next"]) / row["state_scale"]))
+
+    def evaluate(self, terms, values):
+        total = (values["K_a"] * terms["action_displacement"] + (1 + values["K_z"]) * terms["state_displacement"]
+                 + terms["target_offset"])
+        return np.full(len(total), np.nan), total
+
+
 PROFILES: dict = {}
 
 
@@ -297,7 +436,21 @@ def register_profile(cls) -> type:
     return cls
 
 
-register_profile(ContinuityProfile)
+for _profile in (ContinuityProfile, BackTrackProfile, DisturbedActionProfile):
+    register_profile(_profile)
+
+# Generator name -> the CCIL label-error profile its labels follow (generators.label_error_profile).
+GENERATOR_PROFILES = {g.name: g.label_error_profile for g in (BackwardEuler, ExactPreimage, NoisyAction, NoisyActionPreimage)}
+
+
+def check_applies(profile, candidates) -> None:
+    """Raise unless profile can certify these candidates' generator."""
+    if profile.applies_to is None:
+        return
+    name = (candidates.generator or {}).get("name")
+    if GENERATOR_PROFILES.get(name) not in profile.applies_to:
+        raise InterfaceError(f"profile {profile.name} certifies {list(profile.applies_to)} labels; generator {name!r} "
+                             f"produces {GENERATOR_PROFILES.get(name)!r}")
 
 
 # --- sources and computation ---------------------------------------------
@@ -354,21 +507,26 @@ def _scales(value, dim, name) -> np.ndarray:
     return s
 
 
-def global_terms(ctx: Context) -> dict:
-    """The global terms for every candidate row, in scaled coordinates."""
+def _anchor_rows(ctx: Context):
+    """(z_t, a_t, z_{t+1}) of each candidate row's source transition."""
     batch = transitions(ctx.dataset, ctx.representation)
     index = {(str(e), int(f)): i for i, (e, f) in enumerate(zip(batch.episode_id, batch.frame))}
     c = ctx.candidates
     src = np.array([index[(str(e), int(f))] for e, f in zip(c.source_episode_id, c.source_frame)], dtype=np.int64)
+    return tuple(np.asarray(x, np.float64)[src] for x in (batch.z, batch.a, batch.z_next))
+
+
+def global_terms(ctx: Context) -> dict:
+    """The global terms for every candidate row, in scaled coordinates."""
+    c = ctx.candidates
     z_g = np.asarray(c.observations[ctx.modality], np.float64)
     a_g = np.asarray(c.actions, np.float64)
     y = np.asarray(c.target_observations[ctx.modality], np.float64)
-    z, a, zn = (np.asarray(x, np.float64) for x in (batch.z, batch.a, batch.z_next))
+    z, a, zn = _anchor_rows(ctx)
     sz, sa = ctx.state_scale, ctx.action_scale
-    anchor = np.linalg.norm((z + ctx.model.delta(z, a) - zn) / sz, axis=1)
-    return {"state_displacement": np.linalg.norm((z_g - z[src]) / sz, axis=1),
-            "action_displacement": np.linalg.norm((a_g - a[src]) / sa, axis=1),
-            "anchor_model_error": anchor[src],
+    return {"state_displacement": np.linalg.norm((z_g - z) / sz, axis=1),
+            "action_displacement": np.linalg.norm((a_g - a) / sa, axis=1),
+            "anchor_model_error": np.linalg.norm((z + ctx.model.delta(z, a) - zn) / sz, axis=1),
             "solver_error": np.linalg.norm((z_g + ctx.model.delta(z_g, a_g) - y) / sz, axis=1)}
 
 
@@ -422,6 +580,7 @@ def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", 
     hashes = sources.hashes()
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
+    check_applies(profile, candidates)
     model = load_transition_model(sources.transition_model, device=sources.device)
     rep = sources.representation
     probe = transitions(dataset, rep)
@@ -478,10 +637,15 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
     d = cert.descriptor
     if set(d["constants"]) != set(profile.roles):
         return problems + [f"descriptor constants {sorted(d['constants'])} != profile roles {sorted(profile.roles)}"]
+    try:
+        check_applies(profile, candidates)
+    except InterfaceError as e:
+        problems.append(str(e))
     for role, c in d["constants"].items():
         p = c["provenance"]
-        if p is not None and (p["provider"] not in PROVIDERS or PROVIDERS[p["provider"]].source != c["source"]
-                              or PROVIDERS[p["provider"]].version != p["version"]):
+        provider = None if p is None else PROVIDERS.get(p["provider"])
+        if p is not None and (provider is None or provider.source != c["source"] or provider.version != p["version"]
+                              or provider.bounds != profile.roles[role][1]):
             problems.append(f"constant {role} claims {c['source']} from an unregistered or mismatched provider {p}")
     if json.dumps(profile.descriptor(d["constants"], d["coordinates"]), sort_keys=True) != json.dumps(d, sort_keys=True):
         problems.append("descriptor is not the one this version of the profile writes")
@@ -499,8 +663,15 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
     return problems
 
 
-def audit_sources(cert: CertificateSet, sources: Sources, rtol: float = 1e-9) -> list[str]:
-    """Problems found by checking each source against the certificate's record and recomputing every term."""
+def audit_sources(cert: CertificateSet, sources: Sources, rtol: float = 1e-5) -> list[str]:
+    """Problems found by checking each source against the certificate's record and recomputing every term.
+
+    Terms are recomputed one row at a time, independently of certify's batched
+    path. A float32 network rounds z + f_hat(z, a) differently in a batch and
+    alone, by a few ulps of the state, so terms match to rtol relative plus
+    1e-6 * (1 + max |scaled z|) absolute (about 16 float32 ulps of the state).
+    Provided constants must match exactly.
+    """
     problems = []
     given = sources.hashes()
     for name, recorded in sorted(cert.inputs.items()):
@@ -531,6 +702,7 @@ def audit_sources(cert: CertificateSet, sources: Sources, rtol: float = 1e-9) ->
         return [f"sources have state and action dims {dims}; recorded ({co['state_dim']}, {co['action_dim']})"]
     m = co["modality"]
     extra = [n for n in cert.terms if n not in GLOBAL_TERMS]
+    atol = 1e-6 * (1 + max(float(np.abs(zs / sz).max()) for zs in encoded.values()))
     for i in range(len(cert.source_frame)):
         eid, t = str(cert.source_episode_id[i]), int(cert.source_frame[i])
         ep, zs = episodes[eid], encoded[eid]
@@ -547,14 +719,14 @@ def audit_sources(cert: CertificateSet, sources: Sources, rtol: float = 1e-9) ->
         expected.update({n: float(profile.audit_term(n, row)) for n in extra})
         for name, want in expected.items():
             got = float(cert.terms[name][i])
-            if not (np.isclose(got, want, rtol=rtol, atol=1e-12) or (np.isnan(got) and np.isnan(want))):
+            if not (np.isclose(got, want, rtol=rtol, atol=atol) or (np.isnan(got) and np.isnan(want))):
                 problems.append(f"row {i}: persisted {name} {got!r} != recomputed {want!r}")
     ctx = Context(candidates, dataset, rep, model, sz, sa, {k: Path(v) for k, v in sources.references.items()}, given)
     for role, c in cert.descriptor["constants"].items():
         p = c["provenance"]
         if p is None:
             continue
-        again = PROVIDERS[p["provider"]].resolve(c["maps"], p["params"]["reference"], ctx)
+        again = PROVIDERS[p["provider"]].resolve(c["maps"], p["params"].get("reference"), ctx)
         if again != c:
             problems.append(f"constant {role} {c['value']!r} does not match its provider's recomputation {again['value']!r}")
     return problems
@@ -568,6 +740,6 @@ def require_upper_bound(cert: CertificateSet) -> None:
                              "does not admit rows as upper bounds")
 
 
-__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "Sources", "Context", "certify", "decide",
+__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile", "Sources", "Context", "certify", "decide",
            "verify_structure", "audit_sources", "require_upper_bound", "register_profile", "write_reference_dynamics",
-           "read_reference_dynamics", "PROFILES", "PROVIDERS", "SCHEMA", "VERSION", "REASON_CODES"]
+           "read_reference_dynamics", "check_applies", "PROFILES", "PROVIDERS", "GENERATOR_PROFILES", "SCHEMA", "VERSION", "REASON_CODES"]
