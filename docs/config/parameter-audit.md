@@ -4,7 +4,7 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 13, deferred 8, derived 3, dropped 8, implemented 32, invariant 1, retired 5.
+Status counts: declared 13, deferred 7, derived 3, dropped 8, implemented 33, invariant 1, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
@@ -41,7 +41,7 @@ Status counts: declared 13, deferred 8, derived 3, dropped 8, implemented 32, in
 | `aug.label_err_quantile` | tunable | `generation.label_error_quantile` | implemented |  |
 | `aug.max_label_err` | tunable | `generation.max_label_error` | implemented |  |
 | `aug.model_err_thresh` | tunable | `generation.model_error_threshold` | implemented |  |
-| `aug.chunk_size` | tunable | - | deferred | action-chunk labels from label-filtering; ported in #22 |
+| `aug.chunk_size` | tunable | `generation.action_chunk_size` | implemented |  |
 | `policy.lr` | tunable | `policy.learning_rate` | declared | M3 |
 | `policy.batch_size` | tunable | `policy.batch_size` | declared | M3 |
 | `policy.train_epochs` | tunable | `policy.epochs` | declared | M3 |

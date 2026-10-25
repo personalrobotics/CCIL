@@ -41,6 +41,20 @@ Filtering and weighting (#22 part 2):
   fixed-point forward_euler reaches Newton's root; the branch's keys migrate;
   every label-filtering capability of the inventory is classified; and the
   pipeline writes a complete run with both filters.
+Action chunks (#22 part 3):
+- position 0 is the label action and positions k >= 1 the source episode's
+  actions from the frame the label reaches (t for backtrack, t + 1 for
+  disturbed_action); chunks are masked past the episode end, never padded,
+  never read another episode, and stay well formed on failed proposals;
+- a transcription of the branch's chunking shows its inverted size
+  condition, padding, and off-by-one disturbed-action continuation;
+- chunk files are 2.3, round-trip through accepted_labels, and the 2.2
+  reader (8071952) reads them, ignoring the chunks; the pipeline writes a
+  complete run with chunks, and aug.chunk_size migrates;
+- target frames of the wrong dtype or shape, wrong or non-finite target
+  frames, nonzero or non-finite masked positions, a
+  forged 2.2 file with chunks, undeclared chunk arrays, a spec without its
+  target-frame offset, and non-integer chunk sizes are all rejected.
 Writes DIR/report.json.
 """
 import argparse
@@ -571,6 +585,211 @@ def main():
            and fmeta.get("version") == "2.2" and {MODEL_MISFIT, LABEL_ERROR} <= set(fmeta.get("reason_codes", [])),
            stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
            artifact=f"<out>/pipeline_filters/runs/{flab.name}/labels/candidates.npz" if flab else None, stderr=r.stderr[-300:])
+
+    # ---------------- PR 3: action chunks ----------------
+    CK = 4
+
+    def chunk_ok(c, ds_):
+        return chunk_ok_k(c, ds_, CK)
+
+    def chunk_ok_k(c, ds_, CK):
+        """Position 0 is the label action; k >= 1 the source episode's action at tau + k - 1, masked past the end."""
+        eps_ = {ep.episode_id: ep for ep in ds_.episodes}
+        tau = c.measurements["chunk_target_frame"].astype(int)
+        for i in range(len(c.accepted)):
+            ep = eps_[str(c.source_episode_id[i])]
+            frames_k = tau[i] + np.arange(CK - 1)
+            inside = frames_k <= ep.length - 1
+            if not (c.action_chunk_mask[i, 0] and np.array_equal(c.action_chunks[i, 0], c.actions[i])
+                    and np.array_equal(c.action_chunk_mask[i, 1:], inside)
+                    and np.array_equal(c.action_chunks[i, 1:][inside], ep.actions[frames_k[inside]])
+                    and not c.action_chunks[i, 1:][~inside].any()):
+                return False
+        return True
+
+    # 24-25. Alignment per profile.
+    cbt = generate_labels(dataset, rep, model, BackwardEuler(), [Finite()], run_id="chunks-bt", seed=SEED,
+                          action_chunk_size=CK)
+    cda = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), [Finite()], run_id="chunks-da", seed=SEED,
+                          action_chunk_size=CK)
+    record("action_chunks_align_to_the_label_target",
+           chunk_ok(cbt, dataset) and chunk_ok(cda, dataset)
+           and np.array_equal(cbt.measurements["chunk_target_frame"], cbt.source_frame)
+           and np.array_equal(cda.measurements["chunk_target_frame"], cda.source_frame + 1),
+           chunk_size=CK, backtrack_target="t", disturbed_action_target="t + 1",
+           masked_positions={"backtrack": int((~cbt.action_chunk_mask).sum()),
+                             "disturbed_action": int((~cda.action_chunk_mask).sum())})
+
+    # 26. Boundaries: episode-tagged actions, a 2-frame episode, K longer than the episode, failed proposals.
+    tagged = []
+    for e, T in enumerate((6, 2, 4)):
+        st = np.cumsum(np.full((T, 2), 0.01 * (e + 1)), axis=0).astype(np.float32)
+        tagged.append(Episode(f"tag{e}", {"state": st}, (100.0 * e + np.arange(T, dtype=np.float32))[:, None]))
+    tagged_ds = TrajectoryDataset(tagged).validate()
+    big_k = 7
+    cb = generate_labels(tagged_ds, rep, model, NoisyAction(2, SIGMA), [Finite()], run_id="tagged", seed=SEED,
+                         action_chunk_size=big_k)
+    owner = {f"tag{e}": e for e in range(3)}
+    vals = cb.action_chunks[:, 1:, 0]
+    same_episode = all((np.floor(vals[i][cb.action_chunk_mask[i, 1:]] / 100.0) == owner[str(cb.source_episode_id[i])]).all()
+                       for i in range(len(vals)))
+    short_rows = cb.source_episode_id == "tag1"
+    cfail = generate_labels(dataset, rep, SingularForLargeActions(model), NoisyActionPreimage(K, SIGMA),
+                            [Finite(), GenerationFailed()], run_id="failed-chunks", seed=SEED, action_chunk_size=CK)
+    gfc = cfail.reasons[:, REASON_CODES.index("generation_failed")]
+    record("action_chunks_never_cross_or_pad_episodes",
+           # 2-frame episode: the label reaches frame 1, the last, whose stored action fills position 1 (of 7).
+           same_episode and set(cb.action_chunk_mask[short_rows].sum(axis=1).tolist()) == {2}
+           and chunk_ok_k(cb, tagged_ds, big_k)
+           and gfc.any() and not cfail.accepted[gfc].any() and np.isfinite(cfail.action_chunks[cfail.action_chunk_mask]).all(),
+           chunk_size=big_k, episode_lengths=[6, 2, 4], two_frame_episode_valid_positions=int(cb.action_chunk_mask[short_rows].sum(axis=1).max()),
+           all_values_from_their_own_episode=bool(same_episode), failed_rows_with_chunks=int(gfc.sum()))
+
+    # 27. The branch's chunking, transcribed (gen_aug_label_chunking.py at 73d187d), on the same labels.
+    def legacy_chunk(actions_ep, i, gen_a, configured):
+        chunk_size = configured if not configured else 8  # the branch's inverted condition
+        chunk = np.concatenate([gen_a[None, :], actions_ep[i:i + chunk_size - 1]])
+        if len(chunk) < chunk_size:
+            chunk = np.concatenate([chunk, np.tile(chunk[-1:], (chunk_size - len(chunk), 1))])
+        return chunk
+    eps_by_id = {ep.episode_id: ep for ep in dataset.episodes}
+    legacy_sizes, padded, padded_masked, da_off_by_one = set(), 0, 0, 0
+    for i in range(len(cbt.accepted)):
+        ep = eps_by_id[str(cbt.source_episode_id[i])]
+        lc = legacy_chunk(ep.actions, int(cbt.source_frame[i]), cbt.actions[i], CK)
+        legacy_sizes.add(len(lc))
+        t = int(cbt.source_frame[i])
+        for k in range(1, len(lc)):
+            if t + k - 1 > ep.length - 1:
+                padded += 1
+                padded_masked += int(k < CK and not cbt.action_chunk_mask[i, k])
+    da1 = generate_labels(dataset, rep, model, NoisyAction(1, SIGMA), [Finite()], run_id="da1", seed=SEED,
+                          action_chunk_size=CK)
+    for i in range(len(da1.accepted)):
+        ep = eps_by_id[str(da1.source_episode_id[i])]
+        lc = legacy_chunk(ep.actions, int(da1.source_frame[i]), da1.actions[i], 8)
+        ours = da1.action_chunks[i, 1:][da1.action_chunk_mask[i, 1:]]
+        da_off_by_one += int(not np.array_equal(lc[1:1 + len(ours)], ours))
+    record("legacy_chunking_defects_corrected",
+           legacy_sizes == {8} and padded > 0 and da_off_by_one > 0,
+           configured_chunk_size=CK, legacy_chunk_sizes=sorted(legacy_sizes),
+           legacy_padded_positions=padded, of_which_inside_our_chunk_and_masked=padded_masked,
+           disturbed_action_rows_whose_legacy_continuation_differs=da_off_by_one, disturbed_action_rows=int(len(da1.accepted)))
+
+    # 28-29. Schema: 2.3 round trip, accepted_labels, the 2.2 reader (8071952) ignores chunks, no chunks stays 2.2.
+    write_candidates(cda, out / "chunks.npz")
+    back_c = read_candidates(out / "chunks.npz", dataset)
+    acc_c = back_c.accepted_labels()
+    write_candidates(generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), [Finite()], run_id="no-chunks",
+                                     seed=SEED), out / "no_chunks.npz")
+    r22 = out / "reader_8071952"
+    r22.mkdir()
+    (r22 / "src.tar").write_bytes(subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar", "8071952", "src"],
+                                                 capture_output=True, check=True).stdout)
+    subprocess.run(["tar", "-xf", "src.tar"], cwd=r22, check=True)
+    probe22 = ("import sys; from ccil.schema import read_candidates; c = read_candidates(sys.argv[1]); "
+               "print(len(c.accepted), hasattr(c, 'action_chunks'))")
+    old22 = subprocess.run([sys.executable, "-c", probe22, str(out / "chunks.npz")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(r22 / "src")})
+    record("action_chunk_schema_round_trip_and_compatibility",
+           file_meta(out / "chunks.npz")["version"] == "2.3" and np.array_equal(back_c.action_chunks, cda.action_chunks)
+           and np.array_equal(acc_c.action_chunk_mask, cda.action_chunk_mask[cda.accepted])
+           and old22.returncode == 0 and old22.stdout.split()[1] == "False"
+           and file_meta(out / "no_chunks.npz")["version"] == "2.2"
+           and "one-step" in back_c.action_chunk_spec["guarantee"],
+           file_version=file_meta(out / "chunks.npz")["version"], optional_fields=file_meta(out / "chunks.npz")["optional_fields"],
+           read_by_8071952=old22.stdout.strip() or old22.stderr[-300:], action_chunk_spec=back_c.action_chunk_spec)
+
+    # 30. The pipeline, and 31. migration of aug.chunk_size.
+    wc = out / "pipeline_chunks"
+    wc.mkdir()
+    write_trajectories(dataset, wc / "fixture.npz")
+    rcmd = subprocess.run([sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
+                           "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
+                           "--set", f"generation.action_chunk_size={CK}"], cwd=wc, capture_output=True, text=True)
+    cruns = {p.name: p for p in sorted((wc / "runs").iterdir()) if p.is_dir()} if (wc / "runs").exists() else {}
+    cstat = {n: validate_run(p)[0] for n, p in cruns.items()}
+    clab = next((p for n, p in cruns.items() if n.startswith("labels-generate")), None)
+    legacy_chunk_yml = out / "legacy_chunks.yml"
+    legacy_chunk_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace("  epsilon:", "  chunk_size: 5\n  epsilon:"))
+    rc5 = resolve(config=legacy_chunk_yml)
+    record("action_chunks_pipeline_and_migration",
+           rcmd.returncode == 0 and set(cstat.values()) == {"complete"} and len(cstat) == 3
+           and file_meta(clab / "labels/candidates.npz")["version"] == "2.3" and rc5["generation.action_chunk_size"] == 5,
+           stages=cstat, migrated_chunk_size=rc5["generation.action_chunk_size"],
+           artifact=f"<out>/pipeline_chunks/runs/{clab.name}/labels/candidates.npz" if clab else None, stderr=rcmd.stderr[-300:])
+
+    # 32. Malformed chunks and chunk files are rejected (review of #93).
+    def schema_rejects(build):
+        try:
+            build()
+            return "accepted"
+        except SchemaError as e:
+            return f"SchemaError: {sorted(e.counts)}: {e.violations[0]['detail'][:120]}"
+
+    def mutated_set(base, edit):
+        c = copy.deepcopy(base)
+        edit(c)
+        return lambda: c.validate(dataset)
+
+    def bump_frame(c):
+        c.measurements["chunk_target_frame"][0] += 1
+
+    rej_row = int(np.flatnonzero(~cfail.accepted)[0])
+
+    def nan_rejected_frame(c):
+        c.measurements["chunk_target_frame"][rej_row] = np.nan
+
+    masked = np.argwhere(~cda.action_chunk_mask)
+
+    def nonzero_tail(c):
+        c.action_chunks[tuple(masked[0])] = 5.0
+
+    def nan_tail(c):
+        c.action_chunks[tuple(masked[0])] = np.nan
+
+    def edited_file(name, edit):
+        with np.load(out / "chunks.npz", allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        meta = json.loads(str(arrays["meta"]))
+        edit(meta)
+        arrays["meta"] = np.array(json.dumps(meta))
+        np.savez(out / name, **arrays)
+        return lambda: read_candidates(out / name)
+
+    def edited_arrays(name, edit):
+        with np.load(out / "chunks.npz", allow_pickle=False) as z:
+            arrays = {k: z[k] for k in z.files}
+        edit(arrays)
+        np.savez(out / name, **arrays)
+        return lambda: read_candidates(out / name)
+
+    malformed = {
+        "target_frame_string_dtype": schema_rejects(edited_arrays(
+            "tau_str.npz", lambda a: a.__setitem__("meas/chunk_target_frame", a["meas/chunk_target_frame"].astype(str)))),
+        "target_frame_wrong_shape": schema_rejects(edited_arrays(
+            "tau_2d.npz", lambda a: a.__setitem__("meas/chunk_target_frame",
+                                                  np.stack([a["meas/chunk_target_frame"]] * 2, axis=1)))),
+        "wrong_integral_target_frame": schema_rejects(mutated_set(cda, bump_frame)),
+        "non_finite_target_frame_on_rejected_row": schema_rejects(mutated_set(cfail, nan_rejected_frame)),
+        "nonzero_masked_position": schema_rejects(mutated_set(cda, nonzero_tail)),
+        "non_finite_masked_position": schema_rejects(mutated_set(cda, nan_tail)),
+        "forged_2_2_file_with_chunks": schema_rejects(edited_file("forged22.npz", lambda m: m.update(version="2.2"))),
+        "chunk_arrays_not_declared_optional": schema_rejects(edited_file("undeclared.npz", lambda m: m.update(optional_fields=[]))),
+        "spec_without_target_frame_offset": schema_rejects(edited_file(
+            "no_offset.npz", lambda m: m["action_chunk_spec"].pop("target_frame_offset"))),
+    }
+    api = {}
+    for value in (2.5, True, 0):
+        try:
+            generate_labels(dataset, rep, model, BackwardEuler(), [Finite()], run_id="k", seed=SEED, action_chunk_size=value)
+            api[repr(value)] = "accepted"
+        except InterfaceError as e:
+            api[repr(value)] = f"InterfaceError: {e}"
+    record("malformed_chunks_and_chunk_files_rejected",
+           all(v.startswith("SchemaError") for v in malformed.values()) and all(v.startswith("InterfaceError") for v in api.values())
+           and cda.action_chunk_spec["target_frame_offset"] == 1 and cbt.action_chunk_spec["target_frame_offset"] == 0,
+           malformed=malformed, action_chunk_size=api)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

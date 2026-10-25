@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-60d5f862e907/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-2bc7f7bf6709/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-e2ed3c48d5e9": "complete",
-    "labels-generate-60d5f862e907": "complete",
-    "transition-fit-e993ffedc128": "complete"
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-2bc7f7bf6709": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
    },
    "stderr": ""
   },
@@ -430,7 +430,7 @@
    "pass": true
   },
   {
-   "artifact": "<out>/pipeline_filters/runs/labels-generate-04e02d2e3cc5/labels/candidates.npz",
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-8b703a36355c/labels/candidates.npz",
    "case": "filters_pipeline_run",
    "file_version": "2.2",
    "pass": true,
@@ -443,15 +443,100 @@
     "label_filter.model_misfit"
    ],
    "stages": {
-    "data-prepare-e2ed3c48d5e9": "complete",
-    "labels-generate-04e02d2e3cc5": "complete",
-    "transition-fit-e993ffedc128": "complete"
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-8b703a36355c": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
    },
    "stderr": ""
+  },
+  {
+   "backtrack_target": "t",
+   "case": "action_chunks_align_to_the_label_target",
+   "chunk_size": 4,
+   "disturbed_action_target": "t + 1",
+   "masked_positions": {
+    "backtrack": 2,
+    "disturbed_action": 24
+   },
+   "pass": true
+  },
+  {
+   "all_values_from_their_own_episode": true,
+   "case": "action_chunks_never_cross_or_pad_episodes",
+   "chunk_size": 7,
+   "episode_lengths": [
+    6,
+    2,
+    4
+   ],
+   "failed_rows_with_chunks": 10,
+   "pass": true,
+   "two_frame_episode_valid_positions": 2
+  },
+  {
+   "case": "legacy_chunking_defects_corrected",
+   "configured_chunk_size": 4,
+   "disturbed_action_rows": 9,
+   "disturbed_action_rows_whose_legacy_continuation_differs": 8,
+   "legacy_chunk_sizes": [
+    8
+   ],
+   "legacy_padded_positions": 29,
+   "of_which_inside_our_chunk_and_masked": 2,
+   "pass": true
+  },
+  {
+   "action_chunk_spec": {
+    "alignment": "position 0 is the label action a_G; position k >= 1 is the source episode's action at frame chunk_target_frame + k - 1, taken from the state the label reaches",
+    "chunk_size": 4,
+    "guarantee": "one-step: only position 0 carries the label's CCIL claim; positions k >= 1 are demonstration actions",
+    "target_frame_offset": 1,
+    "truncation": "positions past the source episode's last frame are masked and zero; never padded"
+   },
+   "case": "action_chunk_schema_round_trip_and_compatibility",
+   "file_version": "2.3",
+   "optional_fields": [
+    "action_chunk_mask",
+    "action_chunks"
+   ],
+   "pass": true,
+   "read_by_8071952": "36 False"
+  },
+  {
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-329bc2156f4a/labels/candidates.npz",
+   "case": "action_chunks_pipeline_and_migration",
+   "migrated_chunk_size": 5,
+   "pass": true,
+   "stages": {
+    "data-prepare-9f154423e1a9": "complete",
+    "labels-generate-329bc2156f4a": "complete",
+    "transition-fit-7dc5ab3d496e": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "action_chunk_size": {
+    "0": "InterfaceError: action_chunk_size must be an integer >= 1, got 0",
+    "2.5": "InterfaceError: action_chunk_size must be an integer >= 1, got 2.5",
+    "True": "InterfaceError: action_chunk_size must be an integer >= 1, got True"
+   },
+   "case": "malformed_chunks_and_chunk_files_rejected",
+   "malformed": {
+    "chunk_arrays_not_declared_optional": "SchemaError: ['format']: a chunk file must list ['action_chunk_mask', 'action_chunks'] in optional_fields",
+    "forged_2_2_file_with_chunks": "SchemaError: ['format']: version 2.2 cannot carry ['action_chunk_mask', 'action_chunks', 'action_chunk_spec']; action chunks need 2.3",
+    "non_finite_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "non_finite_target_frame_on_rejected_row": "SchemaError: ['action_chunks']: chunk_target_frame nan must equal source_frame + target_frame_offset = 3",
+    "nonzero_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "spec_without_target_frame_offset": "SchemaError: ['action_chunk_spec']: action_chunk_spec needs integer chunk_size (= K), target_frame_offset 0 or 1, and non-empty alignment, guarantee, and tr",
+    "target_frame_string_dtype": "SchemaError: ['action_chunks', 'dtype']: measurements[name] dtype <U32 is not float",
+    "target_frame_wrong_shape": "SchemaError: ['action_chunks', 'rank']: measurements[name] has shape (36, 2); expected rank 1 ('N',)",
+    "wrong_integral_target_frame": "SchemaError: ['action_chunks']: chunk_target_frame 2.0 must equal source_frame + target_frame_offset = 1"
+   },
+   "pass": true
   }
  ],
  "environment": {
-  "code_commit": "beca081a4454c669ffe1a268b03cac5448986fc5",
+  "code_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

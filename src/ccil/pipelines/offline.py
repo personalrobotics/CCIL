@@ -146,6 +146,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         model = load_transition_model(inputs["transition_model"], device=device)
         cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
                                 run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
+                                action_chunk_size=v["generation.action_chunk_size"],
                                 inputs={name: sha256(path) for name, path in inputs.items()})
         write_candidates(cands, run.path(layout.CANDIDATES))
         counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(cands.reason_codes)}

@@ -97,6 +97,10 @@ PARAMS = [
     Param("generation.action_noise_std", "float", None, "Standard deviation of the noisy-action perturbation.",
           "Task-specific in legacy configs.", "generation", units="action units", low=0.0, low_open=True, nullable=True,
           legacy=("aug.delta",)),
+    Param("generation.action_chunk_size", "int", None,
+          "Add action chunks of this size to every label: the label action, then the demonstration's continuation.",
+          "Legacy aug.chunk_size (label-filtering), whose inverted condition ignored a configured value (#22).",
+          "generation", units="actions", low=1, nullable=True, legacy=("aug.chunk_size",)),
     Param("generation.max_label_error", "float", None, "Reject labels whose estimated error exceeds this.",
           "Legacy aug.max_label_err (label-filtering). The estimate is the generator's CCIL definition (BackTrack or "
           "DisturbedAction, #22); requires generation.model_error_threshold.", "generation",
