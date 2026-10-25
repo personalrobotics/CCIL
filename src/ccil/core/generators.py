@@ -5,8 +5,13 @@ Contract
   never accepts or rejects (validators do) but marks failed candidates.
 - Generators are stateless: everything they use is in params, and params fully
   determine the output given (batch, model, seed).
-- Randomness is drawn per transition from default_rng((seed, crc32(episode_id),
-  frame)), so splitting a batch into chunks never changes any candidate.
+- Randomness is drawn per transition from default_rng seeded with run.seed and
+  a 128-bit digest of (episode_id, frame) (ccil.core.identity), so splitting a
+  batch into chunks never changes any candidate and distinct transitions never
+  share a stream.
+- Measurements describe the candidate as stored: they are computed from the
+  final, dtype-cast candidate arrays, and a solved candidate's convergence is
+  judged on its stored values.
 - name/version/params identify the generator in the candidate provenance, and
   params are written into the candidate file.
 - measurement_specs declares, for each measurement the generator returns, its
@@ -15,12 +20,12 @@ Contract
 """
 from __future__ import annotations
 
-import zlib
 from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from .batch import CandidateBatch, TransitionBatch
+from .identity import identity_words32
 from .transition import jacobian_fd
 
 
@@ -34,7 +39,7 @@ class Generator(Protocol):
 
 
 def transition_rng(seed: int, episode_id: str, frame: int) -> np.random.Generator:
-    return np.random.default_rng([int(seed), zlib.crc32(str(episode_id).encode()), int(frame)])
+    return np.random.default_rng([int(seed), *identity_words32(episode_id, frame)])
 
 
 REP = "representation units (state units for representation.kind=identity)"
@@ -75,15 +80,18 @@ class ExactPreimage:
         self.params = {"max_iterations": int(max_iterations), "tolerance": float(tolerance)}
 
     def generate(self, batch, model, seed):
-        x, failed, resid = newton_preimage(model, batch.z, batch.a, batch.z, **self.params)
-        return CandidateBatch(source=np.arange(len(batch)), z=x.astype(batch.z.dtype), a=batch.a.copy(),
-                              target=batch.z.copy(), failed=failed, measurements={"solver_residual": resid})
+        z, failed, resid = newton_preimage(model, batch.z, batch.a, batch.z, out_dtype=batch.z.dtype, **self.params)
+        return CandidateBatch(source=np.arange(len(batch)), z=z, a=batch.a.copy(), target=batch.z.copy(), failed=failed,
+                              measurements={"solver_residual": resid})
 
 
-def newton_preimage(model, target, a, init, max_iterations, tolerance):
-    """Solve x + f(x, a) = target row by row from init; return (x, failed, residual).
+def newton_preimage(model, target, a, init, max_iterations, tolerance, out_dtype):
+    """Solve x + f(x, a) = target row by row from init; return (x as out_dtype, failed, residual).
 
-    See ExactPreimage for the per-row stopping and failure rules.
+    See ExactPreimage for the per-row stopping and failure rules. The returned
+    residual and failure status are those of the stored candidate: x is cast to
+    out_dtype first and its residual recomputed, so a cast that moves an
+    iterate outside the tolerance marks that row failed.
     """
     target, a = np.asarray(target, np.float64), np.asarray(a, np.float64)
     x = np.array(init, np.float64)
@@ -103,8 +111,10 @@ def newton_preimage(model, target, a, init, max_iterations, tolerance):
         broken[idx[~ok]] = True
         moved = idx[ok]
         resid[moved] = np.linalg.norm(x[moved] + model.delta(x[moved], a[moved]) - target[moved], axis=1)
-    # Convergence is judged on the residual of the returned iterate, not a stale one.
-    return x, broken | ~(resid <= tolerance), resid
+    # Convergence is judged on the stored candidate, not on the float64 iterate or a stale residual.
+    stored = x.astype(out_dtype)
+    resid = np.linalg.norm(stored + model.delta(stored, a) - target, axis=1) if len(x) else np.zeros(0)
+    return stored, broken | ~(resid <= tolerance), resid
 
 
 def _solve_rows(J, r):
@@ -124,12 +134,23 @@ SPEC_NOISE = {"definition": "||a_G - a_t||: norm of the sampled action perturbat
 
 
 def _noisy_actions(batch, seed, k, sigma):
-    """k draws a~ = a + N(0, sigma^2 I) per transition, from transition_rng; returns (source, a~, noise)."""
+    """k draws a~ = a + N(0, sigma^2 I) per transition, from transition_rng.
+
+    Returns (source, a~ in the action dtype, ||a~ - a||) with the norm taken on
+    the stored a~, so it is the perturbation the candidate actually carries
+    (which rounding can shrink, even to zero, at large action magnitudes).
+    """
     A = batch.a.shape[1]
     noise = np.concatenate([transition_rng(seed, e, f).normal(0.0, sigma, size=(k, A))
                             for e, f in zip(batch.episode_id, batch.frame)]) if len(batch) else np.zeros((0, A))
     source = np.repeat(np.arange(len(batch)), k)
-    return source, (batch.a[source] + noise).astype(batch.a.dtype), noise
+    a_tilde = (batch.a[source] + noise).astype(batch.a.dtype)
+    stored_noise = a_tilde.astype(np.float64) - batch.a[source].astype(np.float64)
+    return source, a_tilde, np.linalg.norm(stored_noise, axis=1)
+
+
+def _displacement(z, origin):
+    return np.linalg.norm(z.astype(np.float64) - origin.astype(np.float64), axis=1)
 
 
 class NoisyAction:
@@ -143,13 +164,13 @@ class NoisyAction:
                        "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
 
     def generate(self, batch, model, seed):
-        source, a_tilde, noise = _noisy_actions(batch, seed, self.params["labels_per_transition"],
-                                                self.params["action_noise_std"])
+        source, a_tilde, noise_norm = _noisy_actions(batch, seed, self.params["labels_per_transition"],
+                                                     self.params["action_noise_std"])
         target = batch.z_next[source]
         z = target - model.delta(target, a_tilde)
         return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=np.zeros(len(source), bool),
-                              measurements={"action_noise_norm": np.linalg.norm(noise, axis=1),
-                                            "state_displacement_norm": np.linalg.norm(z - batch.z[source], axis=1)})
+                              measurements={"action_noise_norm": noise_norm,
+                                            "state_displacement_norm": _displacement(z, batch.z[source])})
 
 
 class NoisyActionPreimage:
@@ -172,10 +193,11 @@ class NoisyActionPreimage:
 
     def generate(self, batch, model, seed):
         p = self.params
-        source, a_tilde, noise = _noisy_actions(batch, seed, p["labels_per_transition"], p["action_noise_std"])
+        source, a_tilde, noise_norm = _noisy_actions(batch, seed, p["labels_per_transition"], p["action_noise_std"])
         target = batch.z_next[source]
-        x, failed, resid = newton_preimage(model, target, a_tilde, batch.z[source], p["max_iterations"], p["tolerance"])
-        return CandidateBatch(source=source, z=x.astype(batch.z.dtype), a=a_tilde, target=target.copy(), failed=failed,
-                              measurements={"action_noise_norm": np.linalg.norm(noise, axis=1),
-                                            "state_displacement_norm": np.linalg.norm(x - batch.z[source], axis=1),
+        z, failed, resid = newton_preimage(model, target, a_tilde, batch.z[source], p["max_iterations"], p["tolerance"],
+                                           out_dtype=batch.z.dtype)
+        return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=failed,
+                              measurements={"action_noise_norm": noise_norm,
+                                            "state_displacement_norm": _displacement(z, batch.z[source]),
                                             "solver_residual": resid})

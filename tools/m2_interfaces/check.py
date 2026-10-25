@@ -20,9 +20,9 @@
    other versions or components, and non-checkpoints raise CheckpointError,
    while an unavailable device surfaces as the model's own error.
 8. A custom validator with a namespaced reason (example.low_confidence) writes
-   a complete run whose candidates (version 2.1) reload with the same reason
-   order and row assignments; built-in-only files without measurement specs
-   stay 2.0 (with specs, #22, they are 2.2). Malformed reason
+   a complete run whose candidates reload with the same reason order and row
+   assignments (2.2: generated files carry measurement specs, #22); a
+   built-in-only file without specs is still written as 2.0. Malformed reason
    declarations, from validators or in a candidate set, fail before any
    artifact is written.
 Writes DIR/report.json.
@@ -348,6 +348,7 @@ def main():
     class LowConfidence:
         """Rejects candidates whose action norm exceeds 0.1; a stand-in for a method-specific test."""
         reason = "example.low_confidence"
+        measurement_specs = {"example.action_norm": {"definition": "||a_G||", "norm": "l2", "units": "action units"}}
 
         def check(self, batch, cands, model):
             norm = np.linalg.norm(cands.a, axis=1)
@@ -373,7 +374,7 @@ def main():
     col = ext_back.reason_codes.index("example.low_confidence")
     norm = np.linalg.norm(ext_back.actions.astype(np.float64), axis=1)
     record("namespaced_reason_round_trips_through_a_run",
-           ext_back.reason_codes == REASON_CODES + ("example.low_confidence",) and ext_version == "2.1"
+           ext_back.reason_codes == REASON_CODES + ("example.low_confidence",) and ext_version == "2.2"
            and builtin_version == "2.2" and bare_meta["version"] == "2.0" and "measurement_specs" not in bare_meta
            and np.array_equal(ext_back.reasons, ext.reasons)
            and np.array_equal(ext_back.reasons[:, col], norm > 0.1) and ext_back.reasons[:, col].any()

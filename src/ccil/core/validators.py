@@ -7,6 +7,9 @@ Contract
   validator that only measures.
 - Validators run independently and all of them run; a candidate is accepted only
   if none rejects it, so one candidate can carry several reasons.
+- measurement_specs maps each measurement name a validator returns to its
+  definition, norm, and units ({} for a validator that measures nothing);
+  generate_labels raises InterfaceError when the names do not match exactly.
 """
 from __future__ import annotations
 

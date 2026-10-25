@@ -42,6 +42,26 @@ noise distribution) travel in `generator.params`.
 
 The source episode and frame are part of every row (`ccil.candidates`).
 
+**Measurements describe the stored candidate.**
+- Each measurement is computed from the final, dtype-cast arrays written to the
+  file.
+- At float32 and a large action magnitude, rounding can shrink the persisted
+  perturbation, even to zero. `action_noise_norm` then reports the stored
+  value, not the sample. The evidence has a case where it is 0 for every row:
+  actions near 1e4, where float32 spacing is 9.8e-4, and σ = 1e-4.
+- A solved candidate's `solver_residual` and its `generation_failed` decision
+  are judged on the stored state, not on the float64 iterate.
+
+**The contract is enforced.** Every generator and validator declares
+`measurement_specs`. A producer whose specs are missing, or don't name exactly
+the measurements it returned, raises `InterfaceError`. Specs are never silently
+dropped.
+
+**Sample identity.** Noisy-action draws and NoiseBC draws key each transition
+by a BLAKE2b-128 digest of `(episode_id, frame)` (`ccil.core.identity`). The
+earlier CRC32 of the episode ID let distinct episodes share a stream: the
+evidence uses the colliding pair `4300bByhudVrUGx5` and `0BZ5Gzkl9ccfsEbx`.
+
 ## NoiseBC correction
 
 Legacy NoiseBC behaved as follows:
@@ -68,11 +88,11 @@ It removes the positive bias and the in-place write:
 
 **Determinism.**
 - Each uniform is a function of (seed, optimizer step, sample identity, draw
-  index, component), computed with a splitmix64 counter hash
-  (`splitmix64-counter/1`).
+  index, component), computed with a splitmix64 counter hash over the
+  128-bit sample-identity digest.
 - A draw is therefore reproducible from its key, fresh at the next step or
   draw, and independent of batch order and composition.
-- `perturb` returns a new array.
+- `perturb` returns a new array. It rejects inputs that it could not perturb as configured: non-floating observations, which would truncate the noise; identity arrays that don't match the batch; and negative frames, steps or draws.
 
 **Recording.** `NoiseBC.descriptor()` gives what a run records: distribution,
 scale, units, truncation, masking probability, seed, RNG, and draw schedule.

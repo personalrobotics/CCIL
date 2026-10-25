@@ -14,19 +14,22 @@ modes:
 A sample is perturbed when its mask uniform exceeds 1 - mask_probability,
 which is legacy rand > 0.5 at the default 0.5. Every uniform is a pure
 function of (seed, optimizer step, sample identity, draw index, component)
-through a splitmix64 counter hash, so a draw is reproducible from its key,
-fresh at every new step or draw, and independent of batch order and
-composition. perturb never modifies its input.
+through a splitmix64 counter hash, with the sample identity (episode_id, frame)
+entering as its 128-bit digest (ccil.core.identity), so a draw is reproducible
+from its key, fresh at every new step or draw, independent of batch order and
+composition, and never shared by distinct samples. perturb validates its inputs
+and never modifies them.
 """
 from __future__ import annotations
 
 import hashlib
-import zlib
 
 import numpy as np
 
+from ..core.identity import identity_words64
+
 MODES = ("symmetric_uniform_half_batch", "legacy_uniform_half_batch")
-RNG = "splitmix64-counter/1"
+RNG = "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)"
 _M64 = (1 << 64) - 1
 _GAMMA, _M1, _M2 = np.uint64(0x9E3779B97F4A7C15), np.uint64(0xBF58476D1CE4E5B9), np.uint64(0x94D049BB133111EB)
 
@@ -41,13 +44,12 @@ def _mix(x: np.ndarray) -> np.ndarray:
 
 def counter_uniforms(seed: int, step: int, episode_ids, frames, draw: int, components: int) -> np.ndarray:
     """Uniforms in [0, 1), shape (B, components), each a pure function of its full key."""
-    ep = np.array([zlib.crc32(str(e).encode()) for e in episode_ids], dtype=np.uint64)
-    fr = np.asarray(frames, dtype=np.int64).astype(np.uint64)
+    words = np.array([identity_words64(e, f) for e, f in zip(episode_ids, frames)], dtype=np.uint64).reshape(-1, 2)
     with np.errstate(over="ignore"):
-        h = _mix(np.full(len(ep), np.uint64(seed & _M64)))
+        h = _mix(np.full(len(words), np.uint64(seed & _M64)))
         h = _mix(h ^ np.uint64(step & _M64))
-        h = _mix(h ^ ep)
-        h = _mix(h ^ fr)
+        h = _mix(h ^ words[:, 0])
+        h = _mix(h ^ words[:, 1])
         h = _mix(h ^ np.uint64(draw & _M64))
         h = _mix(h[:, None] ^ np.arange(components, dtype=np.uint64)[None, :])
     return (h >> np.uint64(11)).astype(np.float64) * 2.0 ** -53
@@ -69,7 +71,7 @@ class NoiseBC:
 
     def perturb(self, obs: np.ndarray, episode_ids, frames, step: int, draw: int = 0):
         """Return (perturbed copy of obs, {"mask": (B,), "noise": noise added, zero where unmasked})."""
-        obs = np.asarray(obs)
+        obs, episode_ids, frames = _check_inputs(obs, episode_ids, frames, step, draw)
         flat = obs.reshape(len(obs), -1)
         u = counter_uniforms(self.seed, step, episode_ids, frames, draw, 1 + flat.shape[1])
         mask = u[:, 0] > 1.0 - self.mask_probability
@@ -85,6 +87,23 @@ class NoiseBC:
                 "scale": self.scale, "units": self.units, "truncation": "none (bounded by construction)",
                 "mask_probability": self.mask_probability, "seed": self.seed, "rng": RNG,
                 "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)"}
+
+
+def _check_inputs(obs, episode_ids, frames, step, draw):
+    """Reject inputs for which a result would not implement the configured distribution."""
+    if not isinstance(obs, np.ndarray) or not np.issubdtype(obs.dtype, np.floating) or obs.ndim < 2:
+        raise ValueError("NoiseBC observations must be a floating-point array of shape (B, ...); integer arrays "
+                         "would truncate the noise")
+    ids = np.asarray(episode_ids)
+    fr = np.asarray(frames)
+    if ids.ndim != 1 or len(ids) != len(obs) or not all(isinstance(e, str) and e for e in ids.tolist()):
+        raise ValueError(f"episode_ids must be {len(obs)} non-empty strings, one per observation row")
+    if fr.ndim != 1 or len(fr) != len(obs) or not np.issubdtype(fr.dtype, np.integer) or (fr < 0).any():
+        raise ValueError(f"frames must be {len(obs)} non-negative integers, one per observation row")
+    for name, value in (("step", step), ("draw", draw)):
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 0:
+            raise ValueError(f"{name} must be a non-negative integer, got {value!r}")
+    return obs, ids, fr
 
 
 class NoiseTrace:

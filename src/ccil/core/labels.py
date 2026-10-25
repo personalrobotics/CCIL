@@ -33,6 +33,18 @@ def params_hash(generator, validators) -> str:
     return hashlib.sha256(json.dumps(desc, sort_keys=True).encode()).hexdigest()[:16]
 
 
+def _declared_specs(producer, measured: set, where: str) -> dict:
+    """The producer's measurement_specs, which must name exactly the measurements it returned."""
+    specs = getattr(producer, "measurement_specs", None)
+    if not isinstance(specs, dict):
+        raise InterfaceError(f"{type(producer).__name__} declares no measurement_specs; every generator and validator "
+                             "must declare the definition, norm, and units of what it measures ({} if nothing)")
+    if set(specs) != measured:
+        raise InterfaceError(f"{where} returned measurements {sorted(measured)} but its measurement_specs name "
+                             f"{sorted(specs)}")
+    return specs
+
+
 def checkpoint_sha256(model) -> str:
     """SHA-256 of the checkpoint model.save() writes; checkpoints are byte-deterministic."""
     with tempfile.TemporaryDirectory() as d:
@@ -69,10 +81,9 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
     codes = canonical_reason_order(set(REASON_CODES) | {v.reason for v in validators if v.reason is not None})
     reasons = np.zeros((len(cands), len(codes)), bool)
     measurements = {f"generator.{k}": v.astype(np.float64) for k, v in cands.measurements.items()}
-    # Every measurement's meaning travels with the file when every producer declares it.
-    gen_specs = getattr(generator, "measurement_specs", None)
-    specs = None if gen_specs is None or set(gen_specs) != set(cands.measurements) else \
-        {f"generator.{k}": dict(v) for k, v in gen_specs.items()}
+    # Every measurement's meaning travels with the file; a producer must declare exactly what it measures.
+    specs = {f"generator.{k}": dict(v)
+             for k, v in _declared_specs(generator, set(cands.measurements), f"{type(generator).__name__}.generate").items()}
     for v in validators:
         reject, meas = v.check(batch, cands, model)
         if not isinstance(reject, np.ndarray) or reject.shape != (len(cands),) or reject.dtype != np.bool_:
@@ -85,11 +96,7 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
             if k in measurements or not isinstance(x, np.ndarray) or x.shape != (len(cands),):
                 raise InterfaceError(f"{type(v).__name__} measurement {k!r} is duplicated or not a ({len(cands)},) array")
             measurements[k] = x.astype(np.float64)
-        v_specs = getattr(v, "measurement_specs", None)
-        if specs is not None and v_specs is not None and set(v_specs) == set(meas):
-            specs.update({k: dict(x) for k, x in v_specs.items()})
-        else:
-            specs = None
+        specs.update({k: dict(x) for k, x in _declared_specs(v, set(meas), f"{type(v).__name__}.check").items()})
     accepted = ~reasons.any(axis=1)
     weighting = weighting or Uniform()
     weight = np.asarray(weighting.weights(cands, accepted), dtype=np.float64)
