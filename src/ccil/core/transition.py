@@ -6,8 +6,9 @@ Contract
 - delta(z, a) returns f(z, a) as (N, D) float for (N, D) and (N, A) inputs; it is
   batched, deterministic, and has no side effects (no training-mode updates).
 - jacobian_z(z, a) is optional and returns df/dz as (N, D, D); generators fall back
-  to central finite differences (jacobian_fd) when it is absent. jacobian_za
-  likewise returns df/d(z, a) as (N, D, D + A), with fallback jacobian_fd_za.
+  to central finite differences (jacobian_fd) when it is absent. jacobian_za is
+  optional and returns df/d(z, a) as (N, D, D + A); label-error estimates
+  require it and have no finite-difference fallback.
 - evaluate(z, a, z_next) returns one-step error metrics without changing state.
 - kind and version identify the implementation; kind is the
   transition_model.kind value that selects it, and version changes whenever
@@ -69,24 +70,6 @@ def check_identity(path, meta: dict, cls) -> None:
     if (meta.get("kind"), meta.get("version")) != (cls.kind, cls.version):
         raise CheckpointError(f"{path} holds {meta.get('kind')!r} version {meta.get('version')!r}; "
                               f"{cls.__name__} reads {cls.kind!r} version {cls.version!r}")
-
-
-def jacobian_fd_za(model, z: np.ndarray, a: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """Central finite-difference df/d(z, a), (N, D, D + A)."""
-    z, a = np.asarray(z, np.float64), np.asarray(a, np.float64)
-    N, D = z.shape
-    A = a.shape[1]
-    J = np.empty((N, D, D + A))
-    for j in range(D + A):
-        dz, da = np.zeros(D), np.zeros(A)
-        (dz if j < D else da)[j if j < D else j - D] = eps
-        J[:, :, j] = (model.delta(z + dz, a + da) - model.delta(z - dz, a - da)) / (2 * eps)
-    return J
-
-
-def residual_jacobian_za(model, z, a) -> np.ndarray:
-    """df/d(z, a), (N, D, D + A): the model's jacobian_za when it has one, else finite differences."""
-    return model.jacobian_za(z, a) if hasattr(model, "jacobian_za") else jacobian_fd_za(model, z, a)
 
 
 def jacobian_fd(model, z: np.ndarray, a: np.ndarray, eps: float = 1e-6) -> np.ndarray:

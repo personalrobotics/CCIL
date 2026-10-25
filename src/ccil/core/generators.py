@@ -14,6 +14,8 @@ Contract
   judged on its stored values.
 - name/version/params identify the generator in the candidate provenance, and
   params are written into the candidate file.
+- label_error_profile names the CCIL label-error definition its labels follow
+  (backtrack or disturbed_action); LabelError must use the same profile.
 - measurement_specs declares, for each measurement the generator returns, its
   definition, norm, and units; generate_labels writes them into the candidate
   file under the "generator." prefix it gives the measurements.
@@ -53,6 +55,7 @@ class BackwardEuler:
     """z_G = z - f(z, a): applying a at z_G approximately reaches z."""
 
     name, version = "backward_euler", "1"
+    label_error_profile = "backtrack"  # Ke et al., Def. 4.5
     measurement_specs: dict = {}
 
     def __init__(self):
@@ -74,6 +77,7 @@ class ExactPreimage:
     """
 
     name, version = "exact_preimage", "1"
+    label_error_profile = "backtrack"  # Ke et al., Def. 4.5
     measurement_specs = {"solver_residual": SPEC_SOLVER}
 
     def __init__(self, max_iterations: int = 50, tolerance: float = 1e-4):
@@ -157,6 +161,7 @@ class NoisyAction:
     """For k draws a~ = a + N(0, sigma^2): z_G = z_next - f(z_next, a~), targeting z_next."""
 
     name, version = "noisy_action", "2"
+    label_error_profile = "disturbed_action"  # Ke et al., Def. 4.6
     measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT}
 
     def __init__(self, labels_per_transition: int, action_noise_std: float):
@@ -182,6 +187,7 @@ class NoisyActionPreimage:
     """
 
     name, version = "noisy_action_preimage", "1"
+    label_error_profile = "disturbed_action"  # Ke et al., Def. 4.6
     measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT,
                          "solver_residual": SPEC_SOLVER}
 

@@ -19,9 +19,7 @@ exactly when no column, built-in or extension, rejects the row.
 2.1 added extension reason codes; a file declares 2.1 only when it uses one, so
 files with built-in reasons alone stay 2.0. 2.2 added the optional
 measurement_specs, the definition, norm, and units of every measurement, and the
-generator's full params; a file declares 2.2 only when it carries specs. 2.3
-added the built-in reasons model_misfit and label_error; a file declares 2.3
-only when it has one of those columns.
+generator's full params; a file declares 2.2 only when it carries specs.
 """
 from __future__ import annotations
 
@@ -39,11 +37,8 @@ from .trajectories import MODALITY, TrajectoryDataset
 CANDIDATE_MODALITY = re.compile(r"^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$")
 
 SCHEMA = "ccil.candidates"
-VERSION = (2, 3)
-# Columns every candidate file has, and every built-in reason in canonical order (model_misfit and
-# label_error were added in 2.3, #22, and are columns only when a validator uses them).
+VERSION = (2, 2)
 REASON_CODES = ("non_finite", "out_of_support", "generation_failed", "action_out_of_bounds")
-BUILTIN_REASON_CODES = REASON_CODES + ("model_misfit", "label_error")
 EXTENSION_REASON = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 RESERVED_NAMESPACES = ("ccil",)
 
@@ -52,10 +47,10 @@ def reason_code_problem(code) -> str | None:
     """Why code is neither a built-in reason nor a valid extension, or None."""
     if not isinstance(code, str):
         return f"{code!r} is not a string"
-    if code in BUILTIN_REASON_CODES:
+    if code in REASON_CODES:
         return None
     if not EXTENSION_REASON.match(code):
-        return (f"{code!r} is neither a built-in reason {list(BUILTIN_REASON_CODES)} nor an extension "
+        return (f"{code!r} is neither a built-in reason {list(REASON_CODES)} nor an extension "
                 f"<namespace>.<reason> matching {EXTENSION_REASON.pattern}")
     if code.split(".")[0] in RESERVED_NAMESPACES:
         return f"{code!r} uses the reserved namespace {code.split('.')[0]!r}"
@@ -63,18 +58,15 @@ def reason_code_problem(code) -> str | None:
 
 
 def canonical_reason_order(codes) -> tuple:
-    """Built-in codes in BUILTIN_REASON_CODES order, then extension codes sorted."""
-    return tuple(c for c in BUILTIN_REASON_CODES if c in codes) + \
-        tuple(sorted(c for c in codes if c not in BUILTIN_REASON_CODES))
+    """Built-in codes in REASON_CODES order, then extension codes sorted."""
+    return tuple(c for c in REASON_CODES if c in codes) + tuple(sorted(c for c in codes if c not in REASON_CODES))
 
 
 def file_version(codes, measurement_specs=None) -> tuple:
     """The lowest version that can hold these reason codes and measurement specs."""
-    if any(c in BUILTIN_REASON_CODES and c not in REASON_CODES for c in codes):
-        return (2, 3)
     if measurement_specs is not None:
         return (2, 2)
-    return (2, 1) if any(c not in BUILTIN_REASON_CODES for c in codes) else (2, 0)
+    return (2, 1) if any(c not in REASON_CODES for c in codes) else (2, 0)
 
 SOURCE_EPISODE = ArraySpec("source_episode_id", "str", ("N",), "-", "Episode the candidate perturbs.")
 SOURCE_FRAME = ArraySpec("source_frame", "int", ("N",), "frames", "Transition index t in the source episode (t <= T-2).")
@@ -93,7 +85,7 @@ FIELDS = [
     ("inputs", "dict[str, str]", "SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from."),
     ("weighting", "dict", "name, version, and params of the weighting that produced weight."),
     ("measurement_specs", "dict | None", "Optional (2.2): for every measurement name, its definition, norm (or null), and units."),
-    ("reason_codes", "tuple[str]", f"Column labels of reasons, distinct and in canonical order: built-ins {list(BUILTIN_REASON_CODES)} (the first four always present) first, then extension codes <namespace>.<reason> sorted."),
+    ("reason_codes", "tuple[str]", f"Column labels of reasons, distinct and in canonical order: built-ins {list(REASON_CODES)} first, then extension codes <namespace>.<reason> sorted."),
     ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation."),
     ("target_observations", "dict[str, array (N, ...)]", "Observation the candidate action should reach, per modality."),
 ]

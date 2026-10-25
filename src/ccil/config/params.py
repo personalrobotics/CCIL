@@ -98,11 +98,13 @@ PARAMS = [
           "Task-specific in legacy configs.", "generation", units="action units", low=0.0, low_open=True, nullable=True,
           legacy=("aug.delta",)),
     Param("generation.max_label_error", "float", None, "Reject labels whose estimated error exceeds this.",
-          "Legacy aug.max_label_err (label-filtering). The estimate uses the residual Jacobian (#22).", "generation",
+          "Legacy aug.max_label_err (label-filtering). The estimate is the generator's CCIL definition (BackTrack or "
+          "DisturbedAction, #22); requires generation.model_error_threshold.", "generation",
           units="representation units", low=0.0, low_open=True, nullable=True, legacy=("aug.max_label_err",)),
     Param("generation.label_error_quantile", "float", None,
           "Keep labels whose estimated error is at most this quantile of the produced candidates' estimates.",
-          "Legacy aug.label_err_quantile (label-filtering); 0.3 in its pendulum configs.", "generation", low=0.0,
+          "Legacy aug.label_err_quantile (label-filtering); 0.3 in its pendulum configs. Taken over produced labels whose "
+          "anchors pass generation.model_error_threshold, which it requires.", "generation", low=0.0,
           low_open=True, high=1.0, nullable=True, legacy=("aug.label_err_quantile",)),
     Param("generation.model_error_threshold", "float", None,
           "Reject the candidates of transitions whose one-step model error is not below this.",

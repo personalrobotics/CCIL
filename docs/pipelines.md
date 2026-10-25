@@ -86,7 +86,7 @@ provide, and claim no image-CCIL parity:
 | `generation.method` | `backward_euler`, `backward_euler_fast`, `forward_euler` (exact preimage), `noisy_action` | Implemented |
 | `generation.method` | `noisy_action_fe` | Implemented (#22). See [`migration/label-methods.md`](migration/label-methods.md). |
 | `generation.method` | `backward_model` | Fails with guidance to #22 |
-| `generation.model_error_threshold`, `max_label_error`, `label_error_quantile` | numbers | Implemented (#22). They add `ModelMisfit` and `LabelError`. See [`migration/label-methods.md`](migration/label-methods.md). |
+| `generation.model_error_threshold`, `max_label_error`, `label_error_quantile` | numbers | Implemented (#22). They add `ModelMisfit` and `LabelError`, which uses the generator's BackTrack or DisturbedAction definition. Label-error filtering requires `model_error_threshold`. See [`migration/label-methods.md`](migration/label-methods.md). |
 | `transition_model.kind` | `linear` | Implemented |
 | `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |

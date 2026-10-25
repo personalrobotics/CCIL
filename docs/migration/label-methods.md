@@ -112,25 +112,45 @@ training weight stay separate:
 | Legacy | New | Reason | Notes |
 |---|---|---|---|
 | `aug.epsilon` (`distance < ε`) | `SupportRadius` (`generation.support_radius`) | `out_of_support` | Unchanged (#11). |
-| `aug.model_err_thresh` (`model_fits_data`) | `ModelMisfit` (`generation.model_error_threshold`) | `model_misfit` | Legacy generated nothing for a misfit transition, recording only a failure count. Its candidates are now generated and rejected, so the decision is in provenance. It measures `anchor_model_error`. |
-| `label_error` with `aug.max_label_err` / `aug.label_err_quantile` | `LabelError` (`generation.max_label_error`, `generation.label_error_quantile`) | `label_error` | Corrected estimate (below). The quantile is taken over the finite estimates of candidates generation produced (not failed), as in legacy. The applied threshold is recorded per row as `label_error_threshold`. |
+| `aug.model_err_thresh` (`model_fits_data`) | `ModelMisfit` (`generation.model_error_threshold`) | `label_filter.model_misfit` | It measures `anchor_model_error` on every row, and rejects anchors not below the threshold. Legacy generated nothing for such a transition; its candidates are now generated and rejected. |
+| `label_error` with `aug.max_label_err` / `aug.label_err_quantile` | `LabelError` (`generation.max_label_error`, `generation.label_error_quantile`) | `label_filter.label_error` | Corrected to the paper's definitions (below). It requires the model-error threshold. The applied threshold is recorded per row as `label_error_threshold`. |
 
-`model_misfit` and `label_error` are built-in reasons added in
-`ccil.candidates` 2.3. A file has their columns only when a validator uses
-them.
+**Schema.** The two reasons are namespaced extension reasons (#78), so files
+stay `ccil.candidates` 2.2. The evidence reads them with the 2.2 reader as
+merged before this change (`520f343`).
 
-**The label-error estimate (correctness change).**
-- **The branch** computed `label_err = L · ‖(s_G, a_G) − (s_t, a_t)‖`, with `L`
-  the spectral norm of the Jacobian of `WorldModel.predict`, the next-state map
-  `s + f`. That Jacobian is `[I + ∂f/∂s, ∂f/∂a]`, whose norm is about 1 for any
-  small residual. The estimate therefore came out close to the bare distance,
-  whatever the model's continuity.
-- **`LabelError`** uses the residual Jacobian `∂f/∂(z, a)` at the anchor, which
-  is the continuity the method assumes of f. It is the same correction as
-  `soft_jac` in #21.
-- **Its scope:** `L` is a pointwise value at the anchor, so the estimate is
-  empirical, not a bound over the neighborhood. #88 classifies it.
-- The evidence shows both formulas on the analytic system.
+**The label-error estimate (correctness change).** The paper defines one
+estimate per generation technique, with Jacobians of f̂ at the source
+transition (z_t, a_t) (Ke et al., §4.3):
+
+| Profile | Definition | Generators |
+|---|---|---|
+| `backtrack` | E_BT = ‖J_S f̂‖ · ‖z_G − z_t‖ (Def. 4.5, Eq. 11) | `BackwardEuler`, `ExactPreimage` |
+| `disturbed_action` | E_DA = ‖J_A f̂‖ · ‖a_G − a_t‖ + (1 + ‖J_S f̂‖) · ‖z_G − z_t‖ (Def. 4.6, Eq. 12) | `NoisyAction`, `NoisyActionPreimage` |
+
+- **Profiles.** Each generator declares its `label_error_profile`.
+  `LabelError(profile, …)` must match it, and `generate_labels` raises
+  otherwise. The profile is named in the file's `measurement_specs`. The
+  component measurements are recorded for #88: the state and action Jacobian
+  norms, the state displacement and the action perturbation.
+- **The branch's formula** was `‖J‖ · ‖(z_G, a_G) − (z_t, a_t)‖`, with `J` the
+  Jacobian of the next-state map `s + f`. That matches neither definition.
+- **Precondition.** Both definitions assume a small anchor model error
+  (ε ≈ 0; the paper gets it by "only generating labels for data points with low
+  model error"). So label-error filtering requires
+  `generation.model_error_threshold`, and every row records
+  `label_error_precondition` (1 or 0).
+- **Quantile population.** The quantile is taken over the finite estimates of
+  candidates that generation produced and whose anchors meet the precondition.
+  Legacy skipped misfit anchors before computing it.
+- **Exact Jacobians only.** The estimate requires the model's exact
+  `jacobian_za`, with no finite-difference fallback. At float32, steps of 1e-6
+  vanish for inputs near 1e4, and the evidence shows a derivative of 19,999
+  measured as 0. For the same reason, the MLP gains an exact `jacobian_z` for
+  `ExactPreimage`.
+- **Scope.** The Jacobians are evaluated at the anchor only, so the estimate is
+  pointwise and empirical, not a bound over the neighborhood. #88 classifies
+  it.
 
 **Weighting.**
 - **No per-label soft weighting exists in any branch.** The only weights are
@@ -147,9 +167,9 @@ with its terminal classification. The evidence checks that none is missing.
 
 | Capability | Branch change | Classification |
 |---|---|---|
-| `dynamics-model` | `local_lipschitz_coeff()`; unreduced prediction errors | Ported: `jacobian_za` and `residual_jacobian_za` (residual, corrected); per-row errors as `anchor_model_error` |
+| `dynamics-model` | `local_lipschitz_coeff()`; unreduced prediction errors | Ported: exact `jacobian_za`, split into state and action Jacobians per the paper's definitions; per-row errors as `anchor_model_error` |
 | `corrective-labels` | `forward_euler` as fixed-point iteration; `model_err_thresh`; original actions recorded | Fixed-point iteration superseded by `ExactPreimage` (same equation; Newton doesn't need ‖∂f/∂z‖ < 1, and no hardcoded 1e-4); `model_err_thresh` ported as `ModelMisfit`; source actions are carried by the source identity |
-| `label-filtering` | label-error estimate; `label_err_quantile`; `max_label_err`; combined with `epsilon` | Ported, with a correctness change: `LabelError`, alongside `SupportRadius` |
+| `label-filtering` | label-error estimate; `label_err_quantile`; `max_label_err`; combined with `epsilon` | Ported, with a correctness change: `LabelError` (the paper's BackTrack or DisturbedAction definition, gated on model error), alongside `SupportRadius` |
 | `action-chunking-labels` | `gen_aug_label_chunking.py` | #22 PR 3 |
 | `bc-policy` | removes the tycho case; configurable encoder layers; callable loss weights | Moved to #89 (vector BC training) |
 | `data-fraction-ablation` | `data.data_frac` | Superseded by the M7 low-data subsets (#51–#55) |

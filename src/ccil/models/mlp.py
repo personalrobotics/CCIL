@@ -274,6 +274,10 @@ class MLPTransitionModel:
             jac = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))(x)
         return jac.detach().cpu().numpy().astype(np.float64)
 
+    def jacobian_z(self, z, a) -> np.ndarray:
+        """Exact df/dz in eval mode, (N, D, D); used by Newton solves instead of float32 finite differences."""
+        return self.jacobian_za(z, a)[:, :, :self.net.state_dim]
+
     def evaluate(self, z, a, z_next) -> dict:
         return one_step_metrics(self, z, a, z_next)
 
