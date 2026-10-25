@@ -44,7 +44,7 @@ from torch.nn import functional as F
 
 from ..core.transition import check_identity, checkpoint_meta, one_step_metrics
 from ..schema.io import _atomic_savez
-from .spectral_norm import apply_spectral_norm
+from .spectral_norm import LipschitzSpectralNorm, apply_spectral_norm
 
 DERIVED_FROM = {
     "repository": "personalrobotics/CCIL",
@@ -281,6 +281,44 @@ class MLPTransitionModel:
     def evaluate(self, z, a, z_next) -> dict:
         return one_step_metrics(self, z, a, z_next)
 
+    def lipschitz_bound(self, maps: str, state_scale, action_scale) -> dict:
+        """A global Lipschitz bound of f_hat in state or action, in scaled coordinates (#88).
+
+        f_hat = m * (out_scale + 1e-8) * g(x) + out_shift with x the normalized
+        input and g = W_L act(... act(W_1 x + b_1) ...) + b_L, so with respect to
+        the scaled input u (z = S_z u or a = S_a u) and the scaled error S_z^-1 e,
+
+            K <= ||S_z^-1 M D_out W_L|| * ||W_{L-1}|| ... ||W_2|| * ||W_1[:, cols] D_in S|| * L_act^(L-1),
+
+        with D_in = 1 / (scale + 1e-8) and D_out = out_scale + 1e-8 as the
+        forward pass computes them in float32, M the output mask, and each norm the
+        exact spectral norm (SVD in float64) of the weight the eval-mode forward
+        applies: for spectral normalization, weight_orig / max(sigma_hat / c, 1)
+        with the stored u, v, whose sigma_hat estimate and the constraint c are
+        never used as a bound. ReLU and tanh are 1-Lipschitz; any other
+        activation is refused. Floating-point evaluation error is not included.
+        """
+        act = self.settings["activation"]
+        if act not in ("relu", "tanh"):
+            raise ValueError(f"no Lipschitz constant for activation {act!r}; supported: relu, tanh")
+        net, d = self.net, self.net.state_dim
+        sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
+        with torch.no_grad(), _eval_mode(net):
+            weights = [_effective_weight(layer).detach().cpu().double().numpy() for layer in net.fc_layers]
+            f64 = lambda t: t.detach().cpu().double().numpy()  # noqa: E731
+            in_div = f64(net.s_scale + 1e-8) if maps == "state" else f64(net.a_scale + 1e-8)
+            out_mul = f64(net.out_scale + 1e-8) * f64(net.out_scale >= 1e-8)
+        cols = slice(0, d) if maps == "state" else slice(d, d + net.act_dim)
+        scale = sz if maps == "state" else sa
+        first = weights[0][:, cols] * (scale / in_div)[None, :]
+        rows = (out_mul / sz)[:, None]
+        if len(weights) == 1:
+            factors = [float(np.linalg.norm(rows * first, 2))]
+        else:
+            factors = ([float(np.linalg.norm(first, 2))] + [float(np.linalg.norm(w, 2)) for w in weights[1:-1]]
+                       + [float(np.linalg.norm(rows * weights[-1], 2))])
+        return {"value": float(np.prod(factors)), "factors": factors, "activation": act, "activation_lipschitz": 1.0}
+
     # --- persistence ---------------------------------------------------------
     def save(self, path) -> None:
         arrays = {f"dynamics/{k}": v.detach().cpu().numpy() for k, v in self.net.state_dict().items()}
@@ -310,6 +348,14 @@ class MLPTransitionModel:
             if net is not None:
                 net.train(meta["training"])
         return model
+
+
+def _effective_weight(layer) -> torch.Tensor:
+    """The weight an eval-mode forward pass applies to layer."""
+    for hook in layer._forward_pre_hooks.values():
+        if isinstance(hook, LipschitzSpectralNorm):
+            return hook.compute_weight(layer, do_power_iteration=False)
+    return layer.weight
 
 
 def _check_device(device: str) -> str:

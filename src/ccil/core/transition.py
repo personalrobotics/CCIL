@@ -120,6 +120,13 @@ class LinearTransitionModel:
     def evaluate(self, z, a, z_next) -> dict:
         return one_step_metrics(self, z, a, z_next)
 
+    def lipschitz_bound(self, maps: str, state_scale, action_scale) -> dict:
+        """The exact Lipschitz constant of f_hat in state or action, in scaled coordinates (#88)."""
+        sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
+        W = self.A * (sz[None, :] / sz[:, None]) if maps == "state" else self.B * (sa[None, :] / sz[:, None])
+        value = float(np.linalg.norm(W, 2))
+        return {"value": value, "factors": [value], "activation": None, "activation_lipschitz": None}
+
     @classmethod
     def from_config(cls, v) -> "LinearTransitionModel":
         return cls()
