@@ -1,5 +1,23 @@
 {
  "all_pass": true,
+ "bundle_sha256": {
+  "backtrack_mlp/candidates.npz": "be9301f84ef23cba7c0dc52f85a84878d1058db07b5057f0a446aab2428864a7",
+  "backtrack_mlp/certificates.npz": "e65a4b7a5fc463f16a7b54f64adccdb8bc415786623dff75f6b2b5c531059fc6",
+  "backtrack_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "backtrack_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "backtrack_mlp/transition_model.npz": "24da93ce283bb45d302c4035b7858b6cb3ec41dff6f3b96c604eaf6299a3366a",
+  "continuity_linear/candidates.npz": "f09e95bc84a912cb70057c84ec3ce67b9f8b9094fc0fc4ffbdcc2109c89bcb19",
+  "continuity_linear/certificates.npz": "54caaf5c9a22c857447314a120f582af543689149c99071aad4ce01be4250955",
+  "continuity_linear/dataset.npz": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+  "continuity_linear/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "continuity_linear/transition_model.npz": "b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3",
+  "disturbed_action_mlp/candidates.npz": "ae72ceb932699dbf1fec7f3996eec54139df0a07fe7c27b960cac07f63ab6673",
+  "disturbed_action_mlp/certificates.npz": "2c5cd84f1ae726eec1da9a65ca70687ba995a59b313cf58efb8a7cf684768a02",
+  "disturbed_action_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "disturbed_action_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "disturbed_action_mlp/transition_model.npz": "24da93ce283bb45d302c4035b7858b6cb3ec41dff6f3b96c604eaf6299a3366a",
+  "manifest.json": "cc95a0ee2ef944d4b92adcbf32d5e1de9841dbdc52d00c5502b622a5fa240c1a"
+ },
  "cases": [
   {
    "case": "exact_model_certified_and_tight[backward_euler]",
@@ -7,7 +25,7 @@
     "C_a": 0.0,
     "C_z": 0.0
    },
-   "max_abs_gap": 5.1468360565219e-08,
+   "max_abs_gap": 1.0293672350007027e-07,
    "max_true_error": 0.0030000001192092007,
    "pass": true,
    "rows": 9
@@ -18,7 +36,7 @@
     "C_a": 0.0,
     "C_z": 0.0
    },
-   "max_abs_gap": 5.1468360565219e-08,
+   "max_abs_gap": 1.0293672352479008e-07,
    "max_true_error": 0.0033344736695288812,
    "pass": true,
    "rows": 36
@@ -26,8 +44,8 @@
   {
    "case": "wrong_model_covered_by_provider_constants[backward_euler, scale=None]",
    "constants": {
-    "C_a": 0.060000000000000026,
-    "C_z": 0.10051926163545423
+    "C_a": 0.0600000000000546,
+    "C_z": 0.10051926163554567
    },
    "coordinates": {
     "action_dim": 1,
@@ -41,9 +59,9 @@
      1.0
     ]
    },
-   "max_bound": 0.11630974935082392,
+   "max_bound": 0.11630976723223255,
    "max_true_error": 0.0868847100411143,
-   "min_slack": 0.0008532356953450093,
+   "min_slack": 0.0008532362221810683,
    "pass": true,
    "rows": 9,
    "unscaled_norms": {
@@ -54,8 +72,8 @@
   {
    "case": "wrong_model_covered_by_provider_constants[backward_euler, scale=(2.0, 0.5)]",
    "constants": {
-    "C_a": 0.4800000000000002,
-    "C_z": 0.3262858073217678
+    "C_a": 0.4800000000004368,
+    "C_z": 0.32628580732206464
    },
    "coordinates": {
     "action_dim": 1,
@@ -69,9 +87,9 @@
      0.5
     ]
    },
-   "max_bound": 0.21838563310944387,
+   "max_bound": 0.21838566382902735,
    "max_true_error": 0.1435262123576719,
-   "min_slack": 0.0017416719687582218,
+   "min_slack": 0.0017416719687593464,
    "pass": true,
    "rows": 9,
    "unscaled_norms": {
@@ -82,8 +100,8 @@
   {
    "case": "wrong_model_covered_by_provider_constants[noisy_action, scale=None]",
    "constants": {
-    "C_a": 0.060000000000000026,
-    "C_z": 0.10051926163545423
+    "C_a": 0.0600000000000546,
+    "C_z": 0.10051926163554567
    },
    "coordinates": {
     "action_dim": 1,
@@ -97,9 +115,9 @@
      1.0
     ]
    },
-   "max_bound": 0.116277721702927,
+   "max_bound": 0.11627773958433579,
    "max_true_error": 0.09245421433033205,
-   "min_slack": 0.0008663364641781916,
+   "min_slack": 0.0008663364641784601,
    "pass": true,
    "rows": 36,
    "unscaled_norms": {
@@ -110,8 +128,8 @@
   {
    "case": "wrong_model_covered_by_provider_constants[noisy_action, scale=(2.0, 0.5)]",
    "constants": {
-    "C_a": 0.4800000000000002,
-    "C_z": 0.3262858073217678
+    "C_a": 0.4800000000004368,
+    "C_z": 0.32628580732206464
    },
    "coordinates": {
     "action_dim": 1,
@@ -125,9 +143,9 @@
      0.5
     ]
    },
-   "max_bound": 0.22422068156055244,
+   "max_bound": 0.22422071228014015,
    "max_true_error": 0.1546711820809267,
-   "min_slack": 0.0021396419828781854,
+   "min_slack": 0.0021396419828788047,
    "pass": true,
    "rows": 36,
    "unscaled_norms": {
@@ -141,12 +159,12 @@
     "classification": "conditional",
     "rows": 36,
     "violated_rows": 10,
-    "worst_shortfall": 0.004868571097325742
+    "worst_shortfall": 0.004868570570490053
    },
    "forged_certified_zero": {
     "audit": [
-     "constant C_a 0.0 does not match its provider's recomputation 0.060000000000000026",
-     "constant C_z 0.0 does not match its provider's recomputation 0.10051926163545423"
+     "constant C_a 0.0 does not match its provider's recomputation 0.0600000000000546",
+     "constant C_z 0.0 does not match its provider's recomputation 0.10051926163554567"
     ],
     "structure": [],
     "violated_rows": 10
@@ -162,7 +180,7 @@
    "inside": 18,
    "outside": 18,
    "pass": true,
-   "radius": 0.01587118264703288
+   "radius": 0.01587118264703291
   },
   {
    "case": "admission_is_separate_from_classification",
@@ -175,7 +193,7 @@
    "score_mode": {
     "admissible": 27,
     "is_upper_bound": 0,
-    "threshold": 0.0225547904074031
+    "threshold": 0.022554790407403772
    },
    "upper_bound_mode": {
     "admissible": 0,
@@ -193,13 +211,13 @@
    },
    "pass": true,
    "selected": 7,
-   "selection_threshold": 0.005288309932616161,
-   "threshold": 0.011122775093891977
+   "selection_threshold": 0.00528831123730091,
+   "threshold": 0.01112277647763884
   },
   {
    "case": "profile_terms_round_trip_and_audit",
    "falsified_term_audit": [
-    "row 0: persisted anchor_action_norm 0.019999999552965164 != recomputed 0.03999999910593033"
+    "row 0: persisted anchor_action_norm 0.019999999552965164 != recomputed 0.03999999910593033 (tolerance 1e-12)"
    ],
    "non_required_nan": {
     "continuity_supported": 0,
@@ -283,14 +301,14 @@
     "declared_constant_with_provenance": "SchemaError: rules=['descriptor']: a declared constant has no provenance",
     "integer_selected_mask": "SchemaError: rules=['dtype']: selected dtype int64 is not bool",
     "is_upper_bound_inconsistent": "SchemaError: rules=['admissible', 'is_upper_bound']: is_upper_bound must be true exactly for certified, conditional, and calibrated rows",
-    "missing_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'solver_error', 'state_displacement'] != declared ['action_displacement', 'anchor_model_error', 'sol",
+    "missing_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'demonstration_residual', 'solver_error', 'state_displacement'] != declared ['action_displacement', ",
     "negative_admission_threshold": "SchemaError: rules=['admission']: admission must be {mode: ['upper_bound', 'score'], threshold: null or finite >= 0}",
     "next_major_version": "SchemaError: rules=['format']: major version 2 is not supported (this reader supports 1.x)",
     "rank_2_total": "SchemaError: rules=['rank']: total_error_value has shape (36, 1); expected rank 1 ('N',)",
     "row_count_mismatch": "SchemaError: rules=['shape']: selected axis 0 (N) is 35, expected 36",
     "scale_of_wrong_length": "SchemaError: rules=['descriptor']: coordinates must be {modality, state_dim, action_dim, state_scale, action_scale} with positive finite scales of the stated dimensions",
     "selection_threshold_without_quantile": "SchemaError: rules=['selection']: selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0}, with no threshold without a quantile",
-    "undeclared_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'anchor_model_error', 'extra', 'solver_error', 'state_displacement'] != declared ['action_displaceme",
+    "undeclared_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'anchor_model_error', 'demonstration_residual', 'extra', 'solver_error', 'state_displacement'] != de",
     "unknown_array_field": "SchemaError: rules=['format']: unknown field 'extra'",
     "unknown_meta_field": "SchemaError: rules=['format']: unknown meta fields ['note']",
     "writer_integer_mask": "SchemaError: rules=['dtype']: is_upper_bound dtype int64 is not bool"
@@ -312,34 +330,469 @@
     "threshold_nan": "InterfaceError: the admission threshold must be finite and >= 0 or None, got nan",
     "threshold_negative": "InterfaceError: the admission threshold must be finite and >= 0 or None, got -1.0",
     "unknown_admission": "InterfaceError: admission must be 'upper_bound' or 'score', got 'maybe'",
-    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy']"
+    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy', 'model_lipschitz', 'reference_lipschitz', 'reference_residual']"
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-7ca071106fde/labels/certificates.npz",
-   "candidates_sha256": "523da765c9c9f0c62d9b1bbdeaff595d4db1f0724f3c32e1f718c4f7d939bec2",
+   "artifact": "<out>/pipeline/runs/labels-certify-a093ed7764a3/labels/certificates.npz",
+   "candidates_sha256": "f97e29f2e48acaac4158cf869265d08d34d86661887fcdcab851454bf91b0f78",
    "case": "pipeline_certify_stage",
    "constants": {
-    "C_a": 1.7700020473863066e-07,
-    "C_z": 1.392637961919041e-06
+    "C_a": 1.7700020473879167e-07,
+    "C_z": 1.3926379619203078e-06
    },
-   "min_slack_vs_true": -1.1666367284999377e-08,
+   "min_slack_vs_true": 5.387470366322749e-09,
    "pass": true,
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-f6e96fc0552e": "complete",
-    "labels-certify-78d6350de373": "complete",
-    "labels-certify-7ca071106fde": "complete",
-    "labels-certify-7ed7cd50e740": "complete",
-    "labels-generate-48eaa5bab034": "complete",
-    "transition-fit-e7e7316cb5a8": "complete"
+    "data-prepare-8b9349ded94f": "complete",
+    "labels-certify-20650cc5f9a1": "complete",
+    "labels-certify-2679bf32f85e": "complete",
+    "labels-certify-a093ed7764a3": "complete",
+    "labels-generate-dc0e0342f7a0": "complete",
+    "transition-fit-05870745be55": "complete"
    },
    "usable": 27
+  },
+  {
+   "audit": [
+    "row 0: persisted anchor_model_error 0.0036009973118305474 != recomputed 0.0035999973118305472 (tolerance 5.11e-16)"
+   ],
+   "case": "audit_tolerance_is_row_local",
+   "corrupted_row": 0,
+   "corruption": 1e-06,
+   "extreme_state": 1000000.0001,
+   "pass": true,
+   "previous_global_tolerance": 1.0000010360999732,
+   "term": 0.0035999973118305472
+  },
+  {
+   "case": "backtrack_certified_and_covered[backward_euler]",
+   "constants": {
+    "K_hat_z": 0.11180339887509122,
+    "K_z": 0.10000000000009097
+   },
+   "continuity_comparison": {
+    "max_backtrack_over_continuity": 1.48093712294756,
+    "note": "K_hat_z + K_z >= ||A - A_hat||, so backtrack is never tighter than continuity"
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.1310126434452554,
+    "max_demonstration_residual": 5.1468360565207944e-08,
+    "max_persisted_demonstration_residual": 5.146836186606537e-08,
+    "max_true_error": 0.0868847100411143,
+    "min_slack": 0.0013111119713500074,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "pass": true
+  },
+  {
+   "case": "backtrack_certified_and_covered[exact_preimage]",
+   "constants": {
+    "K_hat_z": 0.11180339887509122,
+    "K_z": 0.10000000000009097
+   },
+   "continuity_comparison": {
+    "max_backtrack_over_continuity": 1.7748240847870582,
+    "note": "K_hat_z + K_z >= ||A - A_hat||, so backtrack is never tighter than continuity"
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.11801798309893603,
+    "max_demonstration_residual": 5.1468360565207944e-08,
+    "max_persisted_demonstration_residual": 5.146836186606537e-08,
+    "max_true_error": 0.07891050421403295,
+    "min_slack": 0.0007312275590236029,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "pass": true
+  },
+  {
+   "K_hat_z": {
+    "wrong": 0.11180339887509122,
+    "wrong_action_x100": 0.11180339887509122
+   },
+   "case": "backtrack_has_no_action_term",
+   "coverage_action_x100": {
+    "covered": true,
+    "max_bound": 6.216665386376239,
+    "max_demonstration_residual": 5.1468360565207944e-08,
+    "max_persisted_demonstration_residual": 5.146836186606537e-08,
+    "max_true_error": 4.731827243993987,
+    "min_slack": 0.001498760462812903,
+    "rows": 9,
+    "violated_rows": 0
+   },
+   "model_action_lipschitz": {
+    "wrong": 0.16000000000014558,
+    "wrong_action_x100": 16.00000000001456
+   },
+   "pass": true,
+   "rows_with_moved_action_unsupported": 3
+  },
+  {
+   "case": "disturbed_action_direct_and_covered[noisy_action]",
+   "constants": {
+    "K_a": 0.10000000000009097,
+    "K_z": 0.10000000000009097
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.11167415713663938,
+    "max_demonstration_residual": 5.1468360565207944e-08,
+    "max_persisted_demonstration_residual": 5.146836186606537e-08,
+    "max_true_error": 0.09245421433033205,
+    "min_slack": 0.00013137854924551704,
+    "rows": 36,
+    "violated_rows": 0
+   },
+   "declared_zero": {
+    "classification": "conditional",
+    "rows": 36,
+    "violated_rows": 9
+   },
+   "max_target_offset": 0.0,
+   "pass": true,
+   "solver_error": {
+    "double_counted_over_direct_max": 1.4701948560650815,
+    "double_counted_over_direct_mean": 1.1365318455198956,
+    "recorded_max": 0.012708028992362255,
+    "rows_positive": 36
+   }
+  },
+  {
+   "case": "disturbed_action_direct_and_covered[noisy_action_preimage]",
+   "constants": {
+    "K_a": 0.10000000000009097,
+    "K_z": 0.10000000000009097
+   },
+   "coverage": {
+    "covered": true,
+    "max_bound": 0.10281213703207871,
+    "max_demonstration_residual": 5.1468360565207944e-08,
+    "max_persisted_demonstration_residual": 5.146836186606537e-08,
+    "max_true_error": 0.08427428521204026,
+    "min_slack": 6.832473731263524e-05,
+    "rows": 36,
+    "violated_rows": 0
+   },
+   "declared_zero": {
+    "classification": "conditional",
+    "rows": 36,
+    "violated_rows": 7
+   },
+   "max_target_offset": 0.0,
+   "pass": true,
+   "solver_error": {
+    "double_counted_over_direct_max": 1.0000006691339283,
+    "double_counted_over_direct_mean": 1.0000002182052887,
+    "recorded_max": 5.228927726626318e-08,
+    "rows_positive": 36
+   }
+  },
+  {
+   "case": "mlp_model_bound_covers_sampled_jacobians",
+   "cases": {
+    "relu, scale=[1.0, 1.0]": {
+     "K_a": 0.3200215362630615,
+     "K_z": 0.3086399036690072,
+     "covered": true,
+     "factors_z": [
+      4.635581185916477,
+      1.5600237556948693,
+      0.042679239431787655
+     ],
+     "max_finite_difference_a": 0.15058898293674636,
+     "max_finite_difference_z": 0.13768322101055902,
+     "max_sampled_jacobian_a": 0.1505890992488897,
+     "max_sampled_jacobian_z": 0.13795900662254096,
+     "naive_violated": false,
+     "naive_weight_product": 3.350824206625952
+    },
+    "relu, scale=[2.0, 0.5]": {
+     "K_a": 2.554515704000264,
+     "K_z": 0.7490768266769715,
+     "covered": true,
+     "factors_z": [
+      5.637792648618788,
+      1.5600237556948693,
+      0.0851698831244198
+     ],
+     "max_finite_difference_a": 1.124821372036462,
+     "max_finite_difference_z": 0.06200398048102098,
+     "max_sampled_jacobian_a": 1.19076847667857,
+     "max_sampled_jacobian_z": 0.1061640562393496,
+     "naive_violated": false,
+     "naive_weight_product": 3.350824206625952
+    },
+    "relu_masked_output, scale=[1.0, 1.0]": {
+     "K_a": 0.3193110253153318,
+     "K_z": 0.30795466219112483,
+     "covered": true,
+     "factors_z": [
+      4.635581185916477,
+      1.5600237556948693,
+      0.04258448310003835
+     ],
+     "max_finite_difference_a": 0.14872925304077705,
+     "max_finite_difference_z": 0.025415499048295223,
+     "max_sampled_jacobian_a": 0.1487291306257248,
+     "max_sampled_jacobian_z": 0.030876065906578733,
+     "naive_violated": false,
+     "naive_weight_product": 3.350824206625952
+    },
+    "relu_masked_output, scale=[2.0, 0.5]": {
+     "K_a": 2.5544882025226543,
+     "K_z": 0.7490687622444276,
+     "covered": true,
+     "factors_z": [
+      5.637792648618788,
+      1.5600237556948693,
+      0.0851689662000767
+     ],
+     "max_finite_difference_a": 1.2368151342529135,
+     "max_finite_difference_z": 0.05452145397992185,
+     "max_sampled_jacobian_a": 1.1898330450057983,
+     "max_sampled_jacobian_z": 0.10602634356892933,
+     "naive_violated": false,
+     "naive_weight_product": 3.350824206625952
+    },
+    "relu_milli_action_units, scale=[1.0, 1.0]": {
+     "K_a": 320.01607175445827,
+     "K_z": 0.3086348841269777,
+     "covered": true,
+     "factors_z": [
+      4.635556085984987,
+      1.5599972953865555,
+      0.04267950031810989
+     ],
+     "max_finite_difference_a": 141.467154291167,
+     "max_finite_difference_z": 0.1279875580524185,
+     "max_sampled_jacobian_a": 150.58182442704478,
+     "max_sampled_jacobian_z": 0.13794512454081914,
+     "naive_violated": true,
+     "naive_weight_product": 3.3508253585223806
+    },
+    "relu_milli_action_units, scale=[2.0, 0.5]": {
+     "K_a": 2554.470997920293,
+     "K_z": 0.7490577745186686,
+     "covered": true,
+     "factors_z": [
+      5.637712816811219,
+      1.5599972953865555,
+      0.08517036751516119
+     ],
+     "max_finite_difference_a": 1135.3713208072036,
+     "max_finite_difference_z": 0.0656332115885167,
+     "max_sampled_jacobian_a": 1190.7155908944214,
+     "max_sampled_jacobian_z": 0.106166463648412,
+     "naive_violated": true,
+     "naive_weight_product": 3.3508253585223806
+    },
+    "spectral_relu, scale=[1.0, 1.0]": {
+     "K_a": 0.0121212771808313,
+     "K_z": 0.012145928097899467,
+     "covered": true,
+     "factors_z": [
+      0.9668761380188841,
+      0.500048849869859,
+      0.02512160778875884
+     ],
+     "max_finite_difference_a": 0.006531005599633417,
+     "max_finite_difference_z": 0.011579133832855748,
+     "max_sampled_jacobian_a": 0.006530246225213762,
+     "max_sampled_jacobian_z": 0.01157914168623855,
+     "naive_violated": false,
+     "naive_weight_product": 0.12546455991459493
+    },
+    "spectral_relu, scale=[2.0, 0.5]": {
+     "K_a": 0.07582699231572074,
+     "K_z": 0.025238949707598084,
+     "covered": true,
+     "factors_z": [
+      1.2846829444330135,
+      0.500048849869859,
+      0.0392882683140269
+     ],
+     "max_finite_difference_a": 0.052245713073152865,
+     "max_finite_difference_z": 0.005648781012896906,
+     "max_sampled_jacobian_a": 0.05224094306792815,
+     "max_sampled_jacobian_z": 0.005828034298142712,
+     "naive_violated": false,
+     "naive_weight_product": 0.12546455991459493
+    },
+    "tanh, scale=[1.0, 1.0]": {
+     "K_a": 0.2607396806160166,
+     "K_z": 0.2587393421020144,
+     "covered": true,
+     "factors_z": [
+      4.143620831039186,
+      1.4850915452625375,
+      0.04204644052997142
+     ],
+     "max_finite_difference_a": 0.12985934742482938,
+     "max_finite_difference_z": 0.12499477457237618,
+     "max_sampled_jacobian_a": 0.1301765477917756,
+     "max_sampled_jacobian_z": 0.1249639237661649,
+     "naive_violated": false,
+     "naive_weight_product": 2.728599584507139
+    },
+    "tanh, scale=[2.0, 0.5]": {
+     "K_a": 2.0455737546925743,
+     "K_z": 0.5288545477327998,
+     "covered": true,
+     "factors_z": [
+      4.318229889037331,
+      1.4850915452625375,
+      0.08246644222232388
+     ],
+     "max_finite_difference_a": 1.0362257360750922,
+     "max_finite_difference_z": 0.05309937241666096,
+     "max_sampled_jacobian_a": 1.0411379900968853,
+     "max_sampled_jacobian_z": 0.0574139380237898,
+     "naive_violated": false,
+     "naive_weight_product": 2.728599584507139
+    }
+   },
+   "pass": true,
+   "sampled_points": 2000,
+   "unsupported_activation": "InterfaceError: model_lipschitz: no Lipschitz constant for activation 'gelu'; supported: relu, tanh"
+  },
+  {
+   "case": "spectral_norm_estimates_not_used",
+   "constraint_times_normalization": 0.012600292731540931,
+   "exact_bound": 0.18777432848540554,
+   "layers": [
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 2.0564825949177328,
+     "sigma_hat": -0.37777313590049744
+    },
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 1.36217669447592,
+     "sigma_hat": -0.1541203409433365
+    },
+    {
+     "constraint": 0.5,
+     "exact_effective_norm": 0.6924175933858057,
+     "sigma_hat": -0.0467744916677475
+    }
+   ],
+   "max_sampled_jacobian_z": 0.17901185783908746,
+   "pass": true
+  },
+  {
+   "backtrack": {
+    "audit": [],
+    "classification": "conditional",
+    "constants": {
+     "K_hat_z": {
+      "source": "model_bound",
+      "value": 0.3086399036690072
+     },
+     "K_z": {
+      "source": "analytic_bound",
+      "value": 0.10000000000009097
+     }
+    },
+    "coverage": {
+     "covered": true,
+     "max_bound": 0.07586599221472273,
+     "max_demonstration_residual": 2.2681114167409046e-07,
+     "max_persisted_demonstration_residual": 2.2681114527149156e-07,
+     "max_true_error": 0.014816557523273443,
+     "min_slack": 0.0017948943577473214,
+     "rows": 720,
+     "violated_rows": 0
+    },
+    "model_evaluation": "assumed_exact",
+    "rationale": "product of layer operator norms of the mlp model with normalization and output scales folded in (activation relu); holds for the network in exact real arithmetic, so float32 evaluation and float64 norm rounding are assumptions",
+    "structure": []
+   },
+   "case": "mlp_models_classified_by_what_the_bound_uses",
+   "disturbed_action": {
+    "audit": [],
+    "classification": "certified",
+    "coverage": {
+     "covered": true,
+     "max_bound": 0.040730836276054116,
+     "max_demonstration_residual": 2.2681114167409046e-07,
+     "max_persisted_demonstration_residual": 2.2681114527149156e-07,
+     "max_true_error": 0.016502417866446698,
+     "min_slack": 3.2062137154262576e-05,
+     "rows": 2880,
+     "violated_rows": 0
+    },
+    "structure": []
+   },
+   "pass": true
+  },
+  {
+   "case": "provider_kinds_and_applicability_enforced",
+   "forged_kind_structure": [
+    "constant K_z claims analytic_bound from an unregistered or mismatched provider {'provider': 'model_lipschitz', 'version': '2', 'params': {}, 'inputs': {'transition_model': 'b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3'}}",
+    "model_error_value does not follow from the persisted terms on 9 rows",
+    "total_error_value does not follow from the persisted terms on 9 rows"
+   ],
+   "pass": true,
+   "refused": {
+    "backtrack_on_disturbed_action_labels": "InterfaceError: profile backtrack certifies ['backtrack'] labels; generator 'noisy_action' produces 'disturbed_action'",
+    "discrepancy_provider_for_learned_constant": "InterfaceError: provider 'linear_discrepancy' bounds the discrepancy dynamics; this constant needs a bound on the learned dynamics",
+    "disturbed_action_on_backtrack_labels": "InterfaceError: profile disturbed_action certifies ['disturbed_action'] labels; generator 'backward_euler' produces 'backtrack'",
+    "learned_provider_for_true_constant": "InterfaceError: provider 'model_lipschitz' bounds the learned dynamics; this constant needs a bound on the true dynamics",
+    "missing_demonstration": "InterfaceError: backtrack needs demonstration=Provided('reference_residual', <reference>) or Declared(<bound on every demonstration residual>, <rationale>)",
+    "reference_given_to_model_provider": "InterfaceError: provider 'model_lipschitz' takes no reference artifact",
+    "residual_provider_for_a_constant": "InterfaceError: provider 'reference_residual' bounds the demonstration dynamics; this constant needs a bound on the learned dynamics"
+   }
+  },
+  {
+   "case": "pipeline_theorem_profiles",
+   "pass": true,
+   "runs": {
+    "backtrack": {
+     "classification": [
+      "certified"
+     ],
+     "coverage": {
+      "covered": true,
+      "max_bound": 0.01483383108145322,
+      "max_demonstration_residual": 5.1468360565207944e-08,
+      "max_persisted_demonstration_residual": 5.146836186606537e-08,
+      "max_true_error": 0.002999990854506757,
+      "min_slack": 0.0007889339648698033,
+      "rows": 9,
+      "violated_rows": 0
+     },
+     "run": "labels-certify-5b0e7ace0bb9",
+     "status": "complete"
+    },
+    "disturbed_action": {
+     "classification": [
+      "certified"
+     ],
+     "coverage": {
+      "covered": true,
+      "max_bound": 0.019482930425053908,
+      "max_demonstration_residual": 5.1468360565207944e-08,
+      "max_persisted_demonstration_residual": 5.146836186606537e-08,
+      "max_true_error": 0.0033829584709624684,
+      "min_slack": 0.00010391611785743639,
+      "rows": 36,
+      "violated_rows": 0
+     },
+     "run": "labels-certify-6f3f591f1b19",
+     "status": "complete"
+    }
+   }
   }
  ],
  "environment": {
-  "code_commit": "307fb8d92d34f7c36262c89230e227577d5b32d9",
+  "code_commit": "b396ef2b84fda3b8fa62a52e49be7613ac237745",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",

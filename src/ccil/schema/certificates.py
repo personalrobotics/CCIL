@@ -8,8 +8,9 @@ classification, is_upper_bound (true exactly for certified, conditional, and
 calibrated rows), whether the label lies in the profile's neighborhood, and
 the admissible and selected masks with independent certificate reasons. The
 file records the profile descriptor (form, terms, constants with their
-sources and provenance, neighborhood, coordinates and scales, derived units,
-assumptions), the admission policy, the selection, the SHA-256 of every input
+sources and provenance, the demonstration residual's source, whether model
+terms are evaluated with an error bound, neighborhood, coordinates and scales,
+derived units, assumptions), the admission policy, the selection, the SHA-256 of every input
 (always the candidates, dataset, and transition model), and the identity of
 the representation and transition model. Training uses
 candidate.accepted & admissible & selected.
@@ -33,6 +34,7 @@ REASON_CODES = ("certificate.unsupported", "certificate.not_upper_bound", "certi
 FORMS = ("additive", "direct", "score")
 SOURCES = ("analytic_bound", "model_bound", "declared")
 ADMISSION_MODES = ("upper_bound", "score")
+MODEL_EVALUATIONS = ("bounded", "assumed_exact")
 # Persisted by every profile, as diagnostics at least.
 GLOBAL_TERMS = ("state_displacement", "action_displacement", "anchor_model_error", "solver_error")
 REQUIRED_INPUTS = ("candidates", "dataset", "transition_model")
@@ -60,7 +62,9 @@ FIELDS = [
     ("descriptor", "dict", "profile, version, form (additive, direct, score), terms {name: {definition, units, required}}, "
                            "constants {role: {value, source, maps, rationale, provenance}}, neighborhood {state, action} "
                            "(null = unbounded), coordinates {modality, state_dim, action_dim, state_scale, action_scale}, "
-                           "units, norms, assumptions."),
+                           "model_evaluation (bounded: the model terms are upper bounds; assumed_exact: they assume exact "
+                           "evaluation), demonstration {source, value, rationale, provenance} for profiles that add the "
+                           "demonstration residual, units, norms, assumptions."),
     ("admission", "dict", f"mode {list(ADMISSION_MODES)} and threshold (null or finite >= 0) on total_error_value."),
     ("selection", "dict", "quantile (null or in (0, 1]) and the resulting threshold (null when no quantile or no eligible row)."),
     ("candidates_sha256", "str", "SHA-256 of the candidates file."),
@@ -123,6 +127,23 @@ def _check_descriptor(d, out: Violations) -> dict | None:
                       and isinstance(p["provider"], str) and isinstance(p["version"], str)
                       and isinstance(p["params"], dict) and _sha_map(p["inputs"]) and p["inputs"]):
                 out.add("descriptor", where, "a provided constant needs provenance {provider, version, params, inputs (SHA-256)}")
+    if d.get("model_evaluation") not in MODEL_EVALUATIONS:
+        out.add("descriptor", w, f"model_evaluation must be one of {list(MODEL_EVALUATIONS)}")
+    if "demonstration" in d:
+        dm = d["demonstration"]
+        where = f"{w}.demonstration"
+        if not isinstance(dm, dict) or set(dm) != {"source", "value", "rationale", "provenance"}:
+            out.add("descriptor", where, "demonstration has exactly source, value, rationale, provenance")
+        elif dm["source"] == "declared":
+            if not (_number(dm["value"]) and dm["value"] >= 0) or dm["provenance"] is not None:
+                out.add("descriptor", where, "a declared demonstration bound has a finite value >= 0 and no provenance")
+        elif dm["source"] != "analytic_bound" or dm["value"] is not None or not (
+                isinstance(dm["provenance"], dict) and set(dm["provenance"]) == {"provider", "version", "params", "inputs"}
+                and _sha_map(dm["provenance"]["inputs"]) and dm["provenance"]["inputs"]):
+            out.add("descriptor", where, "a provided demonstration residual is analytic_bound, per row (value null), "
+                                         "with provenance {provider, version, params, inputs (SHA-256)}")
+        if not isinstance(dm, dict) or not isinstance(dm.get("rationale"), str) or not dm.get("rationale"):
+            out.add("descriptor", where, "demonstration needs a rationale")
     nb = d.get("neighborhood")
     if not (isinstance(nb, dict) and set(nb) == {"state", "action"}
             and all(v is None or (_number(v) and v > 0) for v in nb.values())):
