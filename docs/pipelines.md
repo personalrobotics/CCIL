@@ -84,12 +84,13 @@ provide, and claim no image-CCIL parity:
 | Parameter | Choices | Status |
 |---|---|---|
 | `generation.method` | `backward_euler`, `backward_euler_fast`, `forward_euler` (exact preimage), `noisy_action` | Implemented |
-| `generation.method` | `noisy_action_fe`, `backward_model` | Fail with guidance to #22 |
+| `generation.method` | `noisy_action_fe` | Implemented (#22). See [`migration/label-methods.md`](migration/label-methods.md). |
+| `generation.method` | `backward_model` | Fails with guidance to #22 |
 | `transition_model.kind` | `linear` | Implemented |
 | `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |
 | `policy.method` | `ccil`, `bc` | Implemented |
-| `policy.method` | `noise_bc` | Arrives in M3 |
+| `policy.method` | `noise_bc` | The input perturbation is implemented (`ccil.training.noise_bc`, #22). Training integration arrives with #89. |
 
 ## Evidence
 

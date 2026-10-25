@@ -200,7 +200,7 @@ def read_trajectories(path) -> TrajectoryDataset:
 # --- candidates -----------------------------------------------------------
 CAND_REQUIRED = {"source_episode_id", "source_frame", "actions", "accepted", "reasons", "weight"}
 CAND_OPTIONAL: set = set()
-CAND_META = ("run_id", "generator", "reason_codes", "seed", "inputs", "weighting")  # CandidateSet attributes in meta
+CAND_META = ("run_id", "generator", "reason_codes", "seed", "inputs", "weighting", "measurement_specs")  # CandidateSet attributes in meta; measurement_specs only when set
 
 
 def write_candidates(cands: CandidateSet, path, validate: bool = True) -> None:
@@ -213,7 +213,10 @@ def write_candidates(cands: CandidateSet, path, validate: bool = True) -> None:
     arrays.update({f"meas/{k}": v for k, v in cands.measurements.items()})
     meta = {k: getattr(cands, k) for k in CAND_META}
     meta["reason_codes"] = list(meta["reason_codes"])
-    arrays["meta"] = _meta(labels.SCHEMA, labels.file_version(meta["reason_codes"]), CAND_OPTIONAL, **meta)
+    if meta["measurement_specs"] is None:
+        del meta["measurement_specs"]  # files without specs keep their 2.0 / 2.1 bytes
+    version = labels.file_version(meta["reason_codes"], meta.get("measurement_specs"))
+    arrays["meta"] = _meta(labels.SCHEMA, version, CAND_OPTIONAL, **meta)
     _atomic_savez(path, arrays)
 
 
@@ -234,5 +237,6 @@ def read_candidates(path, dataset: TrajectoryDataset | None = None) -> Candidate
         target_observations={k[7:]: z[k] for k in z if k.startswith("target/")},
         accepted=z["accepted"], reasons=z["reasons"], weight=z["weight"], seed=meta.get("seed"),
         inputs=meta.get("inputs"), weighting=meta.get("weighting"), reason_codes=tuple(codes),
-        measurements={k[5:]: z[k] for k in z if k.startswith("meas/")})
+        measurements={k[5:]: z[k] for k in z if k.startswith("meas/")},
+        measurement_specs=meta.get("measurement_specs"))
     return cands.validate(dataset)

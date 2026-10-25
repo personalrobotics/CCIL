@@ -17,7 +17,9 @@ exactly when no column, built-in or extension, rejects the row.
 
 2.0 made weight, seed, inputs, and weighting required (1.0 had none of them).
 2.1 added extension reason codes; a file declares 2.1 only when it uses one, so
-files with built-in reasons alone stay 2.0.
+files with built-in reasons alone stay 2.0. 2.2 added the optional
+measurement_specs, the definition, norm, and units of every measurement, and the
+generator's full params; a file declares 2.2 only when it carries specs.
 """
 from __future__ import annotations
 
@@ -35,7 +37,7 @@ from .trajectories import MODALITY, TrajectoryDataset
 CANDIDATE_MODALITY = re.compile(r"^(?:(state|image)(\.[a-z0-9_]+)?|latent\.[a-z0-9_]+)$")
 
 SCHEMA = "ccil.candidates"
-VERSION = (2, 1)
+VERSION = (2, 2)
 REASON_CODES = ("non_finite", "out_of_support", "generation_failed", "action_out_of_bounds")
 EXTENSION_REASON = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 RESERVED_NAMESPACES = ("ccil",)
@@ -60,9 +62,11 @@ def canonical_reason_order(codes) -> tuple:
     return tuple(c for c in REASON_CODES if c in codes) + tuple(sorted(c for c in codes if c not in REASON_CODES))
 
 
-def file_version(codes) -> tuple:
-    """The lowest version that can hold these reason codes."""
-    return VERSION if any(c not in REASON_CODES for c in codes) else (2, 0)
+def file_version(codes, measurement_specs=None) -> tuple:
+    """The lowest version that can hold these reason codes and measurement specs."""
+    if measurement_specs is not None:
+        return (2, 2)
+    return (2, 1) if any(c not in REASON_CODES for c in codes) else (2, 0)
 
 SOURCE_EPISODE = ArraySpec("source_episode_id", "str", ("N",), "-", "Episode the candidate perturbs.")
 SOURCE_FRAME = ArraySpec("source_frame", "int", ("N",), "frames", "Transition index t in the source episode (t <= T-2).")
@@ -76,10 +80,11 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, ACTIONS, ACCEPTED, REASONS, MEASUREMENT, WEIGHT]
 FIELDS = [
     ("run_id", "str", "Identifier of the run that produced the candidates."),
-    ("generator", "dict", "name, version, and params_hash of the generator."),
+    ("generator", "dict", "name, version, and params_hash of the generator; optionally params, its full parameters."),
     ("seed", "int", "Seed the generator drew its randomness from."),
     ("inputs", "dict[str, str]", "SHA-256 (64 lowercase hex) of each input by name; always includes transition_model, the model checkpoint the labels came from."),
     ("weighting", "dict", "name, version, and params of the weighting that produced weight."),
+    ("measurement_specs", "dict | None", "Optional (2.2): for every measurement name, its definition, norm (or null), and units."),
     ("reason_codes", "tuple[str]", f"Column labels of reasons, distinct and in canonical order: built-ins {list(REASON_CODES)} first, then extension codes <namespace>.<reason> sorted."),
     ("observations", "dict[str, array (N, ...)]", "Candidate observation per modality: a trajectory modality, or latent.<name> for labels in a learned representation."),
     ("target_observations", "dict[str, array (N, ...)]", "Observation the candidate action should reach, per modality."),
@@ -103,6 +108,7 @@ class CandidateSet:
     weighting: dict
     reason_codes: tuple = REASON_CODES
     measurements: dict = field(default_factory=dict)
+    measurement_specs: dict | None = None
 
     def validate(self, dataset: TrajectoryDataset | None = None) -> "CandidateSet":
         """Raise SchemaError listing every violation; with dataset, also check source identity."""
@@ -112,6 +118,8 @@ class CandidateSet:
         if not isinstance(self.generator, dict) or any(
                 not isinstance(self.generator.get(k), str) or not self.generator.get(k) for k in ("name", "version", "params_hash")):
             out.add("generator", "candidates", "generator needs non-empty string name, version, and params_hash")
+        if isinstance(self.generator, dict) and "params" in self.generator and not isinstance(self.generator["params"], dict):
+            out.add("generator", "candidates", "generator params, when present, must be a dict")
         if type(self.seed) is not int:
             out.add("seed", "candidates", f"seed must be an int, got {type(self.seed).__name__}")
         if not isinstance(self.inputs, dict) or "transition_model" not in self.inputs or any(
@@ -166,6 +174,20 @@ class CandidateSet:
         if isinstance(self.observations, dict) and isinstance(self.target_observations, dict) \
                 and set(self.observations) != set(self.target_observations):
             out.add("modality_mismatch", "candidates", "observations and target_observations need the same modalities")
+        if self.measurement_specs is not None:
+            specs = self.measurement_specs
+            names = set(self.measurements) if isinstance(self.measurements, dict) else set()
+            if not isinstance(specs, dict) or set(specs) != names:
+                out.add("measurement_specs", "candidates", "measurement_specs must name exactly the measurements "
+                                                           f"{sorted(names)}")
+            else:
+                for name, spec in specs.items():
+                    if not (isinstance(spec, dict) and set(spec) == {"definition", "norm", "units"}
+                            and isinstance(spec["definition"], str) and spec["definition"]
+                            and isinstance(spec["units"], str) and spec["units"]
+                            and (spec["norm"] is None or isinstance(spec["norm"], str))):
+                        out.add("measurement_specs", f"measurement_specs[{name}]",
+                                "needs a non-empty definition and units, and a norm string or null")
         if not isinstance(self.measurements, dict):
             out.add("structure", "candidates", "measurements must be a dict")
         else:
@@ -200,4 +222,5 @@ class CandidateSet:
             actions=self.actions[m], target_observations={k: v[m] for k, v in self.target_observations.items()},
             accepted=self.accepted[m], reasons=self.reasons[m], weight=self.weight[m], seed=self.seed,
             inputs=dict(self.inputs), weighting=copy.deepcopy(self.weighting), reason_codes=tuple(self.reason_codes),
-            measurements={k: v[m] for k, v in self.measurements.items()}).validate()
+            measurements={k: v[m] for k, v in self.measurements.items()},
+            measurement_specs=copy.deepcopy(self.measurement_specs)).validate()

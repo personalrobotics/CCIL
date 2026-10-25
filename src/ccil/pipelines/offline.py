@@ -14,7 +14,7 @@ import numpy as np
 from ..config import ConfigError
 from ..config.params import mlp_settings_problem
 from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
-                    IdentityRepresentation, ModelResidual, NoisyAction, SupportRadius, Uniform, generate_labels,
+                    IdentityRepresentation, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
                     load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
@@ -33,6 +33,10 @@ def build_generator(v):
         return ExactPreimage(max_iterations=v["generation.max_iterations"] or 50, tolerance=v["generation.root_tolerance"])
     if method == "noisy_action":
         return NoisyAction(v["generation.labels_per_transition"], v["generation.action_noise_std"])
+    if method == "noisy_action_fe":
+        return NoisyActionPreimage(v["generation.labels_per_transition"], v["generation.action_noise_std"],
+                                   max_iterations=v["generation.max_iterations"] or 50,
+                                   tolerance=v["generation.root_tolerance"])
     raise ConfigError([f"generation.method {method!r} is not available yet; it is ported in #22"])
 
 
@@ -68,8 +72,10 @@ def preflight(cfg) -> None:
         errors.append("data.path is required")
     if v["generation.method"] is None:
         errors.append("generation.method is required")
-    if v["generation.method"] == "noisy_action" and not (v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
-        errors.append("generation.method noisy_action requires generation.labels_per_transition and generation.action_noise_std")
+    if v["generation.method"] in ("noisy_action", "noisy_action_fe") and not (
+            v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
+        errors.append(f"generation.method {v['generation.method']} requires generation.labels_per_transition and "
+                      "generation.action_noise_std")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")

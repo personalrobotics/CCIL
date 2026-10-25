@@ -20,8 +20,9 @@
    other versions or components, and non-checkpoints raise CheckpointError,
    while an unavailable device surfaces as the model's own error.
 8. A custom validator with a namespaced reason (example.low_confidence) writes
-   a complete run whose candidates (version 2.1) reload with the same reason
-   order and row assignments; built-in-only files stay 2.0. Malformed reason
+   a complete run whose candidates reload with the same reason order and row
+   assignments (2.2: generated files carry measurement specs, #22); a
+   built-in-only file without specs is still written as 2.0. Malformed reason
    declarations, from validators or in a candidate set, fail before any
    artifact is written.
 Writes DIR/report.json.
@@ -347,6 +348,7 @@ def main():
     class LowConfidence:
         """Rejects candidates whose action norm exceeds 0.1; a stand-in for a method-specific test."""
         reason = "example.low_confidence"
+        measurement_specs = {"example.action_norm": {"definition": "||a_G||", "norm": "l2", "units": "action units"}}
 
         def check(self, batch, cands, model):
             norm = np.linalg.norm(cands.a, axis=1)
@@ -363,16 +365,24 @@ def main():
         ext_version = json.loads(str(z["meta"]))["version"]
     with np.load(out / "batch-noisy_action-None.npz", allow_pickle=False) as z:
         builtin_version = json.loads(str(z["meta"]))["version"]
+    # A built-in run carries measurement specs (2.2, #22); without specs it is written exactly as 2.0.
+    bare = copy.copy(read_candidates(out / "batch-noisy_action-None.npz"))
+    bare.measurement_specs = None
+    write_candidates(bare, out / "builtin-without-specs.npz")
+    with np.load(out / "builtin-without-specs.npz", allow_pickle=False) as z:
+        bare_meta = json.loads(str(z["meta"]))
     col = ext_back.reason_codes.index("example.low_confidence")
     norm = np.linalg.norm(ext_back.actions.astype(np.float64), axis=1)
     record("namespaced_reason_round_trips_through_a_run",
-           ext_back.reason_codes == REASON_CODES + ("example.low_confidence",) and ext_version == "2.1"
-           and builtin_version == "2.0" and np.array_equal(ext_back.reasons, ext.reasons)
+           ext_back.reason_codes == REASON_CODES + ("example.low_confidence",) and ext_version == "2.2"
+           and builtin_version == "2.2" and bare_meta["version"] == "2.0" and "measurement_specs" not in bare_meta
+           and np.array_equal(ext_back.reasons, ext.reasons)
            and np.array_equal(ext_back.reasons[:, col], norm > 0.1) and ext_back.reasons[:, col].any()
            and np.array_equal(ext_back.accepted, ~ext_back.reasons.any(axis=1))
            and validate_run(out / "runs" / "analytic-extension")[0] == "complete",
            artifact="<out>/runs/analytic-extension/labels/candidates.npz", reason_codes=list(ext_back.reason_codes),
            file_version=ext_version, builtin_only_file_version=builtin_version,
+           builtin_without_specs_file_version=bare_meta["version"],
            rows_by_reason={c: int(ext_back.reasons[:, i].sum()) for i, c in enumerate(ext_back.reason_codes)},
            accepted=int(ext_back.accepted.sum()), candidates=int(len(ext_back.accepted)))
 
