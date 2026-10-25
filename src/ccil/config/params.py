@@ -9,6 +9,8 @@ from .spec import Param
 D = "declared"
 LIPSCHITZ = ("none", "spectral_normalization", "slack", "spectral_normalization_slack", "soft_sampling",
              "soft_sampling_slack", "soft_jac")
+CERTIFICATE_PROFILES = ("continuity", "backtrack", "disturbed_action", "backtrack_paper_proxy",
+                        "disturbed_action_paper_proxy", "legacy_label_filtering")
 METHODS = ("backward_euler", "backward_euler_fast", "forward_euler", "noisy_action", "noisy_action_fe", "backward_model")
 
 PARAMS = [
@@ -101,15 +103,6 @@ PARAMS = [
           "Add action chunks of this size to every label: the label action, then the demonstration's continuation.",
           "Legacy aug.chunk_size (label-filtering), whose inverted condition ignored a configured value (#22).",
           "generation", units="actions", low=1, nullable=True, legacy=("aug.chunk_size",)),
-    Param("generation.max_label_error", "float", None, "Reject labels whose estimated error exceeds this.",
-          "Legacy aug.max_label_err (label-filtering). The estimate is the generator's CCIL definition (BackTrack or "
-          "DisturbedAction, #22); requires generation.model_error_threshold.", "generation",
-          units="representation units", low=0.0, low_open=True, nullable=True, legacy=("aug.max_label_err",)),
-    Param("generation.label_error_quantile", "float", None,
-          "Keep labels whose estimated error is at most this quantile of the produced candidates' estimates.",
-          "Legacy aug.label_err_quantile (label-filtering); 0.3 in its pendulum configs. Taken over produced labels whose "
-          "anchors pass generation.model_error_threshold, which it requires.", "generation", low=0.0,
-          low_open=True, high=1.0, nullable=True, legacy=("aug.label_err_quantile",)),
     Param("generation.model_error_threshold", "float", None,
           "Reject the candidates of transitions whose one-step model error is not below this.",
           "Legacy aug.model_err_thresh (label-filtering).", "generation", units="representation units", low=0.0,
@@ -117,6 +110,55 @@ PARAMS = [
     Param("generation.support_radius", "float", None, "Labels farther than this from the demonstration state are rejected.",
           "aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check.", "generation",
           units="state units", low=0.0, low_open=True, nullable=True, legacy=("aug.epsilon",)),
+    # certificate (#88) ------------------------------------------------------
+    Param("certificate.profile", "choice", None, "Certify the labels with this profile (labels.certify); null skips it.",
+          "Replaces the label-filtering estimate (#88). Bound profiles: continuity, backtrack, disturbed_action. "
+          "Score profiles: backtrack_paper_proxy, disturbed_action_paper_proxy, legacy_label_filtering.",
+          "certificate", choices=CERTIFICATE_PROFILES, nullable=True),
+    Param("certificate.reference_dynamics", "path", None,
+          "ccil.reference-dynamics file of the true dynamics: the source of analytic constants and demonstration residuals.",
+          "Known only for analytic systems; without it the true constants and the demonstration residual bound are "
+          "declared, and the certificate is conditional.", "certificate", nullable=True),
+    Param("certificate.true_state_lipschitz", "float", None, "Declared state Lipschitz constant K_z of the true dynamics.",
+          "An assumption, recorded as such (conditional); used without certificate.reference_dynamics.", "certificate",
+          units="error per scaled state", low=0.0, nullable=True),
+    Param("certificate.true_action_lipschitz", "float", None, "Declared action Lipschitz constant K_a of the true dynamics.",
+          "An assumption, recorded as such (conditional); used without certificate.reference_dynamics.", "certificate",
+          units="error per scaled action", low=0.0, nullable=True),
+    Param("certificate.learned_lipschitz_source", "choice", "model", "Source of the learned state constant K_hat_z.",
+          "model computes it from the frozen checkpoint (verified for linear models, conditional for MLPs); declared "
+          "uses certificate.learned_state_lipschitz.", "certificate", choices=("model", "declared")),
+    Param("certificate.learned_state_lipschitz", "float", None, "Declared state Lipschitz constant K_hat_z of the model.",
+          "Used when certificate.learned_lipschitz_source is declared.", "certificate", units="error per scaled state",
+          low=0.0, nullable=True),
+    Param("certificate.discrepancy_state_lipschitz", "float", None,
+          "Declared state constant C_z of the continuity profile (variation of f - f_hat).",
+          "Used by continuity unless the reference dynamics and a linear model give it exactly.", "certificate",
+          units="error per scaled state", low=0.0, nullable=True),
+    Param("certificate.discrepancy_action_lipschitz", "float", None,
+          "Declared action constant C_a of the continuity profile (variation of f - f_hat).",
+          "Used by continuity unless the reference dynamics and a linear model give it exactly.", "certificate",
+          units="error per scaled action", low=0.0, nullable=True),
+    Param("certificate.demonstration_residual_bound", "float", None,
+          "Declared bound on every demonstration residual ||T(z_t, a_t) - z_{t+1}||.",
+          "Bound profiles add the residual once; without certificate.reference_dynamics it must be declared.",
+          "certificate", units="scaled state", low=0.0, nullable=True),
+    Param("certificate.neighborhood_state", "float", None, "Labels farther than this from their anchor state are unsupported.",
+          "Null: the constants are global.", "certificate", units="scaled state", low=0.0, low_open=True, nullable=True),
+    Param("certificate.neighborhood_action", "float", None, "Labels farther than this from their anchor action are unsupported.",
+          "Null: the constants are global; backtrack keeps the anchor's action and takes none.", "certificate",
+          units="scaled action", low=0.0, low_open=True, nullable=True),
+    Param("certificate.max_total_error", "float", None, "Bound profiles: admit labels whose bound is at most this.",
+          "Admission is upper_bound: only bound rows (certified or conditional) are admitted.", "certificate",
+          units="scaled state", low=0.0, nullable=True),
+    Param("certificate.score_threshold", "float", None, "Score profiles: admit labels whose score is at most this.",
+          "Admission is score: rows stay empirical and are never presented as bounds. Legacy aug.max_label_err.",
+          "certificate", units="scaled state", low=0.0, nullable=True, legacy=("aug.max_label_err",)),
+    Param("certificate.selection_quantile", "float", None,
+          "Select admitted, accepted labels whose total is at most this quantile of theirs.",
+          "A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the "
+          "label-filtering pendulum configs).", "certificate", low=0.0, low_open=True, high=1.0, nullable=True,
+          legacy=("aug.label_err_quantile",)),
     # policy ----------------------------------------------------------------
     Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
           "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
@@ -181,6 +223,60 @@ def _pca_dim(v):
     return None
 
 
+BOUND_PROFILES = ("continuity", "backtrack", "disturbed_action")
+# Generator family each profile certifies, and the family of each generation.method.
+PROFILE_FAMILY = {"backtrack": "backtrack", "backtrack_paper_proxy": "backtrack", "disturbed_action": "disturbed_action",
+                  "disturbed_action_paper_proxy": "disturbed_action"}
+METHOD_FAMILY = {"backward_euler": "backtrack", "backward_euler_fast": "backtrack", "forward_euler": "backtrack",
+                 "noisy_action": "disturbed_action", "noisy_action_fe": "disturbed_action"}
+# Declared-value keys each bound profile reads when no reference dynamics are given.
+CERTIFICATE_DECLARED = {"continuity": ("certificate.discrepancy_state_lipschitz", "certificate.discrepancy_action_lipschitz"),
+                        "backtrack": ("certificate.true_state_lipschitz",),
+                        "disturbed_action": ("certificate.true_state_lipschitz", "certificate.true_action_lipschitz")}
+_VALUE_KEYS = ("certificate.true_state_lipschitz", "certificate.true_action_lipschitz", "certificate.learned_state_lipschitz",
+               "certificate.discrepancy_state_lipschitz", "certificate.discrepancy_action_lipschitz",
+               "certificate.demonstration_residual_bound")
+
+
+def _certificate(v):
+    prof, ref = v["certificate.profile"], v["certificate.reference_dynamics"]
+    settings = [k for k in v if k.startswith("certificate.") and k not in ("certificate.profile",
+                                                                          "certificate.learned_lipschitz_source")
+                and v[k] is not None]
+    if prof is None:
+        return f"{settings} require certificate.profile" if settings else None
+    problems = []
+    family, method = PROFILE_FAMILY.get(prof), v["generation.method"]
+    if family and method in METHOD_FAMILY and METHOD_FAMILY[method] != family:
+        problems.append(f"certificate.profile {prof} certifies {family} labels; generation.method {method} makes "
+                        f"{METHOD_FAMILY[method]} labels")
+    if prof not in BOUND_PROFILES:
+        extra = [k for k in settings if k in _VALUE_KEYS + ("certificate.reference_dynamics", "certificate.max_total_error")]
+        if extra:
+            problems.append(f"score profile {prof} takes no constants, reference, or bound threshold: unset {extra}")
+        return "; ".join(problems) or None
+    if v["certificate.score_threshold"] is not None:
+        problems.append(f"bound profile {prof} admits by certificate.max_total_error, not certificate.score_threshold")
+    if ref is not None and v["certificate.demonstration_residual_bound"] is not None:
+        problems.append("certificate.demonstration_residual_bound is declared, but certificate.reference_dynamics computes "
+                        "the residuals; set one")
+    if ref is None and v["certificate.demonstration_residual_bound"] is None:
+        problems.append(f"{prof} needs certificate.reference_dynamics or certificate.demonstration_residual_bound")
+    exact_discrepancy = prof == "continuity" and ref is not None and v["transition_model.kind"] == "linear"
+    needed = () if (ref is not None and prof != "continuity") or exact_discrepancy else CERTIFICATE_DECLARED[prof]
+    if prof == "backtrack" and v["certificate.learned_lipschitz_source"] == "declared":
+        needed += ("certificate.learned_state_lipschitz",)
+    missing = [k for k in needed if v[k] is None]
+    unused = [k for k in _VALUE_KEYS if k != "certificate.demonstration_residual_bound" and k not in needed and v[k] is not None]
+    if missing:
+        problems.append(f"{prof} without {'exact discrepancy' if prof == 'continuity' else 'reference dynamics'} needs {missing}")
+    if unused:
+        problems.append(f"{prof} does not use {unused} here; unset them")
+    if prof == "backtrack" and v["certificate.neighborhood_action"] is not None:
+        problems.append("backtrack keeps the anchor's action; certificate.neighborhood_action does not apply")
+    return "; ".join(problems) or None
+
+
 # Settings each Lipschitz regularizer reads; legacy WorldModel failed on a missing one only mid-training.
 LIPSCHITZ_NEEDS = {
     "spectral_normalization": ("transition_model.lipschitz_constraint",),
@@ -205,4 +301,6 @@ RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
     ("noise_bc_scale", ("policy.method", "policy.noise_scale"), _noise),
+    ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind"),
+     _certificate),
 ]

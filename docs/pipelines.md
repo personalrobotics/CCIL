@@ -91,7 +91,8 @@ provide, and claim no image-CCIL parity:
 | `generation.method` | `backward_euler`, `backward_euler_fast`, `forward_euler` (exact preimage), `noisy_action` | Implemented |
 | `generation.method` | `noisy_action_fe` | Implemented (#22). See [`migration/label-methods.md`](migration/label-methods.md). |
 | `generation.method` | `backward_model` | Fails with guidance to #22 |
-| `generation.model_error_threshold`, `max_label_error`, `label_error_quantile` | numbers | Implemented (#22). They add `ModelMisfit` and `LabelError`, which uses the generator's BackTrack or DisturbedAction definition. Label-error filtering requires `model_error_threshold`. See [`migration/label-methods.md`](migration/label-methods.md). |
+| `generation.model_error_threshold` | number | Implemented (#22). It adds `ModelMisfit`, the model-error gate. |
+| `certificate.*` | profile, constants, thresholds | Implemented (#88). With `certificate.profile` set, `ccil labels generate` adds the `labels.certify` stage. `generation.max_label_error` and `generation.label_error_quantile` were withdrawn in favour of these keys; see [certificates.md](certificates.md). |
 | `generation.action_chunk_size` | int | Implemented (#22). Adds action chunks: the label action, then the demonstration's continuation, masked at the episode end. Only position 0 carries the one-step claim. See [`migration/label-methods.md`](migration/label-methods.md). |
 | `transition_model.kind` | `linear` | Implemented |
 | `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |

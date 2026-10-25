@@ -1,6 +1,6 @@
 """Offline label generation: trajectories in, labels and a report out.
 
-Stages: data.prepare -> transition.fit -> labels.generate. The accepted rows of
+Stages: data.prepare -> transition.fit -> labels.generate [-> labels.certify, with certificate.profile]. The accepted rows of
 labels/candidates.npz together with the prepared dataset are the augmentation;
 dataset writers (M4) turn them into training data. This module never imports a
 policy trainer or the integrated pipeline.
@@ -13,13 +13,16 @@ import numpy as np
 
 from ..config import ConfigError
 from ..config.params import mlp_settings_problem
+from ..config.params import BOUND_PROFILES
 from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimage, Finite, GenerationFailed,
-                    IdentityRepresentation, LabelError, ModelMisfit, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius, Uniform, generate_labels,
-                    load_transition_model, transition_model_class, transitions)
+                    IdentityRepresentation, ModelMisfit, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius,
+                    Uniform, generate_labels, load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..runs.provenance import sha256
-from ..core.certificates import Sources, certify
+from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
+                                 Sources, certify, read_reference_dynamics)
+from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
 from ..schema import read_candidates, read_trajectories, write_candidates, write_certificates
 from .stages import StageResult, run_stage
@@ -50,14 +53,45 @@ def build_validators(v):
         validators.append(ActionBounds(v["data.action_low"], v["data.action_high"]))
     if v["generation.model_error_threshold"] is not None:
         validators.append(ModelMisfit(v["generation.model_error_threshold"]))
-    if label_error_enabled(v):
-        validators.append(LabelError(build_generator(v).label_error_profile, v["generation.model_error_threshold"],
-                                     v["generation.max_label_error"], v["generation.label_error_quantile"]))
     return validators
 
 
-def label_error_enabled(v) -> bool:
-    return v["generation.max_label_error"] is not None or v["generation.label_error_quantile"] is not None
+REFERENCE = "reference"  # name of certificate.reference_dynamics among the certify stage's references
+
+
+def build_certificate(v) -> tuple:
+    """(profile, certify_stage keyword arguments) from certificate.*; the config rule has checked consistency."""
+    name, ref = v["certificate.profile"], v["certificate.reference_dynamics"]
+
+    def declared(key):
+        return Declared(v[key], f"declared in configuration ({key})")
+
+    def true(key):
+        return Provided("reference_lipschitz", REFERENCE) if ref is not None else declared(key)
+
+    nb = {"neighborhood_state": v["certificate.neighborhood_state"]}
+    if name != "backtrack":
+        nb["neighborhood_action"] = v["certificate.neighborhood_action"]
+    if name in BOUND_PROFILES:
+        demo = Provided("reference_residual", REFERENCE) if ref is not None else declared("certificate.demonstration_residual_bound")
+        if name == "continuity":
+            exact = ref is not None and v["transition_model.kind"] == "linear"
+            c = [Provided("linear_discrepancy", REFERENCE) if exact else declared(k)
+                 for k in ("certificate.discrepancy_state_lipschitz", "certificate.discrepancy_action_lipschitz")]
+            profile = ContinuityProfile(*c, demo, **nb)
+        elif name == "backtrack":
+            learned = (Provided("model_lipschitz") if v["certificate.learned_lipschitz_source"] == "model"
+                       else declared("certificate.learned_state_lipschitz"))
+            profile = BackTrackProfile(learned, true("certificate.true_state_lipschitz"), demo, **nb)
+        else:
+            profile = DisturbedActionProfile(true("certificate.true_state_lipschitz"),
+                                             true("certificate.true_action_lipschitz"), demo, **nb)
+        admission, threshold = "upper_bound", v["certificate.max_total_error"]
+    else:
+        profile = PROFILES[name](**nb)
+        admission, threshold = "score", v["certificate.score_threshold"]
+    return profile, {"admission": admission, "threshold": threshold, "selection_quantile": v["certificate.selection_quantile"],
+                     "references": {REFERENCE: Path(ref)} if ref is not None else {}}
 
 
 def build_model(v):
@@ -87,10 +121,12 @@ def preflight(cfg) -> None:
             v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
         errors.append(f"generation.method {v['generation.method']} requires generation.labels_per_transition and "
                       "generation.action_noise_std")
-    if label_error_enabled(v) and v["generation.model_error_threshold"] is None:
-        errors.append("label-error filtering (generation.max_label_error / label_error_quantile) requires "
-                      "generation.model_error_threshold: the CCIL label-error definitions assume a small anchor model "
-                      "error, which the threshold enforces")
+    ref = v["certificate.reference_dynamics"]
+    if ref is not None:
+        try:
+            read_reference_dynamics(ref)
+        except (OSError, SchemaError) as e:
+            errors.append(f"certificate.reference_dynamics {ref}: {str(e).splitlines()[-1].strip()}")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
@@ -201,7 +237,7 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
 
 
 def generate_offline(cfg) -> list[StageResult]:
-    """Run the offline pipeline; return the three stage results (reused or new)."""
+    """Run the offline pipeline; return the stage results (reused or new), with labels.certify when configured."""
     preflight(cfg)
     if cfg["representation.kind"] != "identity":
         raise ConfigError(["offline generation uses representation.kind=identity; learned representations are "
@@ -209,4 +245,8 @@ def generate_offline(cfg) -> list[StageResult]:
     representation = IdentityRepresentation(cfg["representation.modality"])
     prepared = prepare_stage(cfg)
     fitted = fit_transition_stage(cfg, prepared, representation)
-    return [prepared, fitted, labels_stage(cfg, prepared, fitted, representation)]
+    labeled = labels_stage(cfg, prepared, fitted, representation)
+    if cfg["certificate.profile"] is None:
+        return [prepared, fitted, labeled]
+    profile, kwargs = build_certificate(cfg.values)
+    return [prepared, fitted, labeled, certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)]

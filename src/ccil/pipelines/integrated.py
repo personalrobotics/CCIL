@@ -86,6 +86,9 @@ def run_integrated(cfg, trainer=None):
         raise ConfigError(["the integrated pipeline fits a learned representation; set representation.kind=pca"])
     if v["policy.method"] == "noise_bc":
         raise ConfigError(["policy.method noise_bc is ported in M3"])
+    if v["certificate.profile"] is not None:
+        raise ConfigError(["certificate.profile: the integrated pipeline's policy stage does not consume certificates "
+                           "yet (#89); certify with ccil labels generate"])
     trainer = trainer or TRAINERS[v["policy.trainer"]]()
     modality, dim = v["representation.modality"], v["representation.dim"]
     results = [prepare_stage(cfg)]

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-from .migrate import read_layer
+from .migrate import WITHDRAWN, read_layer
 from .params import REGISTRY, RULES
 from .spec import ConfigError, coerce, parse_text
 
@@ -90,6 +90,9 @@ def resolve(recipe: str | None = None, config: str | Path | None = None, sets=()
         for key, raw in flat.items():
             p = REGISTRY.get(key)
             if p is None:
+                if key in WITHDRAWN:
+                    errors.append(f"{key} was withdrawn ({source}): {WITHDRAWN[key]}")
+                    continue
                 close = difflib.get_close_matches(key, REGISTRY, n=1)
                 errors.append(f"unknown key {key!r} ({source})" + (f"; did you mean {close[0]!r}?" if close else ""))
                 continue

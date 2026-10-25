@@ -28,6 +28,14 @@ UNSUPPORTED = {
     "state_encoder": "image-observation encoder from the fork image branch; deferred to M5",
     "policy.layers": "policy encoder width from label-filtering; ported with the policy stage in M3",
 }
+# Version 1 keys withdrawn in favour of the certificate layer (#88).
+WITHDRAWN = {
+    "generation.max_label_error": "label-error filtering moved to certificates: set certificate.profile "
+                                  "(legacy_label_filtering for the branch's score) and certificate.score_threshold, or a "
+                                  "bound profile and certificate.max_total_error",
+    "generation.label_error_quantile": "label-error filtering moved to certificates: set certificate.profile and "
+                                       "certificate.selection_quantile",
+}
 RENAMED = {legacy: p.key for p in REGISTRY.values() for legacy in p.legacy
            if legacy not in ("no_gpu", "dynamics.backward", "policy.naive", "policy.noise_bc", "data.pkl", "eval.noise")}
 
@@ -73,6 +81,10 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
             notes.append(f"{key} -> {RENAMED[key]}")
         else:
             errors.append(f"unknown legacy key {key!r}")
+    if "aug.max_label_err" in flat or "aug.label_err_quantile" in flat:
+        values["certificate.profile"] = "legacy_label_filtering"
+        notes.append("aug.max_label_err / aug.label_err_quantile -> certificate.profile legacy_label_filtering "
+                     "(the branch's score, empirical)")
     if "policy.naive" in flat or "policy.noise_bc" in flat:
         naive, noise = flat.get("policy.naive", False), flat.get("policy.noise_bc", 0.0)
         if naive is True and noise:

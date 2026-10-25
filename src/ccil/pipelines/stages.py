@@ -54,7 +54,7 @@ STAGE_KEYS = {
     "transition.fit": ("run.seed", "transition_model.", "representation.modality", "compute."),
     "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
                         "compute."),
-    "labels.certify": ("representation.modality", "compute."),
+    "labels.certify": ("certificate.", "representation.modality", "compute."),
     "policy.train": ("run.seed", "policy."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }

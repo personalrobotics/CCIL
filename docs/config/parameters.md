@@ -69,10 +69,27 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `generation.labels_per_transition` | int | `null` | - | [1, inf] | implemented | Noisy-action candidates per transition. | Task-specific (10 or 20) in legacy configs. | `aug.num_labels` |
 | `generation.action_noise_std` | float | `null` | action units | (0.0, inf] | implemented | Standard deviation of the noisy-action perturbation. | Task-specific in legacy configs. | `aug.delta` |
 | `generation.action_chunk_size` | int | `null` | actions | [1, inf] | implemented | Add action chunks of this size to every label: the label action, then the demonstration's continuation. | Legacy aug.chunk_size (label-filtering), whose inverted condition ignored a configured value (#22). | `aug.chunk_size` |
-| `generation.max_label_error` | float | `null` | representation units | (0.0, inf] | implemented | Reject labels whose estimated error exceeds this. | Legacy aug.max_label_err (label-filtering). The estimate is the generator's CCIL definition (BackTrack or DisturbedAction, #22); requires generation.model_error_threshold. | `aug.max_label_err` |
-| `generation.label_error_quantile` | float | `null` | - | (0.0, 1.0] | implemented | Keep labels whose estimated error is at most this quantile of the produced candidates' estimates. | Legacy aug.label_err_quantile (label-filtering); 0.3 in its pendulum configs. Taken over produced labels whose anchors pass generation.model_error_threshold, which it requires. | `aug.label_err_quantile` |
 | `generation.model_error_threshold` | float | `null` | representation units | (0.0, inf] | implemented | Reject the candidates of transitions whose one-step model error is not below this. | Legacy aug.model_err_thresh (label-filtering). | `aug.model_err_thresh` |
 | `generation.support_radius` | float | `null` | state units | (0.0, inf] | implemented | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
+
+## certificate
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `certificate.profile` | choice | `null` | - | `continuity`, `backtrack`, `disturbed_action`, `backtrack_paper_proxy`, `disturbed_action_paper_proxy`, `legacy_label_filtering` | implemented | Certify the labels with this profile (labels.certify); null skips it. | Replaces the label-filtering estimate (#88). Bound profiles: continuity, backtrack, disturbed_action. Score profiles: backtrack_paper_proxy, disturbed_action_paper_proxy, legacy_label_filtering. | - |
+| `certificate.reference_dynamics` | path | `null` | - | - | implemented | ccil.reference-dynamics file of the true dynamics: the source of analytic constants and demonstration residuals. | Known only for analytic systems; without it the true constants and the demonstration residual bound are declared, and the certificate is conditional. | - |
+| `certificate.true_state_lipschitz` | float | `null` | error per scaled state | [0.0, inf] | implemented | Declared state Lipschitz constant K_z of the true dynamics. | An assumption, recorded as such (conditional); used without certificate.reference_dynamics. | - |
+| `certificate.true_action_lipschitz` | float | `null` | error per scaled action | [0.0, inf] | implemented | Declared action Lipschitz constant K_a of the true dynamics. | An assumption, recorded as such (conditional); used without certificate.reference_dynamics. | - |
+| `certificate.learned_lipschitz_source` | choice | `"model"` | - | `model`, `declared` | implemented | Source of the learned state constant K_hat_z. | model computes it from the frozen checkpoint (verified for linear models, conditional for MLPs); declared uses certificate.learned_state_lipschitz. | - |
+| `certificate.learned_state_lipschitz` | float | `null` | error per scaled state | [0.0, inf] | implemented | Declared state Lipschitz constant K_hat_z of the model. | Used when certificate.learned_lipschitz_source is declared. | - |
+| `certificate.discrepancy_state_lipschitz` | float | `null` | error per scaled state | [0.0, inf] | implemented | Declared state constant C_z of the continuity profile (variation of f - f_hat). | Used by continuity unless the reference dynamics and a linear model give it exactly. | - |
+| `certificate.discrepancy_action_lipschitz` | float | `null` | error per scaled action | [0.0, inf] | implemented | Declared action constant C_a of the continuity profile (variation of f - f_hat). | Used by continuity unless the reference dynamics and a linear model give it exactly. | - |
+| `certificate.demonstration_residual_bound` | float | `null` | scaled state | [0.0, inf] | implemented | Declared bound on every demonstration residual ||T(z_t, a_t) - z_{t+1}||. | Bound profiles add the residual once; without certificate.reference_dynamics it must be declared. | - |
+| `certificate.neighborhood_state` | float | `null` | scaled state | (0.0, inf] | implemented | Labels farther than this from their anchor state are unsupported. | Null: the constants are global. | - |
+| `certificate.neighborhood_action` | float | `null` | scaled action | (0.0, inf] | implemented | Labels farther than this from their anchor action are unsupported. | Null: the constants are global; backtrack keeps the anchor's action and takes none. | - |
+| `certificate.max_total_error` | float | `null` | scaled state | [0.0, inf] | implemented | Bound profiles: admit labels whose bound is at most this. | Admission is upper_bound: only bound rows (certified or conditional) are admitted. | - |
+| `certificate.score_threshold` | float | `null` | scaled state | [0.0, inf] | implemented | Score profiles: admit labels whose score is at most this. | Admission is score: rows stay empirical and are never presented as bounds. Legacy aug.max_label_err. | `aug.max_label_err` |
+| `certificate.selection_quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose total is at most this quantile of theirs. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
 
 ## policy
 
@@ -108,3 +125,4 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 - `pca_dim`: `representation.kind`, `representation.dim`
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `noise_bc_scale`: `policy.method`, `policy.noise_scale`
+- `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`
