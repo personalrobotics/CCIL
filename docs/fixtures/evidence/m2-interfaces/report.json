@@ -137,7 +137,7 @@
     "generator_shape": "BadGen.generate returned a malformed CandidateBatch: z (9, 1), expected float (9, 2)",
     "measuring_validator_rejects": "SneakyMeasure has no reason code but rejected candidates",
     "representation_rank": "BadRep.encode returned (6,) float32 for episode 'slow'; expected float (6, D)",
-    "unknown_reason": "BadReason.reason: 'too_far' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds', 'model_misfit', 'label_error'] nor an extension <namespace>.<reas"
+    "unknown_reason": "BadReason.reason: 'too_far' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\."
    },
    "pass": true,
    "staging_left": []
@@ -212,16 +212,16 @@
     "declared:non_string": "SchemaError: ['reason_codes']",
     "declared:not_a_sequence": "SchemaError: ['reason_codes', 'shape']",
     "declared:not_canonical_order": "SchemaError: ['reason_codes']",
-    "validator:nested_namespace": "InterfaceError: Bad.reason: 'a.b.c' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds', 'model_misfit', 'label_error'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:nested_namespace": "InterfaceError: Bad.reason: 'a.b.c' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
     "validator:non_string": "InterfaceError: Bad.reason: 3 is not a string",
     "validator:reserved_namespace": "InterfaceError: Bad.reason: 'ccil.low' uses the reserved namespace 'ccil'",
-    "validator:unnamespaced_unknown": "InterfaceError: Bad.reason: 'low_confidence' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds', 'model_misfit', 'label_error'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
-    "validator:uppercase_namespace": "InterfaceError: Bad.reason: 'Example.low' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds', 'model_misfit', 'label_error'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+    "validator:unnamespaced_unknown": "InterfaceError: Bad.reason: 'low_confidence' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:uppercase_namespace": "InterfaceError: Bad.reason: 'Example.low' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
    }
   }
  ],
  "environment": {
-  "code_commit": "b98ce850734d8751f07ecb8e2e4838f4fc0f743b",
+  "code_commit": "beca081a4454c669ffe1a268b03cac5448986fc5",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
