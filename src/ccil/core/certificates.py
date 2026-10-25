@@ -531,6 +531,115 @@ class DisturbedActionProfile(Profile):
         return np.full(len(total), np.nan), total
 
 
+JACOBIAN_TERMS = {
+    "state_jacobian_norm": {"definition": "||S_z^-1 J_S f_hat(z_t, a_t) S_z||_2: spectral norm of the exact state "
+                                          "Jacobian at the anchor", "units": "error per scaled state"},
+    "action_jacobian_norm": {"definition": "||S_z^-1 J_A f_hat(z_t, a_t) S_a||_2: spectral norm of the exact action "
+                                           "Jacobian at the anchor", "units": "error per scaled action"},
+    "next_state_jacobian_norm": {"definition": "||[I + S_z^-1 J_S f_hat S_z, S_z^-1 J_A f_hat S_a]||_2 at the anchor: the "
+                                               "next-state map's Jacobian in (z, a)", "units": "error per scaled (state, action)"},
+}
+
+
+def jacobian_terms(model, z, a, state_scale, action_scale) -> dict:
+    """Point Jacobian norms of f_hat at the given anchors, in scaled coordinates.
+
+    They need the model's exact jacobian_za; without one every value is NaN
+    (so a row that requires it is unsupported), never a finite-difference
+    estimate, which vanishes at float32 for large inputs.
+    """
+    n = len(z)
+    fn = getattr(model, "jacobian_za", None)
+    if fn is None:
+        return {k: np.full(n, np.nan) for k in JACOBIAN_TERMS}
+    sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
+    J = np.asarray(fn(z, a), np.float64)
+    d = z.shape[1]
+    Js = J[:, :, :d] * sz[None, None, :] / sz[None, :, None]
+    Ja = J[:, :, d:] * sa[None, None, :] / sz[None, :, None]
+    Jn = np.concatenate([np.eye(d)[None] + Js, Ja], axis=2)
+    return {"state_jacobian_norm": np.linalg.norm(Js, 2, axis=(1, 2)), "action_jacobian_norm": np.linalg.norm(Ja, 2, axis=(1, 2)),
+            "next_state_jacobian_norm": np.linalg.norm(Jn, 2, axis=(1, 2))}
+
+
+class _PointJacobianScore(Profile):
+    """An empirical score from point Jacobians of f_hat at the anchor: not a bound, whatever its value.
+
+    The Jacobians are evaluated at the anchor only and stand in for constants
+    over the neighborhood, and the anchor model error is taken as 0 (the paper
+    restricts labels to anchors with a small model error, which
+    generation.model_error_threshold enforces at generation). Rows are
+    classified empirical, with is_upper_bound false.
+    """
+
+    form, intrinsic = "score", "empirical"
+
+    def __init__(self, neighborhood_state=None, neighborhood_action=None):
+        super().__init__({}, neighborhood_state, neighborhood_action)
+
+    def compute_terms(self, ctx):
+        z, a, _ = _anchor_rows(ctx)
+        terms = jacobian_terms(ctx.model, z, a, ctx.state_scale, ctx.action_scale)
+        return {k: terms[k] for k in self.extra_terms}
+
+    def audit_term(self, name, row):
+        value = float(jacobian_terms(row["model"], row["z_t"], row["a_t"], row["state_scale"], row["action_scale"])[name][0])
+        u = U32 if getattr(row["model"], "evaluation_dtype", "float32") == "float32" else U64
+        d = row["z_t"].shape[1] + row["a_t"].shape[1]
+        # A Jacobian entry accumulates over the network's width; d ulps per entry, AUDIT_ULPS of headroom.
+        return value, AUDIT_ULPS * u * d * abs(value) if np.isfinite(value) else 0.0
+
+
+class BackTrackPaperProxy(_PointJacobianScore):
+    """Ke et al., Def. 4.5 (Eq. 11): E_BT = ||J_S f_hat(z_t, a_t)|| ||z_G - z_t||, an empirical score."""
+
+    name, version = "backtrack_paper_proxy", "1"
+    applies_to = ("backtrack",)
+    extra_terms = {"state_jacobian_norm": JACOBIAN_TERMS["state_jacobian_norm"]}
+    required = ("state_displacement", "state_jacobian_norm")
+    assumptions = ("the point Jacobian at the anchor stands in for the Lipschitz constants", "anchor model error ~ 0")
+
+    def evaluate(self, terms, values):
+        total = terms["state_jacobian_norm"] * terms["state_displacement"]
+        return np.full(len(total), np.nan), total
+
+
+class DisturbedActionPaperProxy(_PointJacobianScore):
+    """Ke et al., Def. 4.6 (Eq. 12): E_DA = ||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t||, a score."""
+
+    name, version = "disturbed_action_paper_proxy", "1"
+    applies_to = ("disturbed_action",)
+    extra_terms = {k: JACOBIAN_TERMS[k] for k in ("state_jacobian_norm", "action_jacobian_norm")}
+    required = ("state_displacement", "action_displacement", "state_jacobian_norm", "action_jacobian_norm")
+    assumptions = ("the point Jacobians at the anchor stand in for the Lipschitz constants", "anchor model error ~ 0")
+
+    def evaluate(self, terms, values):
+        total = (terms["action_jacobian_norm"] * terms["action_displacement"]
+                 + (1 + terms["state_jacobian_norm"]) * terms["state_displacement"])
+        return np.full(len(total), np.nan), total
+
+
+class LegacyLabelFiltering(_PointJacobianScore):
+    """The label-filtering branch's score (label_error at 73d187d), an opt-in for parity.
+
+        score = ||J_{z + f_hat}(z_t, a_t)||_2 * ||(z_G - z_t, a_G - a_t)||_2
+
+    with J the Jacobian of the next-state map in (z, a) and one joint norm of
+    the state and action displacement. It matches neither paper definition
+    and applies to every generator, as the branch did.
+    """
+
+    name, version = "legacy_label_filtering", "1"
+    extra_terms = {"next_state_jacobian_norm": JACOBIAN_TERMS["next_state_jacobian_norm"]}
+    required = ("state_displacement", "action_displacement", "next_state_jacobian_norm")
+    assumptions = ("the next-state Jacobian at the anchor stands in for a Lipschitz constant over a joint "
+                   "state-action metric",)
+
+    def evaluate(self, terms, values):
+        total = terms["next_state_jacobian_norm"] * np.hypot(terms["state_displacement"], terms["action_displacement"])
+        return np.full(len(total), np.nan), total
+
+
 PROFILES: dict = {}
 
 
@@ -541,7 +650,8 @@ def register_profile(cls) -> type:
     return cls
 
 
-for _profile in (ContinuityProfile, BackTrackProfile, DisturbedActionProfile):
+for _profile in (ContinuityProfile, BackTrackProfile, DisturbedActionProfile, BackTrackPaperProxy,
+                 DisturbedActionPaperProxy, LegacyLabelFiltering):
     register_profile(_profile)
 
 # Generator name -> the CCIL label-error profile its labels follow (generators.label_error_profile).
@@ -931,7 +1041,8 @@ def require_upper_bound(cert: CertificateSet) -> None:
                              "does not admit rows as upper bounds")
 
 
-__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile", "Sources",
+__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile",
+           "BackTrackPaperProxy", "DisturbedActionPaperProxy", "LegacyLabelFiltering", "jacobian_terms", "Sources",
            "Context", "certify", "decide", "verify_structure", "audit_sources", "require_upper_bound", "register_profile",
            "write_reference_dynamics", "read_reference_dynamics", "check_applies", "model_evaluation", "resolved_of", "PROFILES",
            "PROVIDERS", "GENERATOR_PROFILES", "SCHEMA", "VERSION", "REASON_CODES"]
