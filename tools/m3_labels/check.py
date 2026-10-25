@@ -27,20 +27,18 @@ NoiseBC, on fixed observations (full masks and noise kept in noise_bc_draws.npz)
   step or draw, and independent of batch order and composition;
 - perturb never modifies its input and rejects inputs it could not perturb as
   configured; the trace hash is reproducible and changes with the seed.
-Filtering and weighting (#22 part 2):
-- each generator's label-error estimate is its CCIL definition (BackTrack,
-  Def. 4.5; DisturbedAction, Def. 4.6) from exact Jacobians, and a validator
-  whose profile does not match the generator is refused;
-- anchor model error is measured on every row, rejected above the gate, and
-  excluded from the quantile population; filtering requires the gate;
-- the filters are reconstructible from the file, batch-invariant, and written
-  as 2.2 extension reasons that the 2.2 reader (520f343) reads;
-- float32 finite differences vanish at large inputs, so the estimate requires
-  exact Jacobians;
+Filtering and weighting (#22 part 2; label-error estimates and filters moved to
+certificates in #88, with their evidence in tools/m3_certificates):
+- anchor model error is measured on every row and rejected above the gate,
+  batch-invariantly, as a 2.2 extension reason that the 2.2 reader (520f343)
+  reads;
+- float32 finite differences vanish at large inputs, so exact Jacobians are
+  used;
 - reasons stay independent; a weighting never changes validity; the branch's
-  fixed-point forward_euler reaches Newton's root; the branch's keys migrate;
-  every label-filtering capability of the inventory is classified; and the
-  pipeline writes a complete run with both filters.
+  fixed-point forward_euler reaches Newton's root; the branch's keys migrate
+  (the label-error keys to certificate.*); every label-filtering capability of
+  the inventory is classified; and the pipeline writes complete runs with the
+  model-error gate and a certificate.
 Action chunks (#22 part 3):
 - position 0 is the label action and positions k >= 1 the source episode's
   actions from the frame the label reaches (t for backtrack, t + 1 for
@@ -354,110 +352,36 @@ def main():
            same_seed=[t1, t2], other_seed=t3)
 
     # ---------------- PR 2: filtering, weighting, inventory ----------------
-    from ccil.core import BackwardEuler, LabelError, ModelMisfit
+    from ccil.core import BackwardEuler, ModelMisfit
     from ccil.core.transition import jacobian_fd
-    from ccil.core.validators import LABEL_ERROR, MODEL_MISFIT
+    from ccil.core.validators import MODEL_MISFIT
     from ccil.schema import SchemaError
 
     def file_meta(path):
         with np.load(path, allow_pickle=False) as z:
             return json.loads(str(z["meta"]))
 
-    nA, nB = float(np.linalg.norm(sys_.A, 2)), float(np.linalg.norm(sys_.B, 2))
+    nA = float(np.linalg.norm(sys_.A, 2))
 
-    # 12. Each generator's estimate is its paper definition (Ke et al., Defs. 4.5 and 4.6), from exact Jacobians.
-    bt = generate_labels(dataset, rep, model, BackwardEuler(), [Finite(), LabelError("backtrack", 1.0)], run_id="bt",
-                         seed=SEED)
-    da = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), [Finite(), LabelError("disturbed_action", 1.0)],
-                         run_id="da", seed=SEED)
-    src_bt, src_da = np.arange(len(s)), np.repeat(np.arange(len(s)), K)
-    ds_bt = np.linalg.norm(bt.observations["state"].astype(np.float64) - s[src_bt], axis=1)
-    ds_da = np.linalg.norm(da.observations["state"].astype(np.float64) - s[src_da], axis=1)
-    dact = np.linalg.norm(da.actions.astype(np.float64) - a[src_da], axis=1)
-    e_bt, e_da = bt.measurements["label_error_estimate"], da.measurements["label_error_estimate"]
-    joint = float(np.linalg.norm(np.hstack([sys_.A, sys_.B]), 2)) * np.hypot(ds_da, dact)  # the replaced joint formula
-    mismatch = {}
-    for name, (gen, val) in (("backtrack_validator_on_noisy_action", (NoisyAction(K, SIGMA), LabelError("backtrack", 1.0))),
-                             ("disturbed_validator_on_backward_euler", (BackwardEuler(), LabelError("disturbed_action", 1.0)))):
-        try:
-            generate_labels(dataset, rep, model, gen, [val], run_id="mismatch", seed=SEED)
-            mismatch[name] = "accepted"
-        except InterfaceError as e:
-            mismatch[name] = f"InterfaceError: {e}"
-    record("label_error_profiles_match_the_paper",
-           np.allclose(e_bt, nA * ds_bt, rtol=1e-12, atol=1e-15)
-           and np.allclose(e_da, nB * dact + (1 + nA) * ds_da, rtol=1e-12, atol=1e-15)
-           and "Def. 4.5" in bt.measurement_specs["label_error_estimate"]["definition"]
-           and "Def. 4.6" in da.measurement_specs["label_error_estimate"]["definition"]
-           and all(v.startswith("InterfaceError") for v in mismatch.values()),
-           state_jacobian_norm=nA, action_jacobian_norm=nB,
-           backtrack_mean=float(e_bt.mean()), disturbed_action_mean=float(e_da.mean()),
-           replaced_joint_formula_mean_on_disturbed_action=float(joint.mean()), profile_mismatch=mismatch)
-
-    # 13-14. Model misfit is measured on every row, rejected with a threshold, and excluded from the quantile population.
+    # 12-14. Model misfit is measured on every row and rejected with a threshold. (The label-error estimates and their
+    # filters moved to certificates, #88: tools/m3_certificates.)
     wrong = copy.deepcopy(dataset)
     for ep in wrong.episodes:  # perturb the stored state at frame 3, so the exact model misfits transitions 2 and 3
         if ep.length > 3:
             ep.observations["state"] = ep.observations["state"].copy()
             ep.observations["state"][3] += np.float32(1.0)
     gate = 0.5
-    cm = generate_labels(wrong, rep, model, NoisyAction(K, SIGMA),
-                         [Finite(), GenerationFailed(), ModelMisfit(gate), LabelError("disturbed_action", gate, quantile=0.5)],
-                         run_id="misfit", seed=SEED)
-    write_candidates(cm, out / "misfit.npz")
-    with np.load(out / "misfit.npz", allow_pickle=False) as z:
+    paths = []
+    for bs in (1, None):
+        cm = generate_labels(wrong, rep, model, NoisyAction(K, SIGMA), [Finite(), GenerationFailed(), ModelMisfit(gate)],
+                             run_id="misfit", seed=SEED, batch_size=bs)
+        paths.append(out / f"misfit-{bs}.npz")
+        write_candidates(cm, paths[-1])
+    with np.load(paths[1], allow_pickle=False) as z:
         codes = json.loads(str(z["meta"]))["reason_codes"]
         anchor = z["meas/anchor_model_error"]
-        pre = z["meas/label_error_precondition"]
-        est_f = z["meas/label_error_estimate"]
-        thr_f = z["meas/label_error_threshold"]
         mm = z["reasons"][:, codes.index(MODEL_MISFIT)]
-        le = z["reasons"][:, codes.index(LABEL_ERROR)]
-    eligible = (pre == 1) & np.isfinite(est_f)
-    q_eligible, q_all = float(np.quantile(est_f[eligible], 0.5)), float(np.quantile(est_f, 0.5))
-    record("model_misfit_measured_rejected_and_excluded_from_quantile",
-           mm.any() and np.array_equal(mm, ~(anchor < gate)) and np.array_equal(pre == 1, anchor < gate)
-           and np.allclose(thr_f, q_eligible) and np.array_equal(le, ~(est_f <= q_eligible)) and q_eligible != q_all
-           and len(cm.accepted) == K * len(s) and file_meta(out / "misfit.npz")["version"] == "2.2",
-           rejected_model_misfit=int(mm.sum()), rejected_label_error=int(le.sum()), candidates=int(len(mm)),
-           threshold_over_eligible=q_eligible, threshold_if_misfit_rows_were_included=q_all,
-           rejected_source_frames=sorted(set(cm.source_frame[mm].tolist())))
-
-    # 15. The precondition is required by the pipeline, and recorded on every row.
-    wp = out / "pipeline_precondition"
-    wp.mkdir()
-    write_trajectories(dataset, wp / "fixture.npz")
-    r_pre = subprocess.run([sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
-                            "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
-                            "--set", "generation.label_error_quantile=0.5"], cwd=wp, capture_output=True, text=True)
-    record("label_error_filter_requires_the_model_error_gate",
-           r_pre.returncode == 2 and "model_error_threshold" in r_pre.stderr and not (wp / "runs").exists()
-           and set(np.unique(cm.measurements["label_error_precondition"]).tolist()) == {0.0, 1.0},
-           exit=r_pre.returncode, error=r_pre.stderr.strip()[-300:])
-
-    # 16. Filters: quantile and absolute, reconstructible from the file, batch-invariant, readable by the 2.2 reader.
-    filt = {}
-    for name, val in (("quantile", LabelError("disturbed_action", 1.0, quantile=0.5)),
-                      ("absolute", LabelError("disturbed_action", 1.0, max_error=0.006))):
-        paths = []
-        for bs in (1, None):
-            cf = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA), [Finite(), GenerationFailed(), val],
-                                 run_id=f"filter-{name}", seed=SEED, batch_size=bs)
-            path = out / f"filter-{name}-{bs}.npz"
-            write_candidates(cf, path)
-            paths.append(path)
-        with np.load(paths[1], allow_pickle=False) as z:
-            e = z["meas/label_error_estimate"]
-            thr = z["meas/label_error_threshold"]
-            codes = json.loads(str(z["meta"]))["reason_codes"]
-            rej = z["reasons"][:, codes.index(LABEL_ERROR)]
-        expected_thr = float(np.quantile(e, 0.5)) if name == "quantile" else 0.006
-        filt[name] = {"rows": int(len(e)), "rejected": int(rej.sum()), "threshold": float(thr[0]),
-                      "recomputed_threshold": expected_thr, "batch_invariant": sha(paths[0]) == sha(paths[1]),
-                      "file_version": file_meta(paths[1])["version"], "path": paths[1]}
-        filt[name]["ok"] = (np.allclose(thr, expected_thr) and np.array_equal(rej, ~(e <= expected_thr))
-                            and filt[name]["batch_invariant"] and filt[name]["file_version"] == "2.2" and 0 < rej.sum() < len(e))
-    # The schema reader merged before this change (main at 520f343) reads these files unchanged.
+    # The schema reader merged before the extension reasons were used (main at 520f343) reads the file unchanged.
     old_root = out / "reader_520f343"
     old_root.mkdir()
     tarball = subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar", "520f343", "src"],
@@ -465,16 +389,17 @@ def main():
     (old_root / "src.tar").write_bytes(tarball)
     subprocess.run(["tar", "-xf", "src.tar"], cwd=old_root, check=True)
     probe = "import sys; from ccil.schema import read_candidates; c = read_candidates(sys.argv[1]); print(len(c.accepted))"
-    old_read = {name: subprocess.run([sys.executable, "-c", probe, str(v["path"])], capture_output=True, text=True,
-                                     env={**os.environ, "PYTHONPATH": str(old_root / "src")})
-                for name, v in filt.items()}
-    for name, v in filt.items():
-        v["read_by_520f343"] = old_read[name].returncode == 0
-        v["ok"] = v["ok"] and v["read_by_520f343"]
-        del v["path"]
-    record("label_error_filters_reconstructible_and_2_2_compatible", all(v["ok"] for v in filt.values()), results=filt)
+    old_read = subprocess.run([sys.executable, "-c", probe, str(paths[1])], capture_output=True, text=True,
+                              env={**os.environ, "PYTHONPATH": str(old_root / "src")})
+    record("model_misfit_measured_and_rejected",
+           mm.any() and np.array_equal(mm, ~(anchor < gate)) and len(cm.accepted) == K * len(s)
+           and file_meta(paths[1])["version"] == "2.2" and sha(paths[0]) == sha(paths[1])
+           and old_read.returncode == 0 and old_read.stdout.strip() == str(len(cm.accepted)),
+           rejected_model_misfit=int(mm.sum()), candidates=int(len(mm)), batch_invariant=sha(paths[0]) == sha(paths[1]),
+           read_by_520f343=old_read.returncode == 0, rejected_source_frames=sorted(set(cm.source_frame[mm].tolist())))
 
-    # 17. Exact Jacobians only: float32 finite differences vanish at large inputs, so the filter refuses them.
+    # 17. Exact Jacobians: float32 finite differences vanish at large inputs, so ExactPreimage uses the MLP's exact
+    # jacobian_z (certificate scores refuse finite differences too: tools/m3_certificates, unresolved derivatives).
     class Float32Quadratic:
         """f(z, a) = (z^2 - z) as float32: df/dz = 2z - 1 (= 2e4 - 1 near 1e4)."""
 
@@ -482,31 +407,20 @@ def main():
             z32 = np.asarray(z, np.float32)
             return (z32 * z32 - z32).astype(np.float32)
 
-        def save(self, path):
-            _atomic_savez(path, {"kind": np.array("float32 quadratic")})
-
-    z_big = np.full((1, 1), 1e4)
-    fd = jacobian_fd(Float32Quadratic(), z_big, np.zeros((1, 1)))
-    one = TrajectoryDataset([Episode("q", {"state": np.full((3, 1), 1e4, np.float32)}, np.zeros((3, 1), np.float32))])
-    try:
-        generate_labels(one, rep, Float32Quadratic(), BackwardEuler(), [LabelError("backtrack", 1e12)], run_id="q", seed=SEED)
-        refused = "accepted"
-    except InterfaceError as e:
-        refused = f"InterfaceError: {e}"
+    fd = jacobian_fd(Float32Quadratic(), np.full((1, 1), 1e4), np.zeros((1, 1)))
     from ccil.models.mlp import MLPTransitionModel
     mlp = MLPTransitionModel([8, 8], epochs=1, batch_size=8)
     mlp.fit(s, a, sp, seed=0)
     exact_z_matches = np.allclose(mlp.jacobian_z(s, a), mlp.jacobian_za(s, a)[:, :, :2])
-    record("label_error_requires_exact_jacobians",
-           float(fd.ravel()[0]) == 0.0 and refused.startswith("InterfaceError") and exact_z_matches,
-           float32_finite_difference_at_1e4=float(fd.ravel()[0]), true_derivative=2e4 - 1, refusal=refused,
+    record("finite_differences_vanish_so_exact_jacobians_are_used",
+           float(fd.ravel()[0]) == 0.0 and exact_z_matches,
+           float32_finite_difference_at_1e4=float(fd.ravel()[0]), true_derivative=2e4 - 1,
            mlp_exact_jacobian_z=bool(exact_z_matches))
 
-    # 18. Independent reasons: support and label error together; accounting closes.
-    cb = generate_labels(dataset, rep, model, NoisyAction(K, SIGMA),
-                         [Finite(), SupportRadius(0.005), LabelError("disturbed_action", 1.0, max_error=0.006),
-                          ModelResidual()], run_id="both", seed=SEED)
-    both = cb.reasons[:, cb.reason_codes.index("out_of_support")] & cb.reasons[:, cb.reason_codes.index(LABEL_ERROR)]
+    # 18. Independent reasons: support and model misfit together; accounting closes.
+    cb = generate_labels(wrong, rep, model, NoisyAction(K, SIGMA),
+                         [Finite(), SupportRadius(0.005), ModelMisfit(gate), ModelResidual()], run_id="both", seed=SEED)
+    both = cb.reasons[:, cb.reason_codes.index("out_of_support")] & cb.reasons[:, cb.reason_codes.index(MODEL_MISFIT)]
     record("filters_record_independent_reasons", both.any() and np.array_equal(cb.accepted, ~cb.reasons.any(axis=1)),
            rows_with_both=int(both.sum()), accepted=int(cb.accepted.sum()), candidates=int(len(cb.accepted)))
 
@@ -554,10 +468,10 @@ def main():
     legacy_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace(
         "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
     rc = resolve(config=legacy_yml)
-    record("branch_filter_keys_migrate",
-           (rc["generation.label_error_quantile"], rc["generation.max_label_error"], rc["generation.model_error_threshold"])
-           == (0.3, 0.5, 0.1), values={k: rc[k] for k in ("generation.label_error_quantile", "generation.max_label_error",
-                                                            "generation.model_error_threshold")})
+    keys = ("certificate.profile", "certificate.selection_quantile", "certificate.score_threshold",
+            "generation.model_error_threshold")
+    record("branch_filter_keys_migrate",  # label-error keys to the certificate layer (#88); the model gate stays
+           tuple(rc[k] for k in keys) == ("legacy_label_filtering", 0.3, 0.5, 0.1), values={k: rc[k] for k in keys})
 
     # 22. Every label-filtering capability of the inventory is classified.
     inventory = json.loads((REPO / "docs/inventory/capabilities.json").read_text())
@@ -568,21 +482,23 @@ def main():
     missing = [c for c in touched if c not in classified]
     record("label_filtering_inventory_fully_classified", not missing and touched, capabilities=touched, missing=missing)
 
-    # 23. The pipeline with both filters writes a complete run.
+    # 23. The pipeline with the model-error gate and a certificate writes complete runs.
     wf = out / "pipeline_filters"
     wf.mkdir()
     write_trajectories(dataset, wf / "fixture.npz")
     r = subprocess.run([sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
                         "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
                         "--set", "generation.method=noisy_action", "--set", f"generation.labels_per_transition={K}",
-                        "--set", f"generation.action_noise_std={SIGMA}", "--set", "generation.label_error_quantile=0.5",
-                        "--set", "generation.model_error_threshold=0.5"], cwd=wf, capture_output=True, text=True)
+                        "--set", f"generation.action_noise_std={SIGMA}", "--set", "generation.model_error_threshold=0.5",
+                        "--set", "certificate.profile=legacy_label_filtering", "--set", "certificate.selection_quantile=0.5"],
+                       cwd=wf, capture_output=True, text=True)
     fruns = {p.name: p for p in sorted((wf / "runs").iterdir()) if p.is_dir()} if (wf / "runs").exists() else {}
     fstat = {n: validate_run(p)[0] for n, p in fruns.items()}
     flab = next((p for n, p in fruns.items() if n.startswith("labels-generate")), None)
     fmeta = file_meta(flab / "labels/candidates.npz") if flab else {}
-    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 3
-           and fmeta.get("version") == "2.2" and {MODEL_MISFIT, LABEL_ERROR} <= set(fmeta.get("reason_codes", [])),
+    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 4
+           and fmeta.get("version") == "2.2" and MODEL_MISFIT in set(fmeta.get("reason_codes", []))
+           and any(n.startswith("labels-certify") for n in fruns),
            stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
            artifact=f"<out>/pipeline_filters/runs/{flab.name}/labels/candidates.npz" if flab else None, stderr=r.stderr[-300:])
 
