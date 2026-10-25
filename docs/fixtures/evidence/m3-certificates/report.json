@@ -334,8 +334,8 @@
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-a0b96a984e51/labels/certificates.npz",
-   "candidates_sha256": "d651cc1b7a860bba2a7d2c9541dab21fca4a4efa15331f901ded37132f3fd6ba",
+   "artifact": "<out>/pipeline/runs/labels-certify-8dd2db4c8dcf/labels/certificates.npz",
+   "candidates_sha256": "bcb63b9499b58724ec7d1ce0fd9ea73acdd6119cd0e2451d7257e119120b658b",
    "case": "pipeline_certify_stage",
    "constants": {
     "C_a": 1.7700020475168254e-07,
@@ -346,12 +346,12 @@
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-31d25ceb65d7": "complete",
-    "labels-certify-7332e9df458c": "complete",
-    "labels-certify-a0b96a984e51": "complete",
-    "labels-certify-b3ef4964d637": "complete",
-    "labels-generate-e4ee2950cab8": "complete",
-    "transition-fit-05870745be55": "complete"
+    "data-prepare-f23b86fdf796": "complete",
+    "labels-certify-2314b8c03290": "complete",
+    "labels-certify-8dd2db4c8dcf": "complete",
+    "labels-certify-fcb660e14cba": "complete",
+    "labels-generate-46c5010d77f7": "complete",
+    "transition-fit-50c8e4b2995a": "complete"
    },
    "usable": 27
   },
@@ -768,7 +768,7 @@
       "rows": 9,
       "violated_rows": 0
      },
-     "run": "labels-certify-e591eb6926d1",
+     "run": "labels-certify-3fbd0a5ecced",
      "status": "complete"
     },
     "disturbed_action": {
@@ -785,14 +785,148 @@
       "rows": 36,
       "violated_rows": 0
      },
-     "run": "labels-certify-aff80a502ef3",
+     "run": "labels-certify-243823acd4c9",
      "status": "complete"
+    }
+   }
+  },
+  {
+   "action_jacobian_norm": 0.16000000000000003,
+   "case": "paper_proxies_equal_definitions",
+   "definitions": {
+    "backtrack_paper_proxy": "||J_S f_hat|| ||z_G - z_t|| (Def. 4.5)",
+    "disturbed_action_paper_proxy": "||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t|| (Def. 4.6)"
+   },
+   "max_relative_difference": {
+    "backtrack": 2.886579864025407e-15,
+    "disturbed_action": 2.886579864025407e-15
+   },
+   "pass": true,
+   "state_jacobian_norm": 0.11180339887498952
+  },
+  {
+   "branch": "label-filtering 73d187d gen_aug_label.label_error",
+   "case": "legacy_label_filtering_matches_the_branch",
+   "note": "the branch transcription evaluates in float32, as the branch did (tolerance 1e-5); the linear case is also compared with its float64 closed form (1e-12)",
+   "parity": {
+    "linear": {
+     "audit": [],
+     "max_relative_difference_vs_branch_float32": 4.528181252183572e-08,
+     "max_relative_difference_vs_closed_form": 3.1086244689504383e-15,
+     "ok": true,
+     "rows": 36,
+     "structure": []
+    },
+    "mlp": {
+     "audit": [],
+     "max_relative_difference_vs_branch_float32": 1.815513966940685e-07,
+     "ok": true,
+     "rows": 2880,
+     "structure": []
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "scores_are_never_bounds",
+   "pass": true,
+   "require_upper_bound": "InterfaceError: certificate (disturbed_action_paper_proxy, admission 'score') does not admit rows as upper bounds",
+   "score_admission": {
+    "admissible": 22,
+    "rows": 36,
+    "threshold": 0.0834142660283126
+   },
+   "upper_bound_admission": {
+    "admissible": 0,
+    "not_upper_bound": 36
+   }
+  },
+  {
+   "case": "selection_never_changes_acceptance",
+   "pass": true,
+   "rejected_by_model_gate": 16,
+   "rows": 36,
+   "selected": 6,
+   "threshold_if_rejected_rows_were_included": 0.07915794881552271,
+   "threshold_over_accepted_admissible": 0.030647530942647737
+  },
+  {
+   "case": "unresolved_derivatives_are_unsupported",
+   "classification": [
+    "unsupported"
+   ],
+   "float32_finite_difference_at_1e4": 0.0,
+   "pass": true,
+   "state_jacobian_norm": [
+    NaN,
+    NaN
+   ],
+   "true_derivative": 19999.0
+  },
+  {
+   "case": "configuration_and_migration",
+   "integrated": "ConfigError: certificate.profile: the integrated pipeline's policy stage does not consume certificates yet (#89); certify with ccil labels generate",
+   "migrated": {
+    "certificate.profile": "legacy_label_filtering",
+    "certificate.score_threshold": 0.5,
+    "certificate.selection_quantile": 0.3,
+    "generation.model_error_threshold": 0.1
+   },
+   "pass": true,
+   "refused": {
+    "bound_profile_with_score_threshold": "ConfigError: bound profile disturbed_action admits by certificate.max_total_error, not certificate.score_threshold [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation",
+    "bound_profile_without_demonstration": "ConfigError: backtrack needs certificate.reference_dynamics or certificate.demonstration_residual_bound [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.method=cli",
+    "certificate_settings_without_profile": "ConfigError: ['certificate.selection_quantile'] require certificate.profile [certificate; sources: certificate.profile=default, certificate.reference_dynamics=default, generation.method=recipe:analytic_double_inte",
+    "profile_for_the_other_family": "ConfigError: certificate.profile backtrack_paper_proxy certifies backtrack labels; generation.method noisy_action makes disturbed_action labels [certificate; sources: certificate.profile=cli, certificate.reference",
+    "score_profile_with_bound_threshold": "ConfigError: score profile legacy_label_filtering takes no constants, reference, or bound threshold: unset ['certificate.max_total_error'] [certificate; sources: certificate.profile=cli, certificate.reference_dyna",
+    "withdrawn_label_error_quantile": "ConfigError: generation.label_error_quantile was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile and certificate.selection_quantile",
+    "withdrawn_max_label_error": "ConfigError: generation.max_label_error was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile (legacy_label_filtering for the branch's score) and certificate.score_threshold, or"
+   }
+  },
+  {
+   "case": "cli_certify_runs_and_pre_88_reader",
+   "pass": true,
+   "pre_88_reader": "8663348",
+   "runs": {
+    "backtrack": {
+     "classification": [
+      "certified"
+     ],
+     "exit": 0,
+     "read_by_pre_88_reader": true,
+     "rows": 9,
+     "stages": [
+      "data.prepare",
+      "labels.certify",
+      "labels.generate",
+      "transition.fit"
+     ],
+     "status": "complete",
+     "stderr": "",
+     "usable": 4
+    },
+    "legacy_label_filtering": {
+     "classification": [
+      "empirical"
+     ],
+     "exit": 0,
+     "read_by_pre_88_reader": true,
+     "rows": 36,
+     "stages": [
+      "data.prepare",
+      "labels.certify",
+      "labels.generate",
+      "transition.fit"
+     ],
+     "status": "complete",
+     "stderr": "",
+     "usable": 11
     }
    }
   }
  ],
  "environment": {
-  "code_commit": "b396ef2b84fda3b8fa62a52e49be7613ac237745",
+  "code_commit": "440667a8553fcc2d65194eb53ea66e792371eb3d",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

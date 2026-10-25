@@ -139,7 +139,7 @@
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-2bc7f7bf6709/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-38f023be2b70/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -155,9 +155,9 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-9f154423e1a9": "complete",
-    "labels-generate-2bc7f7bf6709": "complete",
-    "transition-fit-7dc5ab3d496e": "complete"
+    "data-prepare-21ee39f7061c": "complete",
+    "labels-generate-38f023be2b70": "complete",
+    "transition-fit-50c8e4b2995a": "complete"
    },
    "stderr": ""
   },
@@ -314,77 +314,30 @@
    ]
   },
   {
-   "action_jacobian_norm": 0.1,
-   "backtrack_mean": 0.0028044221411083104,
-   "case": "label_error_profiles_match_the_paper",
-   "disturbed_action_mean": 0.007334690071136786,
-   "pass": true,
-   "profile_mismatch": {
-    "backtrack_validator_on_noisy_action": "InterfaceError: LabelError uses the 'backtrack' label-error profile, but NoisyAction labels follow 'disturbed_action'",
-    "disturbed_validator_on_backward_euler": "InterfaceError: LabelError uses the 'disturbed_action' label-error profile, but BackwardEuler labels follow 'backtrack'"
-   },
-   "replaced_joint_formula_mean_on_disturbed_action": 0.0033643547691713975,
-   "state_jacobian_norm": 0.1
-  },
-  {
+   "batch_invariant": true,
    "candidates": 36,
-   "case": "model_misfit_measured_rejected_and_excluded_from_quantile",
+   "case": "model_misfit_measured_and_rejected",
    "pass": true,
-   "rejected_label_error": 26,
+   "read_by_520f343": true,
    "rejected_model_misfit": 16,
    "rejected_source_frames": [
     2,
     3
-   ],
-   "threshold_if_misfit_rows_were_included": 0.01636269217396705,
-   "threshold_over_eligible": 0.004959325851968125
+   ]
   },
   {
-   "case": "label_error_filter_requires_the_model_error_gate",
-   "error": "invalid configuration:\n  label-error filtering (generation.max_label_error / label_error_quantile) requires generation.model_error_threshold: the CCIL label-error definitions assume a small anchor model error, which the threshold enforces",
-   "exit": 2,
-   "pass": true
-  },
-  {
-   "case": "label_error_filters_reconstructible_and_2_2_compatible",
-   "pass": true,
-   "results": {
-    "absolute": {
-     "batch_invariant": true,
-     "file_version": "2.2",
-     "ok": true,
-     "read_by_520f343": true,
-     "recomputed_threshold": 0.006,
-     "rejected": 20,
-     "rows": 36,
-     "threshold": 0.006
-    },
-    "quantile": {
-     "batch_invariant": true,
-     "file_version": "2.2",
-     "ok": true,
-     "read_by_520f343": true,
-     "recomputed_threshold": 0.006471043440196538,
-     "rejected": 18,
-     "rows": 36,
-     "threshold": 0.006471043440196538
-    }
-   }
-  },
-  {
-   "case": "label_error_requires_exact_jacobians",
+   "case": "finite_differences_vanish_so_exact_jacobians_are_used",
    "float32_finite_difference_at_1e4": 0.0,
    "mlp_exact_jacobian_z": true,
    "pass": true,
-   "refusal": "InterfaceError: LabelError needs the exact model Jacobian: Float32Quadratic has no jacobian_za",
    "true_derivative": 19999.0
   },
   {
-   "accepted": 16,
+   "accepted": 14,
    "candidates": 36,
    "case": "filters_record_independent_reasons",
    "pass": true,
-   "rows_with_both": 10
+   "rows_with_both": 16
   },
   {
    "accepted_with_zero_weight": 13,
@@ -403,8 +356,9 @@
    "case": "branch_filter_keys_migrate",
    "pass": true,
    "values": {
-    "generation.label_error_quantile": 0.3,
-    "generation.max_label_error": 0.5,
+    "certificate.profile": "legacy_label_filtering",
+    "certificate.score_threshold": 0.5,
+    "certificate.selection_quantile": 0.3,
     "generation.model_error_threshold": 0.1
    }
   },
@@ -430,7 +384,7 @@
    "pass": true
   },
   {
-   "artifact": "<out>/pipeline_filters/runs/labels-generate-8b703a36355c/labels/candidates.npz",
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-e69511683e7b/labels/candidates.npz",
    "case": "filters_pipeline_run",
    "file_version": "2.2",
    "pass": true,
@@ -439,13 +393,13 @@
     "out_of_support",
     "generation_failed",
     "action_out_of_bounds",
-    "label_filter.label_error",
     "label_filter.model_misfit"
    ],
    "stages": {
-    "data-prepare-9f154423e1a9": "complete",
-    "labels-generate-8b703a36355c": "complete",
-    "transition-fit-7dc5ab3d496e": "complete"
+    "data-prepare-21ee39f7061c": "complete",
+    "labels-certify-a0586d029f02": "complete",
+    "labels-generate-e69511683e7b": "complete",
+    "transition-fit-50c8e4b2995a": "complete"
    },
    "stderr": ""
   },
@@ -503,14 +457,14 @@
    "read_by_8071952": "36 False"
   },
   {
-   "artifact": "<out>/pipeline_chunks/runs/labels-generate-329bc2156f4a/labels/candidates.npz",
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-305d6764f5fa/labels/candidates.npz",
    "case": "action_chunks_pipeline_and_migration",
    "migrated_chunk_size": 5,
    "pass": true,
    "stages": {
-    "data-prepare-9f154423e1a9": "complete",
-    "labels-generate-329bc2156f4a": "complete",
-    "transition-fit-7dc5ab3d496e": "complete"
+    "data-prepare-21ee39f7061c": "complete",
+    "labels-generate-305d6764f5fa": "complete",
+    "transition-fit-50c8e4b2995a": "complete"
    },
    "stderr": ""
   },
@@ -536,7 +490,7 @@
   }
  ],
  "environment": {
-  "code_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
+  "code_commit": "440667a8553fcc2d65194eb53ea66e792371eb3d",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
