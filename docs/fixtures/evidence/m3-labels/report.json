@@ -2,12 +2,13 @@
  "all_pass": true,
  "cases": [
   {
-   "accepted": 34,
+   "accepted": 36,
    "action_noise": {
     "configured_std": 0.05,
-    "mean": 0.002081943391304877,
-    "std": 0.052166308913176376
+    "mean": 0.004665991694006759,
+    "std": 0.04243053842282187
    },
+   "bound": 1e-05,
    "candidates": 36,
    "case": "closed_form_and_measurements[noisy_action]",
    "generator": {
@@ -20,7 +21,7 @@
     "params_hash": "dd33246fed28112b",
     "version": "2"
    },
-   "max_abs_vs_closed_form": 0.0,
+   "max_l2_vs_closed_form": 0.0,
    "measurement_specs": {
     "distance": {
      "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
@@ -53,20 +54,21 @@
   },
   {
    "batch_sha256": [
-    "7347cf56e4484465ef610262257a25ab4f51ca3cb38f252a6d8257324cf8c72f",
-    "7347cf56e4484465ef610262257a25ab4f51ca3cb38f252a6d8257324cf8c72f"
+    "400ebfb6fa7996b93185ce90115306a072f57c805b7d5bcd3c7ee333da7da876",
+    "400ebfb6fa7996b93185ce90115306a072f57c805b7d5bcd3c7ee333da7da876"
    ],
    "case": "specs_round_trip_and_batch_invariance[noisy_action]",
    "file_version": "2.2",
    "pass": true
   },
   {
-   "accepted": 34,
+   "accepted": 36,
    "action_noise": {
     "configured_std": 0.05,
-    "mean": 0.002081943391304877,
-    "std": 0.052166308913176376
+    "mean": 0.004665991694006759,
+    "std": 0.04243053842282187
    },
+   "bound": 0.00010612492197250395,
    "candidates": 36,
    "case": "closed_form_and_measurements[noisy_action_preimage]",
    "generator": {
@@ -81,7 +83,7 @@
     "params_hash": "7c63f7a7e906c264",
     "version": "1"
    },
-   "max_abs_vs_closed_form": 5.453824991619172e-08,
+   "max_l2_vs_closed_form": 9.694554175293067e-05,
    "measurement_specs": {
     "distance": {
      "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
@@ -120,8 +122,8 @@
   },
   {
    "batch_sha256": [
-    "3d0d74d84d16ee1f513b5853ade95e04ac58c346a34f3f0f6b5473a4c41c8f5e",
-    "3d0d74d84d16ee1f513b5853ade95e04ac58c346a34f3f0f6b5473a4c41c8f5e"
+    "688fecd188794ad7d270826aaff5567dcc44011bb88e2b9ece17e8033a29b3c9",
+    "688fecd188794ad7d270826aaff5567dcc44011bb88e2b9ece17e8033a29b3c9"
    ],
    "case": "specs_round_trip_and_batch_invariance[noisy_action_preimage]",
    "file_version": "2.2",
@@ -130,14 +132,14 @@
   {
    "candidates": 36,
    "case": "failed_proposals_rejected_never_refilled",
-   "failed": 11,
+   "failed": 10,
    "pass": true,
    "rows_per_transition": [
     4
    ]
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-generate-744e72d2ae9f/labels/candidates.npz",
+   "artifact": "<out>/pipeline/runs/labels-generate-888142365a36/labels/candidates.npz",
    "case": "noisy_action_fe_pipeline_run",
    "generator": {
     "name": "noisy_action_preimage",
@@ -153,11 +155,87 @@
    },
    "pass": true,
    "stages": {
-    "data-prepare-ab5ca3f19d36": "complete",
-    "labels-generate-744e72d2ae9f": "complete",
-    "transition-fit-669dc89c1262": "complete"
+    "data-prepare-b0706492dc6a": "complete",
+    "labels-generate-888142365a36": "complete",
+    "transition-fit-6bed080842c0": "complete"
    },
    "stderr": ""
+  },
+  {
+   "action_magnitude": 10000.0,
+   "action_noise_std": 0.0001,
+   "case": "measurements_match_the_stored_float32_candidate",
+   "float32_spacing_at_1e4": 0.0009765625,
+   "pass": true,
+   "rows": 80,
+   "rows_whose_stored_perturbation_is_zero": 80,
+   "stored_noise_norm_max": 0.0
+  },
+  {
+   "case": "solver_convergence_judged_on_the_stored_candidate",
+   "failed": 35,
+   "pass": true,
+   "rows": 36,
+   "stored_residual_max": 5.4446618298091986e-08,
+   "tolerance": 1e-12
+  },
+  {
+   "case": "crc32_collision_pair_gets_distinct_streams",
+   "crc32": 3851551514,
+   "crc32_equal": true,
+   "generator_normals": [
+    [
+     -0.6708412061110233,
+     2.9413844358454835,
+     -0.8180062202526108,
+     -0.09374255503563521
+    ],
+    [
+     -1.6790537334886568,
+     -0.7983323657734861,
+     0.20431978086505162,
+     -0.550288726441166
+    ]
+   ],
+   "noise_bc_uniforms": [
+    [
+     0.6512483971591241,
+     0.23287832339445214,
+     0.9298017526416869,
+     0.7883002649120554
+    ],
+    [
+     0.4003903567172037,
+     0.8274481524098742,
+     0.28475279146217936,
+     0.6722276921385293
+    ]
+   ],
+   "pair": [
+    "4300bByhudVrUGx5",
+    "0BZ5Gzkl9ccfsEbx"
+   ],
+   "pass": true
+  },
+  {
+   "case": "measurement_contracts_enforced",
+   "pass": true,
+   "results": {
+    "generator_without_specs": "InterfaceError: Unspecified declares no measurement_specs; every generator and validator must declare the definition, norm, and units of what it measures ({} if nothing)",
+    "validator_with_extra_spec": "InterfaceError: ExtraSpec.check returned measurements ['residual'] but its measurement_specs name ['residual', 'unmeasured']"
+   }
+  },
+  {
+   "case": "noise_bc_validates_inputs",
+   "pass": true,
+   "results": {
+    "frames_not_integer": "ValueError: frames must be 2 non-negative integers, one per observation row",
+    "ids_length_mismatch": "ValueError: episode_ids must be 2 non-empty strings, one per observation row",
+    "integer_observations": "ValueError: NoiseBC observations must be a floating-point array of shape (B, ...); integer arrays would truncate the noise",
+    "negative_frame": "ValueError: frames must be 2 non-negative integers, one per observation row",
+    "negative_step": "ValueError: step must be a non-negative integer, got -1",
+    "one_dimensional_observations": "ValueError: NoiseBC observations must be a floating-point array of shape (B, ...); integer arrays would truncate the noise"
+   }
   },
   {
    "case": "noise_bc_legacy_vs_symmetric",
@@ -169,7 +247,7 @@
       "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
       "mask_probability": 0.5,
       "mode": "legacy_uniform_half_batch",
-      "rng": "splitmix64-counter/1",
+      "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
       "scale": 0.1,
       "seed": 20261023,
       "truncation": "none (bounded by construction)",
@@ -177,10 +255,10 @@
       "version": "1"
      },
      "input_unchanged": true,
-     "mask_rate": 0.496575,
-     "noise_max": 0.09999989718198776,
-     "noise_mean": 0.050279244780540466,
-     "noise_min": 2.1272005596983945e-06,
+     "mask_rate": 0.497575,
+     "noise_max": 0.09999950975179672,
+     "noise_mean": 0.05013355240225792,
+     "noise_min": 6.883698802084837e-07,
      "unmasked_rows_unchanged": true
     },
     "symmetric_uniform_half_batch": {
@@ -190,7 +268,7 @@
       "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
       "mask_probability": 0.5,
       "mode": "symmetric_uniform_half_batch",
-      "rng": "splitmix64-counter/1",
+      "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
       "scale": 0.1,
       "seed": 20261023,
       "truncation": "none (bounded by construction)",
@@ -198,10 +276,10 @@
       "version": "1"
      },
      "input_unchanged": true,
-     "mask_rate": 0.496575,
-     "noise_max": 0.0999997928738594,
-     "noise_mean": 0.0005584879545494914,
-     "noise_min": -0.09999574720859528,
+     "mask_rate": 0.497575,
+     "noise_max": 0.09999901056289673,
+     "noise_mean": 0.00026710701058618724,
+     "noise_min": -0.09999862313270569,
      "unmasked_rows_unchanged": true
     }
    },
@@ -213,7 +291,7 @@
    "artifact": "<out>/noise_bc_draws.npz",
    "case": "noise_bc_per_draw_reproducible_and_independent",
    "masked_step0": 5,
-   "masked_step1": 4,
+   "masked_step1": 6,
    "pass": true,
    "samples": 9
   },
@@ -221,23 +299,23 @@
    "case": "noise_bc_trace_hash",
    "other_seed": {
     "draws": 5,
-    "sha256": "73d2e59b5caf7a17d5bcabcec727a5452659581f23cf74fccbf91055d37cca33"
+    "sha256": "d02bd467368d61fe64f873f331a0c9f71a1f792486a3a2b3da9486f6372cac05"
    },
    "pass": true,
    "same_seed": [
     {
      "draws": 5,
-     "sha256": "73f958a930dc1ef54cbdeb9ab3d411c59f23d66d96fae9697b2a0626e74c7665"
+     "sha256": "a817cb6b75ee04b5dced7f8e4ef80e9f3dc2100a5165ff05acc473fe67c833c9"
     },
     {
      "draws": 5,
-     "sha256": "73f958a930dc1ef54cbdeb9ab3d411c59f23d66d96fae9697b2a0626e74c7665"
+     "sha256": "a817cb6b75ee04b5dced7f8e4ef80e9f3dc2100a5165ff05acc473fe67c833c9"
     }
    ]
   }
  ],
  "environment": {
-  "code_commit": "e3c3bc5860f5c71cd13193b2ba2fbb0f3d2a37cd",
+  "code_commit": "471c92a78d99a1b5e139fb03e39b1f03b87c366b",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
