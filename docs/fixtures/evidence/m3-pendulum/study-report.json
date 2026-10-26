@@ -1,0 +1,228 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "known_answers",
+   "pass": true,
+   "scenarios": {
+    "algorithmic_failure_in_ccil": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      93.3996645388444,
+      106.24241436827218
+     ],
+     "n": 19,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "algorithmic failure in a primary arm (bc [], ccil [105])"
+     ]
+    },
+    "degenerate_bca": {
+     "control_passes": true,
+     "expected": "ccil_improves_on_bc",
+     "interval": [
+      50.0,
+      50.0
+     ],
+     "n": 20,
+     "note": "BCa undefined; the t-interval alone",
+     "outcome": "ccil_improves_on_bc",
+     "reasons": []
+    },
+    "fifteen_valid_seeds": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      93.27884444746006,
+      105.78757443379517
+     ],
+     "n": 15,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "more than 2 infrastructure exclusions in a primary arm",
+      "15 seeds valid for both primary arms (< 16)"
+     ]
+    },
+    "improves": {
+     "control_passes": true,
+     "expected": "ccil_improves_on_bc",
+     "interval": [
+      94.15308005851556,
+      107.19404690966435
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "ccil_improves_on_bc",
+     "reasons": []
+    },
+    "null_control_fails": {
+     "control_passes": false,
+     "expected": "inconclusive",
+     "interval": [
+      -8.374042078838256,
+      8.374042078838256
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "the interval contains 0 and the positive control fails"
+     ]
+    },
+    "null_control_passes": {
+     "control_passes": true,
+     "expected": "no_detectable_difference",
+     "interval": [
+      -8.374042078838256,
+      8.374042078838256
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "no_detectable_difference",
+     "reasons": []
+    },
+    "three_infrastructure_exclusions": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      91.92675324600316,
+      106.31349549644264
+     ],
+     "n": 17,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "more than 2 infrastructure exclusions in a primary arm"
+     ]
+    },
+    "worse": {
+     "control_passes": true,
+     "expected": "ccil_is_worse_than_bc",
+     "interval": [
+      -105.84691994148444,
+      -92.80595309033565
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "ccil_is_worse_than_bc",
+     "reasons": []
+    }
+   }
+  },
+  {
+   "bca": [
+    94.1530800585156,
+    105.94161492116393
+   ],
+   "case": "intervals",
+   "coverage": 0.98,
+   "nominal": 0.975,
+   "pass": true,
+   "simulations": 1000,
+   "t": [
+    94.30544334491323,
+    107.19404690966438
+   ],
+   "t_matches_formula": true,
+   "union": [
+    94.1530800585156,
+    107.19404690966438
+   ]
+  },
+  {
+   "case": "study_needs_the_tuning_choice",
+   "exit": 1,
+   "pass": true,
+   "stderr": "the study needs tuning-choice.json (study.py choose) before any study seed runs"
+  },
+  {
+   "analysis_exit": 0,
+   "analysis_stderr": "",
+   "case": "smoke_end_to_end",
+   "ccil_records_have_label_accuracy": true,
+   "choose_again_refused": true,
+   "expected_records": {
+    "study": 52,
+    "tuning": 20
+   },
+   "pass": true,
+   "records": {
+    "study": 52,
+    "tuning": 20
+   },
+   "rollouts_reaudited": 112,
+   "smoke_note": "smoke outcomes are inconclusive by construction (2 seeds < 16); returns are not reported",
+   "smoke_outcomes": {
+    "continuous": "inconclusive",
+    "discontinuous": "inconclusive"
+   },
+   "statuses": {
+    "study": [
+     "ok"
+    ],
+    "tuning": [
+     "ok"
+    ]
+   },
+   "steps": {
+    "choose": {
+     "exit": 0,
+     "tail": [
+      "discontinuous {'noise_bc': 0.001, 'ccil_tuned': 0.3}"
+     ]
+    },
+    "choose_again": {
+     "exit": 1,
+     "tail": [
+      "<out>/smoke/root/tuning-choice.json exists; the tuning choice is made once"
+     ]
+    },
+    "study": {
+     "exit": 0,
+     "tail": [
+      "52 units: ok 52"
+     ]
+    },
+    "study_again": {
+     "exit": 0,
+     "tail": [
+      "52 units: ok 52"
+     ]
+    },
+    "tuning": {
+     "exit": 0,
+     "tail": [
+      "20 units: ok 20"
+     ]
+    }
+   },
+   "sweep_again_changed_nothing": true
+  },
+  {
+   "case": "analysis_refuses",
+   "changed_rollout": "analysis refused: 1 rollouts fail the re-audit, e.g. [('rollouts/study/discontinuous/noise_bc@0.001/s9002-noise0.01.npz', False, False, ['rewards differ by 9.999999992515995e-07', 'returns differ from the sums of their rewards by 9.99999883788405e-07', 'R is not the mean of the returns'])]",
+   "existing_output": "<out>/smoke-analysis.json exists; analyses are never overwritten",
+   "pass": true
+  },
+  {
+   "case": "clean_tree_at_frozen_ccil",
+   "ccil_frozen": "847b06057e8d36a16d13aa2f3b2e375ceb9147e5",
+   "differing_from_frozen_ccil": [],
+   "dirty": [],
+   "head": "39c5b5be679dfc80b2a8b8aaf04f8a8b6a1c6d06",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "39c5b5be679dfc80b2a8b8aaf04f8a8b6a1c6d06",
+  "code_dirty": false,
+  "device": "cpu",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "scipy": "1.16.3"
+ }
+}
