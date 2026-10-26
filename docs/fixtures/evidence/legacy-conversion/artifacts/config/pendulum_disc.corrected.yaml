@@ -1,0 +1,43 @@
+# Converted by ccil.config.convert/1 from pendulum_disc.yml (sha256 78a020f7789e8bb0329be314d9aa828095a73f2dab4556fc7b03d4dab03920d6), fidelity corrected.
+# Do not edit by hand; regenerate with: ccil config convert pendulum_disc.yml --fidelity corrected
+compute:
+  device: cuda
+config_version: 1
+data:
+  path: data/pendulum_disc_500.npz
+  validation_fraction: 0.2
+environment:
+  id: PendulumSwingupDisc-v0
+evaluation:
+  noise_levels:
+  - 0
+generation:
+  action_noise_std: 0.0001
+  labels_per_transition: 20
+  max_iterations: 30
+  method: noisy_action
+  support_radius: 0.01
+policy:
+  balance_noisy_labels: true
+  batch_size: 512
+  epochs: 100
+  learning_rate: 0.001
+  method: ccil
+run:
+  output_dir: output/
+  seed: 42
+transition_model:
+  activation: relu
+  batch_size: 2048
+  epochs: 500
+  hidden_layers:
+  - 256
+  - 256
+  learning_rate: 0.001
+  lipschitz_constraint: 2.0
+  lipschitz_type: slack
+  slack_weight: 0.1
+  soft_penalty_weight: 0.001
+  soft_samples: 5
+  soft_sampling_eps: 0.0003
+  weight_decay: 1.0e-05

@@ -1,0 +1,44 @@
+# Converted by ccil.config.convert/1 from pendulum_cont.yml (sha256 888bdd9a17747d5e57855af6f62e4d55bc6ae41aac3bfaa83aa74f0eee0654b6), fidelity historical.
+# Do not edit by hand; regenerate with: ccil config convert pendulum_cont.yml --fidelity historical
+compute:
+  device: cuda
+config_version: 1
+data:
+  path: data/pendulum_cont_100.npz
+  validation_fraction: 0.2
+environment:
+  id: PendulumSwingupCont-v0
+evaluation:
+  noise_levels:
+  - 0.0
+generation:
+  action_noise_std: 1.0e-05
+  labels_per_transition: 20
+  max_iterations: 30
+  method: noisy_action
+  support_radius: 1.0
+policy:
+  balance_noisy_labels: false
+  batch_size: 512
+  epochs: 100
+  exclude_validation_episodes: false
+  learning_rate: 0.001
+  method: ccil
+  noise_model: legacy_uniform_half_batch
+run:
+  output_dir: output/
+  seed: 42
+transition_model:
+  activation: relu
+  batch_size: 512
+  epochs: 100
+  hidden_layers:
+  - 512
+  - 512
+  learning_rate: 0.001
+  lipschitz_constraint: 2.0
+  lipschitz_type: soft_sampling
+  soft_penalty_weight: 0.001
+  soft_samples: 5
+  soft_sampling_eps: 0.0003
+  weight_decay: 1.0e-05
