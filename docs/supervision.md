@@ -11,7 +11,8 @@ document defines exactly which rows such a trainer may use, and with which
 weights. [`src/ccil/supervision.py`](../src/ccil/supervision.py) implements
 it as `build_supervision`. It trains nothing and imports no trainer.
 
-The maintained vector-policy trainer (#89) is experimental reference
+The maintained vector-policy trainer (#89,
+[policy-harness.md](policy-harness.md)) is experimental reference
 infrastructure. It exists to reproduce the paper's experiments and to show
 that the artifacts are consumable, and it consumes this contract like any
 other trainer. Using CCIL does not require it.

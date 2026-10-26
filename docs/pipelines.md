@@ -62,6 +62,14 @@ A `labels.certify` stage can follow `labels.generate`. It writes
 The profile's specification, admission policy, selection and references are part of its identity. See
 [certificates.md](certificates.md).
 
+## Experimental vector-policy harness: `ccil policy train`
+
+    data.prepare → transition.fit → labels.generate [→ labels.certify] → policy.train → policy.evaluate
+
+Reference infrastructure for reproducing the vector BC, NoiseBC and CCIL
+arms. It needs the `ccil[torch]` extra, and CCIL does not require it. See
+[policy-harness.md](policy-harness.md).
+
 ## Integrated pipeline: `ccil pipeline integrated`
 
     data.prepare → representation.fit → transition.fit → labels.generate → policy.train → policy.evaluate
