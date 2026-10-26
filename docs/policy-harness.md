@@ -140,6 +140,7 @@ Simulator evaluation belongs to #24 and M7, through
 | `policy.action_scaler` | `min_max` | `min_max`, `none` | Legacy `action_scaler='min_max'` | #89 |
 | `policy.balance_noisy_labels` | false | bool | Legacy `aug.balance_data` | #89 / #24 |
 | `policy.demonstration_weight` | 1.0 | ≥ 0 | Legacy weighted every row equally | #89 |
+| `policy.exclude_validation_episodes` | true | bool | Legacy BC trained on every episode (false); converted with `--fidelity historical` ([legacy-conversion.md](migration/legacy-conversion.md)) | #23 / #24 |
 | `policy.noise_scale` | (`noise_bc` only) | standardized observation units, ≥ 0 | Legacy `policy.noise_bc` | #89 / #24 |
 | `policy.noise_model` | `symmetric_uniform_half_batch` | or `legacy_uniform_half_batch` | #22 | #89 |
 | `policy.noise_mask_probability` | 0.5 | [0, 1] | Legacy `rand > 0.5` | #89 |

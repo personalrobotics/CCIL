@@ -196,6 +196,10 @@ PARAMS = [
           "policy", choices=("standard", "none")),
     Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
           "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
+    Param("policy.exclude_validation_episodes", "bool", True,
+          "Train the policy on the training episodes only, holding out the split's validation episodes.",
+          "Legacy BC trained on every expert transition; its validation split (#13) only evaluated the dynamics model. "
+          "Converted legacy configurations with fidelity historical set false.", "policy"),
     Param("policy.demonstration_weight", "float", 1.0, "Loss weight of every demonstration row.",
           "Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md).",
           "policy", low=0.0),
