@@ -125,7 +125,8 @@ benchmark is now retired.
 
 - **Legacy pickles are executable input.** They load only through the
   explicit trusted-input boundary (#15) and the one-way converter (#23), and
-  only for retained datasets (Pendulum).
+  only for retained datasets (Pendulum). See
+  [migration/legacy-conversion.md](migration/legacy-conversion.md).
 - **External datasets are validated at ingress against the schemas in #16.**
   This covers Minari, Hugging Face (LeRobot), robomimic and ManiSkill. They
   are fetched by stable identifier and revision and never committed to Git.
