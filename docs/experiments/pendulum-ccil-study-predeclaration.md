@@ -1,8 +1,24 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 1.** Committed before any run of this study. Results are reported
+**Version 2.** Committed before any run of this study. Results are reported
 against the version that governed them. A change after any outcome is seen
 is a new version, with its rationale, and is never applied retroactively.
+
+**Changes from version 1**, made before any tooling, tuning or study run, so
+no outcome informed them:
+- **Intervals (§8).** Version 1 used percentile bootstrap intervals, which
+  tend to undercover at 20 seeds, worst in the tails the Bonferroni interval
+  uses. The primary interval is now the union of a BCa bootstrap interval and
+  a paired t-interval.
+- **CCIL-tuned arm (§§5, 6).** The paper's CCIL configuration perturbs
+  actions very little (σ = 1e-5 on continuous Pendulum), so a null primary
+  result could describe that configuration rather than the method, while
+  NoiseBC gets a scale search. CCIL-tuned gets the same search budget, on
+  the same tuning seeds, as a secondary arm. The paper-configured comparison
+  remains the only primary result.
+- **Positive control (§8).** BC on all demonstrations against BC on 10%
+  must show a detectable difference before a "no detectable difference"
+  primary outcome is interpreted as one.
 
 This study replaces the legacy refactor-parity comparison, which was
 withdrawn by the migration contract's 2026-10-26 amendment (§5) before it
@@ -14,6 +30,8 @@ ran.
   closed-loop return relative to BC, in which direction, and by how much?
 - **Secondary.** These are descriptive and inform no decision:
   - CCIL compared with a tuned NoiseBC;
+  - CCIL with its action noise tuned like NoiseBC's scale, compared with BC
+    and with tuned NoiseBC;
   - the paper's label-error filtering compared with plain CCIL;
   - the effect of the dynamics model's Lipschitz regularization;
   - robustness to evaluation noise;
@@ -32,7 +50,7 @@ ran.
   `pyproject.toml` or `uv.lock`.
 - Tooling-only dependencies come from a pinned
   `tools/m3_pendulum/requirements.txt`, for example scipy for the
-  environment's integrator, layered with
+  environment's integrator and the analysis's intervals, layered with
   `uv run --group evidence --with-requirements`.
 - A behavior-changing `ccil` fix needs a new version of this document and
   separately reported runs.
@@ -126,27 +144,40 @@ values below. Nothing else is tuned.
 | **NoiseBC** | secondary baseline | `policy.method noise_bc`, `symmetric_uniform_half_batch`, with the scale chosen as in §6 |
 | **CCIL-filtered** | secondary | CCIL labels filtered by the paper's DisturbedAction label-error score (Def. 4.6, the `disturbed_action_paper_proxy` profile), keeping those at or below the 0.3 selection quantile, which is the label-filtering branch's value (`certificate.selection_quantile 0.3`, score admission). It shares CCIL's dynamics model and labels. |
 | **CCIL-noLip** | secondary ablation | CCIL with `transition_model.lipschitz_type none` (the ablation in `scripts/pendulum.sh`) |
+| **CCIL-tuned** | secondary | CCIL with `generation.action_noise_std` chosen as in §6. Every other setting, including the support radius, is CCIL's. |
 
 **Shared policy settings:** the experimental vector harness (#89), with
 batch 512, 100 epochs (÷20 when balanced), learning rate 1e-3, [256, 256],
 and standard and min_max scalers.
 
-**Asymmetry, stated.** NoiseBC receives a scale search (§6); CCIL and BC use
-the paper's settings. Any bias this creates therefore favors the baseline.
+**Asymmetry, stated.** In the primary comparison, BC and CCIL use the paper's
+settings, while NoiseBC receives a scale search (§6), so any bias this
+creates favors the baseline. CCIL-tuned receives the same search budget as
+NoiseBC, so that CCIL − NoiseBC can also be read with both sides tuned.
 
-## 6. Seeds and the NoiseBC scale
+## 6. Seeds and tuning
 
-**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale,
-**separately per task**.
-- **Grid** (standardized observation units): {1e-4 (the paper's value),
-  1e-3, 1e-2, 1e-1, 3e-1}.
-- **Selection:** per task, the scale with the highest mean noise-free return
-  over seeds 1–3. Ties go to the smaller scale.
-- **Failed tuning runs.** A scale with any failed tuning run is ineligible.
-  If every scale is ineligible, NoiseBC uses the paper's 1e-4, and this is
+**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale and the
+CCIL-tuned action noise, **separately per task**. Each search has five values:
+
+| Arm | Parameter | Grid |
+|---|---|---|
+| NoiseBC | `policy.noise_scale` (standardized observation units) | {1e-4 (the paper's value), 1e-3, 1e-2, 1e-1, 3e-1} |
+| CCIL-tuned | `generation.action_noise_std` (action units) | {the paper's value (1e-5 continuous, 1e-4 discontinuous), 1e-3, 1e-2, 1e-1, 3e-1} |
+
+The support radius is not searched: it is the paper's per-task constraint (on
+discontinuous Pendulum, 0.01 keeps labels from crossing the discontinuity),
+and searching it would give CCIL-tuned a larger budget than NoiseBC.
+
+For each arm and task:
+- **Selection:** the value with the highest mean noise-free return over
+  seeds 1–3. Ties go to the smaller value.
+- **Failed tuning runs.** A value with any failed tuning run is ineligible.
+  If every value is ineligible, the arm uses the paper's value, and this is
   recorded.
-- **Reporting.** Every scale-by-seed tuning result is reported.
-- The choice is committed to the run record before any study seed runs.
+- **Reporting.** Every value-by-seed tuning result is reported, with
+  CCIL-tuned's label acceptance rate.
+- Both choices are committed to the run record before any study seed runs.
 
 **Study seeds 101–120** (20 seeds). Each seed runs one complete pipeline per
 arm: the dynamics fit, labels, the policy, and evaluation. Tuning seeds are
@@ -163,7 +194,7 @@ never reported as study results.
       [1, 1, 4π], and action [−3, 3].
     - n ∈ {0.01, 0.05, 0.1}, with draws from
       `default_rng(SeedSequence([s, 8, k]))` shared across arms.
-    - It applies to BC, NoiseBC and CCIL.
+    - It applies to BC, NoiseBC, CCIL and CCIL-tuned.
   - **Data size.** Nested episode subsets of 10%, 25% and 50%, chosen by
     `default_rng(SeedSequence([s, 9])).permutation`, for BC and CCIL, with
     noise-free evaluation.
@@ -189,31 +220,52 @@ never reported as study results.
 **Paired differences.** For each task and comparison,
 dₛ = R(s, A) − R(s, B) over the seeds valid for both arms.
 
-**Intervals.** Each interval uses a fresh
-`numpy.random.default_rng(20261026)`:
-- `idx = rng.integers(0, n, size=(10000, n))`;
-- the endpoints are `np.quantile(d[idx].mean(axis=1), q, method="linear")`.
+**Intervals.** At confidence level c, for the n paired differences d:
+- **BCa bootstrap:** `scipy.stats.bootstrap((d,), np.mean,
+  confidence_level=c, n_resamples=10000, method="BCa",
+  rng=np.random.default_rng(20261026))`, with the scipy pinned in
+  `tools/m3_pendulum/requirements.txt`;
+- **Paired t:** d̄ ± t_{(1+c)/2, n−1} · s_d / √n, with s_d the sample standard
+  deviation (ddof 1).
 
-**Primary decision**, per task, for CCIL − BC. Two tasks are tested, so the
-interval is Bonferroni-adjusted: 97.5%, q = (0.0125, 0.9875).
+If the BCa interval is undefined (non-finite endpoints, for example when
+every dₛ is equal), the t-interval is used alone, and this is reported.
+
+**Primary decision**, per task, for CCIL − BC. Two tasks are tested, so
+c = 0.975 (Bonferroni). The decision interval is the **union** of the two
+intervals: from the lower of their lower endpoints to the higher of their
+upper endpoints. A direction is claimed only when both methods agree.
 
 | Outcome | Condition |
 |---|---|
 | **CCIL improves on BC** | the lower endpoint > 0 |
 | **CCIL is worse than BC** | the upper endpoint < 0 |
-| **No detectable difference** | the interval contains 0 |
+| **No detectable difference** | the interval contains 0, and the positive control passes |
+| **Inconclusive** | the interval contains 0, and the positive control fails; or §9 applies |
+
+**Positive control**, per task. The same procedure (c = 0.975, the union
+interval) applied to dₛ = R(s, BC on all episodes) − R(s, BC on the 10%
+subset of §7) must give a lower endpoint > 0. If it does not, the setup has
+not shown it can detect a known difference on that task, so a null primary
+result there is not read as evidence of no effect. A directional primary
+result stands either way. The control is reported in full whether it passes
+or fails.
 
 **Reported alongside the decision:**
-- d̄;
-- the relative effect d̄ / |mean R_BC|, with its interval. In each bootstrap
-  resample the ratio is recomputed as `d[idx].mean() / abs(R_BC[idx].mean())`,
-  and the interval is the same quantiles of those ratios;
+- d̄, and both intervals separately;
+- the relative effect d̄ / |mean R_BC|, with its BCa interval:
+  `scipy.stats.bootstrap((d, R_BC), lambda d, b: d.mean() / abs(b.mean()),
+  paired=True, vectorized=False, confidence_level=0.975, n_resamples=10000,
+  method="BCa", rng=np.random.default_rng(20261026))`;
 - every per-seed value.
 
-**Secondary comparisons** are CCIL − NoiseBC, CCIL-filtered − CCIL and
-CCIL-noLip − CCIL, and per noise level and data size. Each gets a 95%
-interval (q = 0.025, 0.975). They are descriptive: no decisions, and no
-multiplicity claims.
+A "no detectable difference" outcome is reported with its interval, which
+bounds the size of any effect the study could have missed.
+
+**Secondary comparisons** are CCIL − NoiseBC, CCIL-tuned − BC,
+CCIL-tuned − NoiseBC, CCIL-filtered − CCIL and CCIL-noLip − CCIL, and per
+noise level and data size. Each gets the union interval at c = 0.95. They are
+descriptive: no decisions, and no multiplicity claims.
 
 **Paper comparison** (informational): the mean ± std over seeds of BC and
 CCIL, beside Fig. 4(c):
@@ -239,6 +291,9 @@ algorithm, or a non-finite return. They are reported per arm and seed.
   conditioned on the seeds where an arm succeeded.
 - **Secondary arms.** The failed arm-seed is missing from that descriptive
   comparison, and the failure is reported.
+- **Positive control.** Any algorithmic failure in BC on the full data or on
+  the 10% subset, or fewer than 16 seeds valid for both, means the control
+  fails on that task.
 
 **Inconclusive.** A task's primary outcome is also **inconclusive** if
 infrastructure exclusions leave either primary arm with more than 2 excluded
