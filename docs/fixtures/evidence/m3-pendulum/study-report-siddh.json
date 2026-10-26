@@ -153,7 +153,7 @@
     "study": 52,
     "tuning": 20
    },
-   "rollouts_reaudited": 112,
+   "rollouts_reaudited": 192,
    "smoke_note": "smoke outcomes are inconclusive by construction (2 seeds < 16); returns are not reported",
    "smoke_outcomes": {
     "continuous": "inconclusive",
@@ -203,21 +203,82 @@
   },
   {
    "case": "analysis_refuses",
-   "changed_rollout": "analysis refused: 1 rollouts fail the re-audit, e.g. [('rollouts/study/continuous/ccil_frac25/s9002-noise0.0.npz', False, False, ['rewards differ by 9.999999992515995e-07', 'returns differ from the sums of their rewards by 9.99999883788405e-07', 'R is not the mean of the returns'])]",
+   "cases": {
+    "changed_corrected_config": {
+     "expected_message": "differ from the committed conversion",
+     "refused": true,
+     "stderr": "continuous: the converted inputs {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'ca3f2220add8f0e284d2cf063a7c3729c2be8480d744ca69746bd3d32e237a33'} differ from the committed conversion {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'f2115584b7c1143f2e47c3db08bcce79814f2260ddddcb50ca9b0ddf5c23562e'}"
+    },
+    "changed_reused_subset": {
+     "expected_message": "differs from its rebuild",
+     "refused": true,
+     "stderr": "<out>/smoke/root/inputs/subsets/pendulum_disc_500-s9002-f0.25.npz differs from its rebuild from SeedSequence([9002, 9]); refusing to use it"
+    },
+    "changed_rollout": {
+     "expected_message": "fails the re-audit",
+     "refused": true,
+     "stderr": "study records refused (2 problems): continuous/ccil_frac25/s9002 noise 0.0: the rollout fails the re-audit (changed bytes); continuous/ccil_frac25/s9002: status ok without every finite, verified evaluation"
+    },
+    "duplicate_study_unit": {
+     "expected_message": "not exactly the study units",
+     "refused": true,
+     "stderr": "study records refused (2 problems): records are not exactly the study units: missing [], duplicate or extra [('continuous', 'bc', 9002, None)]; results/study/continuous/bc_copy/s9002.json does not hold the unit its path names"
+    },
+    "extra_study_unit": {
+     "expected_message": "not exactly the study units",
+     "refused": true,
+     "stderr": "9004, None)]; continuous/bc/s9004 noise 0.0: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.01: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.05: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.1: the record disagrees with its rollout's audit; continuous/bc/s9004: status ok without every finite, verified evaluation"
+    },
+    "study_record_R": {
+     "expected_message": "disagrees with its rollout's audit",
+     "refused": true,
+     "stderr": "study records refused (2 problems): continuous/bc/s9002 noise 0.0: the record disagrees with its rollout's audit; continuous/bc/s9002: status ok without every finite, verified evaluation"
+    },
+    "tuning_choice": {
+     "expected_message": "differs from its recomputation",
+     "refused": true,
+     "stderr": "analysis refused: the tuning choice differs from its recomputation from the verified tuning records"
+    },
+    "tuning_record_R": {
+     "expected_message": "disagrees with its rollout's audit",
+     "refused": true,
+     "stderr": "tuning records refused (2 problems): continuous/noise_bc@0.01/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/noise_bc@0.01/s9001: status ok without every finite, verified evaluation"
+    },
+    "unit_with_changed_config": {
+     "refused": true,
+     "stderr": "cf2c04f59a60df73f3234122f962', 'config': 'ca3f2220add8f0e284d2cf063a7c3729c2be8480d744ca69746bd3d32e237a33'} differ from the committed conversion {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'f2115584b7c1143f2e47c3db08bcce79814f2260ddddcb50ca9b0ddf5c23562e'}"
+    }
+   },
    "existing_output": "<out>/smoke-analysis.json exists; analyses are never overwritten",
-   "pass": true
+   "pass": true,
+   "restored_root_analyzes": true
+  },
+  {
+   "case": "frozen_tooling_gate",
+   "differing": [
+    "tools/m3_pendulum/README.md"
+   ],
+   "gate_ok": {
+    "committed_tooling_change": false,
+    "frozen_at_this_commit": true,
+    "manifest_names_no_commit": false,
+    "no_manifest": false,
+    "smoke_without_frozen_tooling": true
+   },
+   "pass": true,
+   "real_run_without_manifest": "cil_frozen\": \"847b06057e8d36a16d13aa2f3b2e375ceb9147e5\", \"differing_from_frozen_ccil\": [], \"dirty\": [], \"head\": \"b7267f037778d8d475543aec69e354cf3d4c767e\", \"ok\": false, \"real\": true, \"tooling\": {\"ok\": false, \"problem\": \"no freeze manifest (tools/m3_pendulum/freeze.json); the tooling is not frozen\"}}"
   },
   {
    "case": "clean_tree_at_frozen_ccil",
    "ccil_frozen": "847b06057e8d36a16d13aa2f3b2e375ceb9147e5",
    "differing_from_frozen_ccil": [],
    "dirty": [],
-   "head": "39c5b5be679dfc80b2a8b8aaf04f8a8b6a1c6d06",
+   "head": "b7267f037778d8d475543aec69e354cf3d4c767e",
    "pass": true
   }
  ],
  "environment": {
-  "code_commit": "39c5b5be679dfc80b2a8b8aaf04f8a8b6a1c6d06",
+  "code_commit": "b7267f037778d8d475543aec69e354cf3d4c767e",
   "code_dirty": false,
   "device": "cuda",
   "numpy": "2.4.6",
