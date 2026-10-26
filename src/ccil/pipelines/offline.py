@@ -70,7 +70,7 @@ def build_certificate(v) -> tuple:
         return Provided("reference_lipschitz", REFERENCE) if ref is not None else declared(key)
 
     nb = {"neighborhood_state": v["certificate.neighborhood_state"]}
-    if name != "backtrack":
+    if name not in ("backtrack", "backtrack_paper_proxy"):
         nb["neighborhood_action"] = v["certificate.neighborhood_action"]
     if name in BOUND_PROFILES:
         demo = Provided("reference_residual", REFERENCE) if ref is not None else declared("certificate.demonstration_residual_bound")
@@ -91,6 +91,7 @@ def build_certificate(v) -> tuple:
         profile = PROFILES[name](**nb)
         admission, threshold = "score", v["certificate.score_threshold"]
     return profile, {"admission": admission, "threshold": threshold, "selection_quantile": v["certificate.selection_quantile"],
+                     "selection_population": v["certificate.selection_population"],
                      "references": {REFERENCE: Path(ref)} if ref is not None else {}}
 
 
@@ -201,7 +202,8 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: StageResult, representation, profile,
                   admission: str = "upper_bound", threshold: float | None = None,
                   selection_quantile: float | None = None, references: dict | None = None,
-                  state_scale=None, action_scale=None, extra_inputs=None) -> StageResult:
+                  state_scale=None, action_scale=None, extra_inputs=None,
+                  selection_population: str = "admitted") -> StageResult:
     """labels.certify: write labels/certificates.npz for the labels stage's candidates (#88).
 
     The candidates are an input and are never modified; consumers train on
@@ -221,7 +223,8 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
                           extra=dict(extra_inputs or {}), references=references,
                           device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"])
         cert = certify(sources, profile, admission=admission, threshold=threshold,
-                       selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale)
+                       selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
+                       selection_population=selection_population)
         write_certificates(cert, run.path(layout.CERTIFICATES))
         accepted = read_candidates(inputs["candidates"]).accepted
         usable = np.asarray(accepted) & cert.admissible & cert.selected
@@ -233,7 +236,8 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
     scales = {k: None if x is None else [float(e) for e in x] for k, x in (("state", state_scale), ("action", action_scale))}
     return run_stage("labels.certify", cfg, inputs, body, components={"representation": representation},
                      parameters={"profile": profile.spec(), "admission": admission, "threshold": threshold,
-                                 "selection_quantile": selection_quantile, "scales": scales})
+                                 "selection_quantile": selection_quantile, "selection_population": selection_population,
+                                 "scales": scales})
 
 
 def generate_offline(cfg) -> list[StageResult]:

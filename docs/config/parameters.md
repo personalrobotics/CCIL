@@ -90,6 +90,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `certificate.max_total_error` | float | `null` | scaled state | [0.0, inf] | implemented | Bound profiles: admit labels whose bound is at most this. | Admission is upper_bound: only bound rows (certified or conditional) are admitted. | - |
 | `certificate.score_threshold` | float | `null` | scaled state | [0.0, inf] | implemented | Score profiles: admit labels whose score is at most this. | Admission is score: rows stay empirical and are never presented as bounds. Legacy aug.max_label_err. | `aug.max_label_err` |
 | `certificate.selection_quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose total is at most this quantile of theirs. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
+| `certificate.selection_population` | choice | `"admitted"` | - | `admitted`, `produced` | implemented | Rows the selection quantile is taken over. | admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, independently of the admission threshold and support radius, as the label-filtering branch did; migrated legacy configurations use it. | - |
 
 ## policy
 

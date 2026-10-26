@@ -159,6 +159,10 @@ PARAMS = [
           "A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the "
           "label-filtering pendulum configs).", "certificate", low=0.0, low_open=True, high=1.0, nullable=True,
           legacy=("aug.label_err_quantile",)),
+    Param("certificate.selection_population", "choice", "admitted", "Rows the selection quantile is taken over.",
+          "admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, "
+          "independently of the admission threshold and support radius, as the label-filtering branch did; migrated "
+          "legacy configurations use it.", "certificate", choices=("admitted", "produced")),
     # policy ----------------------------------------------------------------
     Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
           "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
@@ -240,12 +244,19 @@ _VALUE_KEYS = ("certificate.true_state_lipschitz", "certificate.true_action_lips
 
 def _certificate(v):
     prof, ref = v["certificate.profile"], v["certificate.reference_dynamics"]
-    settings = [k for k in v if k.startswith("certificate.") and k not in ("certificate.profile",
-                                                                          "certificate.learned_lipschitz_source")
-                and v[k] is not None]
+    defaults = {"certificate.learned_lipschitz_source": "model", "certificate.selection_population": "admitted"}
+    settings = [k for k in v if k.startswith("certificate.") and k != "certificate.profile"
+                and v[k] is not None and v[k] != defaults.get(k)]
     if prof is None:
         return f"{settings} require certificate.profile" if settings else None
     problems = []
+    if v["certificate.selection_population"] != "admitted" and v["certificate.selection_quantile"] is None:
+        problems.append("certificate.selection_population applies to a selection; set certificate.selection_quantile")
+    if v["certificate.learned_lipschitz_source"] != "model" and prof != "backtrack":
+        problems.append(f"certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, "
+                        f"not {prof}")
+    if prof in ("backtrack", "backtrack_paper_proxy") and v["certificate.neighborhood_action"] is not None:
+        problems.append(f"{prof} keeps the anchor's action; certificate.neighborhood_action does not apply")
     family, method = PROFILE_FAMILY.get(prof), v["generation.method"]
     if family and method in METHOD_FAMILY and METHOD_FAMILY[method] != family:
         problems.append(f"certificate.profile {prof} certifies {family} labels; generation.method {method} makes "
@@ -272,8 +283,6 @@ def _certificate(v):
         problems.append(f"{prof} without {'exact discrepancy' if prof == 'continuity' else 'reference dynamics'} needs {missing}")
     if unused:
         problems.append(f"{prof} does not use {unused} here; unset them")
-    if prof == "backtrack" and v["certificate.neighborhood_action"] is not None:
-        problems.append("backtrack keeps the anchor's action; certificate.neighborhood_action does not apply")
     return "; ".join(problems) or None
 
 

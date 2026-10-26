@@ -142,9 +142,12 @@ at the source transition (z_t, a_t) (Ke et al., §4.3):
 - **Precondition and population.** Both definitions assume a small anchor
   model error (ε ≈ 0; the paper gets it by "only generating labels for data
   points with low model error"). `generation.model_error_threshold` enforces
-  this at generation (`ModelMisfit`). `certificate.selection_quantile` is
-  taken over accepted, admissible rows, so misfit anchors never enter it.
-  Legacy skipped them before computing it.
+  this at generation (`ModelMisfit`). Misfit anchors never enter the
+  selection quantile, as legacy skipped them.
+  - By default the quantile is taken over accepted, admissible rows.
+  - Migrated configurations take it over every produced row, independently
+    of `max_label_err` and `epsilon` (`certificate.selection_population:
+    produced`), which reproduces the branch's selection.
 - **Exact Jacobians only.** The scores use the model's exact `jacobian_za`,
   with no finite-difference fallback. Without it a row is unsupported, never
   0: at float32, steps of 1e-6 vanish for inputs near 1e4, and the evidence

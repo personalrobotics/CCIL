@@ -85,6 +85,10 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
         values["certificate.profile"] = "legacy_label_filtering"
         notes.append("aug.max_label_err / aug.label_err_quantile -> certificate.profile legacy_label_filtering "
                      "(the branch's score, empirical)")
+    if "aug.label_err_quantile" in flat:
+        values["certificate.selection_population"] = "produced"
+        notes.append("aug.label_err_quantile -> certificate.selection_population produced (the branch took the quantile "
+                     "over every generated label, independently of aug.max_label_err)")
     if "policy.naive" in flat or "policy.noise_bc" in flat:
         naive, noise = flat.get("policy.naive", False), flat.get("policy.noise_bc", 0.0)
         if naive is True and noise:
