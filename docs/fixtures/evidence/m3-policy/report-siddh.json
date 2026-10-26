@@ -7,7 +7,7 @@
    "pass": true,
    "runs": {
     "bc": {
-     "checkpoint": "<out>/work/runs/policy-train-56711c45c9a3/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-e17eb8745206/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
@@ -22,11 +22,11 @@
      },
      "reused": [],
      "stages": {
-      "data.prepare": "runs/data-prepare-481ab3c33876",
-      "labels.generate": "runs/labels-generate-d9da6c6875af",
-      "policy.evaluate": "runs/policy-evaluate-880085fd18a3",
-      "policy.train": "runs/policy-train-56711c45c9a3",
-      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+      "data.prepare": "runs/data-prepare-1537167eeb7b",
+      "labels.generate": "runs/labels-generate-1a7503293ac6",
+      "policy.evaluate": "runs/policy-evaluate-f181acd64672",
+      "policy.train": "runs/policy-train-e17eb8745206",
+      "transition.fit": "runs/transition-fit-9c9229b7744a"
      },
      "status": {
       "data.prepare": "complete",
@@ -37,7 +37,7 @@
      }
     },
     "ccil": {
-     "checkpoint": "<out>/work/runs/policy-train-897de1727478/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-545a57ecfc23/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
@@ -56,12 +56,12 @@
       "labels.generate"
      ],
      "stages": {
-      "data.prepare": "runs/data-prepare-481ab3c33876",
-      "labels.certify": "runs/labels-certify-31aefa0855eb",
-      "labels.generate": "runs/labels-generate-d9da6c6875af",
-      "policy.evaluate": "runs/policy-evaluate-b62d2da745ef",
-      "policy.train": "runs/policy-train-897de1727478",
-      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+      "data.prepare": "runs/data-prepare-1537167eeb7b",
+      "labels.certify": "runs/labels-certify-1ff351f9f5c5",
+      "labels.generate": "runs/labels-generate-1a7503293ac6",
+      "policy.evaluate": "runs/policy-evaluate-54cdb7bee413",
+      "policy.train": "runs/policy-train-545a57ecfc23",
+      "transition.fit": "runs/transition-fit-9c9229b7744a"
      },
      "status": {
       "data.prepare": "complete",
@@ -73,7 +73,7 @@
      }
     },
     "noise_bc": {
-     "checkpoint": "<out>/work/runs/policy-train-2851f3c1c6f0/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-9843f74bec55/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
@@ -92,11 +92,11 @@
       "labels.generate"
      ],
      "stages": {
-      "data.prepare": "runs/data-prepare-481ab3c33876",
-      "labels.generate": "runs/labels-generate-d9da6c6875af",
-      "policy.evaluate": "runs/policy-evaluate-bd3ea623f61d",
-      "policy.train": "runs/policy-train-2851f3c1c6f0",
-      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+      "data.prepare": "runs/data-prepare-1537167eeb7b",
+      "labels.generate": "runs/labels-generate-1a7503293ac6",
+      "policy.evaluate": "runs/policy-evaluate-8c9daab56852",
+      "policy.train": "runs/policy-train-9843f74bec55",
+      "transition.fit": "runs/transition-fit-9c9229b7744a"
      },
      "status": {
       "data.prepare": "complete",
@@ -132,9 +132,9 @@
   },
   {
    "case": "weights_follow_the_declared_loss",
-   "manual": 1.3003064393997192,
+   "manual": 1.7329193353652954,
    "pass": true,
-   "weighted_loss": 1.3003064393997192,
+   "weighted_loss": 1.7329190969467163,
    "zero_weight_steps": [
     1,
     1
@@ -259,7 +259,8 @@
   },
   {
    "case": "resume_matches_uninterrupted_training",
-   "contract": "CPU: byte-identical; CUDA: reported as measured, not claimed",
+   "command_level_rerun_identical": true,
+   "contract": "library resume: CPU byte-identical, identity-checked; CUDA reported as measured, not claimed. Command level: an interrupted policy.train restarts, and determinism reproduces it.",
    "cpu": {
     "bc": {
      "identical": true
@@ -276,7 +277,18 @@
     "straight_vs_resumed_max_abs": 0.0,
     "straight_vs_straight_max_abs": 0.0
    },
-   "pass": true
+   "pass": true,
+   "refused": {
+    "bc_checkpoint_resumed_as_ccil": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['method', 'supervision_inputs', 'supervision_sha256']",
+    "incomplete_adam_state": "TrainingError: cannot resume: checkpoint optimizer state is incomplete: missing ['adam/0/exp_avg_sq']",
+    "inference_checkpoint": "TrainingError: cannot resume: checkpoint kind is 'inference'; only a resumable checkpoint (written with its optimizer) can be resumed; checkpoint belongs to another training run; differing: ['method', 'optimizer', 'seed', 'settings', '",
+    "other_balancing": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['settings']",
+    "other_batch_size": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['settings']",
+    "other_learning_rate": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['settings']",
+    "other_noise_scale": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['noise_bc']",
+    "other_seed": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['seed']",
+    "other_supervision": "TrainingError: cannot resume: checkpoint belongs to another training run; differing: ['supervision_inputs', 'supervision_sha256']"
+   }
   },
   {
    "case": "checkpoints_and_dependency_isolation",
@@ -300,7 +312,7 @@
   }
  ],
  "environment": {
-  "code_commit": "bfb65fcca3b97e8f956a339e45a44fcf4dd27a76",
+  "code_commit": "912d2cbceb789e15607a57b6dde3a247695fac4a",
   "code_dirty": false,
   "device_requested": "cuda",
   "numpy": "2.4.6",
