@@ -13,6 +13,7 @@ uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt p
 |---|---|
 | `env.py` | The canonical environment (§3): `step`, `reward`, `initial_states`, `noise_draws`, and `rollout`, which evaluates a policy on a seed's 100 episodes and returns every per-step array; `save` writes them as a pickle-free npz |
 | `audit.py` | The independent audit: recomputes rewards, returns and R from the saved states and actions, regenerates the initial states and noise draws, and replays every transition |
+| `provenance.py` | The code-state gate every run passes first: a clean tree, and `src`, `pyproject.toml` and `uv.lock` equal to the frozen `ccil` commit (§2) |
 | `check.py` | The §3 acceptance checks |
 
 ## Acceptance checks
@@ -33,12 +34,15 @@ with `report-siddh.json` from the study host. It shows:
   tasks, with and without evaluation noise, the audit reproduces every
   reward, the horizon, every return and R.
 - **Tampering.** The audit refuses a changed reward, state, noise draw or R,
-  and a dropped step.
+  and a dropped step, including inside a failed episode's finite prefix and
+  after its failure.
 - **Failures.** A non-finite action ends its episode, gives a non-finite R,
-  and is recorded as a failure.
+  and is recorded as a failure. Every step before it is still audited.
 - **Repeatability.** Repeat evaluations are identical.
-- **Frozen `ccil`.** `src`, `pyproject.toml` and `uv.lock` equal commit
-  `847b060`.
+- **Code-state gate.** The tree is clean, and `src`, `pyproject.toml` and
+  `uv.lock` equal commit `847b060`. A dirty tree fails the checks. On a
+  scratch clone, the gate refuses an uncommitted `src` change and an
+  untracked file.
 
 The rollouts are written under `<new-dir>/rollouts/`, and each one can be
 re-audited with `audit.audit(path)`.

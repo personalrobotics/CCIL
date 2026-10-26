@@ -14,8 +14,9 @@ saved next state bit for bit, so a saved trajectory is the one the
 environment produced from the saved actions.
 
 An episode that the evaluator ended on a non-finite action is a recorded
-failure, not a mismatch: its finite prefix is audited, and the result says
-which episodes failed. Any mismatch makes ok false.
+failure, not a mismatch: every step before the failure is audited as above,
+every value after it must be NaN, and the result says which episodes
+failed. Any mismatch makes ok false.
 """
 from __future__ import annotations
 
@@ -49,9 +50,19 @@ def audit(path, replay: bool = True) -> dict:
     require(T == 500 and E == 100, f"episodes {E}, horizon {T}; predeclared 100 and 500")
     require(r["states"].shape == (E, T + 1, 3) and r["actions"].shape == (E, T, 1) and r["rewards"].shape == (E, T),
             "array shapes do not match the horizon")
-    failed = np.flatnonzero(~np.isfinite(r["actions"][:, :, 0]).all(axis=1))
+    if issues:
+        return {"ok": False, "issues": issues, "task": meta["task"], "seed": seed, "noise_level": n}
+    # Each episode's finite prefix: its first L_e steps, L_e = T unless the episode failed at step L_e.
+    finite = np.isfinite(r["actions"][:, :, 0])
+    L = np.where(finite.all(axis=1), T, np.argmin(finite, axis=1))
+    failed = np.flatnonzero(L < T)
     require(np.array_equal(failed, r["failed_episodes"]), "failed episodes disagree with the saved actions")
-    ok_eps = np.setdiff1d(np.arange(E), failed)
+    step = np.arange(T)[None, :] < L[:, None]  # (E, T): steps inside the prefix
+    seen = np.arange(T)[None, :] <= L[:, None]  # observations: the failing step's observation was seen too
+    require(np.isnan(r["actions"][~step]).all() and np.isnan(r["rewards"][~step]).all()
+            and np.isnan(r["states"][:, 1:][~step]).all(), "a failed episode has values after its failure")
+    require(np.isfinite(r["states"][:, 1:][step]).all() and np.isfinite(r["rewards"][step]).all(),
+            "an episode prefix has non-finite values")
 
     # Initial states and noise draws, regenerated from the seed.
     draw = np.random.default_rng(np.random.SeedSequence([seed, 7])).uniform([-1.0, -0.5], [1.0, 0.5], size=(E, 2))
@@ -67,26 +78,27 @@ def audit(path, replay: bool = True) -> dict:
                 "noise draws differ from the seed's draws")
         require(n == (0.01, 0.05, 0.1)[meta["noise_index"]], "noise index does not name the noise level")
         obs_in, act_in = obs_in * (1 - n) + n * on, act_in * (1 - n) + n * an
-    s, o, a = r["states"][ok_eps], r["observations"][ok_eps], r["actions"][ok_eps]
-    require(np.array_equal(o, obs_in[ok_eps]), "observations are not the predeclared noisy states")
-    require(np.array_equal(a, act_in[ok_eps]), "applied actions are not the predeclared noisy policy actions")
-    require(np.isfinite(s).all() and np.isfinite(r["rewards"][ok_eps]).all(), "a completed episode has non-finite values")
+    require(np.array_equal(r["observations"][seen], obs_in[seen]), "observations are not the predeclared noisy states")
+    require(np.array_equal(r["actions"][step], act_in[step]), "applied actions are not the predeclared noisy policy actions")
 
     # Rewards, returns, R.
-    reward_err = float(np.abs(_rewards(s[:, :-1], a) - r["rewards"][ok_eps]).max()) if len(ok_eps) else 0.0
+    errs = np.abs(_rewards(r["states"][:, :-1], r["actions"]) - r["rewards"])[step]
+    reward_err = float(errs.max()) if errs.size else 0.0
     require(reward_err <= TOL, f"rewards differ by {reward_err}")
+    ok_eps = np.setdiff1d(np.arange(E), failed)
     sums = np.array([math.fsum(row) for row in r["rewards"][ok_eps]])
     return_err = float(np.abs(sums - r["returns"][ok_eps]).max()) if len(ok_eps) else 0.0
     require(return_err <= TOL, f"returns differ from the sums of their rewards by {return_err}")
+    require(np.isnan(r["returns"][failed]).all(), "a failed episode has a finite return")
     require(len(failed) > 0 or abs(math.fsum(sums) / E - float(r["R"])) <= TOL, "R is not the mean of the returns")
     require(len(failed) == 0 or not np.isfinite(r["R"]), "R is finite although an episode failed")
 
-    # Replay: the saved next state is env.step of the saved state and action.
+    # Replay: the saved next state is env.step of the saved state and action, over every prefix.
     replay_mismatches, flips = 0, 0
     if replay:
         disc = pendulum.TASKS[meta["task"]]
-        for e in ok_eps:
-            for t in range(T):
+        for e in range(E):
+            for t in range(L[e]):
                 nxt, f = pendulum.step(r["states"][e, t].copy(), float(r["actions"][e, t, 0]), disc)
                 replay_mismatches += int(not np.array_equal(nxt, r["states"][e, t + 1]) or f != r["flipped"][e, t])
                 flips += int(f)
