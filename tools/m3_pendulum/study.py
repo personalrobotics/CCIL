@@ -39,6 +39,8 @@ analysis never mixes them with real runs.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import multiprocessing
@@ -94,6 +96,9 @@ ARMS = {
     "zero": (None, NOISY, None, None),  # the zero-action reference (v3): no training
 }
 CCIL_ARMS = {a for a, (sets, *_) in ARMS.items() if sets and "policy.method=ccil" in sets}
+# labels.certify of the paper-proxy profile scores every accepted label at once: about 60 GB of GPU memory for the
+# discontinuous task's 2.9M labels (measured on the study host), so at most one such unit trains at a time.
+EXCLUSIVE = {"ccil_filtered"}
 TUNED = {"noise_bc": "policy.noise_scale", "ccil_tuned": "generation.action_noise_std"}
 
 
@@ -209,6 +214,17 @@ def _stages(stdout: str) -> dict:
     return out
 
 
+@contextlib.contextmanager
+def _exclusive(root):
+    """A cross-process lock: one EXCLUSIVE unit's training at a time under root."""
+    with open(Path(root) / "exclusive.lock", "a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
 def _classify(proc, stderr: str) -> str | None:
     if proc.returncode == 0:
         return None
@@ -255,7 +271,8 @@ def run_unit(root, phase, task, arm, seed, value=None, *, device="cuda", smoke=F
             cmd += ["--set", s]
         unit_dir.mkdir(parents=True, exist_ok=True)
         t0 = time.time()
-        proc = subprocess.run(cmd, cwd=root / "inputs", capture_output=True, text=True)
+        with _exclusive(root) if arm in EXCLUSIVE else contextlib.nullcontext():
+            proc = subprocess.run(cmd, cwd=root / "inputs", capture_output=True, text=True)
         (unit_dir / f"train-attempt{attempt}.log").write_text(f"$ {' '.join(cmd)}\n{proc.stdout}\n--- stderr\n{proc.stderr}")
         record.update(command=cmd, overrides=overrides, exit=proc.returncode, train_seconds=round(time.time() - t0, 1),
                       stages=_stages(proc.stdout), stderr_tail=proc.stderr[-2000:])

@@ -93,6 +93,11 @@ non-finite training loss, or a non-finite return is an algorithmic failure,
 and the record is the result. A configuration that `ccil` refuses is a
 tooling defect: the unit stops without a record.
 
+**GPU memory.** Certifying CCIL-filtered's labels scores them all at once:
+about 60 GB of GPU memory for the discontinuous task, against at most 1 GB
+for other units. A file lock (`ROOT/exclusive.lock`) lets one CCIL-filtered
+unit train at a time, while the other units run in parallel.
+
 **Balancing.** The discontinuous paper configuration balances noisy labels
 (legacy `aug.balance_data`), which applies to CCIL only. The BC and NoiseBC
 arms set `policy.balance_noisy_labels=false`, training on the demonstrations
