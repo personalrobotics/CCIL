@@ -359,8 +359,24 @@ seeds, or fewer than 16 seeds valid for both.
 
 Negative and null outcomes are reported the same way as positive ones.
 
-## 11. Tooling freeze (addendum, to be completed before any tuning run)
+## 11. Tooling freeze (addendum, recorded before any tuning run)
 
-- Frozen tooling commit: *(recorded by its own pull request, after the §3
-  acceptance checks pass, together with `tools/m3_pendulum/freeze.json`)*
-- Acceptance check evidence: *(linked here)*
+- **Frozen tooling commit:** `cba34fea7241cdbf4a48bb00083da76bb2383d40`, the
+  merge of #106. It is named by
+  [`tools/m3_pendulum/freeze.json`](../../tools/m3_pendulum/freeze.json),
+  which every real run, the tuning choice and the analysis check (§2).
+- **Evidence.** It was generated from the clean commit `b7267f0`. Every frozen
+  tooling path, and `src`, `pyproject.toml` and `uv.lock`, are identical at
+  `cba34fe`; only the evidence reports differ.
+  - §3 acceptance checks, 8/8 on each host:
+    [`report.json`](../fixtures/evidence/m3-pendulum/report.json) (macOS,
+    CPU) and
+    [`report-siddh.json`](../fixtures/evidence/m3-pendulum/report-siddh.json)
+    (Linux, CUDA).
+  - Run drivers and analysis, 7/7 on each host:
+    [`study-report.json`](../fixtures/evidence/m3-pendulum/study-report.json)
+    and
+    [`study-report-siddh.json`](../fixtures/evidence/m3-pendulum/study-report-siddh.json).
+    These cover known answers, interval coverage, smoke runs on seeds
+    9001–9003 only, refusals, and the frozen-tooling gate.
+- **No tuning or study outcome** existed when this was recorded.
