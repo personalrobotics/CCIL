@@ -98,13 +98,18 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 |---|---|---|---|---|---|---|---|---|
 | `policy.method` | choice | `"ccil"` | - | `ccil`, `bc`, `noise_bc` | implemented | Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3). | Replaces the policy.naive and policy.noise_bc flag combination. | `policy.naive`, `policy.noise_bc` |
 | `policy.trainer` | choice | `"linear_least_squares"` | - | `linear_least_squares`, `mean_action` | implemented | Downstream policy trainer of the integrated pipeline. | Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. | - |
-| `policy.noise_scale` | float | `null` | observation units | [0.0, inf] | declared (#89) | NoiseBC observation-noise scale: the maximum noise magnitude. | Set per suite by the legacy scripts. | `policy.noise_bc` |
-| `policy.noise_model` | choice | `"symmetric_uniform_half_batch"` | - | `symmetric_uniform_half_batch`, `legacy_uniform_half_batch` | declared (#89) | NoiseBC noise distribution. | symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity. | - |
-| `policy.learning_rate` | float | `0.001` | - | (0.0, inf] | declared (M3) | Policy learning rate. | Same value in every legacy config. | `policy.lr` |
-| `policy.batch_size` | int | `null` | - | [1, inf] | declared (M3) | Policy minibatch size. | Task-specific in legacy configs. | `policy.batch_size` |
-| `policy.epochs` | int | `null` | - | [1, inf] | declared (M3) | Policy training epochs. | Task-specific in legacy configs. | `policy.train_epochs` |
-| `policy.balance_noisy_labels` | bool | `false` | - | - | declared (M3 (#22)) | Repeat expert data num_labels times for noisy-action labels. | Legacy aug.balance_data. | `aug.balance_data` |
-| `policy.action_scaler` | choice | `"min_max"` | - | `min_max`, `none` | declared (M3) | Action normalization during policy training. | Legacy literal in train_bc_policy.py. | - |
+| `policy.noise_scale` | float | `null` | standardized observation units | [0.0, inf] | implemented | NoiseBC observation-noise scale: the maximum noise magnitude. | Set per suite by the legacy scripts; applied after the observation scaler, as legacy CustomBC did. | `policy.noise_bc` |
+| `policy.noise_model` | choice | `"symmetric_uniform_half_batch"` | - | `symmetric_uniform_half_batch`, `legacy_uniform_half_batch` | implemented | NoiseBC noise distribution. | symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity. | - |
+| `policy.noise_mask_probability` | float | `0.5` | - | [0.0, 1.0] | implemented | Probability that NoiseBC perturbs a sample in a minibatch. | Legacy CustomBC rand > 0.5. | - |
+| `policy.learning_rate` | float | `0.001` | - | (0.0, inf] | implemented | Policy learning rate. | Same value in every legacy config. | `policy.lr` |
+| `policy.batch_size` | int | `null` | - | [1, inf] | implemented | Policy minibatch size. | Task-specific in legacy configs. | `policy.batch_size` |
+| `policy.epochs` | int | `null` | - | [1, inf] | implemented | Policy training epochs. | Task-specific in legacy configs. | `policy.train_epochs` |
+| `policy.balance_noisy_labels` | bool | `false` | - | - | implemented | Repeat expert data num_labels times for noisy-action labels. | Legacy aug.balance_data: demonstrations appear labels_per_transition + 1 times and epochs are divided by labels_per_transition, for ccil with noisy-action labels. | `aug.balance_data` |
+| `policy.action_scaler` | choice | `"min_max"` | - | `min_max`, `none` | implemented | Action normalization during policy training. | Legacy literal in train_bc_policy.py (d3rlpy MinMaxActionScaler to [-1, 1]). | - |
+| `policy.observation_scaler` | choice | `"standard"` | - | `standard`, `none` | implemented | Observation normalization during policy training. | Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std. | - |
+| `policy.hidden_layers` | ints | `[256, 256]` | - | [1, inf] | implemented | Hidden-layer widths of the experimental vector policy. | d3rlpy's default VectorEncoderFactory, which legacy BC used. | - |
+| `policy.demonstration_weight` | float | `1.0` | - | [0.0, inf] | implemented | Loss weight of every demonstration row. | Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). | - |
+| `policy.checkpoint_every` | int | `null` | epochs | [1, inf] | implemented | Also write a resumable checkpoint every this many epochs. | Null writes only the final checkpoint. | - |
 
 ## evaluation
 
@@ -125,5 +130,5 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 - `pca_dim`: `representation.kind`, `representation.dim`
 - `action_bounds`: `data.action_low`, `data.action_high`
-- `noise_bc_scale`: `policy.method`, `policy.noise_scale`
+- `noise_bc_scale`: `policy.method`, `policy.noise_scale`, `policy.balance_noisy_labels`, `generation.method`
 - `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`

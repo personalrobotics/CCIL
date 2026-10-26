@@ -4,7 +4,7 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 13, deferred 7, derived 3, dropped 8, implemented 33, invariant 1, retired 5.
+Status counts: declared 6, deferred 7, derived 3, dropped 8, implemented 40, invariant 1, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
@@ -37,14 +37,14 @@ Status counts: declared 13, deferred 7, derived 3, dropped 8, implemented 33, in
 | `aug.num_labels` | tunable | `generation.labels_per_transition` | implemented |  |
 | `aug.delta` | tunable | `generation.action_noise_std` | implemented |  |
 | `aug.epsilon` | tunable | `generation.support_radius` | implemented |  |
-| `aug.balance_data` | tunable | `policy.balance_noisy_labels` | declared | M3 (#22) |
+| `aug.balance_data` | tunable | `policy.balance_noisy_labels` | implemented |  |
 | `aug.label_err_quantile` | tunable | `certificate.selection_quantile` | implemented |  |
 | `aug.max_label_err` | tunable | `certificate.score_threshold` | implemented |  |
 | `aug.model_err_thresh` | tunable | `generation.model_error_threshold` | implemented |  |
 | `aug.chunk_size` | tunable | `generation.action_chunk_size` | implemented |  |
-| `policy.lr` | tunable | `policy.learning_rate` | declared | M3 |
-| `policy.batch_size` | tunable | `policy.batch_size` | declared | M3 |
-| `policy.train_epochs` | tunable | `policy.epochs` | declared | M3 |
+| `policy.lr` | tunable | `policy.learning_rate` | implemented |  |
+| `policy.batch_size` | tunable | `policy.batch_size` | implemented |  |
+| `policy.train_epochs` | tunable | `policy.epochs` | implemented |  |
 | `policy.layers` | tunable | - | deferred | policy encoder width from label-filtering; ported with the policy stage in M3 |
 | `state_encoder.latent_dim` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
 | `state_encoder.layers` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
@@ -54,7 +54,7 @@ Status counts: declared 13, deferred 7, derived 3, dropped 8, implemented 33, in
 | `dynamics.val_percentage` | tunable | - | dropped | never read by the legacy code (#13) |
 | `aug.use_expert_label` | tunable | - | dropped | never read by the legacy code |
 | `policy.naive` | invariant | `policy.method` | implemented |  |
-| `policy.noise_bc` | invariant | `policy.noise_scale` | declared | #89 |
+| `policy.noise_bc` | invariant | `policy.noise_scale` | implemented |  |
 | `literal:eval.n_trials=100` | invariant | `evaluation.episodes` | declared |  |
 | `literal:eval.success_denominator=100` | derived | - | derived | equals evaluation.episodes |
 | `literal:eval.noise_model` | invariant | `evaluation.noise_model` | declared |  |
@@ -63,8 +63,8 @@ Status counts: declared 13, deferred 7, derived 3, dropped 8, implemented 33, in
 | `literal:f1.horizon=800` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
 | `literal:f1.eval_map=maps/random/map0` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
 | `literal:f1.eval_n_traj=100` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
-| `literal:noise_bc.noise_model` | invariant | `policy.noise_model` | declared |  |
-| `literal:bc.action_scaler=min_max` | tunable | `policy.action_scaler` | declared |  |
+| `literal:noise_bc.noise_model` | invariant | `policy.noise_model` | implemented |  |
+| `literal:bc.action_scaler=min_max` | tunable | `policy.action_scaler` | implemented |  |
 | `literal:bc.tycho_loss_weights` | tunable | - | retired | real-robot special case; real-robot results are cited as published (contract, section 3) |
 | `literal:bc.epoch_scaling` | derived | - | derived | policy epochs divided by labels per transition when noisy labels are balanced |
 | `literal:root_finder.threshold=1e-4` | tunable | `generation.root_tolerance` | implemented |  |

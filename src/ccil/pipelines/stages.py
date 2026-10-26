@@ -55,7 +55,7 @@ STAGE_KEYS = {
     "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
                         "compute."),
     "labels.certify": ("certificate.", "representation.modality", "compute."),
-    "policy.train": ("run.seed", "policy."),
+    "policy.train": ("run.seed", "policy.", "compute."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }
 

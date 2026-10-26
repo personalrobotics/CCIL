@@ -105,15 +105,19 @@ def _run_pipeline(args, which) -> int:
     from .core import InterfaceError
     from .pipelines.stages import StageError
     from .schema import SchemaError
+    from .supervision import SupervisionError
     try:
         cfg = _resolve(args)
         if which == "offline":
             from .pipelines.offline import generate_offline
             results = generate_offline(cfg)
+        elif which == "policy":
+            from .pipelines.policy_harness import run_policy_harness
+            results = run_policy_harness(cfg)
         else:
             from .pipelines.integrated import run_integrated
             results = run_integrated(cfg)
-    except (ConfigError, SchemaError, InterfaceError, StageError) as e:
+    except (ConfigError, SchemaError, InterfaceError, StageError, SupervisionError) as e:
         print(str(e), file=sys.stderr)
         return 2
     for r in results:
@@ -166,6 +170,13 @@ def main(argv=None) -> int:
                                 description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure', formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(integ)
     integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
+    policy = groups.add_parser("policy", help="experimental vector-policy harness (reference, not required by CCIL)"
+                               ).add_subparsers(dest="command", required=True)
+    ptrain = policy.add_parser("train", help="train the experimental vector policy on CCIL supervision",
+                               description='Run the experimental vector-policy harness: the offline label stages\n(reused when complete), then policy.train and policy.evaluate.\n\nExperimental reference infrastructure for reproducing the BC, NoiseBC, and\nCCIL arms (#24). CCIL ends at the supervision artifacts; any trainer may\nconsume them (docs/supervision.md, docs/policy-harness.md).\n\nrequired:  data.path, generation.method, policy.method, policy.batch_size, policy.epochs\noutputs:   policy-train-*/checkpoints/policy.npz, supervision.json, and the\n           training record in metrics.json; offline metrics in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused\noptional:  the ccil[torch] extra (Python 3.11+)\nexit:      0 success; 2 invalid configuration, data, supervision, or stage failure',
+                               formatter_class=argparse.RawDescriptionHelpFormatter)
+    _add_config_args(ptrain)
+    ptrain.set_defaults(fn=lambda a: _run_pipeline(a, "policy"))
     runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
     rval = runs.add_parser("validate", help="classify a run directory: complete, corrupt, incompatible, or incomplete")
     rval.add_argument("run_dir")
