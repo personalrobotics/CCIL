@@ -19,8 +19,9 @@ from ..core import transitions
 from ..core.transition import check_identity, checkpoint_meta
 from ..data.prepare import prepare_stage
 from ..runs import layout
-from ..schema import read_candidates, read_trajectories
+from ..schema import read_trajectories
 from ..schema.io import _atomic_savez
+from ..supervision import build_supervision
 from .offline import fit_transition_stage, labels_stage, preflight
 from .policy import TRAINERS
 from .stages import run_stage
@@ -115,20 +116,14 @@ def run_integrated(cfg, trainer=None):
         policy_inputs["split"] = split_path
 
     def train(run):
-        dataset = read_trajectories(prepared.out(layout.DATASET))
-        batch = transitions(dataset, rep)
-        keep = np.isin(batch.episode_id, split["train"]) if split else np.ones(len(batch), bool)
-        z, a, w = [batch.z[keep]], [batch.a[keep]], [np.ones(int(keep.sum()))]
-        if v["policy.method"] == "ccil":
-            cands = read_candidates(labeled.out(layout.CANDIDATES), dataset).accepted_labels()
-            from_train = np.isin(cands.source_episode_id, split["train"]) if split else np.ones(len(cands.accepted), bool)
-            z.append(cands.observations[rep.output_modality][from_train])
-            a.append(cands.actions[from_train])
-            w.append(cands.weight[from_train])
-        trainer.fit(np.concatenate(z), np.concatenate(a), np.concatenate(w))
+        # The trainer-neutral supervision contract (ccil.supervision) decides which rows reach the loss.
+        sup = build_supervision(policy_inputs["dataset"], v["policy.method"], representation=rep,
+                                representation_checkpoint=policy_inputs["representation"],
+                                candidates=policy_inputs["candidates"] if v["policy.method"] == "ccil" else None,
+                                split=policy_inputs.get("split"))
+        trainer.fit(*sup.arrays())
         trainer.save(run.path(POLICY_CHECKPOINT))
-        run.metrics({"trainer": trainer.name, "policy_method": v["policy.method"], "rows": int(sum(len(x) for x in z)),
-                     "label_rows": int(sum(len(x) for x in z[1:]))})
+        run.metrics({"trainer": trainer.name, "supervision": sup.manifest()})
     trained = run_stage("policy.train", cfg, policy_inputs, train, components={"trainer": trainer})
     results.append(trained)
 

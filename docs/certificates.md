@@ -11,6 +11,8 @@ modified. Training uses the rows where
 
     usable = candidate.accepted ∧ certificate.admissible ∧ certificate.selected
 
+[supervision.md](supervision.md) defines how a trainer consumes these rows.
+
 The file format, `ccil.certificates` 1.0, is specified in
 [`schemas/reference.md`](schemas/reference.md).
 

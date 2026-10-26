@@ -1,0 +1,164 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "arms": {
+    "bc": {
+     "certification": null,
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 54,
+     "synthetic_rows": 0
+    },
+    "ccil_certified": {
+     "certification": {
+      "admission": {
+       "mode": "upper_bound",
+       "threshold": 0.015
+      },
+      "profile": "disturbed_action",
+      "selection": {
+       "population": "admitted",
+       "quantile": 0.6,
+       "threshold": 0.010727420792587422
+      },
+      "version": "2"
+     },
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 144,
+     "synthetic_rows": 90
+    },
+    "ccil_uncertified": {
+     "certification": "uncertified",
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 270,
+     "synthetic_rows": 216
+    },
+    "noise_bc": {
+     "certification": null,
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 54,
+     "synthetic_rows": 0
+    }
+   },
+   "case": "arms_match_independent_recomputation",
+   "manifests": "<out>/manifests/<arm>.json",
+   "pass": true
+  },
+  {
+   "accepted_but_inadmissible": 78,
+   "admissible_but_unselected": 84,
+   "case": "unusable_rows_never_reach_the_trainer",
+   "leaked": 0,
+   "pass": true,
+   "rows_seen_by_trainer": 144,
+   "their_weights_positive": true
+  },
+  {
+   "case": "weights_and_reconciliation",
+   "counts": {
+    "accepted": 288,
+    "accepted_admissible_and_selected": 126,
+    "accepted_and_admissible": 210,
+    "candidate_rows": 288,
+    "demonstration_rows": 54,
+    "demonstration_rows_held_out": 18,
+    "demonstration_transitions": 72,
+    "rows": 144,
+    "synthetic_rows": 90,
+    "usable_rows_held_out": 36
+   },
+   "pass": true
+  },
+  {
+   "case": "held_out_episodes_contribute_no_rows",
+   "demonstration_rows_held_out": 18,
+   "pass": true,
+   "usable_rows_held_out": 36,
+   "validation_episodes": [
+    "ep01",
+    "ep03"
+   ]
+  },
+  {
+   "case": "mismatched_artifacts_fail_closed",
+   "pass": true,
+   "refused": {
+    "bc_with_candidates": "SupervisionError: bc trains on the demonstrations only; it takes no candidates or certificates",
+    "candidate_action_width_mismatch": "SupervisionError: candidate actions have shape (2,); the demonstrations' are (1,)",
+    "candidate_observation_shape_mismatch": "SupervisionError: candidate observations have shape (3,); the representation encodes demonstrations as (2,)",
+    "candidates_from_another_dataset": "SupervisionError: candidates were generated from dataset 2d79fde9e42f6542325ee692b40d0df1c21ce790495dec11350b31d311273c8c, not this dataset (41b1b48506cbf31a461156ec257",
+    "ccil_without_candidates": "SupervisionError: ccil needs a candidates file",
+    "certificate_from_another_dataset": "SupervisionError: certificates were computed from dataset 0000000000000000000000000000000000000000000000000000000000000000, not this dataset",
+    "certificate_rows_reordered": "SupervisionError: certificate rows do not match the candidate rows in identity and order",
+    "certificate_selection_tampered": "SupervisionError: certificate structure: selected does not follow from the persisted terms, descriptor, and policy | certificate structure: reasons does not follow from the persisted terms, descriptor, and policy",
+    "certificates_for_other_candidates": "SupervisionError: certificates certify candidates 31918b3a6667b3b4d073f17e04e84b2ebb70e1cc58498ce71ab5d1aef751916f, not this file (93ce9ab48241f86e689f2bcfd36263a6de3e3",
+    "certificates_without_candidates": "SupervisionError: certificates need the candidates file they certify",
+    "chunked_candidates_refused_by_default": "SupervisionError: the candidates carry action chunks; a consumer must declare action_chunks='consume' (and train on chunks) rather than use only their first action",
+    "negative_demonstration_weight": "SupervisionError: demonstration_weight must be finite and >= 0, got -1.0",
+    "noise_bc_with_certificates": "SupervisionError: noise_bc trains on the demonstrations only; it takes no candidates or certificates",
+    "representation_cannot_encode_dataset": "SupervisionError: the representation cannot encode the dataset: 'velocity'",
+    "representation_modality_mismatch": "SupervisionError: candidates hold modalities ['state'], not the representation's 'latent.other'",
+    "split_of_another_dataset": "SupervisionError: split episode ids are not the dataset's episodes"
+   }
+  },
+  {
+   "case": "action_chunks_consumed_or_refused",
+   "chunk_size": 3,
+   "demonstration_positions_masked": 6,
+   "demonstration_rows": 54,
+   "handoff": {
+    "chunk_handoff_without_chunks": "SupervisionError: this supervision carries no action chunks; build it with action_chunks='consume'",
+    "chunk_size_0": "SupervisionError: chunk_size must be an integer >= 1, got 0",
+    "chunk_size_2.5": "SupervisionError: chunk_size must be an integer >= 1, got 2.5",
+    "chunk_size_True": "SupervisionError: chunk_size must be an integer >= 1, got True",
+    "single_action_handoff_of_chunked_supervision": "SupervisionError: this supervision consumes action chunks; train on chunk_arrays(), not on single actions"
+   },
+   "pass": true,
+   "synthetic_rows": 177
+  },
+  {
+   "case": "documented_recipe_reproduces_the_usable_rows",
+   "pass": true,
+   "recipe_rows": 90,
+   "rows_if_the_split_were_ignored": 126,
+   "supervision_synthetic_rows": 90
+  },
+  {
+   "case": "integrated_pipeline_trains_through_the_contract",
+   "pass": true,
+   "representation_sha256": "b4e5f77aac89449fb690c820a3d8e7704af284497186e5af6f470f4dd79ee466",
+   "supervision_counts": {
+    "accepted": 72,
+    "candidate_rows": 72,
+    "demonstration_rows": 54,
+    "demonstration_rows_held_out": 18,
+    "demonstration_transitions": 72,
+    "rows": 108,
+    "synthetic_rows": 54,
+    "usable_rows_held_out": 18
+   }
+  },
+  {
+   "case": "supervision_is_bound_to_the_representation_checkpoint",
+   "mean_shift": 100.0,
+   "pass": true,
+   "refused": {
+    "fitted_representation_without_checkpoint": "SupervisionError: representation kind 'pca' is fitted; pass representation_checkpoint so supervision is bound to its exact parameters | candidates were generated in representation b4e5f77aac89449fb690c820a3d8e7704af284497186e5af6f470f4dd79ee466, not None",
+    "fixed_representation_with_checkpoint": "SupervisionError: a fixed representation takes no checkpoint",
+    "same_modality_object_differs_from_checkpoint": "SupervisionError: the representation object is not the checkpoint it was given with (its parameters differ)",
+    "same_modality_other_checkpoint": "SupervisionError: candidates were generated in representation b4e5f77aac89449fb690c820a3d8e7704af284497186e5af6f470f4dd79ee466, not f3687913b915728580a088463841f4bf770f"
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "0112809cbe4e517b1d9a9113d3ab980e234a5a00",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
