@@ -27,7 +27,11 @@ Failures (predeclaration §9):
 - algorithmic: any other non-zero exit of ccil policy train, a non-finite
   training loss, or a non-finite return. The record is the result.
 
---smoke runs the same code at 1 dynamics epoch and 1 policy epoch on seeds
+An invalid configuration is a tooling defect: the unit stops without a
+record.
+
+--smoke runs the same code at 1 dynamics epoch and 1 policy epoch (20 for
+discontinuous CCIL arms, whose balanced epochs are divided by 20) on seeds
 9001 (tuning) and 9002-9003 (study), outside the predeclared seeds, to
 exercise the drivers and the analysis; its records say smoke and the
 analysis never mixes them with real runs.
@@ -71,17 +75,21 @@ SELECTION_QUANTILE = 0.3
 LABEL_SAMPLE = 10000  # accepted labels per CCIL unit whose true one-step error is measured
 NOISY = (0.0, *pendulum.NOISE_LEVELS)
 
+# The discontinuous paper configuration balances noisy labels (legacy aug.balance_data), which applies to CCIL only;
+# legacy BC and NoiseBC trained on the demonstrations as they are.
+NO_BALANCE = "policy.balance_noisy_labels=false"
+
 # arm: (ccil policy train settings, evaluated noise levels, data fraction, value key)
 ARMS = {
-    "bc": (["policy.method=bc"], NOISY, None, None),
+    "bc": (["policy.method=bc", NO_BALANCE], NOISY, None, None),
     "ccil": (["policy.method=ccil"], NOISY, None, None),
-    "noise_bc": (["policy.method=noise_bc", "policy.noise_model=symmetric_uniform_half_batch"], NOISY, None,
+    "noise_bc": (["policy.method=noise_bc", "policy.noise_model=symmetric_uniform_half_batch", NO_BALANCE], NOISY, None,
                  "policy.noise_scale"),
     "ccil_filtered": (["policy.method=ccil", "certificate.profile=disturbed_action_paper_proxy",
                        f"certificate.selection_quantile={SELECTION_QUANTILE}"], (0.0,), None, None),
     "ccil_nolip": (["policy.method=ccil", "transition_model.lipschitz_type=none"], (0.0,), None, None),
     "ccil_tuned": (["policy.method=ccil"], NOISY, None, "generation.action_noise_std"),
-    **{f"bc_frac{int(f * 100)}": (["policy.method=bc"], (0.0,), f, None) for f in FRACTIONS},
+    **{f"bc_frac{int(f * 100)}": (["policy.method=bc", NO_BALANCE], (0.0,), f, None) for f in FRACTIONS},
     **{f"ccil_frac{int(f * 100)}": (["policy.method=ccil"], (0.0,), f, None) for f in FRACTIONS},
     "zero": (None, NOISY, None, None),  # the zero-action reference (v3): no training
 }
@@ -204,6 +212,8 @@ def _stages(stdout: str) -> dict:
 def _classify(proc, stderr: str) -> str | None:
     if proc.returncode == 0:
         return None
+    if stderr.startswith("invalid configuration"):  # a tooling defect, not a result: stop without a record
+        raise SystemExit(f"ccil policy train refused the configuration:\n{stderr}")
     if proc.returncode < 0 or "out of memory" in stderr.lower() or "MemoryError" in stderr:
         return "infrastructure_fault"
     return "algorithmic_failure"
@@ -237,8 +247,9 @@ def run_unit(root, phase, task, arm, seed, value=None, *, device="cuda", smoke=F
                      "policy.exclude_validation_episodes=false", *sets]
         if value_key:
             overrides.append(f"{value_key}={value!r}")
-        if smoke:
-            overrides += ["transition_model.epochs=1", "policy.epochs=1"]
+        if smoke:  # one dynamics epoch, one effective policy epoch (discontinuous CCIL is balanced: epochs / 20)
+            balanced = arm in CCIL_ARMS and task == "discontinuous"
+            overrides += ["transition_model.epochs=1", f"policy.epochs={20 if balanced else 1}"]
         cmd = [sys.executable, "-m", "ccil", "policy", "train", "--config", str(root / "inputs" / "config" / CONFIGS[task])]
         for s in overrides:
             cmd += ["--set", s]

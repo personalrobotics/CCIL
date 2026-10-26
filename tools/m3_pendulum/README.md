@@ -90,7 +90,13 @@ labels wherever their settings agree.
 is an infrastructure fault. It is recorded and rerun once, from a fresh
 stage store; a second fault excludes the unit. Any other non-zero exit, a
 non-finite training loss, or a non-finite return is an algorithmic failure,
-and the record is the result.
+and the record is the result. A configuration that `ccil` refuses is a
+tooling defect: the unit stops without a record.
+
+**Balancing.** The discontinuous paper configuration balances noisy labels
+(legacy `aug.balance_data`), which applies to CCIL only. The BC and NoiseBC
+arms set `policy.balance_noisy_labels=false`, training on the demonstrations
+as legacy BC did.
 
 **Label accuracy (§7)** is measured on 10,000 accepted labels per CCIL unit,
 drawn with `SeedSequence([seed, 10])`: ‖env.step(z_G, a_G) − y‖ in raw state
@@ -102,7 +108,8 @@ units.
 - a study record without the tuning choice's SHA-256;
 - any rollout whose bytes or re-audit (with the replay) differ.
 
-`--smoke` runs the same code at 1 dynamics epoch and 1 policy epoch on seeds
+`--smoke` runs the same code at 1 dynamics epoch and one effective policy
+epoch (1, or 20 for discontinuous CCIL arms, whose balanced epochs are divided by 20) on seeds
 9001 (tuning) and 9002–9003 (study), in its own root. `check_study.py` uses
 it, and records statuses and decisions, never smoke returns:
 
