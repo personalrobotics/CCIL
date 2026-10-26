@@ -48,7 +48,7 @@ expert demonstrations or a scripted expert.
 
 | Benchmark | Decision | Milestone |
 |---|---|---|
-| Pendulum, continuous and discontinuous | **Keep.** This is the refactor-parity anchor (§5) and is tracked in #3. | M3 |
+| Pendulum, continuous and discontinuous | **Keep.** It is the subject of the M3 CCIL efficacy study (§5), tracked in #24, and answers #3. | M3 |
 | MuJoCo Hopper, Walker2d, Ant, HalfCheetah | **Port** to Minari `mujoco/*/expert-v0` on Gymnasium v5. Results are new baselines. | M7 |
 | Meta-World coffee-pull, button-press, coffee-push, drawer-close | **Port** to Meta-World v3, with demonstrations from its scripted experts. Results are new baselines. | M7 |
 | robomimic low_dim (Lift, Can, Square, Transport, ToolHang) | **Add** | M7 |
@@ -61,8 +61,7 @@ expert demonstrations or a scripted expert.
 
 The legacy software stack (gym 0.19, mujoco-py, MuJoCo 2.1, the D4RL pickles,
 and the lab forks of d3rlpy and gym-pybullet-drones) is a historical record
-only. No milestone may depend on installing it, except for the minimal
-Pendulum parity harness in §5.
+only. No milestone may depend on installing it (amended 2026-10-26, §5).
 
 ## 4. Public interfaces
 
@@ -84,28 +83,50 @@ exact signatures; until those issues close, every ledger target command is
 Out of scope for the first release is a compatibility layer for the legacy
 scripts and their CLI. Image CCIL remains release scope, sequenced through M5.
 
-## 5. Validation: two oracles
+## 5. Validation
 
 Every comparison is predeclared in the ledger entry or tracking issue before
 any results are seen, and every seed is reported.
 
-1. **Refactor parity** (blocking for M3). On Pendulum, continuous and
-   discontinuous, run the legacy code at `archive/upstream-main-2026-10-22`
-   with only the shims needed to import it without D4RL, then run the new
-   implementation with the same data and seeds.
-   - Deterministic stages must match within a stated numerical tolerance:
-     dataset conversion, and label generation from fixed model weights.
-   - Stochastic stages (model fitting and policy training, 10 seeds) report
-     per-seed results. Parity holds when the 95% bootstrap interval of the
-     mean difference lies within ±10% of the legacy mean. #25 may tighten
-     this rule before running, but never after.
-2. **Paper comparison** (informational). Legacy and new Pendulum results are
-   compared with paper Fig. 4(c). A disagreement is reported, never tuned
-   away. #3 is answered with this evidence, and "inconclusive" is an
+1. **Stage correctness** (blocking for each stage). Every stage is checked
+   against an oracle: analytic fixtures with closed-form answers, the
+   legacy code for each component it ports (run on fixtures in pinned
+   environments, never the full legacy stack), and stated numerical
+   tolerances. Intentional departures are correctness changes (§6). This is
+   how M2 and M3 have been verified.
+2. **CCIL efficacy on Pendulum** (blocking for M3). This is a predeclared
+   study on the modern stack, with the protocol in
+   [`experiments/pendulum-ccil-study-predeclaration.md`](experiments/pendulum-ccil-study-predeclaration.md)
+   (#24). It measures, with paired seeds and bootstrap intervals, how CCIL
+   compares with BC and NoiseBC on continuous and discontinuous Pendulum,
+   and how robust that comparison is. The M3 gate is that the study reaches
+   its predeclared terminal outcome, whatever that outcome is. CCIL is not
+   required to win.
+3. **Paper comparison** (informational). Paper Fig. 4(c) values are cited as
+   published, beside the study's results. A disagreement is reported, never
+   tuned away. #3 is answered with this evidence, and "inconclusive" is an
    acceptable answer.
 
-The M7 benchmarks have no historical oracle. They are new baselines with
-predeclared protocols, seeds and statistics.
+**Amendment of 2026-10-26: the legacy refactor-parity oracle is withdrawn.**
+It required running the legacy code end to end, at
+`archive/upstream-main-2026-10-22`, against the new implementation on
+Pendulum. The decision is to drop it, before any parity outcome was run.
+
+- **Cost.** Running it means rebuilding a stack that is thrown away afterwards:
+  - torch 2.1, which cannot use the current GPUs;
+  - the lab d3rlpy fork;
+  - gym 0.19, which no longer builds with current tooling.
+- **Low scientific value.** The new implementation differs from legacy by
+  intentional correctness changes (#21, #22), and each ported stage is
+  already checked against the legacy code on fixtures. The question worth
+  answering rigorously is whether CCIL helps, and by how much.
+- **What replaces it.** The efficacy study above.
+- **The superseded parity predeclaration**
+  ([`experiments/pendulum-parity-predeclaration.md`](experiments/pendulum-parity-predeclaration.md))
+  was never run.
+
+The M7 benchmarks have no historical oracle either. They are new baselines,
+using the same kind of predeclared protocol, seeds and statistics.
 
 ## 6. Correctness changes
 
@@ -148,7 +169,8 @@ benchmark is now retired.
   - the clean-environment install is verified (#40);
   - the license and attribution review is complete (#38);
   - every ledger entry is terminal or blocked with an owner;
-  - the M3 refactor-parity gate has passed.
+  - the M3 Pendulum CCIL efficacy study (§5) has reached its terminal
+    outcome.
 
 ## 9. Archive policy
 
@@ -166,9 +188,12 @@ the archive tags and the history manifest on `main`.
 ## 10. Ledger targets and terminal rules
 
 Every ledger entry carries a `target_milestone` and a `terminal_rule`, and
-`scripts/check_ledger.py` enforces both. As of this contract, 2 entries are
-pending (Pendulum, M3), 3 are blocked with M3 targets, and 25 are out of
-scope with rationales that cite §3.
+`scripts/check_ledger.py` enforces both. As of the 2026-10-26 amendment:
+- 3 entries are blocked with M3 targets;
+- 27 are out of scope, with rationales that cite §3 or §5.
+
+The two Pendulum paper-result entries are out of scope as legacy
+reproductions. Their claims are tested by the §5 efficacy study instead.
 
 ## 11. Non-goals
 

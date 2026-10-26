@@ -1,5 +1,11 @@
 # Pendulum parity: predeclaration (#24)
 
+> **Superseded on 2026-10-26, before any run.** The legacy refactor-parity
+> oracle was withdrawn by the migration contract amendment of that date (§5).
+> Nothing in this document was ever run. #24 is now governed by
+> [`pendulum-ccil-study-predeclaration.md`](pendulum-ccil-study-predeclaration.md).
+> This file is kept as the record of what was planned.
+
 **Version 1.** Committed before any #24 policy outcome is run or inspected.
 Results are reported against the version of this document that governed them.
 A change after any outcome is seen is a new version, with its rationale, and

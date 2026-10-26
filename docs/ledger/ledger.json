@@ -3,7 +3,7 @@
   "captured": "2026-10-22",
   "scope": "personalrobotics/CCIL preserved refs. image_ccil is deferred.",
   "refs": "docs/inventory/capabilities.json#refs",
-  "statistical_parity_rule": "Per-seed results must be published. Parity rule to be predeclared per entry before any rerun (see #3); none is ratified yet.",
+  "statistical_parity_rule": "Withdrawn on 2026-10-26 (migration contract §5 amendment): legacy results are not rerun. The Pendulum claims are tested by the predeclared CCIL efficacy study (docs/experiments/pendulum-ccil-study-predeclaration.md, #24); per-seed results are published.",
   "entries": [
     {
       "id": "sim-pendulum-cont",
@@ -66,10 +66,10 @@
       "target": {
         "command": "ccil run pendulum_cont --method bc,noise-bc,ccil --seeds 41-50",
         "command_status": "provisional",
-        "parity": "statistical",
+        "parity": "not-applicable",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -98,7 +98,8 @@
         "policy-evaluation"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "reproduced, reproduced-with-correctness-change, or out-of-scope (inconclusive) under the refactor-parity and paper-comparison rules of the migration contract; #3 governs sim-pendulum-disc."
+      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25.",
+      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
     },
     {
       "id": "sim-pendulum-disc",
@@ -162,10 +163,10 @@
       "target": {
         "command": "ccil run pendulum_disc --method bc,noise-bc,ccil --seeds 41-50",
         "command_status": "provisional",
-        "parity": "statistical",
+        "parity": "not-applicable",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "pending",
+      "status": "out-of-scope",
       "evidence": [],
       "blockers": [],
       "discrepancies": [
@@ -193,7 +194,8 @@
         "policy-evaluation"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "reproduced, reproduced-with-correctness-change, or out-of-scope (inconclusive) under the refactor-parity and paper-comparison rules of the migration contract; #3 governs sim-pendulum-disc."
+      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25; #3 governs sim-pendulum-disc.",
+      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
     },
     {
       "id": "sim-pendulum-label-bound",

@@ -1,8 +1,8 @@
 # Dependency and checkpoint security
 
 This page sets the dependency boundary of the `ccil` package, the policy for
-loading checkpoints, and the advisories accepted in the legacy parity harness
-(#84). [`tools/dependency_gate/`](../tools/dependency_gate/) enforces the
+loading checkpoints, and the advisories accepted in the pinned legacy-oracle
+environments (#84). [`tools/dependency_gate/`](../tools/dependency_gate/) enforces the
 supported side.
 
 ## Supported environments
@@ -50,10 +50,12 @@ supported side.
   The M1 case `legacy_pickle_not_executed` shows that a naive pickle payload is
   refused. It doesn't show that a crafted payload would be.
 
-## Legacy parity harness: accepted advisories
+## Pinned legacy-oracle environments: accepted advisories
 
-Six manifests keep historical torch pins, because scientific parity with the
-published code (#24) depends on them. They are isolated from the supported
+Six manifests keep historical torch pins. They run the legacy code for each
+component it ports, on fixtures: the stage-correctness oracle of the
+migration contract, §5. The end-to-end legacy parity run planned for #24 was
+withdrawn on 2026-10-26. They are isolated from the supported
 environments:
 - they run with `uv run --no-project --with-requirements …` and never share the
   project lock;
@@ -71,8 +73,10 @@ environments:
 | `tools/validation_split/requirements.txt` | `torch==2.1.0` |
 
 The same 11 torch advisories apply to each manifest, giving 66 alerts. They are
-accepted under the conditions above and not dismissed. Retiring them, by
-upgrading the pins once parity no longer needs them, is tracked separately.
+accepted under the conditions above and not dismissed. Now that no end-to-end
+parity run depends on them, retiring them is possible. Retirement means
+upgrading the pins, or freezing the fixture evidence these manifests produced,
+and is tracked separately.
 
 | Advisory | Severity | Fixed in | Why acceptable in the harness |
 |---|---|---|---|
