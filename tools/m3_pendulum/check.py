@@ -172,7 +172,7 @@ def main():
 
     # 6. The code-state gate: this tree, then a scratch clone made dirty, which the gate must refuse.
     state = provenance.tree_state(REPO)
-    record("clean_tree_at_frozen_ccil", state["ok"], **state)
+    record("clean_tree_at_frozen_ccil", state["ok"], **{k: v for k, v in state.items() if k != "ok"})
     probe = out / "probe"
     subprocess.run(["git", "clone", "-q", "--no-checkout", str(REPO), str(probe)], check=True)
     subprocess.run(["git", "-C", str(probe), "checkout", "-q", state["head"]], check=True)
