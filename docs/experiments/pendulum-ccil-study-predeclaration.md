@@ -34,10 +34,21 @@ ran.
   `tools/m3_pendulum/requirements.txt`, for example scipy for the
   environment's integrator, layered with
   `uv run --group evidence --with-requirements`.
-- Each run records the tooling commit, and verifies that
-  `git diff 847b060 -- src pyproject.toml uv.lock` is empty.
 - A behavior-changing `ccil` fix needs a new version of this document and
   separately reported runs.
+
+**The tooling is frozen too, before any outcome.** The tooling is developed,
+and its acceptance checks (§3) pass, without producing any tuning or study
+outcome. Then **one tooling commit is frozen**:
+- It is recorded in this document by a pull request that changes nothing
+  else (the "tooling freeze" addendum, §11), and merged before the first
+  tuning run.
+- Every tuning and study run uses exactly that commit. Each run verifies that
+  `HEAD` is the frozen commit and that the tree is clean, which also
+  re-verifies the `ccil` freeze above.
+- A behavior-changing tooling fix after the freeze needs a new version of
+  this document and a **complete rerun** of tuning and the study. The earlier
+  runs are reported, not mixed with the new ones.
 
 **Host.** All study runs execute on one host (siddh, CUDA). Timings are not
 compared.
@@ -57,10 +68,31 @@ the physics that generated the demonstrations:
 | Actions | Not clipped (as the data generator) |
 | Episode | 500 steps; no termination |
 
-**Acceptance check (before any study run).** For every transition of both
-datasets, stepping the environment from the stored (s_t, a_t) must reproduce
-the stored s_{t+1} within max |Δ| ≤ 1e-6. If it does not, the study stops,
-and the mismatch is investigated and reported.
+**Acceptance checks, run before the tooling freeze with no tuning or study
+outcome:**
+1. **Transitions.** For every transition of both datasets, stepping the
+   environment from the stored (s_t, a_t) must reproduce the stored s_{t+1}
+   within max |Δ| ≤ 1e-6.
+2. **Evaluator audit.** The evaluator runs fixed, non-learned policies:
+   - zero action;
+   - constant actions ±1;
+   - a fixed linear controller.
+
+   For each, it saves every step's state, action and reward. An independent
+   implementation must then reproduce, from the saved states and actions
+   alone:
+   - every per-step reward (max |Δ| ≤ 1e-9);
+   - the 500-step horizon, with no early termination;
+   - each episode return as the sum of its rewards;
+   - each seed's R as the mean of its 100 returns (to 1e-9).
+
+If either check fails, nothing proceeds until the cause is found and
+reported.
+
+**Every evaluation is auditable.** Each tuning and study evaluation saves
+every episode's per-step states, actions and rewards, plus its initial state
+and noise draws. The analysis recomputes every reported return from those
+files with the independent implementation, and refuses any mismatch.
 
 **Initial states.** For each seed s, 100 episodes start from
 θ ~ U(−1, 1) and θ̇ ~ U(−0.5, 0.5), drawn from
@@ -92,7 +124,7 @@ values below. Nothing else is tuned.
 | **BC** | primary baseline | `policy.method bc` |
 | **CCIL** | primary treatment | `policy.method ccil`: `noisy_action` labels, 20 per transition, with the config's action noise (1e-5 continuous, 1e-4 discontinuous), support radius (1.0 continuous, 0.01 discontinuous), and dynamics model (`soft_sampling` continuous, `slack` discontinuous). `balance_noisy_labels` is as configured (false continuous, true discontinuous). Labels are uncertified. |
 | **NoiseBC** | secondary baseline | `policy.method noise_bc`, `symmetric_uniform_half_batch`, with the scale chosen as in §6 |
-| **CCIL-filtered** | secondary | CCIL plus the paper's label-error filter: `certificate.profile disturbed_action_paper_proxy`, score admission, `certificate.selection_quantile 0.3` (the label-filtering branch's value). It shares CCIL's dynamics model and labels. |
+| **CCIL-filtered** | secondary | CCIL labels filtered by the paper's DisturbedAction label-error score (Def. 4.6, the `disturbed_action_paper_proxy` profile), keeping those at or below the 0.3 selection quantile, which is the label-filtering branch's value (`certificate.selection_quantile 0.3`, score admission). It shares CCIL's dynamics model and labels. |
 | **CCIL-noLip** | secondary ablation | CCIL with `transition_model.lipschitz_type none` (the ablation in `scripts/pendulum.sh`) |
 
 **Shared policy settings:** the experimental vector harness (#89), with
@@ -104,11 +136,16 @@ the paper's settings. Any bias this creates therefore favors the baseline.
 
 ## 6. Seeds and the NoiseBC scale
 
-**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale.
+**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale,
+**separately per task**.
 - **Grid** (standardized observation units): {1e-4 (the paper's value),
   1e-3, 1e-2, 1e-1, 3e-1}.
-- **Selection:** the scale with the highest mean noise-free return over seeds
-  1–3. Ties go to the smaller scale.
+- **Selection:** per task, the scale with the highest mean noise-free return
+  over seeds 1–3. Ties go to the smaller scale.
+- **Failed tuning runs.** A scale with any failed tuning run is ineligible.
+  If every scale is ineligible, NoiseBC uses the paper's 1e-4, and this is
+  recorded.
+- **Reporting.** Every scale-by-seed tuning result is reported.
 - The choice is committed to the run record before any study seed runs.
 
 **Study seeds 101–120** (20 seeds). Each seed runs one complete pipeline per
@@ -130,10 +167,20 @@ never reported as study results.
   - **Data size.** Nested episode subsets of 10%, 25% and 50%, chosen by
     `default_rng(SeedSequence([s, 9])).permutation`, for BC and CCIL, with
     noise-free evaluation.
-  - **Label accuracy** (the `sim-pendulum-label-bound` question). For CCIL's
-    accepted labels, ‖T(z_G, a_G) − y‖ from one environment step, as the mean
-    and quantiles per seed. It also reports the share of labels within the
-    support radius.
+    - Each data-size run uses only its subset.
+    - For CCIL, it refits the dynamics model, regenerates the labels, and
+      retrains the policy on that subset.
+    - BC trains on the subset.
+  - **Label accuracy.** For CCIL's labels:
+    - the proposal acceptance rate, by reason;
+    - quantiles of the displacements ‖z_G − z_t‖ and ‖a_G − a_t‖;
+    - the true label error ‖T(z_G, a_G) − y‖ from one environment step
+      (mean and quantiles per seed), compared descriptively with the paper's
+      reported empirical mean of 0.02367 and bound of 0.065.
+
+    The ledger entry `sim-pendulum-label-bound` stays **blocked**: the
+    procedure behind 0.065 is unrecorded, so this measurement is reported as
+    related evidence, not as a reproduction.
   - **Training diagnostics:** the dynamics model's held-out one-step error,
     the label counts by reason, and the supervision manifests.
 
@@ -158,7 +205,9 @@ interval is Bonferroni-adjusted: 97.5%, q = (0.0125, 0.9875).
 
 **Reported alongside the decision:**
 - d̄;
-- the relative effect d̄ / |mean R_BC|, with its interval;
+- the relative effect d̄ / |mean R_BC|, with its interval. In each bootstrap
+  resample the ratio is recomputed as `d[idx].mean() / abs(R_BC[idx].mean())`,
+  and the interval is the same quantiles of those ratios;
 - every per-seed value.
 
 **Secondary comparisons** are CCIL − NoiseBC, CCIL-filtered − CCIL and
@@ -184,12 +233,16 @@ rerun once, with identical inputs. A second fault excludes that seed for that
 arm, and the exclusion is reported.
 
 **Algorithmic failures** are results: a non-finite loss, a crash inside the
-algorithm, or a non-finite return. They are reported per arm and seed, and
-the arm-seed is missing from that comparison's paired differences.
+algorithm, or a non-finite return. They are reported per arm and seed.
+- **Primary arms.** Any algorithmic failure in BC or CCIL on a task makes
+  that task's primary outcome **inconclusive**. A comparison is never
+  conditioned on the seeds where an arm succeeded.
+- **Secondary arms.** The failed arm-seed is missing from that descriptive
+  comparison, and the failure is reported.
 
-**Inconclusive.** A task's primary outcome is **inconclusive** if:
-- either primary arm has more than 2 missing seeds; or
-- fewer than 16 seeds are valid for both arms.
+**Inconclusive.** A task's primary outcome is also **inconclusive** if
+infrastructure exclusions leave either primary arm with more than 2 excluded
+seeds, or fewer than 16 seeds valid for both.
 
 ## 10. Reporting
 
@@ -201,3 +254,9 @@ the arm-seed is missing from that comparison's paired differences.
 - the package versions and GPU.
 
 Negative and null outcomes are reported the same way as positive ones.
+
+## 11. Tooling freeze (addendum, to be completed before any tuning run)
+
+- Frozen tooling commit: *(recorded by its own pull request, after the §3
+  acceptance checks pass)*
+- Acceptance check evidence: *(linked here)*
