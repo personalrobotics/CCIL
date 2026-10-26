@@ -49,6 +49,17 @@ are excluded, and counted.
 **Order.** Demonstrations come first, in dataset order, then synthetic rows in
 candidate order.
 
+**Representation.** A fitted representation, such as `pca`, is bound to its
+checkpoint (`representation_checkpoint`):
+- the object must serialize to exactly the checkpoint's bytes;
+- the checkpoint's SHA-256 must be the one the candidates and certificates
+  record;
+- the manifest records it.
+
+Otherwise demonstrations could be encoded in coordinates other than the ones
+the labels were generated in. A fixed representation (`identity`) takes no
+checkpoint.
+
 ## Failing closed
 
 `SupervisionError` lists every reason the artifacts do not belong together:
@@ -60,7 +71,10 @@ candidate order.
 - the certificate fails structural verification
   ([certificates.md](certificates.md#verification));
 - the split's episodes are not the dataset's;
-- the candidate modality is not the representation's;
+- the candidate modality is not the representation's, or the candidate
+  observation or action shape is not the demonstrations';
+- a fitted representation is given without its checkpoint, or differs from
+  it, or the candidates or certificates were made in another representation;
 - certificates are given without candidates, or candidates or certificates
   with `bc` or `noise_bc`;
 - the candidates carry action chunks that the consumer has not declared it
@@ -77,8 +91,11 @@ A consumer declares a chunk policy:
     k, masked and zero past the episode's last frame. This is the label-chunk
     alignment ([`core/chunks.py`](../src/ccil/core/chunks.py)), with target
     frame t + 1.
-  - K is the candidates' chunk size, or `chunk_size` for demonstration-only
-    arms.
+  - K is the candidates' chunk size, or `chunk_size` (an integer ≥ 1) for
+    demonstration-only arms.
+  - The handoff is `chunk_arrays()`, which returns observations, chunks,
+    masks and weights. The single-action `arrays()` refuses chunked
+    supervision.
 
 Only position 0 of a label's chunk carries its one-step CCIL claim.
 
@@ -100,21 +117,29 @@ Construction fails unless the counts close.
 
 ## Without `ccil`: the recipe
 
-An independent consumer needs only the two label files:
+An independent consumer needs the two label files and the split. The
+evidence executes this exact block.
 
 ```python
+import json
+
+import numpy as np
+
 from ccil.schema import read_candidates, read_certificates
-c = read_candidates("labels/candidates.npz")
-usable = c.accepted
-# With certificates:
-k = read_certificates("labels/certificates.npz")  # its candidates_sha256 must be this file's
-usable = c.accepted & k.admissible & k.selected
-rows = usable.nonzero()[0]   # c.observations[...][rows], c.actions[rows], c.weight[rows]
+
+c = read_candidates(candidates_path)
+k = read_certificates(certificates_path)    # its candidates_sha256 must be this file's
+train = json.loads(open(split_path).read())["train"]
+usable = c.accepted & k.admissible & k.selected    # without certificates: c.accepted
+usable &= np.isin(c.source_episode_id, train)      # never train on held-out episodes' labels
+rows = np.flatnonzero(usable)    # c.observations[...][rows], c.actions[rows], c.weight[rows]
 ```
 
-Before relying on that, check that the certificate's rows equal the
-candidates' (`source_episode_id`, `source_frame`, same order) and that the
-hashes match.
+Before relying on that, check two things:
+- the certificate's rows equal the candidates' (`source_episode_id`,
+  `source_frame`, same order), and the hashes match;
+- for a fitted representation, the demonstrations are encoded by the same
+  checkpoint the candidates record.
 
 ## Evidence
 
@@ -131,7 +156,7 @@ shows:
 - **Exclusion.** Accepted rows that are inadmissible or unselected, with
   positive weights, never reach an instrumented trainer.
 - **Weights and splits.** Weights, splits and reconciliation hold.
-- **Failing closed.** Thirteen mismatched-artifact cases each fail with their
+- **Failing closed.** Every mismatched-artifact case fails with its
   own reason.
 - **Chunks.** They are consumed or refused, never reduced.
 - **Recipe.** The recipe above reproduces the usable mask.

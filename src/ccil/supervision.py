@@ -34,11 +34,13 @@ with target frame t + 1).
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
+from .core.batch import InterfaceError
 from .core.representation import transitions
 from .data.split import SplitError, check_split
 from .runs.provenance import sha256
@@ -74,8 +76,17 @@ class Supervision:
     action_chunk_mask: np.ndarray | None = None   # (N, K)
 
     def arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """(observations, actions, weights): the trainer-neutral handoff."""
+        """(observations, actions, weights): the single-action handoff; refused for chunked supervision."""
+        if self.action_chunks is not None:
+            raise SupervisionError(["this supervision consumes action chunks; train on chunk_arrays(), not on single "
+                                    "actions"])
         return self.observations, self.actions, self.weights
+
+    def chunk_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """(observations, action_chunks (N, K, A), action_chunk_mask (N, K), weights): the chunked handoff."""
+        if self.action_chunks is None:
+            raise SupervisionError(["this supervision carries no action chunks; build it with action_chunks='consume'"])
+        return self.observations, self.action_chunks, self.action_chunk_mask, self.weights
 
     def manifest(self) -> dict:
         return json.loads(json.dumps(self.manifest_))
@@ -96,8 +107,37 @@ def _demonstration_chunks(dataset, episode_ids, frames, K: int):
     return chunks, mask
 
 
+def _representation_problems(representation, checkpoint, hashes) -> list[str]:
+    """Bind the representation object to an immutable artifact: its checkpoint, for a trainable representation.
+
+    A fitted representation (trainable, or of unknown kind) must come with the
+    checkpoint it was loaded from. The checkpoint is hashed, and the object
+    must serialize to exactly those bytes, so demonstrations are encoded in the
+    same coordinates the candidates were generated in. A fixed representation
+    (trainable False, such as identity) has no checkpoint.
+    """
+    if not getattr(representation, "trainable", True):
+        return ["a fixed representation takes no checkpoint"] if checkpoint is not None else []
+    if checkpoint is None:
+        return [f"representation kind {getattr(representation, 'kind', '?')!r} is fitted; pass representation_checkpoint "
+                "so supervision is bound to its exact parameters"]
+    hashes["representation"] = sha256(checkpoint)
+    if not hasattr(representation, "save"):
+        return ["the representation cannot be compared with its checkpoint (it has no save)"]
+    with tempfile.TemporaryDirectory() as d:
+        probe = Path(d) / "representation.npz"
+        representation.save(probe)
+        if sha256(probe) != hashes["representation"]:
+            return ["the representation object is not the checkpoint it was given with (its parameters differ)"]
+    return []
+
+
+def _valid_chunk_size(k) -> bool:
+    return not isinstance(k, bool) and isinstance(k, (int, np.integer)) and k >= 1
+
+
 def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, split=None,
-                      demonstration_weight: float = 1.0, action_chunks: str = "refuse",
+                      representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
                       chunk_size: int | None = None) -> Supervision:
     """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency."""
     problems = []
@@ -115,12 +155,20 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
     if method == "ccil" and candidates is None:
         raise SupervisionError(["ccil needs a candidates file"])
 
+    if chunk_size is not None and not _valid_chunk_size(chunk_size):
+        raise SupervisionError([f"chunk_size must be an integer >= 1, got {chunk_size!r}"])
     hashes = {"dataset": sha256(dataset)}
     try:
         ds = read_trajectories(dataset)
     except SchemaError as e:
         raise SupervisionError([f"dataset: {e}"]) from None
     modality = representation.output_modality
+    problems += _representation_problems(representation, representation_checkpoint, hashes)
+    try:
+        batch = transitions(ds, representation)
+    except (KeyError, ValueError, InterfaceError) as e:
+        raise SupervisionError(problems + [f"the representation cannot encode the dataset: {e}"]) from None
+    obs_shape, action_width = tuple(np.asarray(batch.z).shape[1:]), int(np.asarray(batch.a).shape[1])
 
     # Split.
     train_eps = None
@@ -146,9 +194,18 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         if cands.inputs.get("dataset") != hashes["dataset"]:
             problems.append(f"candidates were generated from dataset {cands.inputs.get('dataset')}, not this dataset "
                             f"({hashes['dataset']})")
+        if cands.inputs.get("representation") != hashes.get("representation"):
+            problems.append(f"candidates were generated in representation {cands.inputs.get('representation')}, not "
+                            f"{hashes.get('representation')}")
         if modality not in cands.observations:
             problems.append(f"candidates hold modalities {sorted(cands.observations)}, not the representation's "
                             f"{modality!r}")
+        elif tuple(cands.observations[modality].shape[1:]) != obs_shape:
+            problems.append(f"candidate observations have shape {tuple(cands.observations[modality].shape[1:])}; the "
+                            f"representation encodes demonstrations as {obs_shape}")
+        if tuple(cands.actions.shape[1:]) != (action_width,):
+            problems.append(f"candidate actions have shape {tuple(cands.actions.shape[1:])}; the demonstrations' are "
+                            f"({action_width},)")
         if cands.action_chunks is not None and action_chunks == "refuse":
             problems.append("the candidates carry action chunks; a consumer must declare action_chunks='consume' "
                             "(and train on chunks) rather than use only their first action")
@@ -163,6 +220,9 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                             f"({hashes.get('candidates')})")
         if cert.inputs.get("dataset") != hashes["dataset"]:
             problems.append(f"certificates were computed from dataset {cert.inputs.get('dataset')}, not this dataset")
+        if cert.inputs.get("representation") != hashes.get("representation"):
+            problems.append(f"certificates were computed in representation {cert.inputs.get('representation')}, not "
+                            f"{hashes.get('representation')}")
         if cands is not None and not (
                 len(cert.source_frame) == len(cands.source_frame)
                 and np.array_equal(cert.source_episode_id.astype(str), cands.source_episode_id.astype(str))
@@ -182,7 +242,6 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         raise SupervisionError(problems)
 
     # Demonstrations: transition frames of the training episodes.
-    batch = transitions(ds, representation)
     keep = np.ones(len(batch.frame), bool) if train_eps is None else np.isin(batch.episode_id, sorted(train_eps))
     n_demo = int(keep.sum())
     parts = {"observations": [np.asarray(batch.z[keep])], "actions": [np.asarray(batch.a[keep])],

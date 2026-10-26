@@ -118,6 +118,7 @@ def run_integrated(cfg, trainer=None):
     def train(run):
         # The trainer-neutral supervision contract (ccil.supervision) decides which rows reach the loss.
         sup = build_supervision(policy_inputs["dataset"], v["policy.method"], representation=rep,
+                                representation_checkpoint=policy_inputs["representation"],
                                 candidates=policy_inputs["candidates"] if v["policy.method"] == "ccil" else None,
                                 split=policy_inputs.get("split"))
         trainer.fit(*sup.arrays())
