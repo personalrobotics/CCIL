@@ -1,0 +1,83 @@
+{
+ "balance_labels": null,
+ "deterministic": false,
+ "device": "cpu",
+ "epochs": [
+  {
+   "epoch": 0,
+   "mean_loss": 0.40763577818870544,
+   "rows_seen": {
+    "demonstration": 32,
+    "synthetic": 0
+   },
+   "steps": 1,
+   "zero_weight_steps": 0
+  },
+  {
+   "epoch": 1,
+   "mean_loss": 0.3947189152240753,
+   "rows_seen": {
+    "demonstration": 32,
+    "synthetic": 0
+   },
+   "steps": 1,
+   "zero_weight_steps": 0
+  },
+  {
+   "epoch": 2,
+   "mean_loss": 0.3497832417488098,
+   "rows_seen": {
+    "demonstration": 32,
+    "synthetic": 0
+   },
+   "steps": 1,
+   "zero_weight_steps": 0
+  },
+  {
+   "epoch": 3,
+   "mean_loss": 0.2154654711484909,
+   "rows_seen": {
+    "demonstration": 32,
+    "synthetic": 0
+   },
+   "steps": 1,
+   "zero_weight_steps": 0
+  }
+ ],
+ "epochs_run": 4,
+ "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
+ "noise_bc": null,
+ "optimizer": {
+  "betas": [
+   0.9,
+   0.999
+  ],
+  "eps": 1e-08,
+  "learning_rate": 0.001,
+  "name": "adam",
+  "weight_decay": 0.0
+ },
+ "row_sources": {
+  "demonstration": 54,
+  "synthetic": 0
+ },
+ "rows": 54,
+ "rows_dropped_per_epoch": 22,
+ "seed": 20261023,
+ "settings": {
+  "action_scaler": "min_max",
+  "balance_labels": null,
+  "batch_size": 32,
+  "epochs": 4,
+  "hidden_layers": [
+   256,
+   256
+  ],
+  "learning_rate": 0.001,
+  "observation_scaler": "standard"
+ },
+ "steps_per_epoch": 1,
+ "trainer": "vector_mlp",
+ "training_identity_sha256": "496dcb0553bdb892eef00522a02148e3cdfb76ea170068ab344bace769d3c3db",
+ "version": "1"
+}

@@ -171,22 +171,34 @@ PARAMS = [
           "Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer.",
           "policy", choices=("linear_least_squares", "mean_action")),
     Param("policy.noise_scale", "float", None, "NoiseBC observation-noise scale: the maximum noise magnitude.",
-          "Set per suite by the legacy scripts.", "policy", units="observation units", low=0.0, nullable=True,
-          legacy=("policy.noise_bc",), status=D, milestone="#89"),
+          "Set per suite by the legacy scripts; applied after the observation scaler, as legacy CustomBC did.", "policy",
+          units="standardized observation units", low=0.0, nullable=True, legacy=("policy.noise_bc",)),
     Param("policy.noise_model", "choice", "symmetric_uniform_half_batch", "NoiseBC noise distribution.",
           "symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). "
           "legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity.",
-          "policy", choices=("symmetric_uniform_half_batch", "legacy_uniform_half_batch"), status=D, milestone="#89"),
+          "policy", choices=("symmetric_uniform_half_batch", "legacy_uniform_half_batch")),
+    Param("policy.noise_mask_probability", "float", 0.5, "Probability that NoiseBC perturbs a sample in a minibatch.",
+          "Legacy CustomBC rand > 0.5.", "policy", low=0.0, high=1.0),
     Param("policy.learning_rate", "float", 0.001, "Policy learning rate.", "Same value in every legacy config.", "policy",
-          low=0.0, low_open=True, legacy=("policy.lr",), status=D, milestone="M3"),
+          low=0.0, low_open=True, legacy=("policy.lr",)),
     Param("policy.batch_size", "int", None, "Policy minibatch size.", "Task-specific in legacy configs.", "policy",
-          low=1, nullable=True, legacy=("policy.batch_size",), status=D, milestone="M3"),
+          low=1, nullable=True, legacy=("policy.batch_size",)),
     Param("policy.epochs", "int", None, "Policy training epochs.", "Task-specific in legacy configs.", "policy", low=1,
-          nullable=True, legacy=("policy.train_epochs",), status=D, milestone="M3"),
+          nullable=True, legacy=("policy.train_epochs",)),
     Param("policy.balance_noisy_labels", "bool", False, "Repeat expert data num_labels times for noisy-action labels.",
-          "Legacy aug.balance_data.", "policy", legacy=("aug.balance_data",), status=D, milestone="M3 (#22)"),
+          "Legacy aug.balance_data: demonstrations appear labels_per_transition + 1 times and epochs are divided by "
+          "labels_per_transition, for ccil with noisy-action labels.", "policy", legacy=("aug.balance_data",)),
     Param("policy.action_scaler", "choice", "min_max", "Action normalization during policy training.",
-          "Legacy literal in train_bc_policy.py.", "policy", choices=("min_max", "none"), status=D, milestone="M3"),
+          "Legacy literal in train_bc_policy.py (d3rlpy MinMaxActionScaler to [-1, 1]).", "policy",
+          choices=("min_max", "none")),
+    Param("policy.observation_scaler", "choice", "standard", "Observation normalization during policy training.",
+          "Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std.",
+          "policy", choices=("standard", "none")),
+    Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
+          "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
+    Param("policy.demonstration_weight", "float", 1.0, "Loss weight of every demonstration row.",
+          "Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md).",
+          "policy", low=0.0),
     # evaluation --------------------------------------------------------------
     Param("evaluation.episodes", "int", 100, "Evaluation episodes per policy.", "Legacy literal in eval_bc_policy.py.",
           "evaluation", low=1, status=D, milestone="M7"),
@@ -218,6 +230,11 @@ def _bounds(v):
 def _noise(v):
     if v["policy.method"] == "noise_bc" and not v["policy.noise_scale"]:
         return "policy.method noise_bc requires a positive policy.noise_scale"
+    if v["policy.method"] != "noise_bc" and v["policy.noise_scale"] is not None:
+        return f"policy.noise_scale applies to policy.method noise_bc, not {v['policy.method']}"
+    if v["policy.balance_noisy_labels"] and (v["policy.method"] != "ccil"
+                                             or v["generation.method"] not in ("noisy_action", "noisy_action_fe")):
+        return "policy.balance_noisy_labels applies to policy.method ccil with noisy-action labels"
     return None
 
 
@@ -309,7 +326,7 @@ def mlp_settings_problem(v):
 RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
-    ("noise_bc_scale", ("policy.method", "policy.noise_scale"), _noise),
+    ("noise_bc_scale", ("policy.method", "policy.noise_scale", "policy.balance_noisy_labels", "generation.method"), _noise),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind"),
      _certificate),
 ]
