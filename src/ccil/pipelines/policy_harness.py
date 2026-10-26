@@ -71,8 +71,9 @@ def run_policy_harness(cfg) -> list[StageResult]:
     certified = results[3] if len(results) == 4 else None
     rep = IdentityRepresentation(v["representation.modality"])
     inputs = {"dataset": prepared.out(layout.DATASET)}
-    if prepared.out(layout.SPLIT).exists():
-        inputs["split"] = prepared.out(layout.SPLIT)
+    split_path = prepared.out(layout.SPLIT)
+    if split_path.exists() and v["policy.exclude_validation_episodes"]:
+        inputs["split"] = split_path
     if v["policy.method"] == "ccil":
         inputs["candidates"] = labeled.out(layout.CANDIDATES)
         if certified is not None:
@@ -99,6 +100,8 @@ def run_policy_harness(cfg) -> list[StageResult]:
                 f"{record['epochs_run']} epochs")
     trained = run_stage("policy.train", cfg, inputs, train, components={"trainer": VectorMLP()})
     eval_inputs = {**inputs, "policy": trained.out(POLICY_CHECKPOINT)}
+    if split_path.exists():
+        eval_inputs["split"] = split_path  # evaluated on both splits even when training used every episode
 
     def evaluate(run):
         import json
@@ -118,6 +121,7 @@ def run_policy_harness(cfg) -> list[StageResult]:
                    "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict"}
         if "split" in eval_inputs:
             split = json.loads(eval_inputs["split"].read_text())
+            metrics["validation_episodes_in_training"] = "split" not in inputs
             for part in ("train", "validation"):
                 m = np.isin(batch.episode_id, split[part])
                 metrics[f"{part}_action_error"] = float(sq[m].mean()) if m.any() else None

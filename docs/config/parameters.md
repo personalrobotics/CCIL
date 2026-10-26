@@ -108,6 +108,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `policy.action_scaler` | choice | `"min_max"` | - | `min_max`, `none` | implemented | Action normalization during policy training. | Legacy literal in train_bc_policy.py (d3rlpy MinMaxActionScaler to [-1, 1]). | - |
 | `policy.observation_scaler` | choice | `"standard"` | - | `standard`, `none` | implemented | Observation normalization during policy training. | Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std. | - |
 | `policy.hidden_layers` | ints | `[256, 256]` | - | [1, inf] | implemented | Hidden-layer widths of the experimental vector policy. | d3rlpy's default VectorEncoderFactory, which legacy BC used. | - |
+| `policy.exclude_validation_episodes` | bool | `true` | - | - | implemented | Train the policy on the training episodes only, holding out the split's validation episodes. | Legacy BC trained on every expert transition; its validation split (#13) only evaluated the dynamics model. Converted legacy configurations with fidelity historical set false. | - |
 | `policy.demonstration_weight` | float | `1.0` | - | [0.0, inf] | implemented | Loss weight of every demonstration row. | Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). | - |
 
 ## evaluation
