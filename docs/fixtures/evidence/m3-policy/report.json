@@ -1,0 +1,307 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "artifacts": "<out>/artifacts/<arm>/",
+   "case": "three_arms_from_the_same_prepared_data",
+   "pass": true,
+   "runs": {
+    "bc": {
+     "checkpoint": "<out>/work/runs/policy-train-56711c45c9a3/checkpoints/policy.npz",
+     "exit": 0,
+     "offline": {
+      "experimental": true,
+      "expert_data_error": 0.3331320988694937,
+      "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
+      "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
+      "train_action_error": 0.3729886845802498,
+      "train_transitions": 54,
+      "transitions": 72,
+      "validation_action_error": 0.21356234173722538,
+      "validation_transitions": 18
+     },
+     "reused": [],
+     "stages": {
+      "data.prepare": "runs/data-prepare-481ab3c33876",
+      "labels.generate": "runs/labels-generate-a3b161db6a30",
+      "policy.evaluate": "runs/policy-evaluate-d9cba459c123",
+      "policy.train": "runs/policy-train-56711c45c9a3",
+      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+     },
+     "status": {
+      "data.prepare": "complete",
+      "labels.generate": "complete",
+      "policy.evaluate": "complete",
+      "policy.train": "complete",
+      "transition.fit": "complete"
+     }
+    },
+    "ccil": {
+     "checkpoint": "<out>/work/runs/policy-train-9f801d5c170a/checkpoints/policy.npz",
+     "exit": 0,
+     "offline": {
+      "experimental": true,
+      "expert_data_error": 0.3040492876144423,
+      "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
+      "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
+      "train_action_error": 0.33329333003383105,
+      "train_transitions": 54,
+      "transitions": 72,
+      "validation_action_error": 0.21631716035627585,
+      "validation_transitions": 18
+     },
+     "reused": [
+      "data.prepare",
+      "transition.fit",
+      "labels.generate"
+     ],
+     "stages": {
+      "data.prepare": "runs/data-prepare-481ab3c33876",
+      "labels.certify": "runs/labels-certify-3be235f3c013",
+      "labels.generate": "runs/labels-generate-a3b161db6a30",
+      "policy.evaluate": "runs/policy-evaluate-743eb505eaee",
+      "policy.train": "runs/policy-train-9f801d5c170a",
+      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+     },
+     "status": {
+      "data.prepare": "complete",
+      "labels.certify": "complete",
+      "labels.generate": "complete",
+      "policy.evaluate": "complete",
+      "policy.train": "complete",
+      "transition.fit": "complete"
+     }
+    },
+    "noise_bc": {
+     "checkpoint": "<out>/work/runs/policy-train-2851f3c1c6f0/checkpoints/policy.npz",
+     "exit": 0,
+     "offline": {
+      "experimental": true,
+      "expert_data_error": 0.3318296354849423,
+      "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
+      "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
+      "train_action_error": 0.37250470340622843,
+      "train_transitions": 54,
+      "transitions": 72,
+      "validation_action_error": 0.20980443172108398,
+      "validation_transitions": 18
+     },
+     "reused": [
+      "data.prepare",
+      "transition.fit",
+      "labels.generate"
+     ],
+     "stages": {
+      "data.prepare": "runs/data-prepare-481ab3c33876",
+      "labels.generate": "runs/labels-generate-a3b161db6a30",
+      "policy.evaluate": "runs/policy-evaluate-54b42511c7f8",
+      "policy.train": "runs/policy-train-2851f3c1c6f0",
+      "transition.fit": "runs/transition-fit-cfac8bbc99df"
+     },
+     "status": {
+      "data.prepare": "complete",
+      "labels.generate": "complete",
+      "policy.evaluate": "complete",
+      "policy.train": "complete",
+      "transition.fit": "complete"
+     }
+    }
+   }
+  },
+  {
+   "balance": {
+    "demonstration_rows": 54,
+    "epochs": "8 // 4 = 2",
+    "labels_per_transition": 4,
+    "rows": 359,
+    "synthetic_rows": 89
+   },
+   "case": "legacy_protocol",
+   "layers": [
+    "Linear(2,256)",
+    "ReLU",
+    "Linear(256,256)",
+    "ReLU",
+    "Linear(256,1)",
+    "Tanh"
+   ],
+   "pass": true,
+   "rows": 143,
+   "sources": "archive/upstream-main-2026-10-22 correct_il/{train_bc_policy,CustomBC,utils}.py; personalrobotics/d3rlpy@e89a7da",
+   "steps_per_epoch": 4
+  },
+  {
+   "case": "weights_follow_the_declared_loss",
+   "manual": 4.09763765335083,
+   "pass": true,
+   "weighted_loss": 4.097638130187988,
+   "zero_weight_steps": [
+    1,
+    1
+   ]
+  },
+  {
+   "case": "rows_reconcile_with_the_supervision_manifest",
+   "distinct_rows_seen": 143,
+   "manifest_counts": {
+    "accepted": 237,
+    "accepted_admissible_and_selected": 124,
+    "accepted_and_admissible": 206,
+    "candidate_rows": 288,
+    "demonstration_rows": 54,
+    "demonstration_rows_held_out": 18,
+    "demonstration_transitions": 72,
+    "rows": 143,
+    "synthetic_rows": 89,
+    "usable_rows_held_out": 35
+   },
+   "pass": true,
+   "row_sources": {
+    "demonstration": 54,
+    "synthetic": 89
+   },
+   "rows": 143,
+   "rows_seen_per_epoch": [
+    {
+     "demonstration": 50,
+     "synthetic": 78
+    },
+    {
+     "demonstration": 52,
+     "synthetic": 76
+    },
+    {
+     "demonstration": 49,
+     "synthetic": 79
+    },
+    {
+     "demonstration": 46,
+     "synthetic": 82
+    }
+   ]
+  },
+  {
+   "arms": {
+    "bc": {
+     "other_seed_differs": true,
+     "same_seed_identical": true
+    },
+    "ccil": {
+     "other_seed_differs": true,
+     "same_seed_identical": true
+    },
+    "noise_bc": {
+     "other_seed_differs": true,
+     "same_seed_identical": true
+    }
+   },
+   "case": "cpu_training_is_deterministic",
+   "pass": true
+  },
+  {
+   "case": "noise_bc_replays_fresh_and_never_mutates",
+   "descriptor": {
+    "applied_to": "standardized observations of each minibatch (after the observation scaler)",
+    "component": "noise_bc",
+    "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+    "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+    "mask_probability": 0.5,
+    "mode": "symmetric_uniform_half_batch",
+    "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+    "scale": 0.1,
+    "seed": 20261026,
+    "trace_sha256": "54fdd9ec6159555c7ecdc90448c875765584fde3963e8131be592bada7105517",
+    "truncation": "none (bounded by construction)",
+    "units": "standardized observation units",
+    "version": "1"
+   },
+   "fresh_across_steps": true,
+   "pass": true,
+   "replayed_draws": 5,
+   "trace": [
+    {
+     "masked": 13,
+     "noise_sha256": "f5a3db911525d470",
+     "rows": 32,
+     "step": 0
+    },
+    {
+     "masked": 17,
+     "noise_sha256": "cbb76f7f00407e52",
+     "rows": 32,
+     "step": 1
+    }
+   ]
+  },
+  {
+   "case": "legacy_versus_corrected_noise_bc",
+   "comparison": {
+    "legacy_uniform_half_batch": {
+     "expert_data_error": 0.2974472491437927,
+     "mask_fraction": 0.484375,
+     "noise_max": 0.09748885035514832,
+     "noise_mean": 0.05255712941288948,
+     "noise_min": 0.0016746551264077425,
+     "validation_action_error": 0.1816697998559128
+    },
+    "symmetric_uniform_half_batch": {
+     "expert_data_error": 0.29629232084282514,
+     "mask_fraction": 0.484375,
+     "noise_max": 0.09497769922018051,
+     "noise_mean": 0.005114254541695118,
+     "noise_min": -0.09665068984031677,
+     "validation_action_error": 0.18072488473079285
+    }
+   },
+   "note": "reported, not tuned; noise in standardized observation units",
+   "pass": true,
+   "scale": 0.1
+  },
+  {
+   "case": "resume_matches_uninterrupted_training",
+   "contract": "CPU: byte-identical; CUDA: reported as measured, not claimed",
+   "cpu": {
+    "bc": {
+     "identical": true
+    },
+    "ccil": {
+     "identical": true
+    },
+    "noise_bc": {
+     "identical": true
+    }
+   },
+   "cuda_measured": null,
+   "pass": true
+  },
+  {
+   "case": "checkpoints_and_dependency_isolation",
+   "checkpoint_meta": {
+    "epoch": 4,
+    "method": "ccil",
+    "seed": 20261023,
+    "trainer": "vector_mlp",
+    "version": "1"
+   },
+   "labels_generate_without_torch": 0,
+   "pass": true,
+   "policy_train_without_torch": 2,
+   "records_supervision_inputs": [
+    "candidates",
+    "certificates",
+    "dataset",
+    "split"
+   ],
+   "refusal": "invalid configuration:\n  ccil policy train needs the ccil[torch] extra (Python 3.11+): pip install 'ccil[torch]' (import of torch halted; None in sys.modules)"
+  }
+ ],
+ "environment": {
+  "code_commit": "bfb65fcca3b97e8f956a339e45a44fcf4dd27a76",
+  "code_dirty": false,
+  "device_requested": "cpu",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.14.1"
+ }
+}
