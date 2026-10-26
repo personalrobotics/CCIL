@@ -46,12 +46,12 @@ intended algorithm.
 ## Entries
 
 Statuses and targets follow the
-[migration contract](../migration-contract.md) §3 (schema v2).
+[migration contract](../migration-contract.md) §§3 and 5 (schema v2).
 
 | Entry | Claim | Status | Target |
 |---|---|---|---|
-| `sim-pendulum-cont` | Fig. 4(c) | pending | M3, the refactor-parity anchor |
-| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | pending | M3 |
+| `sim-pendulum-cont` | Fig. 4(c) | out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is tested by the #24 efficacy study. | M3 (#24, #25) |
+| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | out-of-scope as a legacy reproduction. The claim is tested by the #24 efficacy study. | M3 (#24, #25, #3) |
 | `sim-pendulum-label-bound` | Sec. 5.1 error bound | blocked: procedure unrecorded | M3 |
 | `internal-label-filtering-configs` | label-filtering configs | blocked: no linked result | M3, resolved through #3 and #25 |
 | `internal-action-chunking-labels` | Sec. 6, App. C.3 | blocked: real-robot data | M3, capability ported in #22 |
