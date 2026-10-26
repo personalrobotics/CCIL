@@ -116,6 +116,10 @@ class VectorBCPolicy:
 
     # --- persistence: no executable serialization ----------------------------
     def save(self, path, optimizer=None, epoch: int = 0, meta: dict | None = None) -> None:
+        """Write a checkpoint. With an optimizer it is resumable and meta must carry training_identity
+        (see train_vector_bc); without one it is an inference checkpoint, which cannot be resumed."""
+        if optimizer is not None and not (meta or {}).get("training_identity"):
+            raise TrainingError("a resumable checkpoint needs the training_identity of its run")
         arrays = {f"net/{k}": v.detach().cpu().numpy() for k, v in self.net.state_dict().items()}
         for name in ("obs_mean", "obs_std", "act_min", "act_max"):
             if getattr(self, name) is not None:
@@ -128,7 +132,8 @@ class VectorBCPolicy:
                         arrays[f"adam/{i}/{key}"] = state[key].detach().cpu().numpy()
                 if "step" in state:
                     arrays[f"adam/{i}/step"] = np.asarray(float(state["step"]), np.float64)
-        record = {"component": "policy", "trainer": self.name, "version": self.version, "obs_dim": self.obs_dim,
+        record = {"component": "policy", "trainer": self.name, "version": self.version,
+                  "checkpoint_kind": "resumable" if optimizer is not None else "inference", "obs_dim": self.obs_dim,
                   "act_dim": self.act_dim, "hidden_layers": self.hidden_layers,
                   "observation_scaler": self.observation_scaler, "action_scaler": self.action_scaler,
                   "epoch": int(epoch), **(meta or {})}
@@ -165,6 +170,37 @@ def _optimizer(policy, learning_rate, adam_arrays=None):
     return opt
 
 
+def training_identity(supervision, settings: dict, seed: int, noise) -> dict:
+    """Everything a resumed run must share with the run that wrote its checkpoint."""
+    manifest = supervision.manifest()
+    ident = {"trainer": NAME, "version": VERSION, "seed": int(seed), "method": manifest["method"],
+             "supervision_sha256": hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest(),
+             "supervision_inputs": manifest["inputs"],
+             "settings": {**settings, "hidden_layers": [int(h) for h in settings["hidden_layers"]]},
+             "optimizer": {"name": "adam", "betas": list(ADAM["betas"]), "eps": ADAM["eps"],
+                           "weight_decay": ADAM["weight_decay"]},
+             "noise_bc": None if noise is None else noise.descriptor()}
+    ident = json.loads(json.dumps(ident, sort_keys=True))
+    return {**ident, "sha256": hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()}
+
+
+def _check_resumable(meta: dict, adam: dict, n_params: int, identity: dict) -> None:
+    problems = []
+    if meta.get("checkpoint_kind") != "resumable":
+        problems.append(f"checkpoint kind is {meta.get('checkpoint_kind')!r}; only a resumable checkpoint (written with "
+                        "its optimizer) can be resumed")
+    recorded = meta.get("training_identity") or {}
+    if recorded.get("sha256") != identity["sha256"]:
+        differ = sorted(k for k in identity if k != "sha256" and recorded.get(k) != identity[k])
+        problems.append(f"checkpoint belongs to another training run; differing: {differ or ['training_identity']}")
+    missing = [f"adam/{i}/{k}" for i in range(n_params) for k in ("step", "exp_avg", "exp_avg_sq")
+               if f"adam/{i}/{k}" not in adam]
+    if missing:
+        problems.append(f"checkpoint optimizer state is incomplete: missing {missing[:4]}{'...' if len(missing) > 4 else ''}")
+    if problems:
+        raise TrainingError("cannot resume: " + "; ".join(problems))
+
+
 def weighted_loss(pred: torch.Tensor, target: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
     """sum_i w_i mean_j (pred - target)_ij^2 / sum_i w_i; unit weights give F.mse_loss."""
     per_row = ((pred - target) ** 2).mean(dim=1)
@@ -187,9 +223,14 @@ def train_vector_bc(supervision, settings: dict, *, seed: int, device: str = "cp
 
     settings: hidden_layers, learning_rate, batch_size, epochs,
     observation_scaler, action_scaler, balance_labels (legacy num_labels, or
-    None). noise: a NoiseBC, for the noise_bc arm only. resume: a checkpoint
-    path written by on_epoch's policy.save at an epoch boundary. on_epoch:
-    called as on_epoch(policy, optimizer, epoch, record) after each epoch.
+    None). noise: a NoiseBC, for the noise_bc arm only. on_epoch: called as
+    on_epoch(policy, optimizer, epoch, state) after each epoch; saving with
+    policy.save(path, optimizer, epoch, state) writes a resumable checkpoint
+    whose state carries this run's training_identity. resume: such a
+    checkpoint; it is refused unless its training identity (supervision,
+    method, seed, settings, optimizer, NoiseBC descriptor, trainer version)
+    equals this run's and its Adam state is complete. An inference checkpoint
+    (saved without an optimizer) is never resumable.
     """
     obs, act, w = supervision.arrays()   # refuses chunked supervision (the contract)
     method = supervision.manifest()["method"]
@@ -210,6 +251,7 @@ def train_vector_bc(supervision, settings: dict, *, seed: int, device: str = "cp
     if steps_per_epoch < 1:
         raise TrainingError(f"{n} training rows is fewer than one minibatch (batch_size {bs})")
     obs_all, act_all, w_all = np.asarray(obs, np.float32), np.asarray(act, np.float32), np.asarray(w, np.float32)
+    identity = training_identity(supervision, settings, seed, noise)
 
     devices = [torch.device(device).index or 0] if str(device).startswith("cuda") else []
     with torch.random.fork_rng(devices=devices):
@@ -219,6 +261,7 @@ def train_vector_bc(supervision, settings: dict, *, seed: int, device: str = "cp
         try:
             if resume is not None:
                 policy, meta, adam = VectorBCPolicy.load(resume, device)
+                _check_resumable(meta, adam, len(list(policy.net.parameters())), identity)
                 start, digests = int(meta["epoch"]), list(meta.get("noise_trace_epochs", []))
                 epoch_records = list(meta.get("epoch_records", []))
             else:
@@ -261,11 +304,12 @@ def train_vector_bc(supervision, settings: dict, *, seed: int, device: str = "cp
                 epoch_records.append({"epoch": epoch, "steps": steps_per_epoch, "mean_loss": float(np.mean(losses)) if losses else None,
                                       "rows_seen": seen, "zero_weight_steps": steps_per_epoch - len(losses)})
                 if on_epoch is not None:
-                    on_epoch(policy, opt, epoch + 1, {"noise_trace_epochs": digests, "epoch_records": epoch_records})
+                    on_epoch(policy, opt, epoch + 1, {"noise_trace_epochs": list(digests), "epoch_records": list(epoch_records),
+                                                      "training_identity": identity})
         finally:
             torch.use_deterministic_algorithms(prev)
     policy.net.eval()
-    record = {"trainer": NAME, "version": VERSION, "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
+    record = {"trainer": NAME, "version": VERSION, "training_identity_sha256": identity["sha256"], "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
               "seed": int(seed), "device": str(device), "deterministic": bool(deterministic),
               "rows": int(n), "steps_per_epoch": steps_per_epoch, "rows_dropped_per_epoch": int(n % bs),
               "epochs_run": epochs, "balance_labels": balance or None,
@@ -282,4 +326,5 @@ def train_vector_bc(supervision, settings: dict, *, seed: int, device: str = "cp
     return policy, record
 
 
-__all__ = ["VectorBCPolicy", "train_vector_bc", "weighted_loss", "training_rows", "TrainingError", "NAME", "VERSION"]
+__all__ = ["VectorBCPolicy", "train_vector_bc", "training_identity", "weighted_loss", "training_rows", "TrainingError",
+           "NAME", "VERSION"]
