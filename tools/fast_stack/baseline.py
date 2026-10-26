@@ -2,7 +2,7 @@
 """Phase-0 baseline timing of the current CCIL stack on Pendulum (#114).
 
     uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \\
-        python tools/fast_stack/baseline.py --out DIR [--reps 3] [--device cuda:0]
+        python tools/fast_stack/baseline.py --out DIR [--reps 3] [--gpu 0]
 
 The contract is fixed in #114 before any run:
 - seed 501 for every repetition: outside tuning (1-3), study (101-120) and smoke (9001-9003) seeds;
@@ -288,12 +288,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--reps", type=int, default=3)
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--gpu", default="0", help="physical GPU index; the child sees it as cuda via CUDA_VISIBLE_DEVICES")
     ap.add_argument("--child", nargs=2, metavar=("TASK", "DIR"))
     ap.add_argument("--smoke", action="store_true", help="1-epoch harness check; its numbers are not a baseline")
     a = ap.parse_args()
     if a.child:
-        child(a.child[0], Path(a.child[1]), a.device)
+        child(a.child[0], Path(a.child[1]), "cuda")
         return 0
     sys.path.insert(0, str(STUDY_TOOLS))
     import provenance
@@ -303,10 +303,10 @@ def main():
     if a.smoke:
         os.environ["BASELINE_SMOKE"] = "1"
     meta = {"smoke": a.smoke, "commit": state["head"], "tree": state, "host": _host(), "contract": "#114 phase 0", "reps": a.reps,
-            "device": a.device, "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            "gpu": a.gpu, "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if not state["ok"]:
         raise SystemExit(f"code-state gate refused: {state}")
-    gpu_index = a.device.split(":")[1] if ":" in a.device else "0"
+    gpu_index = a.gpu
     for k in range(1, a.reps + 1):
         for task in TASKS:
             d = out / f"{task}-rep{k}"
@@ -315,8 +315,9 @@ def main():
             trace = subprocess.Popen(["nvidia-smi", "-i", gpu_index, "--query-gpu=timestamp,utilization.gpu,memory.used",
                                       "--format=csv,noheader,nounits", "-lms", "250"], stdout=open(d / "gpu.csv", "w"))
             t0 = time.time()
-            p = subprocess.run([sys.executable, __file__, "--out", str(out), "--device", a.device, "--child", task, str(d)],
-                               env={**os.environ, "BASELINE_T0": repr(t0)}, capture_output=True, text=True)
+            p = subprocess.run([sys.executable, __file__, "--out", str(out), "--child", task, str(d)],
+                               env={**os.environ, "BASELINE_T0": repr(t0), "CUDA_VISIBLE_DEVICES": a.gpu},
+                               capture_output=True, text=True)
             wall = time.time() - t0
             trace.terminate()
             trace.wait()
