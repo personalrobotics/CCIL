@@ -1,0 +1,141 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "arms": {
+    "bc": {
+     "certification": null,
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 54,
+     "synthetic_rows": 0
+    },
+    "ccil_certified": {
+     "certification": {
+      "admission": {
+       "mode": "upper_bound",
+       "threshold": 0.015
+      },
+      "profile": "disturbed_action",
+      "selection": {
+       "population": "admitted",
+       "quantile": 0.6,
+       "threshold": 0.010727420792587422
+      },
+      "version": "2"
+     },
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 144,
+     "synthetic_rows": 90
+    },
+    "ccil_uncertified": {
+     "certification": "uncertified",
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 270,
+     "synthetic_rows": 216
+    },
+    "noise_bc": {
+     "certification": null,
+     "demonstration_rows": 54,
+     "ok": true,
+     "rows": 54,
+     "synthetic_rows": 0
+    }
+   },
+   "case": "arms_match_independent_recomputation",
+   "manifests": "<out>/manifests/<arm>.json",
+   "pass": true
+  },
+  {
+   "accepted_but_inadmissible": 78,
+   "admissible_but_unselected": 84,
+   "case": "unusable_rows_never_reach_the_trainer",
+   "leaked": 0,
+   "pass": true,
+   "rows_seen_by_trainer": 144,
+   "their_weights_positive": true
+  },
+  {
+   "case": "weights_and_reconciliation",
+   "counts": {
+    "accepted": 288,
+    "accepted_admissible_and_selected": 126,
+    "accepted_and_admissible": 210,
+    "candidate_rows": 288,
+    "demonstration_rows": 54,
+    "demonstration_rows_held_out": 18,
+    "demonstration_transitions": 72,
+    "rows": 144,
+    "synthetic_rows": 90,
+    "usable_rows_held_out": 36
+   },
+   "pass": true
+  },
+  {
+   "case": "held_out_episodes_contribute_no_rows",
+   "demonstration_rows_held_out": 18,
+   "pass": true,
+   "usable_rows_held_out": 36,
+   "validation_episodes": [
+    "ep01",
+    "ep03"
+   ]
+  },
+  {
+   "case": "mismatched_artifacts_fail_closed",
+   "pass": true,
+   "refused": {
+    "bc_with_candidates": "SupervisionError: bc trains on the demonstrations only; it takes no candidates or certificates",
+    "candidates_from_another_dataset": "SupervisionError: candidates were generated from dataset 2d79fde9e42f6542325ee692b40d0df1c21ce790495dec11350b31d311273c8c, not this dataset (41b1b48506cbf31a461156ec257",
+    "ccil_without_candidates": "SupervisionError: ccil needs a candidates file",
+    "certificate_from_another_dataset": "SupervisionError: certificates were computed from dataset 0000000000000000000000000000000000000000000000000000000000000000, not this dataset",
+    "certificate_rows_reordered": "SupervisionError: certificate rows do not match the candidate rows in identity and order",
+    "certificate_selection_tampered": "SupervisionError: certificate structure: selected does not follow from the persisted terms, descriptor, and policy | certificate structure: reasons does not follow from the persisted terms, descriptor, and policy",
+    "certificates_for_other_candidates": "SupervisionError: certificates certify candidates 0900ec2d316deda518232c03d0c61071608d070593ae020b152ad1befaf6bd1c, not this file (c592f9c0c3026e4df01f977ab845892da4cda",
+    "certificates_without_candidates": "SupervisionError: certificates need the candidates file they certify",
+    "chunked_candidates_refused_by_default": "SupervisionError: the candidates carry action chunks; a consumer must declare action_chunks='consume' (and train on chunks) rather than use only their first action",
+    "negative_demonstration_weight": "SupervisionError: demonstration_weight must be finite and >= 0, got -1.0",
+    "noise_bc_with_certificates": "SupervisionError: noise_bc trains on the demonstrations only; it takes no candidates or certificates",
+    "representation_modality_mismatch": "SupervisionError: candidates hold modalities ['state'], not the representation's 'velocity'",
+    "split_of_another_dataset": "SupervisionError: split episode ids are not the dataset's episodes"
+   }
+  },
+  {
+   "case": "action_chunks_consumed_or_refused",
+   "chunk_size": 3,
+   "demonstration_positions_masked": 6,
+   "demonstration_rows": 54,
+   "pass": true,
+   "synthetic_rows": 177
+  },
+  {
+   "case": "independent_consumer_reproduces_the_usable_mask",
+   "in_training_episodes": 90,
+   "pass": true,
+   "usable": 126
+  },
+  {
+   "case": "integrated_pipeline_trains_through_the_contract",
+   "pass": true,
+   "supervision_counts": {
+    "accepted": 72,
+    "candidate_rows": 72,
+    "demonstration_rows": 54,
+    "demonstration_rows_held_out": 18,
+    "demonstration_transitions": 72,
+    "rows": 108,
+    "synthetic_rows": 54,
+    "usable_rows_held_out": 18
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "0f02cfddcd50575896695a0ac5e4874111bd3ee9",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
