@@ -19,9 +19,12 @@ independently from the files and compared with build_supervision:
 - mismatched artifacts fail closed, each with its own reason;
 - chunked candidates are refused unless consumed; consumed chunks equal the
   stored ones and demonstration chunks follow the label-chunk alignment;
-- an independent consumer reading only the candidates and certificates files
-  reproduces the usable mask;
-- the integrated pipeline trains through the contract.
+- the exact recipe block of docs/supervision.md, executed, reproduces the
+  usable rows, which ignoring the split would not;
+- the integrated pipeline trains through the contract, and supervision is
+  bound to the exact representation checkpoint: a same-modality PCA whose
+  parameters differ, another checkpoint, or a missing one is refused;
+- chunked supervision is handed off only through chunk_arrays().
 Writes DIR/report.json and DIR/manifests/<arm>.json (the inspectable artifacts).
 """
 import argparse
@@ -60,6 +63,15 @@ def rollouts(sys_, seed, episodes=8, length=10, shift=0.0):
             z.append(sys_.step_np(z[-1][None], a[t:t + 1])[0])
         eps.append(Episode(f"ep{k:02d}", {"state": np.array(z, np.float32)}, a.astype(np.float32)))
     return TrajectoryDataset(eps).validate()
+
+
+class StateAsOther:
+    """A fixed representation that encodes state unchanged but names its output another modality."""
+
+    kind, version, trainable, output_modality = "evidence_state_as_other", "1", False, "latent.other"
+
+    def encode(self, observations):
+        return observations["state"]
 
 
 def outcome(fn):
@@ -215,6 +227,14 @@ def main():
                      validation=sorted([e for e in split["validation"] if e != split["episode_ids"][-1]] + (
                          ["foreign"] if split["episode_ids"][-1] in split["validation"] else [])))
     (out / "split-foreign.json").write_text(json.dumps(bad_split))
+    from ccil.schema import write_candidates
+    wide = read_candidates(P["candidates"])
+    wide.actions = np.hstack([wide.actions, wide.actions])
+    write_candidates(wide, out / "candidates-wide-actions.npz")
+    tall = read_candidates(P["candidates"])
+    tall.observations = {"state": np.hstack([tall.observations["state"], tall.observations["state"][:, :1]])}
+    tall.target_observations = {"state": np.hstack([tall.target_observations["state"], tall.target_observations["state"][:, :1]])}
+    write_candidates(tall, out / "candidates-tall-observations.npz")
     base = dict(representation=rep, split=P["split"])
     refused = {
         "candidates_from_another_dataset": outcome(lambda: build_supervision(P["dataset"], "ccil", candidates=PO["candidates"], **base)),
@@ -228,8 +248,10 @@ def main():
             P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-flipped.npz", **base)),
         "split_of_another_dataset": outcome(lambda: build_supervision(P["dataset"], "bc", representation=rep,
                                                                       split=out / "split-foreign.json")),
-        "representation_modality_mismatch": outcome(lambda: build_supervision(
+        "representation_cannot_encode_dataset": outcome(lambda: build_supervision(
             P["dataset"], "ccil", candidates=P["candidates"], representation=IdentityRepresentation("velocity"), split=P["split"])),
+        "representation_modality_mismatch": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=P["candidates"], representation=StateAsOther(), split=P["split"])),
         "bc_with_candidates": outcome(lambda: build_supervision(P["dataset"], "bc", candidates=P["candidates"], **base)),
         "noise_bc_with_certificates": outcome(lambda: build_supervision(P["dataset"], "noise_bc", certificates=P["certificates"], **base)),
         "certificates_without_candidates": outcome(lambda: build_supervision(P["dataset"], "ccil", certificates=P["certificates"], **base)),
@@ -237,6 +259,10 @@ def main():
         "negative_demonstration_weight": outcome(lambda: build_supervision(P["dataset"], "bc", demonstration_weight=-1.0, **base)),
         "chunked_candidates_refused_by_default": outcome(lambda: build_supervision(P["dataset"], "ccil", candidates=PC["candidates"],
                                                                                   representation=rep, split=PC["split"])),
+        "candidate_action_width_mismatch": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=out / "candidates-wide-actions.npz", **base)),
+        "candidate_observation_shape_mismatch": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=out / "candidates-tall-observations.npz", **base)),
     }
     reason = {"candidates_from_another_dataset": "candidates were generated from dataset",
               "certificates_for_other_candidates": "certificates certify candidates",
@@ -244,11 +270,14 @@ def main():
               "certificate_from_another_dataset": "certificates were computed from dataset",
               "certificate_selection_tampered": "certificate structure: selected",
               "split_of_another_dataset": "split episode ids", "representation_modality_mismatch": "not the representation's",
+              "representation_cannot_encode_dataset": "cannot encode the dataset",
               "bc_with_candidates": "bc trains on the demonstrations only",
               "noise_bc_with_certificates": "noise_bc trains on the demonstrations only",
               "certificates_without_candidates": "certificates need the candidates file",
               "ccil_without_candidates": "ccil needs a candidates file",
-              "negative_demonstration_weight": "demonstration_weight", "chunked_candidates_refused_by_default": "action chunks"}
+              "negative_demonstration_weight": "demonstration_weight", "chunked_candidates_refused_by_default": "action chunks",
+              "candidate_action_width_mismatch": "candidate actions have shape",
+              "candidate_observation_shape_mismatch": "candidate observations have shape"}
     record("mismatched_artifacts_fail_closed",
            set(reason) == set(refused) and all(v.startswith("SupervisionError") and reason[k] in v for k, v in refused.items()),
            refused=refused)
@@ -269,23 +298,37 @@ def main():
             demo_ok &= bool(np.array_equal(sc.action_chunks[i, k], ep.actions[t + k] if inside else np.zeros(1, np.float32)))
     bc_chunks = build_supervision(PC["dataset"], "bc", representation=rep, split=PC["split"], action_chunks="consume",
                                   chunk_size=3)
+    handoff = {
+        "single_action_handoff_of_chunked_supervision": outcome(lambda: sc.arrays()),
+        "chunk_handoff_without_chunks": outcome(lambda: sups["bc"].chunk_arrays()),
+        **{f"chunk_size_{v!r}": outcome(lambda v=v: build_supervision(PC["dataset"], "bc", representation=rep,
+                                                                        action_chunks="consume", chunk_size=v))
+           for v in (0, True, 2.5)}}
     record("action_chunks_consumed_or_refused",
            np.array_equal(sc.action_chunks[syn], cc.action_chunks[sc.candidate_row[syn]])
            and np.array_equal(sc.action_chunk_mask[syn], cc.action_chunk_mask[sc.candidate_row[syn]])
            and demo_ok and (~sc.action_chunk_mask[~syn]).any() and np.array_equal(sc.action_chunks[:, 0], sc.actions)
            and bc_chunks.action_chunks.shape[1] == 3
            and outcome(lambda: build_supervision(PC["dataset"], "bc", representation=rep, action_chunks="consume")).startswith("SupervisionError")
-           and refused["chunked_candidates_refused_by_default"].startswith("SupervisionError"),
+           and refused["chunked_candidates_refused_by_default"].startswith("SupervisionError")
+           and all("chunk" in v for v in handoff.values()) and all(v.startswith("SupervisionError") for v in handoff.values())
+           and [x.shape for x in sc.chunk_arrays()] == [sc.observations.shape, sc.action_chunks.shape,
+                                                         sc.action_chunk_mask.shape, sc.weights.shape],
+           handoff=handoff,
            chunk_size=int(sc.action_chunks.shape[1]), demonstration_rows=int((~syn).sum()), synthetic_rows=int(syn.sum()),
            demonstration_positions_masked=int((~sc.action_chunk_mask[~syn]).sum()))
 
-    # An independent consumer: the recipe in docs/supervision.md, from the two files alone.
-    c2, k2 = read_candidates(P["candidates"]), read_certificates(P["certificates"])
-    recipe = c2.accepted & k2.admissible & k2.selected
-    in_train = np.isin(c2.source_episode_id.astype(str), sorted(train))
+    # An independent consumer: execute the exact recipe block of docs/supervision.md.
+    doc = (REPO / "docs/supervision.md").read_text()
+    block = doc.split("## Without `ccil`: the recipe", 1)[1].split("```python\n", 1)[1].split("```", 1)[0]
+    ns = {"candidates_path": str(P["candidates"]), "certificates_path": str(P["certificates"]), "split_path": str(P["split"])}
+    exec(compile(block, "docs/supervision.md recipe", "exec"), ns)  # noqa: S102 (repository documentation)
     rows = sups["ccil_certified"].candidate_row[sups["ccil_certified"].source == "synthetic"]
-    record("independent_consumer_reproduces_the_usable_mask",
-           np.array_equal(np.flatnonzero(recipe & in_train), rows), usable=int(recipe.sum()), in_training_episodes=int(len(rows)))
+    without_split = np.flatnonzero(np.asarray(cands.accepted) & cert.admissible & cert.selected)
+    record("documented_recipe_reproduces_the_usable_rows",
+           np.array_equal(ns["rows"], rows) and len(without_split) > len(rows),
+           recipe_rows=int(len(ns["rows"])), supervision_synthetic_rows=int(len(rows)),
+           rows_if_the_split_were_ignored=int(len(without_split)))
 
     # The integrated pipeline trains through the contract.
     cfg = resolve(recipe="analytic_double_integrator", sets=[
@@ -296,11 +339,43 @@ def main():
     res = run_integrated(cfg)
     train_stage = next(r for r in res if r.stage == "policy.train")
     metrics = json.loads((train_stage.run_dir / "metrics.json").read_text())["values"]
+    from ccil.pipelines.integrated import REPRESENTATION_CHECKPOINT, PCARepresentation
+    from ccil.runs.provenance import sha256
+    rep_stage = next(r for r in res if r.stage == "representation.fit")
+    labels_stage_ = next(r for r in res if r.stage == "labels.generate")
+    prep = res[0]
+    ckpt = rep_stage.out(REPRESENTATION_CHECKPOINT)
+    pca = PCARepresentation.load(ckpt, "state", 2)
+    moved = PCARepresentation.load(ckpt, "state", 2)
+    moved.mean = moved.mean + 100.0
+    other_ckpt = out / "pca-moved.npz"
+    moved.save(other_ckpt)
+    ib = dict(candidates=labels_stage_.out(layout.CANDIDATES), split=prep.out(layout.SPLIT))
+    bound = build_supervision(prep.out(layout.DATASET), "ccil", representation=pca, representation_checkpoint=ckpt, **ib)
+    rep_refused = {
+        "same_modality_object_differs_from_checkpoint": outcome(lambda: build_supervision(
+            prep.out(layout.DATASET), "ccil", representation=moved, representation_checkpoint=ckpt, **ib)),
+        "same_modality_other_checkpoint": outcome(lambda: build_supervision(
+            prep.out(layout.DATASET), "ccil", representation=moved, representation_checkpoint=other_ckpt, **ib)),
+        "fitted_representation_without_checkpoint": outcome(lambda: build_supervision(
+            prep.out(layout.DATASET), "ccil", representation=pca, **ib)),
+        "fixed_representation_with_checkpoint": outcome(lambda: build_supervision(
+            P["dataset"], "bc", representation=rep, representation_checkpoint=ckpt, split=P["split"])),
+    }
+    rep_reason = {"same_modality_object_differs_from_checkpoint": "not the checkpoint",
+                  "same_modality_other_checkpoint": "candidates were generated in representation",
+                  "fitted_representation_without_checkpoint": "pass representation_checkpoint",
+                  "fixed_representation_with_checkpoint": "takes no checkpoint"}
     record("integrated_pipeline_trains_through_the_contract",
            metrics["supervision"]["method"] == "ccil" and metrics["supervision"]["certification"] == "uncertified"
            and metrics["supervision"]["representation"]["modality"] == "latent.pca"
-           and metrics["supervision"]["counts"]["rows"] > metrics["supervision"]["counts"]["demonstration_rows"],
-           supervision_counts=metrics["supervision"]["counts"])
+           and metrics["supervision"]["inputs"].get("representation") == sha256(ckpt)
+           and metrics["supervision"]["counts"]["rows"] > metrics["supervision"]["counts"]["demonstration_rows"]
+           and bound.manifest()["inputs"]["representation"] == sha256(ckpt),
+           supervision_counts=metrics["supervision"]["counts"], representation_sha256=sha256(ckpt))
+    record("supervision_is_bound_to_the_representation_checkpoint",
+           all(v.startswith("SupervisionError") and rep_reason[k] in v for k, v in rep_refused.items()),
+           refused=rep_refused, mean_shift=100.0)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
