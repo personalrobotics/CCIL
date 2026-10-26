@@ -314,8 +314,73 @@ def main():
             return max(float((p.cpu() - q.cpu()).abs().max()) for p, q in zip(x.net.state_dict().values(), y.net.state_dict().values()))
         cuda = {"straight_vs_straight_max_abs": maxdiff(s1, s2), "straight_vs_resumed_max_abs": maxdiff(s1, r1),
                 "device": torch.cuda.get_device_name(0)}
-    record("resume_matches_uninterrupted_training", all(v["identical"] for v in res.values()), cpu=res,
-           cuda_measured=cuda, contract="CPU: byte-identical; CUDA: reported as measured, not claimed")
+    # Resume is refused for any checkpoint that does not belong to the requested run.
+    ck = {}
+
+    def keep_ccil(policy, opt, epoch, state):
+        path = out / f"identity-ccil-epoch{epoch}.npz"
+        policy.save(path, opt, epoch, state)
+        ck[epoch] = path
+    vector_bc.train_vector_bc(sup["ccil"], SETTINGS, seed=SEED, on_epoch=keep_ccil)
+    bc_ck = {}
+
+    def keep_bc(policy, opt, epoch, state):
+        path = out / f"identity-bc-epoch{epoch}.npz"
+        policy.save(path, opt, epoch, state)
+        bc_ck[epoch] = path
+    vector_bc.train_vector_bc(sup["bc"], SETTINGS, seed=SEED, on_epoch=keep_bc)
+    nb_ck = {}
+
+    def keep_nb(policy, opt, epoch, state):
+        path = out / f"identity-noise-epoch{epoch}.npz"
+        policy.save(path, opt, epoch, state)
+        nb_ck[epoch] = path
+    vector_bc.train_vector_bc(sup["noise_bc"], SETTINGS, seed=SEED, noise=noise(), on_epoch=keep_nb)
+    from ccil.schema.io import _atomic_savez
+    with np.load(ck[2], allow_pickle=False) as z:
+        partial = {k: z[k] for k in z.files if k != "adam/0/exp_avg_sq"}
+    _atomic_savez(out / "identity-incomplete-adam.npz", partial)
+
+    def refused(fn):
+        try:
+            fn()
+            return "accepted"
+        except vector_bc.TrainingError as e:
+            return f"TrainingError: {str(e)[:220]}"
+    refusals = {
+        "bc_checkpoint_resumed_as_ccil": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], SETTINGS, seed=SEED, resume=bc_ck[2])),
+        "other_seed": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], SETTINGS, seed=SEED + 1, resume=ck[2])),
+        "other_learning_rate": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], {**SETTINGS, "learning_rate": 3e-4}, seed=SEED, resume=ck[2])),
+        "other_batch_size": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], {**SETTINGS, "batch_size": 16}, seed=SEED, resume=ck[2])),
+        "other_balancing": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], {**SETTINGS, "epochs": 8, "balance_labels": 4}, seed=SEED, resume=ck[2])),
+        "other_supervision": refused(lambda: vector_bc.train_vector_bc(
+            build_supervision(P["data-prepare"] / "data/dataset.npz", "ccil", representation=rep,
+                              candidates=P["labels-generate"] / "labels/candidates.npz",
+                              split=P["data-prepare"] / "data/split.json"), SETTINGS, seed=SEED, resume=ck[2])),
+        "other_noise_scale": refused(lambda: vector_bc.train_vector_bc(sup["noise_bc"], SETTINGS, seed=SEED, noise=noise(scale=0.2), resume=nb_ck[2])),
+        "inference_checkpoint": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], SETTINGS, seed=SEED, resume=out / "straight-ccil.npz")),
+        "incomplete_adam_state": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], SETTINGS, seed=SEED, resume=out / "identity-incomplete-adam.npz")),
+    }
+    reason = {"bc_checkpoint_resumed_as_ccil": "method", "other_seed": "seed", "other_learning_rate": "settings",
+              "other_batch_size": "settings", "other_balancing": "settings", "other_supervision": "supervision",
+              "other_noise_scale": "noise_bc", "inference_checkpoint": "only a resumable checkpoint",
+              "incomplete_adam_state": "incomplete"}
+    # The command level restarts an interrupted policy.train; determinism makes the rerun identical.
+    reruns = []
+    for i in range(2):
+        wd = out / f"rerun-{i}"
+        wd.mkdir()
+        shutil.copy(work / "rollouts.npz", wd / "rollouts.npz")
+        shutil.copy(work / "true-dynamics.npz", wd / "true-dynamics.npz")
+        r = cli(base + arms["ccil"], cwd=wd)
+        reruns.append(sha(next((wd / "runs").glob("policy-train-*")) / "checkpoints/policy.npz") if r.returncode == 0 else None)
+    record("resume_matches_uninterrupted_training",
+           all(v["identical"] for v in res.values())
+           and all(v.startswith("TrainingError") and reason[k] in v for k, v in refusals.items())
+           and reruns[0] is not None and reruns[0] == reruns[1],
+           cpu=res, cuda_measured=cuda, refused=refusals, command_level_rerun_identical=reruns[0] == reruns[1],
+           contract="library resume: CPU byte-identical, identity-checked; CUDA reported as measured, not claimed. "
+                    "Command level: an interrupted policy.train restarts, and determinism reproduces it.")
 
     # 9. Checkpoints and dependency isolation.
     ckpt = work / runs["ccil"]["stages"]["policy.train"] / "checkpoints/policy.npz"
