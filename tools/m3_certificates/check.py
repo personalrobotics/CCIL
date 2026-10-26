@@ -498,7 +498,7 @@ def main():
 
     # Part 3: score profiles, selection, configuration, and migration (tools/m3_certificates/proxies.py).
     import proxies
-    proxies.run(out, record, dataset, data_path, sys_, truth, REPO)
+    proxies.run(out, record, dataset, data_path, sys_, truth, REPO, bundle)
 
     # A bundle of certificates with their sources, for audit on another host (tools/m3_certificates/audit_bundle.py).
     bundle_sha256 = write_bundle(out / "bundle", bundle)

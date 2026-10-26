@@ -1,6 +1,7 @@
 """Evidence for #88 part 3: score profiles, selection, configuration, and migration (called by check.py).
 
 - the paper proxies equal Defs. 4.5 and 4.6 from the model's point Jacobians,
+  a BackTrack row whose action moved is unsupported whatever its generator,
   and legacy_label_filtering equals an independent transcription of the
   label-filtering branch's label_error (73d187d), on a linear model and on an
   MLP;
@@ -10,13 +11,18 @@
 - selection never changes acceptance: the candidates file is byte-identical,
   rows rejected by the model-error gate are never selected, and the quantile
   is taken over accepted, admissible rows only (the label-filtering
-  population), which differs from the quantile over all rows;
+  population), which differs from the quantile over all rows; with both
+  legacy keys, selection_population produced reproduces the branch's
+  selection (quantile over every generated label, then max_label_err and
+  epsilon) exactly, where the default admitted population does not;
 - a model without exact Jacobians, at 1e4 in float32 where a finite
   difference reads a derivative of 19999 as 0, gives unsupported rows with NaN
   scores, never 0;
 - the branch's keys migrate to certificate.*, the withdrawn generation keys
-  fail with guidance, inconsistent certificate settings are refused, and the
-  integrated pipeline refuses certificate.profile;
+  fail with guidance, inconsistent certificate settings (including a declared
+  learned constant outside the backtrack bound profile and an action
+  neighborhood for either BackTrack profile) are refused, and the integrated
+  pipeline refuses certificate.profile;
 - ccil labels generate with certificate settings writes complete runs, and
   the candidates it certifies are read unchanged by the reader merged before
   #88 (8663348).
@@ -29,7 +35,7 @@ import sys
 import numpy as np
 
 from ccil.core import (BackwardEuler, Finite, GenerationFailed, IdentityRepresentation, InterfaceError,
-                       LinearTransitionModel, ModelMisfit, NoisyAction, generate_labels, jacobian_fd)
+                       LinearTransitionModel, ModelMisfit, NoisyAction, SupportRadius, generate_labels, jacobian_fd)
 from ccil.core import transition as transition_module
 from ccil.core.certificates import (BackTrackPaperProxy, DisturbedActionPaperProxy, LegacyLabelFiltering, Sources,
                                     audit_sources, certify, require_upper_bound, verify_structure)
@@ -66,7 +72,7 @@ class Float32Quadratic:
         return cls()
 
 
-def run(out, record, dataset, data_path, sys_, truth, repo):
+def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     import torch
     from theorems import synthetic
 
@@ -97,13 +103,25 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
     ds_da = np.linalg.norm(cd.observations["state"].astype(np.float64) - z[src_da], axis=1)
     da = np.linalg.norm(cd.actions.astype(np.float64) - a[src_da], axis=1)
     e_bt, e_da = nA * ds_bt, nB * da + (1 + nA) * ds_da
+    # A BackTrack proxy has no action term, so a row whose action moved is unsupported, whatever its generator says.
+    moved = read_candidates(s_bt.candidates)
+    moved.actions = moved.actions.copy()
+    moved.actions[0] += np.float32(0.25)
+    moved_path = out / "candidates-proxy-backtrack-moved-action.npz"
+    write_candidates(moved, moved_path)
+    s_moved = Sources(moved_path, data_path, lin_path, rep)
+    c_moved = certify(s_moved, BackTrackPaperProxy(), admission="score")
+    moved_ok = (c_moved.classification[0] == "unsupported" and not c_moved.admissible[0] and c_moved.reasons[0, 0]
+                and (c_moved.classification[1:] == "empirical").all() and moved.generator == cb.generator)
     record("paper_proxies_equal_definitions",
            np.allclose(c_bt.total_error_value, e_bt, rtol=1e-12, atol=1e-15)
            and np.allclose(c_da.total_error_value, e_da, rtol=1e-12, atol=1e-15)
            and np.allclose(c_bt.terms["state_jacobian_norm"], nA, rtol=1e-12)
            and np.allclose(c_da.terms["action_jacobian_norm"], nB, rtol=1e-12)
            and verify_structure(c_bt, s_bt.candidates) == [] and audit_sources(c_bt, s_bt) == []
-           and verify_structure(c_da, s_da.candidates) == [] and audit_sources(c_da, s_da) == [],
+           and verify_structure(c_da, s_da.candidates) == [] and audit_sources(c_da, s_da) == [] and moved_ok,
+           backtrack_moved_action={"row": 0, "action_change": 0.25, "classification": str(c_moved.classification[0]),
+                                   "admissible": bool(c_moved.admissible[0]), "generator": moved.generator["name"]},
            definitions={"backtrack_paper_proxy": "||J_S f_hat|| ||z_G - z_t|| (Def. 4.5)",
                         "disturbed_action_paper_proxy": "||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t|| (Def. 4.6)"},
            state_jacobian_norm=nA, action_jacobian_norm=nB,
@@ -158,6 +176,8 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
             parity[name]["max_relative_difference_vs_closed_form"] = float(np.max(np.abs(cert.total_error_value / exact - 1)))
             parity[name]["ok"] = parity[name]["ok"] and parity[name]["max_relative_difference_vs_closed_form"] < 1e-12
         parity[name]["ok"] = parity[name]["ok"] and not parity[name]["structure"] and not parity[name]["audit"]
+        if name == "mlp":
+            bundle["legacy_label_filtering_mlp"] = (cert, src)
     record("legacy_label_filtering_matches_the_branch", all(v["ok"] for v in parity.values()),
            branch="label-filtering 73d187d gen_aug_label.label_error", parity=parity,
            note="the branch transcription evaluates in float32, as the branch did (tolerance 1e-5); the linear case is "
@@ -202,6 +222,48 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
            rows=int(len(cm.accepted)), rejected_by_model_gate=int(misfit.sum()), selected=int(sel.selected.sum()),
            threshold_over_accepted_admissible=q_eligible, threshold_if_rejected_rows_were_included=q_all)
 
+    # P4b. Both legacy keys at once: the branch's selection (utils.py at 73d187d) takes the quantile over every generated
+    # label, then intersects with max_label_err and epsilon. selection_population produced reproduces it.
+    def branch_selection(err, produced_mask, q, max_err, eps_ok):
+        sel = np.ones(len(err), bool)  # transcribed: sel_bounded over the labels the branch generated
+        thresh = np.quantile(err[produced_mask], q)
+        sel &= err <= thresh
+        sel &= err <= max_err
+        sel &= eps_ok
+        return produced_mask & sel, float(thresh)
+
+    both = {}
+    for name, (src, eps, gate_on) in {"fixture": (s_da, None, False), "misfit_and_support": (None, 0.06, True)}.items():
+        if src is None:
+            src = sources(lin, lin_path, NoisyAction(K, SIGMA), data=wrong, dpath=wpath,
+                          validators=(Finite(), GenerationFailed(), ModelMisfit(gate), SupportRadius(eps)), tag="-both")
+        c = read_candidates(src.candidates)
+        probe = certify(src, LegacyLabelFiltering(), admission="score")
+        meas = c.measurements
+        produced_mask = np.isfinite(probe.total_error_value)
+        if gate_on:  # the branch generated nothing for anchors its model misfit
+            produced_mask &= meas["anchor_model_error"] < gate
+        max_err = float(np.median(probe.total_error_value[produced_mask]))
+        data_ = dataset if gate_on is False else wrong
+        anchors = {ep.episode_id: ep.observations["state"].astype(np.float64) for ep in data_.episodes}
+        z_t = np.array([anchors[str(e)][int(f)] for e, f in zip(c.source_episode_id, c.source_frame)])
+        dist = np.linalg.norm(c.observations["state"].astype(np.float64) - z_t, axis=1)  # the branch's aug.epsilon test
+        eps_ok = np.ones(len(c.accepted), bool) if eps is None else dist < eps
+        legacy, legacy_thr = branch_selection(probe.total_error_value, produced_mask, 0.3, max_err, eps_ok)
+        cert = certify(src, LegacyLabelFiltering(), admission="score", threshold=max_err, selection_quantile=0.3,
+                       selection_population="produced")
+        admitted = certify(src, LegacyLabelFiltering(), admission="score", threshold=max_err, selection_quantile=0.3)
+        usable = c.accepted & cert.admissible & cert.selected
+        usable_admitted = c.accepted & admitted.admissible & admitted.selected
+        both[name] = {"rows": int(len(c.accepted)), "max_label_err": max_err,
+                      "branch": {"selected": int(legacy.sum()), "threshold": legacy_thr},
+                      "produced": {"selected": int(usable.sum()), "threshold": cert.selection["threshold"]},
+                      "admitted": {"selected": int(usable_admitted.sum()), "threshold": admitted.selection["threshold"]},
+                      "ok": bool(np.array_equal(usable, legacy) and np.isclose(cert.selection["threshold"], legacy_thr, rtol=0, atol=0)
+                                 and verify_structure(cert, src.candidates) == [])}
+    record("legacy_selection_with_both_keys_matches_the_branch", all(v["ok"] for v in both.values()), cases=both,
+           source="label-filtering 73d187d correct_il/utils.py lines 89-99")
+
     # P5. Without exact Jacobians the score is unresolved: unsupported and NaN, never 0.
     transition_module.TRANSITION_MODELS[Float32Quadratic.kind] = Float32Quadratic  # evidence-only kind, this process
     quad_path = out / "model-float32-quadratic.npz"
@@ -226,7 +288,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
         "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
     rc = resolve(config=legacy_yml)
     migrated = {k: rc[k] for k in ("certificate.profile", "certificate.score_threshold", "certificate.selection_quantile",
-                                   "generation.model_error_threshold")}
+                                   "certificate.selection_population", "generation.model_error_threshold")}
     base = ["data.path=x.npz"]
     refused = {
         "withdrawn_max_label_error": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + ["generation.max_label_error=0.5"])),
@@ -242,6 +304,19 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
             "generation.method=backward_euler", "certificate.profile=backtrack", "certificate.true_state_lipschitz=0.1"])),
         "certificate_settings_without_profile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
             "certificate.selection_quantile=0.3"])),
+        "declared_learned_source_without_profile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "certificate.learned_lipschitz_source=declared"])),
+        "declared_learned_source_with_backtrack_paper_proxy": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "generation.method=backward_euler", "certificate.profile=backtrack_paper_proxy",
+            "certificate.learned_lipschitz_source=declared"])),
+        "declared_learned_source_with_disturbed_action": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "generation.method=noisy_action", "certificate.profile=disturbed_action", "certificate.true_state_lipschitz=0.1",
+            "certificate.true_action_lipschitz=0.1", "certificate.demonstration_residual_bound=0",
+            "certificate.learned_lipschitz_source=declared"])),
+        "action_neighborhood_with_backtrack_paper_proxy": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "generation.method=backward_euler", "certificate.profile=backtrack_paper_proxy", "certificate.neighborhood_action=0.1"])),
+        "produced_population_without_quantile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "certificate.profile=legacy_label_filtering", "certificate.selection_population=produced"])),
     }
     from ccil.config import ConfigError
     from ccil.pipelines.integrated import run_integrated
@@ -253,7 +328,8 @@ def run(out, record, dataset, data_path, sys_, truth, repo):
         integrated = f"ConfigError: {e.errors[0][:200]}"
     record("configuration_and_migration",
            migrated == {"certificate.profile": "legacy_label_filtering", "certificate.score_threshold": 0.5,
-                        "certificate.selection_quantile": 0.3, "generation.model_error_threshold": 0.1}
+                        "certificate.selection_quantile": 0.3, "certificate.selection_population": "produced",
+                        "generation.model_error_threshold": 0.1}
            and all(v.startswith("ConfigError") or v.startswith("ValueError") for v in refused.values())
            and "withdrawn" in refused["withdrawn_max_label_error"] and integrated.startswith("ConfigError"),
            migrated=migrated, refused=refused, integrated=integrated)
