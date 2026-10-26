@@ -2,21 +2,25 @@
  "all_pass": true,
  "bundle_sha256": {
   "backtrack_mlp/candidates.npz": "be9301f84ef23cba7c0dc52f85a84878d1058db07b5057f0a446aab2428864a7",
-  "backtrack_mlp/certificates.npz": "e65a4b7a5fc463f16a7b54f64adccdb8bc415786623dff75f6b2b5c531059fc6",
+  "backtrack_mlp/certificates.npz": "4a61576dc9b392b55769144b12e6666f42cc3978aaf9430a6aacc48ddb556a43",
   "backtrack_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
   "backtrack_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "backtrack_mlp/transition_model.npz": "24da93ce283bb45d302c4035b7858b6cb3ec41dff6f3b96c604eaf6299a3366a",
   "continuity_linear/candidates.npz": "f09e95bc84a912cb70057c84ec3ce67b9f8b9094fc0fc4ffbdcc2109c89bcb19",
-  "continuity_linear/certificates.npz": "54caaf5c9a22c857447314a120f582af543689149c99071aad4ce01be4250955",
+  "continuity_linear/certificates.npz": "8dc339bba3d6eeae031cb9b986b9eb3d07f9b0ca3cd08e58ce696914025a70d0",
   "continuity_linear/dataset.npz": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
   "continuity_linear/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "continuity_linear/transition_model.npz": "b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3",
   "disturbed_action_mlp/candidates.npz": "ae72ceb932699dbf1fec7f3996eec54139df0a07fe7c27b960cac07f63ab6673",
-  "disturbed_action_mlp/certificates.npz": "2c5cd84f1ae726eec1da9a65ca70687ba995a59b313cf58efb8a7cf684768a02",
+  "disturbed_action_mlp/certificates.npz": "08d334312dc34a7061fd4e8419c928453d159a73e9fe6f99aadebc03e98ed1c0",
   "disturbed_action_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
   "disturbed_action_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "disturbed_action_mlp/transition_model.npz": "24da93ce283bb45d302c4035b7858b6cb3ec41dff6f3b96c604eaf6299a3366a",
-  "manifest.json": "cc95a0ee2ef944d4b92adcbf32d5e1de9841dbdc52d00c5502b622a5fa240c1a"
+  "legacy_label_filtering_mlp/candidates.npz": "25ad3e6fd5a00d6877ad563c01c8ade7cfdf45b8125e2eb3775dd706bfcb22a9",
+  "legacy_label_filtering_mlp/certificates.npz": "c19adf5979f5b2325fcfbc6e0c5bdfd248572895519fefb6aeb672f453530406",
+  "legacy_label_filtering_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "legacy_label_filtering_mlp/transition_model.npz": "24da93ce283bb45d302c4035b7858b6cb3ec41dff6f3b96c604eaf6299a3366a",
+  "manifest.json": "303b981b23ce9afa30b40d4099ec5cf1480ae0f1165f5a34987e21f6b61c92d5"
  },
  "cases": [
   {
@@ -307,7 +311,7 @@
     "rank_2_total": "SchemaError: rules=['rank']: total_error_value has shape (36, 1); expected rank 1 ('N',)",
     "row_count_mismatch": "SchemaError: rules=['shape']: selected axis 0 (N) is 35, expected 36",
     "scale_of_wrong_length": "SchemaError: rules=['descriptor']: coordinates must be {modality, state_dim, action_dim, state_scale, action_scale} with positive finite scales of the stated dimensions",
-    "selection_threshold_without_quantile": "SchemaError: rules=['selection']: selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0}, with no threshold without a quantile",
+    "selection_threshold_without_quantile": "SchemaError: rules=['selection']: selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0, population: ['admitted', 'produced']}, with no threshold or ",
     "undeclared_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'anchor_model_error', 'demonstration_residual', 'extra', 'solver_error', 'state_displacement'] != de",
     "unknown_array_field": "SchemaError: rules=['format']: unknown field 'extra'",
     "unknown_meta_field": "SchemaError: rules=['format']: unknown meta fields ['note']",
@@ -334,8 +338,8 @@
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-a093ed7764a3/labels/certificates.npz",
-   "candidates_sha256": "f97e29f2e48acaac4158cf869265d08d34d86661887fcdcab851454bf91b0f78",
+   "artifact": "<out>/pipeline/runs/labels-certify-8dc212fef028/labels/certificates.npz",
+   "candidates_sha256": "6cfb2fc8f328f76f2cd1b85daf8ed7b7924b6cc2286e87454d56d13c4d970fd6",
    "case": "pipeline_certify_stage",
    "constants": {
     "C_a": 1.7700020473879167e-07,
@@ -346,12 +350,12 @@
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-8b9349ded94f": "complete",
-    "labels-certify-20650cc5f9a1": "complete",
-    "labels-certify-2679bf32f85e": "complete",
-    "labels-certify-a093ed7764a3": "complete",
-    "labels-generate-dc0e0342f7a0": "complete",
-    "transition-fit-05870745be55": "complete"
+    "data-prepare-008f7460d25b": "complete",
+    "labels-certify-8dc212fef028": "complete",
+    "labels-certify-cf033759e0f5": "complete",
+    "labels-certify-df888f69a450": "complete",
+    "labels-generate-08428f0894b6": "complete",
+    "transition-fit-f62a1bd45f4b": "complete"
    },
    "usable": 27
   },
@@ -768,7 +772,7 @@
       "rows": 9,
       "violated_rows": 0
      },
-     "run": "labels-certify-5b0e7ace0bb9",
+     "run": "labels-certify-2c41fa161fa8",
      "status": "complete"
     },
     "disturbed_action": {
@@ -785,14 +789,202 @@
       "rows": 36,
       "violated_rows": 0
      },
-     "run": "labels-certify-6f3f591f1b19",
+     "run": "labels-certify-40abc3cbcfd8",
      "status": "complete"
+    }
+   }
+  },
+  {
+   "action_jacobian_norm": 0.16000000000000003,
+   "backtrack_moved_action": {
+    "action_change": 0.25,
+    "admissible": false,
+    "classification": "unsupported",
+    "generator": "backward_euler",
+    "row": 0
+   },
+   "case": "paper_proxies_equal_definitions",
+   "definitions": {
+    "backtrack_paper_proxy": "||J_S f_hat|| ||z_G - z_t|| (Def. 4.5)",
+    "disturbed_action_paper_proxy": "||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t|| (Def. 4.6)"
+   },
+   "max_relative_difference": {
+    "backtrack": 2.886579864025407e-15,
+    "disturbed_action": 2.886579864025407e-15
+   },
+   "pass": true,
+   "state_jacobian_norm": 0.11180339887498952
+  },
+  {
+   "branch": "label-filtering 73d187d gen_aug_label.label_error",
+   "case": "legacy_label_filtering_matches_the_branch",
+   "note": "the branch transcription evaluates in float32, as the branch did (tolerance 1e-5); the linear case is also compared with its float64 closed form (1e-12)",
+   "parity": {
+    "linear": {
+     "audit": [],
+     "max_relative_difference_vs_branch_float32": 6.670944596720574e-08,
+     "max_relative_difference_vs_closed_form": 3.1086244689504383e-15,
+     "ok": true,
+     "rows": 36,
+     "structure": []
+    },
+    "mlp": {
+     "audit": [],
+     "max_relative_difference_vs_branch_float32": 2.0227435904018876e-07,
+     "ok": true,
+     "rows": 2880,
+     "structure": []
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "scores_are_never_bounds",
+   "pass": true,
+   "require_upper_bound": "InterfaceError: certificate (disturbed_action_paper_proxy, admission 'score') does not admit rows as upper bounds",
+   "score_admission": {
+    "admissible": 22,
+    "rows": 36,
+    "threshold": 0.0834142660283126
+   },
+   "upper_bound_admission": {
+    "admissible": 0,
+    "not_upper_bound": 36
+   }
+  },
+  {
+   "case": "selection_never_changes_acceptance",
+   "pass": true,
+   "rejected_by_model_gate": 16,
+   "rows": 36,
+   "selected": 6,
+   "threshold_if_rejected_rows_were_included": 0.07915794881552271,
+   "threshold_over_accepted_admissible": 0.03064753094264774
+  },
+  {
+   "case": "legacy_selection_with_both_keys_matches_the_branch",
+   "cases": {
+    "fixture": {
+     "admitted": {
+      "selected": 6,
+      "threshold": 0.024170262495254696
+     },
+     "branch": {
+      "selected": 11,
+      "threshold": 0.035218154290884124
+     },
+     "max_label_err": 0.07700214611810183,
+     "ok": true,
+     "produced": {
+      "selected": 11,
+      "threshold": 0.035218154290884124
+     },
+     "rows": 36
+    },
+    "misfit_and_support": {
+     "admitted": {
+      "selected": 3,
+      "threshold": 0.0253277636878066
+     },
+     "branch": {
+      "selected": 6,
+      "threshold": 0.03064753094264774
+     },
+     "max_label_err": 0.07520938172995334,
+     "ok": true,
+     "produced": {
+      "selected": 6,
+      "threshold": 0.03064753094264774
+     },
+     "rows": 36
+    }
+   },
+   "pass": true,
+   "source": "label-filtering 73d187d correct_il/utils.py lines 89-99"
+  },
+  {
+   "case": "unresolved_derivatives_are_unsupported",
+   "classification": [
+    "unsupported"
+   ],
+   "float32_finite_difference_at_1e4": 0.0,
+   "pass": true,
+   "state_jacobian_norm": [
+    NaN,
+    NaN
+   ],
+   "true_derivative": 19999.0
+  },
+  {
+   "case": "configuration_and_migration",
+   "integrated": "ConfigError: certificate.profile: the integrated pipeline's policy stage does not consume certificates yet (#89); certify with ccil labels generate",
+   "migrated": {
+    "certificate.profile": "legacy_label_filtering",
+    "certificate.score_threshold": 0.5,
+    "certificate.selection_population": "produced",
+    "certificate.selection_quantile": 0.3,
+    "generation.model_error_threshold": 0.1
+   },
+   "pass": true,
+   "refused": {
+    "action_neighborhood_with_backtrack_paper_proxy": "ConfigError: backtrack_paper_proxy keeps the anchor's action; certificate.neighborhood_action does not apply [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.metho",
+    "bound_profile_with_score_threshold": "ConfigError: bound profile disturbed_action admits by certificate.max_total_error, not certificate.score_threshold [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation",
+    "bound_profile_without_demonstration": "ConfigError: backtrack needs certificate.reference_dynamics or certificate.demonstration_residual_bound [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.method=cli",
+    "certificate_settings_without_profile": "ConfigError: ['certificate.selection_quantile'] require certificate.profile [certificate; sources: certificate.profile=default, certificate.reference_dynamics=default, generation.method=recipe:analytic_double_inte",
+    "declared_learned_source_with_backtrack_paper_proxy": "ConfigError: certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, not backtrack_paper_proxy [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=defa",
+    "declared_learned_source_with_disturbed_action": "ConfigError: certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, not disturbed_action [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, ",
+    "declared_learned_source_without_profile": "ConfigError: ['certificate.learned_lipschitz_source'] require certificate.profile [certificate; sources: certificate.profile=default, certificate.reference_dynamics=default, generation.method=recipe:analytic_doubl",
+    "produced_population_without_quantile": "ConfigError: certificate.selection_population applies to a selection; set certificate.selection_quantile [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.method=re",
+    "profile_for_the_other_family": "ConfigError: certificate.profile backtrack_paper_proxy certifies backtrack labels; generation.method noisy_action makes disturbed_action labels [certificate; sources: certificate.profile=cli, certificate.reference",
+    "score_profile_with_bound_threshold": "ConfigError: score profile legacy_label_filtering takes no constants, reference, or bound threshold: unset ['certificate.max_total_error'] [certificate; sources: certificate.profile=cli, certificate.reference_dyna",
+    "withdrawn_label_error_quantile": "ConfigError: generation.label_error_quantile was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile and certificate.selection_quantile",
+    "withdrawn_max_label_error": "ConfigError: generation.max_label_error was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile (legacy_label_filtering for the branch's score) and certificate.score_threshold, or"
+   }
+  },
+  {
+   "case": "cli_certify_runs_and_pre_88_reader",
+   "pass": true,
+   "pre_88_reader": "8663348",
+   "runs": {
+    "backtrack": {
+     "classification": [
+      "certified"
+     ],
+     "exit": 0,
+     "read_by_pre_88_reader": true,
+     "rows": 9,
+     "stages": [
+      "data.prepare",
+      "labels.certify",
+      "labels.generate",
+      "transition.fit"
+     ],
+     "status": "complete",
+     "stderr": "",
+     "usable": 4
+    },
+    "legacy_label_filtering": {
+     "classification": [
+      "empirical"
+     ],
+     "exit": 0,
+     "read_by_pre_88_reader": true,
+     "rows": 36,
+     "stages": [
+      "data.prepare",
+      "labels.certify",
+      "labels.generate",
+      "transition.fit"
+     ],
+     "status": "complete",
+     "stderr": "",
+     "usable": 11
     }
    }
   }
  ],
  "environment": {
-  "code_commit": "b396ef2b84fda3b8fa62a52e49be7613ac237745",
+  "code_commit": "ecc12af99eab6a4bb0266532e493da0d24d5e70f",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",

@@ -83,10 +83,6 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         why = None if v.reason is None else reason_code_problem(v.reason)
         if why:
             raise InterfaceError(f"{type(v).__name__}.reason: {why}")
-        if getattr(v, "profile", None) is not None and v.profile != getattr(generator, "label_error_profile", None):
-            raise InterfaceError(f"{type(v).__name__} uses the {v.profile!r} label-error profile, but "
-                                 f"{type(generator).__name__} labels follow "
-                                 f"{getattr(generator, 'label_error_profile', None)!r}")
     codes = canonical_reason_order(set(REASON_CODES) | {v.reason for v in validators if v.reason is not None})
     reasons = np.zeros((len(cands), len(codes)), bool)
     measurements = {f"generator.{k}": v.astype(np.float64) for k, v in cands.measurements.items()}

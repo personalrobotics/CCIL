@@ -35,6 +35,8 @@ FORMS = ("additive", "direct", "score")
 SOURCES = ("analytic_bound", "model_bound", "declared")
 ADMISSION_MODES = ("upper_bound", "score")
 MODEL_EVALUATIONS = ("bounded", "assumed_exact")
+# The rows a selection quantile is taken over: accepted, admissible rows, or every produced, supported row (legacy).
+SELECTION_POPULATIONS = ("admitted", "produced")
 # Persisted by every profile, as diagnostics at least.
 GLOBAL_TERMS = ("state_displacement", "action_displacement", "anchor_model_error", "solver_error")
 REQUIRED_INPUTS = ("candidates", "dataset", "transition_model")
@@ -66,7 +68,10 @@ FIELDS = [
                            "evaluation), demonstration {source, value, rationale, provenance} for profiles that add the "
                            "demonstration residual, units, norms, assumptions."),
     ("admission", "dict", f"mode {list(ADMISSION_MODES)} and threshold (null or finite >= 0) on total_error_value."),
-    ("selection", "dict", "quantile (null or in (0, 1]) and the resulting threshold (null when no quantile or no eligible row)."),
+    ("selection", "dict", "quantile (null or in (0, 1]), the resulting threshold (null when no quantile or no row to take it "
+                          "over), and population: admitted (accepted, admissible rows) or produced (supported rows not "
+                          "rejected for generation failure, non-finite values, or model misfit, as the label-filtering "
+                          "branch took it)."),
     ("candidates_sha256", "str", "SHA-256 of the candidates file."),
     ("inputs", "dict[str, str]", f"SHA-256 of each input by name; always {list(REQUIRED_INPUTS)}."),
     ("components", "dict", "representation {kind, version, modality} and transition_model {kind, version}."),
@@ -222,12 +227,15 @@ class CertificateSet:
                 and (a["threshold"] is None or (_number(a["threshold"]) and a["threshold"] >= 0))):
             out.add("admission", w, f"admission must be {{mode: {list(ADMISSION_MODES)}, threshold: null or finite >= 0}}")
         s = self.selection
-        if not (isinstance(s, dict) and set(s) == {"quantile", "threshold"}
+        if not (isinstance(s, dict) and set(s) == {"quantile", "threshold", "population"}
                 and (s["quantile"] is None or (_number(s["quantile"]) and 0 < s["quantile"] <= 1))
                 and (s["threshold"] is None or (_number(s["threshold"]) and s["threshold"] >= 0))
-                and not (s["quantile"] is None and s["threshold"] is not None)):
-            out.add("selection", w, "selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0}, "
-                                    "with no threshold without a quantile")
+                and not (s["quantile"] is None and s["threshold"] is not None)
+                and s["population"] in SELECTION_POPULATIONS
+                and not (s["quantile"] is None and s["population"] != "admitted")):
+            out.add("selection", w, "selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0, "
+                                    f"population: {list(SELECTION_POPULATIONS)}}}, with no threshold or non-default "
+                                    "population without a quantile")
         if not (isinstance(self.candidates_sha256, str) and SHA256.match(self.candidates_sha256)):
             out.add("inputs", w, "candidates_sha256 must be 64 lowercase hex")
         if not _sha_map(self.inputs) or not set(REQUIRED_INPUTS) <= set(self.inputs):

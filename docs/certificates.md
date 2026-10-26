@@ -151,9 +151,16 @@ every supported row is a bound.
 
 **Selection** is a budget choice:
 - With a `selection_quantile`, the selected rows are the accepted, admissible
-  rows whose total is at most that quantile of their totals. If no row is
-  eligible, none is selected and the threshold is null.
-- Without one, every row is selected.
+  rows whose total is at most a quantile. The `selection_population` says
+  which rows that quantile is taken over:
+  - `admitted` (the default) takes it over the accepted, admissible rows.
+  - `produced` takes it over every supported row a legacy run would have
+    generated: rows not rejected for generation failure, non-finite values or
+    model misfit. This is independent of the admission threshold and the
+    support radius, as the label-filtering branch took it. Migrated legacy
+    configurations use it.
+- If no row is in the population, none is selected and the threshold is null.
+- Without a quantile, every row is selected.
 
 Selection never changes a candidate's acceptance or a row's classification.
 
@@ -203,9 +210,30 @@ the bound needs no learned model:
 - `target_offset` = ‖y − z_{t+1}‖ is a profile term, and is 0 for these
   generators.
 
+**Score profiles (empirical).** These are point-Jacobian scores of f̂ at the
+anchor, from the model's exact `jacobian_za`, never finite differences.
+Without exact Jacobians the scores are NaN and the rows unsupported, never 0.
+They assume a small anchor model error, which `generation.model_error_threshold`
+enforces at generation. Every row is `empirical` with
+`is_upper_bound = false`, `upper_bound` admission admits none, and
+`require_upper_bound` refuses them.
+
+| Profile | Score | Labels |
+|---|---|---|
+| `backtrack_paper_proxy` | ‖J_S f̂‖ ‖Δz‖ (Ke et al., Def. 4.5). It has no action term, so a row whose action differs from its anchor's is unsupported, and it takes no action neighborhood. | backtrack |
+| `disturbed_action_paper_proxy` | ‖J_A f̂‖ ‖Δa‖ + (1 + ‖J_S f̂‖) ‖Δz‖ (Def. 4.6) | disturbed action |
+| `legacy_label_filtering` | ‖J_{z+f̂}‖ ‖(Δz, Δa)‖, the label-filtering branch's `label_error` (73d187d), opt-in for parity | any |
+
 A profile names the generator family it applies to, and certifying another
-family's candidates raises. The paper's proxies follow in part 3. A profile
-is a `Profile` subclass registered with `register_profile`.
+family's candidates raises. A profile is a `Profile` subclass registered with
+`register_profile`.
+
+**Which profile for which method.**
+
+| Generation method | Bound | Paper score | Legacy score |
+|---|---|---|---|
+| `backward_euler`, `backward_euler_fast`, `forward_euler` | `backtrack` (or `continuity`) | `backtrack_paper_proxy` | `legacy_label_filtering` |
+| `noisy_action`, `noisy_action_fe` | `disturbed_action` (or `continuity`) | `disturbed_action_paper_proxy` | `legacy_label_filtering` |
 
 ## Verification
 
@@ -231,7 +259,49 @@ action_scale=None)`.
 - **Metrics:** counts by classification, and the admissible, selected and
   usable rows.
 
-Configuration keys (`certificate.*`) arrive in part 3 of #88.
+**Configuration.** With `certificate.profile` set, `ccil labels generate` runs
+`labels.certify` after `labels.generate`. The parameters are listed in
+[`config/parameters.md`](config/parameters.md).
+
+| Key | Use |
+|---|---|
+| `certificate.profile` | The profile, or null for no certificate |
+| `certificate.reference_dynamics` | True dynamics: `reference_lipschitz` true constants, `reference_residual` demonstration residuals, and `linear_discrepancy` for continuity with a linear model |
+| `certificate.true_state_lipschitz`, `certificate.true_action_lipschitz` | Declared true constants, without a reference |
+| `certificate.demonstration_residual_bound` | Declared bound on every demonstration residual, without a reference |
+| `certificate.learned_lipschitz_source`, `certificate.learned_state_lipschitz` | `model` (default) uses `model_lipschitz`; `declared` uses the value |
+| `certificate.discrepancy_state_lipschitz`, `certificate.discrepancy_action_lipschitz` | Declared continuity constants, without an exact discrepancy |
+| `certificate.neighborhood_state`, `certificate.neighborhood_action` | Neighborhood radii |
+| `certificate.max_total_error` | Bound profiles: `upper_bound` admission threshold |
+| `certificate.score_threshold` | Score profiles: `score` admission threshold |
+| `certificate.selection_quantile` | Budget selection |
+| `certificate.selection_population` | `admitted` (default) or `produced` (the legacy population) |
+
+**Consistency rules.** The configuration rule `certificate` refuses:
+- a profile for the other generator family;
+- a score profile with constants, a reference, or `max_total_error`;
+- a bound profile with `score_threshold`;
+- a bound profile without a reference or declared demonstration bound;
+- missing or unused declared constants;
+- `learned_lipschitz_source: declared` outside the `backtrack` bound profile;
+- an action neighborhood for either BackTrack profile;
+- a `produced` population without a quantile;
+- `certificate.*` settings, including non-default choices, without a profile.
+
+The integrated pipeline refuses `certificate.profile` until its policy stage
+consumes certificates (#89).
+
+**Migration.**
+- Legacy `aug.max_label_err` and `aug.label_err_quantile` migrate to
+  `certificate.profile: legacy_label_filtering`, with
+  `certificate.score_threshold` and `certificate.selection_quantile`. The
+  quantile migrates with `certificate.selection_population: produced`, which
+  reproduces the branch's selection exactly.
+- `aug.model_err_thresh` stays `generation.model_error_threshold`.
+- `generation.max_label_error` and `generation.label_error_quantile` are
+  withdrawn, and fail with guidance.
+- The `LabelError` validator is removed. Its definitions are the paper
+  proxies.
 
 ## Evidence
 
@@ -298,6 +368,28 @@ true error ≤ total with no tolerance.
   provider kinds, and the wrong generator family are refused. The pipeline
   writes complete runs for both theorem profiles.
 
+Part 3's cases are in
+[`tools/m3_certificates/proxies.py`](../tools/m3_certificates/proxies.py).
+
+- **Parity.**
+  - The paper proxies equal Defs. 4.5 and 4.6, and a BackTrack row whose
+    action moved is unsupported.
+  - `legacy_label_filtering` equals a transcription of the branch's
+    `label_error`, for a linear model and an MLP.
+  - With both legacy keys, the `produced` population reproduces the branch's
+    selection exactly. On the fixture both select 11 rows at 0.0352, where
+    `admitted` selects 6 at 0.0242.
+- **Scores are never bounds.** Score admission filters by `score_threshold`.
+- **Selection.** It never changes acceptance. Rows rejected by the
+  model-error gate are never selected, and the quantile is over accepted,
+  admissible rows.
+- **Unresolved derivatives.** They give unsupported rows, never 0.
+- **Configuration.** Migration, the withdrawn keys, the consistency rules,
+  and the integrated pipeline's refusal all behave as described.
+- **Pipeline.** `ccil labels generate` with certificate settings writes
+  complete runs, and its candidates are read unchanged by the reader that
+  predates #88 (`8663348`).
+
 **Cross-host audit.** `check.py` also writes `bundle/`: each certificate with
 copies of its sources and a manifest. Its report lists the SHA-256 of every
 bundle file.
@@ -307,6 +399,9 @@ uv run --group evidence python tools/m3_certificates/audit_bundle.py --bundle <b
 ```
 
 Each host audits the other's bundle:
+- The bundle includes an MLP `legacy_label_filtering` certificate, so the score
+  profiles' Jacobian recomputation is audited from the same bytes on both
+  hosts.
 - `audit-siddh-of-mac.json` is the CUDA host auditing the bundle behind
   `report.json`;
 - `audit-mac-of-siddh.json` is the reverse, for `report-siddh.json`.

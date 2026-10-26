@@ -62,7 +62,7 @@ import numpy as np
 from ..runs.provenance import sha256
 from ..schema import read_candidates, read_trajectories
 from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS, REASON_CODES, SCHEMA,
-                                   VERSION, CertificateSet)
+                                   SELECTION_POPULATIONS, VERSION, CertificateSet)
 from ..schema.fields import SchemaError
 from ..schema.io import _atomic_savez, _format_error, _open
 from .batch import InterfaceError
@@ -531,6 +531,124 @@ class DisturbedActionProfile(Profile):
         return np.full(len(total), np.nan), total
 
 
+JACOBIAN_TERMS = {
+    "state_jacobian_norm": {"definition": "||S_z^-1 J_S f_hat(z_t, a_t) S_z||_2: spectral norm of the exact state "
+                                          "Jacobian at the anchor", "units": "error per scaled state"},
+    "action_jacobian_norm": {"definition": "||S_z^-1 J_A f_hat(z_t, a_t) S_a||_2: spectral norm of the exact action "
+                                           "Jacobian at the anchor", "units": "error per scaled action"},
+    "next_state_jacobian_norm": {"definition": "||[I + S_z^-1 J_S f_hat S_z, S_z^-1 J_A f_hat S_a]||_2 at the anchor: the "
+                                               "next-state map's Jacobian in (z, a)", "units": "error per scaled (state, action)"},
+}
+
+
+def jacobian_terms(model, z, a, state_scale, action_scale) -> dict:
+    """Point Jacobian norms of f_hat at the given anchors, in scaled coordinates.
+
+    They need the model's exact jacobian_za; without one every value is NaN
+    (so a row that requires it is unsupported), never a finite-difference
+    estimate, which vanishes at float32 for large inputs.
+    """
+    n = len(z)
+    fn = getattr(model, "jacobian_za", None)
+    if fn is None:
+        return {k: np.full(n, np.nan) for k in JACOBIAN_TERMS}
+    sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
+    J = np.asarray(fn(z, a), np.float64)
+    d = z.shape[1]
+    Js = J[:, :, :d] * sz[None, None, :] / sz[None, :, None]
+    Ja = J[:, :, d:] * sa[None, None, :] / sz[None, :, None]
+    Jn = np.concatenate([np.eye(d)[None] + Js, Ja], axis=2)
+    return {"state_jacobian_norm": np.linalg.norm(Js, 2, axis=(1, 2)), "action_jacobian_norm": np.linalg.norm(Ja, 2, axis=(1, 2)),
+            "next_state_jacobian_norm": np.linalg.norm(Jn, 2, axis=(1, 2))}
+
+
+class _PointJacobianScore(Profile):
+    """An empirical score from point Jacobians of f_hat at the anchor: not a bound, whatever its value.
+
+    The Jacobians are evaluated at the anchor only and stand in for constants
+    over the neighborhood, and the anchor model error is taken as 0 (the paper
+    restricts labels to anchors with a small model error, which
+    generation.model_error_threshold enforces at generation). Rows are
+    classified empirical, with is_upper_bound false.
+    """
+
+    form, intrinsic = "score", "empirical"
+
+    def __init__(self, neighborhood_state=None, neighborhood_action=None):
+        super().__init__({}, neighborhood_state, neighborhood_action)
+
+    def compute_terms(self, ctx):
+        z, a, _ = _anchor_rows(ctx)
+        terms = jacobian_terms(ctx.model, z, a, ctx.state_scale, ctx.action_scale)
+        return {k: terms[k] for k in self.extra_terms}
+
+    def audit_term(self, name, row):
+        value = float(jacobian_terms(row["model"], row["z_t"], row["a_t"], row["state_scale"], row["action_scale"])[name][0])
+        u = U32 if getattr(row["model"], "evaluation_dtype", "float32") == "float32" else U64
+        d = row["z_t"].shape[1] + row["a_t"].shape[1]
+        # A Jacobian entry accumulates over the network's width; d ulps per entry, AUDIT_ULPS of headroom.
+        return value, AUDIT_ULPS * u * d * abs(value) if np.isfinite(value) else 0.0
+
+
+class BackTrackPaperProxy(_PointJacobianScore):
+    """Ke et al., Def. 4.5 (Eq. 11): E_BT = ||J_S f_hat(z_t, a_t)|| ||z_G - z_t||, an empirical score."""
+
+    name, version = "backtrack_paper_proxy", "2"
+    applies_to = ("backtrack",)
+    extra_terms = {"state_jacobian_norm": JACOBIAN_TERMS["state_jacobian_norm"]}
+    required = ("state_displacement", "state_jacobian_norm")
+    assumptions = ("the point Jacobian at the anchor stands in for the Lipschitz constants", "anchor model error ~ 0",
+                   "the label keeps the anchor's action")
+
+    def __init__(self, neighborhood_state=None):
+        super().__init__(neighborhood_state, None)
+
+    def in_neighborhood(self, terms):
+        """The definition has no action term: a row whose action differs from its anchor's is unsupported."""
+        with np.errstate(invalid="ignore"):
+            return super().in_neighborhood(terms) & (terms["action_displacement"] == 0)
+
+    def evaluate(self, terms, values):
+        total = terms["state_jacobian_norm"] * terms["state_displacement"]
+        return np.full(len(total), np.nan), total
+
+
+class DisturbedActionPaperProxy(_PointJacobianScore):
+    """Ke et al., Def. 4.6 (Eq. 12): E_DA = ||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t||, a score."""
+
+    name, version = "disturbed_action_paper_proxy", "1"
+    applies_to = ("disturbed_action",)
+    extra_terms = {k: JACOBIAN_TERMS[k] for k in ("state_jacobian_norm", "action_jacobian_norm")}
+    required = ("state_displacement", "action_displacement", "state_jacobian_norm", "action_jacobian_norm")
+    assumptions = ("the point Jacobians at the anchor stand in for the Lipschitz constants", "anchor model error ~ 0")
+
+    def evaluate(self, terms, values):
+        total = (terms["action_jacobian_norm"] * terms["action_displacement"]
+                 + (1 + terms["state_jacobian_norm"]) * terms["state_displacement"])
+        return np.full(len(total), np.nan), total
+
+
+class LegacyLabelFiltering(_PointJacobianScore):
+    """The label-filtering branch's score (label_error at 73d187d), an opt-in for parity.
+
+        score = ||J_{z + f_hat}(z_t, a_t)||_2 * ||(z_G - z_t, a_G - a_t)||_2
+
+    with J the Jacobian of the next-state map in (z, a) and one joint norm of
+    the state and action displacement. It matches neither paper definition
+    and applies to every generator, as the branch did.
+    """
+
+    name, version = "legacy_label_filtering", "1"
+    extra_terms = {"next_state_jacobian_norm": JACOBIAN_TERMS["next_state_jacobian_norm"]}
+    required = ("state_displacement", "action_displacement", "next_state_jacobian_norm")
+    assumptions = ("the next-state Jacobian at the anchor stands in for a Lipschitz constant over a joint "
+                   "state-action metric",)
+
+    def evaluate(self, terms, values):
+        total = terms["next_state_jacobian_norm"] * np.hypot(terms["state_displacement"], terms["action_displacement"])
+        return np.full(len(total), np.nan), total
+
+
 PROFILES: dict = {}
 
 
@@ -541,7 +659,8 @@ def register_profile(cls) -> type:
     return cls
 
 
-for _profile in (ContinuityProfile, BackTrackProfile, DisturbedActionProfile):
+for _profile in (ContinuityProfile, BackTrackProfile, DisturbedActionProfile, BackTrackPaperProxy,
+                 DisturbedActionPaperProxy, LegacyLabelFiltering):
     register_profile(_profile)
 
 # Generator name -> the CCIL label-error profile its labels follow (generators.label_error_profile).
@@ -669,13 +788,30 @@ def resolve_demonstration(spec, ctx: Context) -> tuple[dict, np.ndarray]:
     return provider.describe(spec.reference, ctx), provider.residuals(spec.reference, z, a, zn, ctx)[0]
 
 
-def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: dict, quantile):
+# Candidate reasons that mean a row was never produced in the legacy sense: legacy generated no label for it.
+NOT_PRODUCED = ("generation_failed", "non_finite", "label_filter.model_misfit")
+
+
+def produced_rows(candidates) -> np.ndarray:
+    """Rows a legacy run would have generated: not rejected for generation failure, non-finite values, or model misfit."""
+    cols = [i for i, c in enumerate(candidates.reason_codes) if c in NOT_PRODUCED]
+    reasons = np.asarray(candidates.reasons, bool)
+    return ~reasons[:, cols].any(axis=1) if cols else np.ones(len(reasons), bool)
+
+
+def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: dict, quantile, population=None):
     """Values, classification, masks, reasons, and selection threshold from persisted terms.
 
     resolved holds the descriptor's constants, demonstration, and
     model_evaluation. Shared by certify() and verify_structure(), so the
     structural check recomputes exactly what certification decided. Totals are
     rounded up to enclose the float64 arithmetic of the formula.
+
+    The selection quantile is taken over the accepted, admissible rows, or,
+    with population (a row mask: the "produced" selection population), over
+    the supported rows of that mask, independently of acceptance and the
+    admission threshold, as the label-filtering branch did. Either way only
+    accepted, admissible rows are selected.
     """
     model, total = profile.evaluate(terms, {r: c["value"] for r, c in resolved["constants"].items()})
     model, total = sum_upper(model), sum_upper(total)
@@ -689,11 +825,12 @@ def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: d
         within = np.ones(len(total), bool) if admission["threshold"] is None else total <= admission["threshold"]
     admissible = candidate & within
     eligible = np.asarray(accepted, bool) & admissible
+    pool = eligible if population is None else np.asarray(population, bool) & supported
     threshold = None
     if quantile is None:
         selected = np.ones(len(total), bool)
-    elif eligible.any():
-        threshold = float(np.quantile(total[eligible], quantile))
+    elif pool.any():
+        threshold = float(np.quantile(total[pool], quantile))
         selected = eligible & (total <= threshold)
     else:
         selected = np.zeros(len(total), bool)
@@ -711,7 +848,8 @@ def _admission(mode, threshold) -> dict:
 
 
 def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", threshold: float | None = None,
-            selection_quantile: float | None = None, state_scale=None, action_scale=None) -> CertificateSet:
+            selection_quantile: float | None = None, state_scale=None, action_scale=None,
+            selection_population: str = "admitted") -> CertificateSet:
     """Certify every candidate row of sources.candidates with profile; the candidates are not modified."""
     if not isinstance(profile, Profile) or profile.constants is None:
         raise InterfaceError("certify needs a profile built from Declared/Provided constants")
@@ -719,6 +857,9 @@ def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", 
     if selection_quantile is not None and (isinstance(selection_quantile, bool) or not isinstance(selection_quantile, (int, float))
                                            or not 0 < selection_quantile <= 1):
         raise InterfaceError(f"selection_quantile must be in (0, 1] or None, got {selection_quantile!r}")
+    if selection_population not in SELECTION_POPULATIONS or (selection_population != "admitted" and selection_quantile is None):
+        raise InterfaceError(f"selection_population must be one of {list(SELECTION_POPULATIONS)}, and a population other "
+                             f"than admitted needs a selection_quantile; got {selection_population!r}")
     hashes = sources.hashes()
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
@@ -739,11 +880,13 @@ def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", 
         raise InterfaceError(f"{profile.name} computed terms {sorted(terms)}, declares {sorted(profile.term_specs())}")
     coordinates = {"modality": ctx.modality, "state_dim": int(probe.z.shape[1]), "action_dim": int(probe.a.shape[1]),
                    "state_scale": ctx.state_scale.tolist(), "action_scale": ctx.action_scale.tolist()}
-    rows, thr = decide(profile, resolved, terms, candidates.accepted, adm, selection_quantile)
+    rows, thr = decide(profile, resolved, terms, candidates.accepted, adm, selection_quantile,
+                       produced_rows(candidates) if selection_population == "produced" else None)
     return CertificateSet(
         source_episode_id=np.asarray(candidates.source_episode_id), source_frame=np.asarray(candidates.source_frame),
         terms=terms, descriptor=profile.descriptor(resolved, coordinates), admission=adm,
-        selection={"quantile": None if selection_quantile is None else float(selection_quantile), "threshold": thr},
+        selection={"quantile": None if selection_quantile is None else float(selection_quantile), "threshold": thr,
+                   "population": selection_population},
         candidates_sha256=hashes["candidates"], inputs=hashes, components=_components(rep, model), **rows).validate()
 
 
@@ -808,7 +951,8 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
     resolved = resolved_of(d)
     if json.dumps(profile.descriptor(resolved, d["coordinates"]), sort_keys=True) != json.dumps(d, sort_keys=True):
         problems.append("descriptor is not the one this version of the profile writes")
-    rows, thr = decide(profile, resolved, cert.terms, candidates.accepted, cert.admission, cert.selection["quantile"])
+    rows, thr = decide(profile, resolved, cert.terms, candidates.accepted, cert.admission, cert.selection["quantile"],
+                       produced_rows(candidates) if cert.selection["population"] == "produced" else None)
     for name in ("model_error_value", "total_error_value"):
         close = np.isclose(getattr(cert, name), rows[name], rtol=1e-12, atol=0.0, equal_nan=True)
         if not close.all():
@@ -931,7 +1075,8 @@ def require_upper_bound(cert: CertificateSet) -> None:
                              "does not admit rows as upper bounds")
 
 
-__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile", "Sources",
+__all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile",
+           "BackTrackPaperProxy", "DisturbedActionPaperProxy", "LegacyLabelFiltering", "jacobian_terms", "Sources",
            "Context", "certify", "decide", "verify_structure", "audit_sources", "require_upper_bound", "register_profile",
            "write_reference_dynamics", "read_reference_dynamics", "check_applies", "model_evaluation", "resolved_of", "PROFILES",
            "PROVIDERS", "GENERATOR_PROFILES", "SCHEMA", "VERSION", "REASON_CODES"]

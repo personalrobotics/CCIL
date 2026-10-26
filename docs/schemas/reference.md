@@ -87,7 +87,7 @@ One row per candidate row of a ccil.candidates file, in the same order, with the
 |---|---|---|
 | `descriptor` | `dict` | profile, version, form (additive, direct, score), terms {name: {definition, units, required}}, constants {role: {value, source, maps, rationale, provenance}}, neighborhood {state, action} (null = unbounded), coordinates {modality, state_dim, action_dim, state_scale, action_scale}, model_evaluation (bounded: the model terms are upper bounds; assumed_exact: they assume exact evaluation), demonstration {source, value, rationale, provenance} for profiles that add the demonstration residual, units, norms, assumptions. |
 | `admission` | `dict` | mode ['upper_bound', 'score'] and threshold (null or finite >= 0) on total_error_value. |
-| `selection` | `dict` | quantile (null or in (0, 1]) and the resulting threshold (null when no quantile or no eligible row). |
+| `selection` | `dict` | quantile (null or in (0, 1]), the resulting threshold (null when no quantile or no row to take it over), and population: admitted (accepted, admissible rows) or produced (supported rows not rejected for generation failure, non-finite values, or model misfit, as the label-filtering branch took it). |
 | `candidates_sha256` | `str` | SHA-256 of the candidates file. |
 | `inputs` | `dict[str, str]` | SHA-256 of each input by name; always ['candidates', 'dataset', 'transition_model']. |
 | `components` | `dict` | representation {kind, version, modality} and transition_model {kind, version}. |

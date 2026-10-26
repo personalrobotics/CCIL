@@ -15,7 +15,8 @@ Contract
 - name/version/params identify the generator in the candidate provenance, and
   params are written into the candidate file.
 - label_error_profile names the CCIL label-error definition its labels follow
-  (backtrack or disturbed_action); LabelError must use the same profile.
+  (backtrack or disturbed_action); a certificate profile names the families it
+  certifies (src/ccil/core/certificates.py).
 - measurement_specs declares, for each measurement the generator returns, its
   definition, norm, and units; generate_labels writes them into the candidate
   file under the "generator." prefix it gives the measurements.
