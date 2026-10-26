@@ -1,6 +1,6 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 3.** Committed before any run of this study. Results are reported
+**Version 4.** Committed before any run of this study. Results are reported
 against the version that governed them. A change after any outcome is seen
 is a new version, with its rationale, and is never applied retroactively.
 
@@ -32,6 +32,22 @@ evaluated on the pre-step state (§3), and the noise index k (§7).
   BC+CCIL returns, while an upright pendulum scores near 0. Absolute returns
   therefore cannot be read without a passive-policy reference. The reference
   is descriptive only, and it changes no arm, metric or decision rule.
+
+**Changes from version 3**, made before any tuning or study run. Only the
+smoke runs of the tooling's evidence (1-epoch policies on seeds 9001–9003)
+had run, and their returns were not reported or used:
+- **Label-accuracy sample (§7).** The true label error is measured on
+  10,000 accepted labels per CCIL unit, drawn without replacement by
+  `default_rng(SeedSequence([s, 10]))`, rather than on every label: a
+  discontinuous unit produces about 5 million candidates.
+- **Balancing (§5).** BC and NoiseBC train without label balancing.
+  Balancing (legacy `aug.balance_data`) repeats demonstrations against
+  noisy labels, so it applies to CCIL only, and legacy BC trained on the
+  demonstrations as they are.
+- **The freeze gate (§§2, 11).** The freeze pull request adds a manifest
+  naming the tooling commit. Each run verifies the paths it executes or
+  reads against that commit, because the freeze pull request itself
+  creates a new `HEAD`.
 
 This study replaces the legacy refactor-parity comparison, which was
 withdrawn by the migration contract's 2026-10-26 amendment (§5) before it
@@ -74,9 +90,15 @@ outcome. Then **one tooling commit is frozen**:
 - It is recorded in this document by a pull request that changes nothing
   else (the "tooling freeze" addendum, §11), and merged before the first
   tuning run.
-- Every tuning and study run uses exactly that commit. Each run verifies that
-  `HEAD` is the frozen commit and that the tree is clean, which also
-  re-verifies the `ccil` freeze above.
+- Every tuning and study run, the tuning choice and the analysis use exactly
+  that commit's tooling. The freeze pull request adds
+  `tools/m3_pendulum/freeze.json`, which names the commit. Each refuses to
+  run unless:
+  - the tree is clean;
+  - every path the study executes or reads (`tools/m3_pendulum`,
+    `tools/legacy_conversion`, `correct_il`, `data`, `config`, and the
+    conversion and artifact manifests) equals that commit;
+  - `src`, `pyproject.toml` and `uv.lock` equal the frozen `ccil` commit.
 - A behavior-changing tooling fix after the freeze needs a new version of
   this document and a **complete rerun** of tuning and the study. The earlier
   runs are reported, not mixed with the new ones.
@@ -161,7 +183,9 @@ values below. Nothing else is tuned.
 
 **Shared policy settings:** the experimental vector harness (#89), with
 batch 512, 100 epochs (÷20 when balanced), learning rate 1e-3, [256, 256],
-and standard and min_max scalers.
+and standard and min_max scalers. Balancing is the configuration's for the
+CCIL arms; BC and NoiseBC never balance
+(`policy.balance_noisy_labels false`).
 
 **Asymmetry, stated.** In the primary comparison, BC and CCIL use the paper's
 settings, while NoiseBC receives a scale search (§6), so any bias this
@@ -220,7 +244,9 @@ never reported as study results.
     - quantiles of the displacements ‖z_G − z_t‖ and ‖a_G − a_t‖;
     - the true label error ‖T(z_G, a_G) − y‖ from one environment step
       (mean and quantiles per seed), compared descriptively with the paper's
-      reported empirical mean of 0.02367 and bound of 0.065.
+      reported empirical mean of 0.02367 and bound of 0.065. It is measured
+      on 10,000 accepted labels per CCIL unit (all of them if fewer), drawn
+      without replacement by `default_rng(SeedSequence([s, 10]))`.
 
     The ledger entry `sim-pendulum-label-bound` stays **blocked**: the
     procedure behind 0.065 is unrecorded, so this measurement is reported as
@@ -336,5 +362,5 @@ Negative and null outcomes are reported the same way as positive ones.
 ## 11. Tooling freeze (addendum, to be completed before any tuning run)
 
 - Frozen tooling commit: *(recorded by its own pull request, after the §3
-  acceptance checks pass)*
+  acceptance checks pass, together with `tools/m3_pendulum/freeze.json`)*
 - Acceptance check evidence: *(linked here)*

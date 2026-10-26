@@ -16,7 +16,9 @@ environment produced from the saved actions.
 An episode that the evaluator ended on a non-finite action is a recorded
 failure, not a mismatch: every step before the failure is audited as above,
 every value after it must be NaN, and the result says which episodes
-failed. Any mismatch makes ok false.
+failed. Any mismatch makes ok false. R_recomputed is the audit's own mean
+of the exactly rounded episode sums (NaN when an episode failed); the
+analysis uses it, never a stored R.
 """
 from __future__ import annotations
 
@@ -103,6 +105,8 @@ def audit(path, replay: bool = True) -> dict:
                 replay_mismatches += int(not np.array_equal(nxt, r["states"][e, t + 1]) or f != r["flipped"][e, t])
                 flips += int(f)
         require(replay_mismatches == 0, f"{replay_mismatches} transitions do not replay")
+    recomputed = math.fsum(sums) / E if len(failed) == 0 else float("nan")
     return {"ok": not issues, "issues": issues, "task": meta["task"], "seed": seed, "noise_level": n,
-            "failed_episodes": failed.tolist(), "R": float(r["R"]), "max_reward_error": reward_err,
+            "failed_episodes": failed.tolist(), "R": float(r["R"]), "R_recomputed": recomputed,
+            "max_reward_error": reward_err,
             "max_return_error": return_err, "replayed": bool(replay), "discontinuity_flips": flips}

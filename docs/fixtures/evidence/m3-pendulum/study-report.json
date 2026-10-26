@@ -1,0 +1,289 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "known_answers",
+   "pass": true,
+   "scenarios": {
+    "algorithmic_failure_in_ccil": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      93.3996645388444,
+      106.24241436827218
+     ],
+     "n": 19,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "algorithmic failure in a primary arm (bc [], ccil [105])"
+     ]
+    },
+    "degenerate_bca": {
+     "control_passes": true,
+     "expected": "ccil_improves_on_bc",
+     "interval": [
+      50.0,
+      50.0
+     ],
+     "n": 20,
+     "note": "BCa undefined; the t-interval alone",
+     "outcome": "ccil_improves_on_bc",
+     "reasons": []
+    },
+    "fifteen_valid_seeds": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      93.27884444746006,
+      105.78757443379517
+     ],
+     "n": 15,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "more than 2 infrastructure exclusions in a primary arm",
+      "15 seeds valid for both primary arms (< 16)"
+     ]
+    },
+    "improves": {
+     "control_passes": true,
+     "expected": "ccil_improves_on_bc",
+     "interval": [
+      94.15308005851556,
+      107.19404690966435
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "ccil_improves_on_bc",
+     "reasons": []
+    },
+    "null_control_fails": {
+     "control_passes": false,
+     "expected": "inconclusive",
+     "interval": [
+      -8.374042078838256,
+      8.374042078838256
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "the interval contains 0 and the positive control fails"
+     ]
+    },
+    "null_control_passes": {
+     "control_passes": true,
+     "expected": "no_detectable_difference",
+     "interval": [
+      -8.374042078838256,
+      8.374042078838256
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "no_detectable_difference",
+     "reasons": []
+    },
+    "three_infrastructure_exclusions": {
+     "control_passes": true,
+     "expected": "inconclusive",
+     "interval": [
+      91.92675324600316,
+      106.31349549644264
+     ],
+     "n": 17,
+     "note": null,
+     "outcome": "inconclusive",
+     "reasons": [
+      "more than 2 infrastructure exclusions in a primary arm"
+     ]
+    },
+    "worse": {
+     "control_passes": true,
+     "expected": "ccil_is_worse_than_bc",
+     "interval": [
+      -105.84691994148444,
+      -92.80595309033565
+     ],
+     "n": 20,
+     "note": null,
+     "outcome": "ccil_is_worse_than_bc",
+     "reasons": []
+    }
+   }
+  },
+  {
+   "bca": [
+    94.1530800585156,
+    105.94161492116393
+   ],
+   "case": "intervals",
+   "coverage": 0.98,
+   "nominal": 0.975,
+   "pass": true,
+   "simulations": 1000,
+   "t": [
+    94.30544334491323,
+    107.19404690966438
+   ],
+   "t_matches_formula": true,
+   "union": [
+    94.1530800585156,
+    107.19404690966438
+   ]
+  },
+  {
+   "case": "study_needs_the_tuning_choice",
+   "exit": 1,
+   "pass": true,
+   "stderr": "the study needs tuning-choice.json (study.py choose) before any study seed runs"
+  },
+  {
+   "analysis_exit": 0,
+   "analysis_stderr": "",
+   "case": "smoke_end_to_end",
+   "ccil_records_have_label_accuracy": true,
+   "choose_again_refused": true,
+   "expected_records": {
+    "study": 52,
+    "tuning": 20
+   },
+   "pass": true,
+   "records": {
+    "study": 52,
+    "tuning": 20
+   },
+   "rollouts_reaudited": 192,
+   "smoke_note": "smoke outcomes are inconclusive by construction (2 seeds < 16); returns are not reported",
+   "smoke_outcomes": {
+    "continuous": "inconclusive",
+    "discontinuous": "inconclusive"
+   },
+   "statuses": {
+    "study": [
+     "ok"
+    ],
+    "tuning": [
+     "ok"
+    ]
+   },
+   "steps": {
+    "choose": {
+     "exit": 0,
+     "tail": [
+      "discontinuous {'noise_bc': 0.001, 'ccil_tuned': 0.3}"
+     ]
+    },
+    "choose_again": {
+     "exit": 1,
+     "tail": [
+      "<out>/smoke/root/tuning-choice.json exists; the tuning choice is made once"
+     ]
+    },
+    "study": {
+     "exit": 0,
+     "tail": [
+      "52 units: ok 52"
+     ]
+    },
+    "study_again": {
+     "exit": 0,
+     "tail": [
+      "52 units: ok 52"
+     ]
+    },
+    "tuning": {
+     "exit": 0,
+     "tail": [
+      "20 units: ok 20"
+     ]
+    }
+   },
+   "sweep_again_changed_nothing": true
+  },
+  {
+   "case": "analysis_refuses",
+   "cases": {
+    "changed_corrected_config": {
+     "expected_message": "differ from the committed conversion",
+     "refused": true,
+     "stderr": "continuous: the converted inputs {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'ca3f2220add8f0e284d2cf063a7c3729c2be8480d744ca69746bd3d32e237a33'} differ from the committed conversion {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'f2115584b7c1143f2e47c3db08bcce79814f2260ddddcb50ca9b0ddf5c23562e'}"
+    },
+    "changed_reused_subset": {
+     "expected_message": "differs from its rebuild",
+     "refused": true,
+     "stderr": "<out>/smoke/root/inputs/subsets/pendulum_cont_100-s9002-f0.25.npz differs from its rebuild from SeedSequence([9002, 9]); refusing to use it"
+    },
+    "changed_rollout": {
+     "expected_message": "fails the re-audit",
+     "refused": true,
+     "stderr": "study records refused (2 problems): discontinuous/noise_bc@0.001/s9002 noise 0.01: the rollout fails the re-audit (changed bytes); discontinuous/noise_bc@0.001/s9002: status ok without every finite, verified evaluation"
+    },
+    "duplicate_study_unit": {
+     "expected_message": "not exactly the study units",
+     "refused": true,
+     "stderr": "study records refused (2 problems): records are not exactly the study units: missing [], duplicate or extra [('continuous', 'bc', 9002, None)]; results/study/continuous/bc_copy/s9002.json does not hold the unit its path names"
+    },
+    "extra_study_unit": {
+     "expected_message": "not exactly the study units",
+     "refused": true,
+     "stderr": "9004, None)]; continuous/bc/s9004 noise 0.0: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.01: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.05: the record disagrees with its rollout's audit; continuous/bc/s9004 noise 0.1: the record disagrees with its rollout's audit; continuous/bc/s9004: status ok without every finite, verified evaluation"
+    },
+    "study_record_R": {
+     "expected_message": "disagrees with its rollout's audit",
+     "refused": true,
+     "stderr": "study records refused (2 problems): continuous/bc/s9002 noise 0.0: the record disagrees with its rollout's audit; continuous/bc/s9002: status ok without every finite, verified evaluation"
+    },
+    "tuning_choice": {
+     "expected_message": "differs from its recomputation",
+     "refused": true,
+     "stderr": "analysis refused: the tuning choice differs from its recomputation from the verified tuning records"
+    },
+    "tuning_record_R": {
+     "expected_message": "disagrees with its rollout's audit",
+     "refused": true,
+     "stderr": "tuning records refused (2 problems): continuous/noise_bc@0.001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/noise_bc@0.001/s9001: status ok without every finite, verified evaluation"
+    },
+    "unit_with_changed_config": {
+     "refused": true,
+     "stderr": "cf2c04f59a60df73f3234122f962', 'config': 'ca3f2220add8f0e284d2cf063a7c3729c2be8480d744ca69746bd3d32e237a33'} differ from the committed conversion {'data': 'a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962', 'config': 'f2115584b7c1143f2e47c3db08bcce79814f2260ddddcb50ca9b0ddf5c23562e'}"
+    }
+   },
+   "existing_output": "<out>/smoke-analysis.json exists; analyses are never overwritten",
+   "pass": true,
+   "restored_root_analyzes": true
+  },
+  {
+   "case": "frozen_tooling_gate",
+   "differing": [
+    "tools/m3_pendulum/README.md"
+   ],
+   "gate_ok": {
+    "committed_tooling_change": false,
+    "frozen_at_this_commit": true,
+    "manifest_names_no_commit": false,
+    "no_manifest": false,
+    "smoke_without_frozen_tooling": true
+   },
+   "pass": true,
+   "real_run_without_manifest": "cil_frozen\": \"847b06057e8d36a16d13aa2f3b2e375ceb9147e5\", \"differing_from_frozen_ccil\": [], \"dirty\": [], \"head\": \"b7267f037778d8d475543aec69e354cf3d4c767e\", \"ok\": false, \"real\": true, \"tooling\": {\"ok\": false, \"problem\": \"no freeze manifest (tools/m3_pendulum/freeze.json); the tooling is not frozen\"}}"
+  },
+  {
+   "case": "clean_tree_at_frozen_ccil",
+   "ccil_frozen": "847b06057e8d36a16d13aa2f3b2e375ceb9147e5",
+   "differing_from_frozen_ccil": [],
+   "dirty": [],
+   "head": "b7267f037778d8d475543aec69e354cf3d4c767e",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "b7267f037778d8d475543aec69e354cf3d4c767e",
+  "code_dirty": false,
+  "device": "cpu",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "scipy": "1.16.3"
+ }
+}
