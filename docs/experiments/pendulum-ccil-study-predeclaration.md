@@ -1,6 +1,6 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 2.** Committed before any run of this study. Results are reported
+**Version 3.** Committed before any run of this study. Results are reported
 against the version that governed them. A change after any outcome is seen
 is a new version, with its rationale, and is never applied retroactively.
 
@@ -23,6 +23,15 @@ no outcome informed them:
 **Clarifications** made while building the tooling, before any tuning or
 study run, which state what the data generator already did: the reward is
 evaluated on the pre-step state (§3), and the noise index k (§7).
+
+**Changes from version 2**, made before any tuning or study run:
+- **Zero-action reference (§§7, 8).** This addition was motivated by an
+  observed outcome: in the §3 acceptance checks (seed 9001, which is neither
+  a tuning nor a study seed), the zero-action policy scored R ≈ −2,350 to
+  −2,395. That is above the paper's reported BC returns and close to its
+  BC+CCIL returns, while an upright pendulum scores near 0. Absolute returns
+  therefore cannot be read without a passive-policy reference. The reference
+  is descriptive only, and it changes no arm, metric or decision rule.
 
 This study replaces the legacy refactor-parity comparison, which was
 withdrawn by the migration contract's 2026-10-26 amendment (§5) before it
@@ -218,6 +227,9 @@ never reported as study results.
     related evidence, not as a reproduction.
   - **Training diagnostics:** the dynamics model's held-out one-step error,
     the label counts by reason, and the supervision manifests.
+  - **Zero-action reference.** R(s, zero), the zero-action policy (a = 0 at
+    every step), on each study seed's initial states, noise-free and at
+    each noise level, for both tasks. It needs no training and has no tuning.
 
 ## 8. Statistics and decisions
 
@@ -281,6 +293,13 @@ CCIL, beside Fig. 4(c):
 
 The paper used different seeds and the legacy implementation. No agreement
 or disagreement is claimed beyond what the intervals show.
+
+**Zero-action reference** (descriptive). For each task, R(s, zero) is
+reported per seed beside every arm. For each primary and secondary arm
+(noise-free), and for BC, NoiseBC, CCIL and CCIL-tuned at each noise level,
+arm − zero is reported with the union interval at c = 0.95. These intervals
+inform no decision, are not part of the positive control, and make no
+multiplicity claim.
 
 ## 9. Failures
 
