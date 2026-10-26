@@ -20,7 +20,16 @@ statuses and decisions, never the smoke returns.
    second time), the study sweep (a second sweep changes no record), and the
    analysis. Every unit of both phases is ok, every rollout is re-audited
    with the replay, and every CCIL record has its label accuracy.
-5. The analysis refuses a changed rollout, and an existing output.
+5. The analysis refuses, and each tampering is restored afterwards: a
+   changed rollout; a study record's R and a tuning record's R changed in
+   the JSON alone; a changed tuning choice; an extra and a duplicate study
+   unit; a changed corrected configuration; a changed reused subset; and an
+   existing output. A unit refuses a changed configuration too, and the
+   restored root analyzes again.
+6. The frozen-tooling gate, on scratch clones: a real run refuses without a
+   freeze manifest; the gate passes when the manifest names the tooling's
+   commit, refuses a later committed tooling change and a manifest naming no
+   commit, and smoke runs do not require it.
 Writes DIR/report.json; the smoke root is DIR/smoke.
 """
 import argparse
@@ -157,21 +166,129 @@ def main():
            smoke_outcomes={t: v["primary"]["outcome"] for t, v in analysis.get("tasks", {}).items()},
            smoke_note="smoke outcomes are inconclusive by construction (2 seeds < 16); returns are not reported")
 
-    # 5. The analysis refuses a changed rollout and an existing output.
-    one = next((root / "rollouts" / "study").rglob("*.npz"))
-    original = one.read_bytes()
-    with np.load(one, allow_pickle=False) as z:
-        r = {k: z[k] for k in z.files}
-    r["rewards"][0, 0] += 1e-6
-    np.savez(one, **r)
-    tampered = subprocess.run([sys.executable, str(HERE / "analyze.py"), "--root", str(root), "--out",
-                               str(out / "tampered-analysis.json"), "--jobs", str(args.jobs)], capture_output=True, text=True)
-    one.write_bytes(original)
+    # 5. The analysis refuses every tampering, each restored afterwards; and an existing output.
+    def analysis_refuses(label, edit, expect):
+        saved = edit()
+        p = subprocess.run([sys.executable, str(HERE / "analyze.py"), "--root", str(root), "--out",
+                            str(out / f"refused-{label}.json"), "--jobs", str(args.jobs)], capture_output=True, text=True)
+        for path, data in saved:
+            if data is None:
+                path.unlink()
+            else:
+                path.write_bytes(data)
+        return {"refused": p.returncode != 0 and expect in p.stderr and not (out / f"refused-{label}.json").exists(),
+                "expected_message": expect, "stderr": p.stderr.strip()[-400:]}
+
+    def edit_json(path, change):
+        data = path.read_bytes()
+        obj = json.loads(data)
+        change(obj)
+        path.write_text(json.dumps(obj, indent=1, sort_keys=True) + "\n")
+        return [(path, data)]
+
+    def add_file(path, obj):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(obj, indent=1, sort_keys=True) + "\n")
+        return [(path, None)]
+
+    res = root / "results"
+    bc_rec = res / "study" / "continuous" / "bc" / "s9002.json"
+    tune_rec = next((res / "tuning" / "continuous").glob("noise_bc@*/s9001.json"))
+    rollout = next((root / "rollouts" / "study").rglob("*.npz"))
+    config = root / "inputs" / "config" / study.CONFIGS["continuous"]
+    sub = next((root / "inputs" / "subsets").glob("*.npz"))
+    other_sub = next(p for p in (root / "inputs" / "subsets").glob("*.npz") if p != sub)
+
+    def bump_rollout():
+        data = rollout.read_bytes()
+        with np.load(rollout, allow_pickle=False) as z:
+            r = {k: z[k] for k in z.files}
+        r["rewards"][0, 0] += 1e-6
+        np.savez(rollout, **r)
+        return [(rollout, data)]
+
+    def other_value(c):
+        arm = c["continuous"]["noise_bc"]
+        arm["value"] = next(v for v in study.NOISE_BC_GRID if v != arm["value"])
+
+    def extra():
+        obj = json.loads(bc_rec.read_text())
+        obj["seed"] = 9004
+        return add_file(bc_rec.with_name("s9004.json"), obj)
+
+    def append(path, text):
+        data = path.read_bytes()
+        path.write_bytes(data + text)
+        return [(path, data)]
+
+    def swap_subset():
+        data = sub.read_bytes()
+        sub.write_bytes(other_sub.read_bytes())
+        return [(sub, data)]
+
+    refusals = {
+        "changed_rollout": analysis_refuses("rollout", bump_rollout, "fails the re-audit"),
+        "study_record_R": analysis_refuses("study-R", lambda: edit_json(
+            bc_rec, lambda r: r["evaluations"]["0.0"].__setitem__("R", r["evaluations"]["0.0"]["R"] + 1.0)),
+            "disagrees with its rollout's audit"),
+        "tuning_record_R": analysis_refuses("tuning-R", lambda: edit_json(
+            tune_rec, lambda r: r["evaluations"]["0.0"].__setitem__("R", r["evaluations"]["0.0"]["R"] + 1.0)),
+            "disagrees with its rollout's audit"),
+        "tuning_choice": analysis_refuses("choice", lambda: edit_json(root / "tuning-choice.json", other_value),
+                                          "differs from its recomputation"),
+        "extra_study_unit": analysis_refuses("extra", extra, "not exactly the study units"),
+        "duplicate_study_unit": analysis_refuses("duplicate", lambda: add_file(
+            res / "study" / "continuous" / "bc_copy" / "s9002.json", json.loads(bc_rec.read_text())),
+            "not exactly the study units"),
+        "changed_corrected_config": analysis_refuses("config", lambda: append(config, b"# edited\n"),
+                                                     "differ from the committed conversion"),
+        "changed_reused_subset": analysis_refuses("subset", swap_subset, "differs from its rebuild"),
+    }
     exists = subprocess.run([sys.executable, str(HERE / "analyze.py"), "--root", str(root), "--out", str(analysis_path)],
                             capture_output=True, text=True)
-    record("analysis_refuses", tampered.returncode != 0 and "re-audit" in tampered.stderr
-           and not (out / "tampered-analysis.json").exists() and exists.returncode != 0,
-           changed_rollout=tampered.stderr.strip()[-300:], existing_output=exists.stderr.strip()[-200:])
+    saved = append(config, b"# edited\n")
+    run_refused = subprocess.run([*CMD, "run", "--root", str(root), "--phase", "study", "--task", "continuous",
+                                  "--arm", "bc", "--seed", "9004", "--smoke", "--device", args.device],
+                                 capture_output=True, text=True)
+    config.write_bytes(saved[0][1])
+    refusals["unit_with_changed_config"] = {"refused": run_refused.returncode != 0
+                                            and "differ from the committed conversion" in run_refused.stderr,
+                                            "stderr": run_refused.stderr.strip()[-300:]}
+    clean_after = subprocess.run([sys.executable, str(HERE / "analyze.py"), "--root", str(root), "--out",
+                                  str(out / "smoke-analysis-after.json"), "--jobs", str(args.jobs)], capture_output=True, text=True)
+    record("analysis_refuses", all(v["refused"] for v in refusals.values()) and exists.returncode != 0
+           and clean_after.returncode == 0, cases=refusals, existing_output=exists.stderr.strip()[-200:],
+           restored_root_analyzes=clean_after.returncode == 0)
+
+    # 6. The frozen-tooling gate of real runs, on scratch clones of this commit.
+    head = provenance.tree_state(REPO)["head"]
+    clone = out / "tooling-clone"
+    subprocess.run(["git", "clone", "-q", "--no-checkout", str(REPO), str(clone)], check=True)
+    subprocess.run(["git", "-C", str(clone), "checkout", "-q", head], check=True)
+    git = ["git", "-C", str(clone), "-c", "user.name=check", "-c", "user.email=check@invalid"]
+    tooling = {"no_manifest": provenance.gate(clone, real=True),
+               "smoke_without_frozen_tooling": provenance.gate(clone, real=False)}
+    cli = subprocess.run([sys.executable, str(clone / "tools/m3_pendulum/study.py"), "run", "--root", str(out / "real-root"),
+                          "--phase", "tuning", "--task", "continuous", "--arm", "noise_bc", "--seed", "1",
+                          "--value", "0.0001", "--device", args.device], capture_output=True, text=True)
+    (clone / provenance.FREEZE).write_text(json.dumps({"tooling_commit": head}) + "\n")
+    subprocess.run([*git, "add", provenance.FREEZE], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "freeze"], check=True)
+    tooling["frozen_at_this_commit"] = provenance.gate(clone, real=True)
+    readme = clone / "tools/m3_pendulum/README.md"
+    readme.write_text(readme.read_text() + "\nchanged\n")
+    subprocess.run([*git, "commit", "-q", "-am", "change the tooling"], check=True)
+    tooling["committed_tooling_change"] = provenance.gate(clone, real=True)
+    (clone / provenance.FREEZE).write_text(json.dumps({"tooling_commit": "0" * 40}) + "\n")
+    subprocess.run([*git, "commit", "-q", "-am", "name no commit"], check=True)
+    tooling["manifest_names_no_commit"] = provenance.gate(clone, real=True)
+    oks = {k: v["ok"] for k, v in tooling.items()}
+    record("frozen_tooling_gate", oks == {"no_manifest": False, "frozen_at_this_commit": True,
+                                          "smoke_without_frozen_tooling": True, "committed_tooling_change": False,
+                                          "manifest_names_no_commit": False}
+           and cli.returncode != 0 and "freeze manifest" in cli.stderr and not (out / "real-root" / "results").exists(),
+           gate_ok=oks, differing=tooling["committed_tooling_change"]["tooling"].get("differing_from_frozen_tooling"),
+           real_run_without_manifest=cli.stderr.strip()[-300:])
 
     state = provenance.tree_state(REPO)
     record("clean_tree_at_frozen_ccil", state["ok"], **{k: v for k, v in state.items() if k != "ok"})

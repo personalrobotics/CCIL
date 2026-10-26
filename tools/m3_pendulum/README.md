@@ -13,7 +13,7 @@ uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt p
 |---|---|
 | `env.py` | The canonical environment (§3): `step`, `reward`, `initial_states`, `noise_draws`, and `rollout`, which evaluates a policy on a seed's 100 episodes and returns every per-step array; `save` writes them as a pickle-free npz |
 | `audit.py` | The independent audit: recomputes rewards, returns and R from the saved states and actions, regenerates the initial states and noise draws, and replays every transition |
-| `provenance.py` | The code-state gate every run passes first: a clean tree, and `src`, `pyproject.toml` and `uv.lock` equal to the frozen `ccil` commit (§2) |
+| `provenance.py` | The code-state gate every run passes first: a clean tree, and `src`, `pyproject.toml` and `uv.lock` equal to the frozen `ccil` commit (§2); for real runs, also the tooling paths equal to the commit `freeze.json` names (§11) |
 | `study.py` | The run drivers: `prepare`, `sweep --phase tuning`, `choose`, `sweep --phase study`, and `run` for one unit |
 | `analyze.py` | The analysis: re-audits every rollout, then the §8 decisions, intervals and tables |
 | `check.py` | The §3 acceptance checks |
@@ -62,8 +62,23 @@ $P/study.py sweep --root ROOT --phase study --jobs N --device cuda    # seeds 10
 $P/analyze.py --root ROOT --out ROOT/analysis.json
 ```
 
+**The frozen tooling.** The freeze pull request adds `freeze.json`, naming
+the tooling commit. Real sweeps, units, `choose` and the analysis refuse to
+run unless every path the study executes or reads equals that commit:
+`tools/m3_pendulum`, `tools/legacy_conversion`, `correct_il`, `data`,
+`config`, and the conversion and artifact manifests. Smoke runs precede
+the freeze, and record the tooling state without requiring it.
+
+**Inputs** are verified on every use:
+- each task's dataset and corrected configuration against the committed #23
+  conversion;
+- each data-size subset against its rebuild from `SeedSequence([seed, 9])`,
+  byte for byte.
+
+Every record carries the hashes it used.
+
 **A unit** is one (task, arm, seed[, tuned value]). It:
-1. passes the code-state gate;
+1. passes the code-state gate and verifies its inputs;
 2. runs `ccil policy train` on the #23 conversion of the paper configuration
    (`corrected`), with `policy.exclude_validation_episodes=false` and the
    arm's settings;
@@ -107,11 +122,23 @@ as legacy BC did.
 drawn with `SeedSequence([seed, 10])`: ‖env.step(z_G, a_G) − y‖ in raw state
 units.
 
-**The analysis** refuses:
-- a mix of smoke and real records, or of code states;
-- a missing unit;
-- a study record without the tuning choice's SHA-256;
-- any rollout whose bytes or re-audit (with the replay) differ.
+**Verification** (`study.verify_phase`) runs before `choose` (tuning) and in
+the analysis (both phases). It refuses:
+- records that are not exactly the phase's units: missing, duplicate or
+  extra units, or a record at another unit's path;
+- a mix of smoke and real records, or of code states, or a record made
+  without passing its gate;
+- input hashes other than the verified inputs';
+- a rollout whose bytes or full re-audit (with the replay) differ;
+- a record whose R, failed episodes, task, seed or noise level disagree with
+  its rollout's audit.
+
+**The tuning choice** is computed from the verified tuning records. It
+records their SHA-256s and, for CCIL-tuned, the label acceptance rates.
+
+**The analysis** recomputes the tuning choice and refuses any difference,
+and refuses a study record without the choice's SHA-256. Its tables use the
+audit's recomputed R, never a stored one.
 
 `--smoke` runs the same code at 1 dynamics epoch and one effective policy
 epoch (1, or 20 for discontinuous CCIL arms, whose balanced epochs are divided by 20) on seeds

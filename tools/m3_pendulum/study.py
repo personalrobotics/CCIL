@@ -15,9 +15,17 @@ with env.rollout at every predeclared noise level, each rollout saved and
 audited. Its record, ROOT/results/<phase>/<task>/<arm>/s<seed>.json, is
 written once and never overwritten; a unit whose record exists is skipped.
 
-Before any work, a unit passes the code-state gate (provenance.py), and the
-record carries the gate's result, the resolved configuration, every stage
+Before any work, a unit passes the code-state gate (provenance.py; real
+runs also need the frozen tooling of the freeze manifest) and verifies its
+inputs: the corrected configuration and dataset against the committed #23
+conversion, and a data-size subset against its rebuild. The record carries
+the gate's result, the input hashes, the resolved configuration, every stage
 directory, the checkpoint SHA-256, the package versions and the GPU.
+
+choose verifies the whole tuning phase (verify_phase: the exact unit set,
+gates, inputs, and every rollout re-audited against its record) before it
+selects, and records the hashes of the records it read; the analysis
+verifies both phases the same way and recomputes the choice.
 
 Failures (predeclaration §9):
 - infrastructure: the training process was killed by a signal, or ran out
@@ -50,6 +58,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -127,29 +136,39 @@ def result_path(root, phase, task, arm, seed, value=None) -> Path:
 
 
 # --- inputs ---------------------------------------------------------------------------------------------------------
+CONVERTED = {"continuous": "pendulum_cont", "discontinuous": "pendulum_disc"}
+
+
 def prepare(root: Path) -> dict:
-    """Convert the retained inputs (#23) into root/inputs and check them against the committed conversion."""
+    """Convert the retained inputs (#23) into root/inputs, once, and verify them on every call.
+
+    Each task's canonical dataset and corrected configuration must have the
+    SHA-256 of the committed conversion; returns {task: {data, config}} hashes.
+    """
     from convert_pendulum import convert_pendulum
     inputs = root / "inputs"
-    if (inputs / "conversion.json").exists():
-        summary = json.loads((inputs / "conversion.json").read_text())
-    else:
-        summary = convert_pendulum(inputs)
+    if not (inputs / "conversion.json").exists():
+        convert_pendulum(inputs)
     committed = json.loads((REPO / "docs/fixtures/evidence/legacy-conversion/artifacts/conversion.json").read_text())
-    for name in ("pendulum_cont", "pendulum_disc"):
-        got = sha(inputs / summary["retained"][name]["dataset"]["path"])
-        if got != committed["retained"][name]["dataset"]["sha256"]:
-            raise SystemExit(f"{name}: converted dataset {got} differs from the committed conversion")
-    return summary
+    out = {}
+    for task, name in CONVERTED.items():
+        c = committed["retained"][name]
+        got = {"data": sha(inputs / "data" / f"{DATASETS[task]}.npz"), "config": sha(inputs / "config" / CONFIGS[task])}
+        want = {"data": c["dataset"]["sha256"], "config": c["configs"]["corrected"]["sha256"]}
+        if got != want:
+            raise SystemExit(f"{task}: the converted inputs {got} differ from the committed conversion {want}")
+        out[task] = got
+    return out
 
 
-def subset(root: Path, task: str, seed: int, fraction: float) -> Path:
-    """The nested episode subset of §7: the first round(fraction * N) episodes of SeedSequence([seed, 9])'s permutation."""
+def subset(root: Path, task: str, seed: int, fraction: float) -> tuple[Path, str]:
+    """The nested episode subset of §7: the first round(fraction * N) episodes of SeedSequence([seed, 9])'s permutation.
+
+    It is rebuilt on every call; an existing file must equal the rebuild byte for byte. Returns (path, SHA-256).
+    """
     from ccil.schema import read_trajectories, write_trajectories
     from ccil.schema.trajectories import TrajectoryDataset
     path = root / "inputs" / "subsets" / f"{DATASETS[task]}-s{seed}-f{fraction}.npz"
-    if path.exists():
-        return path
     ds = read_trajectories(root / "inputs" / "data" / f"{DATASETS[task]}.npz")
     order = np.random.default_rng(np.random.SeedSequence([seed, 9])).permutation(len(ds.episodes))
     keep = order[:round(fraction * len(ds.episodes))]
@@ -159,8 +178,14 @@ def subset(root: Path, task: str, seed: int, fraction: float) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}.npz")
     write_trajectories(sub, tmp)
-    os.replace(tmp, path)
-    return path
+    digest = sha(tmp)
+    if path.exists():
+        os.remove(tmp)
+        if sha(path) != digest:
+            raise SystemExit(f"{path} differs from its rebuild from SeedSequence([{seed}, 9]); refusing to use it")
+    else:
+        os.replace(tmp, path)
+    return path, digest
 
 
 # --- one unit -------------------------------------------------------------------------------------------------------
@@ -240,14 +265,14 @@ def run_unit(root, phase, task, arm, seed, value=None, *, device="cuda", smoke=F
     final = result_path(root, phase, task, arm, seed, value)
     if final.exists():
         return json.loads(final.read_text())
-    state = provenance.tree_state(REPO)
-    if not state["ok"]:
-        raise SystemExit(f"code-state gate refused: {state}")
+    state = provenance.require(REPO, real=not smoke)
+    inputs = prepare(root)[task]
     sets, noise_levels, fraction, value_key = ARMS[arm]
     if (value is None) != (value_key is None):
         raise SystemExit(f"{arm} takes {'a value' if value_key else 'no value'}")
     record = {"version": VERSION, "phase": phase, "task": task, "arm": arm, "seed": seed, "value": value,
               "value_key": value_key, "smoke": smoke, "attempt": attempt, "gate": state, "versions": _versions(),
+              "inputs": {"config_sha256": inputs["config"], "data_sha256": inputs["data"]},
               "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if phase == "study":
         choice = root / "tuning-choice.json"
@@ -257,7 +282,9 @@ def run_unit(root, phase, task, arm, seed, value=None, *, device="cuda", smoke=F
     unit_dir = root / "units" / phase / task / unit_name(arm, value) / f"s{seed}"
     policy = None
     if sets is not None:
-        data = subset(root, task, seed, fraction) if fraction else root / "inputs" / "data" / f"{DATASETS[task]}.npz"
+        data = root / "inputs" / "data" / f"{DATASETS[task]}.npz"
+        if fraction:
+            data, record["inputs"]["data_sha256"] = subset(root, task, seed, fraction)
         store = root / "stages" / phase / task / f"s{seed}" if attempt == 1 else unit_dir / f"stages-attempt{attempt}"
         overrides = [f"run.seed={seed}", f"compute.device={device}", f"data.path={data}", f"run.output_dir={store}",
                      "policy.exclude_validation_episodes=false", *sets]
@@ -362,6 +389,7 @@ def sweep(root, phase, jobs, device, smoke) -> int:
     meta = root / "smoke.json"
     if smoke != meta.exists() and any((root / "results").glob("*")):
         raise SystemExit("this root holds runs of the other kind (smoke or real); use a separate root")
+    provenance.require(REPO, real=not smoke)
     if smoke:
         atomic_json({"smoke": True}, meta)
     prepare(root)
@@ -379,32 +407,123 @@ def sweep(root, phase, jobs, device, smoke) -> int:
     return 0
 
 
-def choose(root, smoke) -> dict:
-    """§6 selection on the tuning seeds: the eligible value with the highest mean noise-free R; ties to the smaller."""
+def _verify_one(args):
+    root, rel, expected = args
+    path = Path(root) / rel
+    same = sha(path) == expected
+    return rel, same, auditor.audit(path) if same else None
+
+
+def verify_phase(root, phase, smoke, jobs=8) -> list[dict]:
+    """Every record of a phase, verified; each returned record carries "verified": {noise: R recomputed by the audit}.
+
+    Refuses (SystemExit, listing every problem) unless:
+    - the records are exactly the phase's units (no missing, duplicate or extra unit), each at its own path;
+    - every record is of this kind (smoke or real), passed its gate, and all share one code state and one tooling
+      commit; real records passed the frozen-tooling gate;
+    - every record's input hashes are the verified inputs' (the corrected config, the dataset or its rebuilt subset);
+    - every rollout has its recorded SHA-256 and passes the full audit with the replay, and the record's R, failed
+      episodes, task, seed and noise level agree with the audit;
+    - a record is ok exactly when it has every predeclared evaluation and every recomputed R is finite.
+    """
     root = Path(root).resolve()
-    path = root / "tuning-choice.json"
-    if path.exists():
-        raise SystemExit(f"{path} exists; the tuning choice is made once")
+    files = sorted(p for p in (root / "results" / phase).rglob("s*.json") if ".fault" not in p.name)
+    records = [json.loads(p.read_text()) for p in files]
+    problems = []
+    expected = Counter(units(root, phase, smoke))
+    have = Counter((r["task"], r["arm"], r["seed"], r["value"]) for r in records)
+    if have != expected:
+        problems.append(f"records are not exactly the {phase} units: missing {sorted((expected - have).elements())[:3]}, "
+                        f"duplicate or extra {sorted((have - expected).elements())[:3]}")
+    for p, r in zip(files, records):
+        if p != result_path(root, phase, r["task"], r["arm"], r["seed"], r["value"]) or r["phase"] != phase:
+            problems.append(f"{p.relative_to(root)} does not hold the unit its path names")
+    if {r["smoke"] for r in records} - {smoke}:
+        problems.append("smoke and real records are mixed")
+    if not all(r["gate"]["ok"] and r["gate"]["real"] == (not smoke) for r in records):
+        problems.append("a record was made without passing its code-state gate")
+    if len({(r["gate"]["head"], r["gate"]["tooling"].get("tooling_commit")) for r in records}) > 1:
+        problems.append("records come from more than one code state")
+    verified_inputs = prepare(root)
+    for r in records:
+        want = dict(verified_inputs[r["task"]])
+        fraction = ARMS[r["arm"]][2]
+        if fraction:
+            want["data"] = subset(root, r["task"], r["seed"], fraction)[1]
+        if r.get("inputs") != {"config_sha256": want["config"], "data_sha256": want["data"]}:
+            problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}: input hashes differ")
+    jobs_list = [(str(root), e["rollout"], e["rollout_sha256"]) for r in records for e in r.get("evaluations", {}).values()]
+    with ProcessPoolExecutor(jobs) as pool:
+        audits = {rel: (same, a) for rel, same, a in pool.map(_verify_one, jobs_list, chunksize=4)}
+    for r in records:
+        name = f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}"
+        r["verified"] = {}
+        for n, e in r.get("evaluations", {}).items():
+            same, a = audits[e["rollout"]]
+            if not same or not a["ok"]:
+                problems.append(f"{name} noise {n}: the rollout fails the re-audit ({'changed bytes' if not same else a['issues']})")
+                continue
+            if (a["task"], a["seed"], str(a["noise_level"])) != (r["task"], r["seed"], n) \
+                    or a["failed_episodes"] != e["failed_episodes"] \
+                    or not (e["R"] == a["R_recomputed"] or abs(e["R"] - a["R_recomputed"]) <= auditor.TOL
+                            or (np.isnan(e["R"]) and np.isnan(a["R_recomputed"]))):
+                problems.append(f"{name} noise {n}: the record disagrees with its rollout's audit")
+                continue
+            r["verified"][n] = a["R_recomputed"]
+        if r["status"] == "ok" and (set(r["verified"]) != {str(x) for x in ARMS[r["arm"]][1]}
+                                    or not all(np.isfinite(v) for v in r["verified"].values())):
+            problems.append(f"{name}: status ok without every finite, verified evaluation")
+    if problems:
+        raise SystemExit(f"{phase} records refused ({len(problems)} problems): " + "; ".join(problems[:10]))
+    return records
+
+
+def _finite(x):
+    return x if x is not None and np.isfinite(x) else None  # JSON-stable: NaN never equals itself
+
+
+def compute_choice(tuning: list[dict], smoke: bool) -> dict:
+    """§6 from verified tuning records: per task and arm, the eligible value with the highest mean noise-free R over
+    the tuning seeds, ties to the smaller; every value-by-seed result, and CCIL-tuned's label acceptance rates."""
     seeds = SMOKE_TUNING_SEEDS if smoke else TUNING_SEEDS
-    choice = {"version": VERSION, "seeds": list(seeds), "smoke": smoke, "gate": provenance.tree_state(REPO)}
+    by = {(r["task"], r["arm"], r["value"], r["seed"]): r for r in tuning}
+    out = {}
     for task in DATASETS:
-        choice[task] = {}
+        out[task] = {}
         for arm in TUNED:
             table, eligible = {}, {}
             for v in grid(arm, task):
-                recs = [json.loads(result_path(root, "tuning", task, arm, s, v).read_text()) for s in seeds]
+                recs = [by[(task, arm, v, s)] for s in seeds]
                 ok = all(r["status"] == "ok" for r in recs)
-                table[repr(v)] = {"R": {r["seed"]: r["evaluations"]["0.0"]["R"] if r["status"] == "ok" else None for r in recs},
-                                  "status": {r["seed"]: r["status"] for r in recs}, "eligible": ok}
+                row = {"R": {str(r["seed"]): _finite(r["verified"].get("0.0")) for r in recs},
+                       "status": {str(r["seed"]): r["status"] for r in recs}, "eligible": ok}
+                if arm == "ccil_tuned":
+                    row["label_acceptance_rate"] = {str(r["seed"]): r.get("label_accuracy", {}).get("acceptance_rate")
+                                                    for r in recs}
                 if ok:
-                    eligible[v] = float(np.mean([r["evaluations"]["0.0"]["R"] for r in recs]))
-                    table[repr(v)]["mean_R"] = eligible[v]
+                    eligible[v] = row["mean_R"] = float(np.mean([r["verified"]["0.0"] for r in recs]))
+                table[repr(v)] = row
             if eligible:
                 best = max(eligible.values())
                 value, rule = min(v for v, m in eligible.items() if m == best), "highest mean R; ties to the smaller value"
             else:
                 value, rule = grid(arm, task)[0], "every value ineligible: the paper's value"
-            choice[task][arm] = {"value": value, "rule": rule, "table": table}
+            out[task][arm] = {"value": value, "rule": rule, "table": table}
+    return out
+
+
+def choose(root, smoke, jobs=8) -> dict:
+    """Make the tuning choice once, from the verified tuning records, with the hashes of the records it read."""
+    root = Path(root).resolve()
+    path = root / "tuning-choice.json"
+    if path.exists():
+        raise SystemExit(f"{path} exists; the tuning choice is made once")
+    state = provenance.require(REPO, real=not smoke)
+    tuning = verify_phase(root, "tuning", smoke, jobs)
+    sources = {str(result_path(root, "tuning", r["task"], r["arm"], r["seed"], r["value"]).relative_to(root)):
+               sha(result_path(root, "tuning", r["task"], r["arm"], r["seed"], r["value"])) for r in tuning}
+    choice = {"version": VERSION, "seeds": list(SMOKE_TUNING_SEEDS if smoke else TUNING_SEEDS), "smoke": smoke,
+              "gate": state, "source_records": sources, **compute_choice(tuning, smoke)}
     atomic_json(choice, path)
     return choice
 
@@ -419,7 +538,7 @@ def main():
         if name in ("sweep", "run"):
             p.add_argument("--phase", choices=("tuning", "study"), required=True)
             p.add_argument("--device", default="cuda")
-        if name == "sweep":
+        if name in ("sweep", "choose"):
             p.add_argument("--jobs", type=int, default=8)
         if name == "run":
             p.add_argument("--task", choices=tuple(DATASETS), required=True)
@@ -434,11 +553,10 @@ def main():
     if a.cmd == "sweep":
         return sweep(root, a.phase, a.jobs, a.device, a.smoke)
     if a.cmd == "choose":
-        c = choose(root, a.smoke)
+        c = choose(root, a.smoke, a.jobs)
         for task in DATASETS:
             print(task, {arm: c[task][arm]["value"] for arm in TUNED})
         return 0
-    prepare(root)
     r = run_unit(root, a.phase, a.task, a.arm, a.seed, a.value, device=a.device, smoke=a.smoke)
     print(r["status"], {k: v["R"] for k, v in r.get("evaluations", {}).items()})
     return 0

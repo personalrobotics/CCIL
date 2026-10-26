@@ -4,10 +4,12 @@
     uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \\
         python tools/m3_pendulum/analyze.py --root ROOT --out ANALYSIS.json [--jobs N]
 
-load() reads every unit record of ROOT, refuses a mix of smoke and real runs
-or of code states, and re-audits every saved rollout with the replay
-(audit.py), refusing any mismatch or changed file. analyze() then works on
-the R tables alone:
+load() passes the code-state gate (real analyses need the frozen tooling),
+verifies both phases with study.verify_phase (the exact unit sets, gates,
+input hashes, and every rollout re-audited with the replay against its
+record), recomputes the tuning choice from the verified tuning records and
+refuses any difference, and builds the R tables from the audits' recomputed
+R, never from a stored one. analyze() then works on the R tables alone:
 - primary, per task: CCIL - BC with the union of the BCa and paired-t
   intervals at c = 0.975, the positive control (BC - BC at 10%), the §9
   inconclusive rules, and the relative effect with its paired BCa interval;
@@ -19,10 +21,8 @@ the R tables alone:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +31,7 @@ import scipy.stats
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import audit as auditor  # noqa: E402
+import provenance  # noqa: E402
 import study  # noqa: E402
 
 VERSION = "m3_pendulum.analysis/1"
@@ -172,53 +172,38 @@ def analyze(tables) -> dict:
 
 
 # --- loading --------------------------------------------------------------------------------------------------------
-def _audit_one(args):
-    root, rel, expected = args
-    path = Path(root) / rel
-    got = hashlib.sha256(path.read_bytes()).hexdigest()
-    a = auditor.audit(path)
-    return rel, got == expected, a["ok"], a["issues"]
-
-
 def load(root, jobs=8) -> tuple[dict, dict]:
+    """Verify both phases and the tuning choice, then build the R tables from the audits' recomputed R."""
     root = Path(root).resolve()
-    records = [json.loads(p.read_text()) for p in sorted((root / "results" / "study").rglob("s*.json"))
-               if ".fault" not in p.name]
-    if not records:
-        raise SystemExit(f"no study records under {root}")
-    smoke = {r["smoke"] for r in records}
-    heads = {r["gate"]["head"] for r in records}
-    choice = json.loads((root / "tuning-choice.json").read_text())
-    choice_sha = hashlib.sha256((root / "tuning-choice.json").read_bytes()).hexdigest()
+    smoke = (root / "smoke.json").exists()
+    gate = provenance.require(study.REPO, real=not smoke)
+    tuning = study.verify_phase(root, "tuning", smoke, jobs)
+    choice_path = root / "tuning-choice.json"
+    choice = json.loads(choice_path.read_text())
+    choice_sha = study.sha(choice_path)
     problems = []
-    if len(smoke) != 1:
-        problems.append("smoke and real records are mixed")
-    if len(heads) != 1:
-        problems.append(f"records come from {len(heads)} code states: {sorted(heads)}")
-    if not all(r["gate"]["ok"] for r in records):
-        problems.append("a record was made without a passing code-state gate")
-    if {r.get("tuning_choice_sha256") for r in records} != {choice_sha}:
-        problems.append("a study record does not carry the tuning choice's SHA-256")
-    expected = set(study.units(root, "study", smoke == {True}))
-    have = {(r["task"], r["arm"], r["seed"], r["value"]) for r in records}
-    if expected - have:
-        problems.append(f"{len(expected - have)} study units have no record, e.g. {sorted(expected - have)[:3]}")
-    jobs_list = [(str(root), e["rollout"], e["rollout_sha256"]) for r in records for e in r.get("evaluations", {}).values()]
-    with ProcessPoolExecutor(jobs) as pool:
-        audits = list(pool.map(_audit_one, jobs_list, chunksize=4))
-    bad = [(rel, same, ok, issues) for rel, same, ok, issues in audits if not (same and ok)]
-    if bad:
-        problems.append(f"{len(bad)} rollouts fail the re-audit, e.g. {bad[:3]}")
-    if problems:
+    recomputed = study.compute_choice(tuning, smoke)
+    if any(choice.get(t) != json.loads(json.dumps(recomputed[t])) for t in study.DATASETS) or choice.get("smoke") != smoke:
+        problems.append("the tuning choice differs from its recomputation from the verified tuning records")
+    sources = {str(study.result_path(root, "tuning", r["task"], r["arm"], r["seed"], r["value"]).relative_to(root))
+               for r in tuning}
+    if set(choice.get("source_records", {})) != sources or any(
+            study.sha(root / rel) != h for rel, h in choice.get("source_records", {}).items()):
+        problems.append("the tuning records differ from those the choice recorded")
+    if problems:  # before the study: its unit set is defined by the choice
         raise SystemExit("analysis refused: " + "; ".join(problems))
+    records = study.verify_phase(root, "study", smoke, jobs)
+    if {r.get("tuning_choice_sha256") for r in records} != {choice_sha}:
+        raise SystemExit("analysis refused: a study record does not carry the tuning choice's SHA-256")
     tables = {"R": {}, "status": {}}
     for r in records:
         t, a, s = r["task"], r["arm"], r["seed"]
         tables["status"].setdefault(t, {}).setdefault(a, {})[s] = r["status"]
         for n in study.ARMS[a][1]:
-            ev = r.get("evaluations", {}).get(str(n))
-            tables["R"].setdefault(t, {}).setdefault(a, {}).setdefault(str(n), {})[s] = ev["R"] if ev else None
-    extras = {"smoke": smoke == {True}, "code_commit": heads.pop(), "rollouts_reaudited": len(audits),
+            tables["R"].setdefault(t, {}).setdefault(a, {}).setdefault(str(n), {})[s] = r["verified"].get(str(n))
+    extras = {"smoke": smoke, "gate": gate, "code_commit": records[0]["gate"]["head"],
+              "tooling_commit": records[0]["gate"]["tooling"].get("tooling_commit"),
+              "rollouts_reaudited": sum(len(r["verified"]) for r in tuning + records),
               "tuning_choice": choice, "tuning_choice_sha256": choice_sha,
               "label_accuracy": {f"{r['task']}/{r['arm']}/s{r['seed']}": r["label_accuracy"]
                                  for r in records if "label_accuracy" in r},
