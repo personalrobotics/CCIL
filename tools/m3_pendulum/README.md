@@ -14,7 +14,10 @@ uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt p
 | `env.py` | The canonical environment (§3): `step`, `reward`, `initial_states`, `noise_draws`, and `rollout`, which evaluates a policy on a seed's 100 episodes and returns every per-step array; `save` writes them as a pickle-free npz |
 | `audit.py` | The independent audit: recomputes rewards, returns and R from the saved states and actions, regenerates the initial states and noise draws, and replays every transition |
 | `provenance.py` | The code-state gate every run passes first: a clean tree, and `src`, `pyproject.toml` and `uv.lock` equal to the frozen `ccil` commit (§2) |
+| `study.py` | The run drivers: `prepare`, `sweep --phase tuning`, `choose`, `sweep --phase study`, and `run` for one unit |
+| `analyze.py` | The analysis: re-audits every rollout, then the §8 decisions, intervals and tables |
 | `check.py` | The §3 acceptance checks |
+| `check_study.py` | Evidence for the drivers and the analysis: known answers, interval coverage, gates, and an end-to-end smoke run |
 
 ## Acceptance checks
 
@@ -46,3 +49,66 @@ with `report-siddh.json` from the study host. It shows:
 
 The rollouts are written under `<new-dir>/rollouts/`, and each one can be
 re-audited with `audit.audit(path)`.
+
+## Running the study
+
+After the tooling freeze (§11), on the study host, from the frozen commit:
+
+```bash
+P="uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt python tools/m3_pendulum"
+$P/study.py sweep --root ROOT --phase tuning --jobs N --device cuda   # seeds 1-3, both grids, both tasks
+$P/study.py choose --root ROOT                                        # ROOT/tuning-choice.json, made once
+$P/study.py sweep --root ROOT --phase study --jobs N --device cuda    # seeds 101-120, every arm
+$P/analyze.py --root ROOT --out ROOT/analysis.json
+```
+
+**A unit** is one (task, arm, seed[, tuned value]). It:
+1. passes the code-state gate;
+2. runs `ccil policy train` on the #23 conversion of the paper configuration
+   (`corrected`), with `policy.exclude_validation_episodes=false` and the
+   arm's settings;
+3. evaluates the policy at the arm's noise levels, saving and auditing every
+   rollout.
+
+Its record, `ROOT/results/<phase>/<task>/<arm>/s<seed>.json`, is written once.
+A sweep skips any unit that already has a record, so an interrupted sweep
+resumes. The units of one (task, seed) run in one worker and share their
+stage store, so the arms reuse the same prepared data, dynamics model and
+labels wherever their settings agree.
+
+| Arm | Settings beyond the paper configuration | Noise levels |
+|---|---|---|
+| `bc`, `ccil` | `policy.method` | all |
+| `noise_bc` | `policy.noise_scale` from the tuning choice | all |
+| `ccil_tuned` | `generation.action_noise_std` from the tuning choice | all |
+| `ccil_filtered` | `certificate.profile=disturbed_action_paper_proxy`, `certificate.selection_quantile=0.3` | 0 |
+| `ccil_nolip` | `transition_model.lipschitz_type=none` | 0 |
+| `bc_frac{10,25,50}`, `ccil_frac{10,25,50}` | the §7 nested episode subset | 0 |
+| `zero` | no training: a = 0 | all |
+
+**Failures (§9).** A training process killed by a signal, or out of memory,
+is an infrastructure fault. It is recorded and rerun once, from a fresh
+stage store; a second fault excludes the unit. Any other non-zero exit, a
+non-finite training loss, or a non-finite return is an algorithmic failure,
+and the record is the result.
+
+**Label accuracy (§7)** is measured on 10,000 accepted labels per CCIL unit,
+drawn with `SeedSequence([seed, 10])`: ‖env.step(z_G, a_G) − y‖ in raw state
+units.
+
+**The analysis** refuses:
+- a mix of smoke and real records, or of code states;
+- a missing unit;
+- a study record without the tuning choice's SHA-256;
+- any rollout whose bytes or re-audit (with the replay) differ.
+
+`--smoke` runs the same code at 1 dynamics epoch and 1 policy epoch on seeds
+9001 (tuning) and 9002–9003 (study), in its own root. `check_study.py` uses
+it, and records statuses and decisions, never smoke returns:
+
+```bash
+$P/check_study.py --out <new-dir> --device cuda --jobs 8
+```
+
+Its reports are `docs/fixtures/evidence/m3-pendulum/study-report.json`
+(local, CPU) and `study-report-siddh.json` (CUDA).
