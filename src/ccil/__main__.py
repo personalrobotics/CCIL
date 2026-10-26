@@ -125,6 +125,37 @@ def _run_pipeline(args, which) -> int:
     return 0
 
 
+def _data_convert(args) -> int:
+    from .data.convert import convert_m1
+    from .schema import SchemaError
+    try:
+        m = convert_m1(args.src, args.dst, args.manifest)
+    except (SchemaError, OSError) as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    print(f"wrote {args.dst}: {m['counts']['episodes']} episodes, {m['counts']['frames']} frames (sha256 {m['output']['sha256']})")
+    return 0
+
+
+def _config_convert(args) -> int:
+    from .config import ConfigError
+    from .config.convert import convert_config
+    mapping = {}
+    for item in args.dataset_map:
+        old, sep, new = item.partition("=")
+        if not sep:
+            print(f"--dataset-map expects OLD=NEW, got {item!r}", file=sys.stderr)
+            return 2
+        mapping[old] = new
+    try:
+        m = convert_config(args.src, args.out, args.manifest, fidelity=args.fidelity, dataset_map=mapping)
+    except ConfigError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    print(f"wrote {args.out} and {args.manifest}: {m['counts']}")
+    return 0
+
+
 def _add_config_args(p) -> None:
     p.add_argument("--recipe", help="named recipe in src/ccil/recipes/")
     p.add_argument("--config", help="user configuration file (YAML)")
@@ -156,7 +187,28 @@ def main(argv=None) -> int:
     audit.add_argument("--out", default="docs/config/parameter-audit.md")
     audit.add_argument("--check", action="store_true")
     audit.set_defaults(fn=_config_audit)
+    conv = config.add_parser("convert", help="convert a legacy correct_il YAML into a canonical configuration (#23)",
+                             description="One-way conversion with a manifest of every legacy key's disposition.\n"
+                                         "exit: 0 written; 2 unknown, duplicate, ambiguous, or incompatible settings "
+                                         "(nothing written)", formatter_class=argparse.RawDescriptionHelpFormatter)
+    conv.add_argument("src")
+    conv.add_argument("--out", required=True)
+    conv.add_argument("--manifest", required=True)
+    conv.add_argument("--fidelity", choices=("corrected", "historical"), default="corrected",
+                      help="historical writes legacy behavior that legacy configs left implicit")
+    conv.add_argument("--dataset-map", action="append", default=[], metavar="OLD=NEW",
+                      help="canonical dataset path for a legacy data.pkl value; repeatable")
+    conv.set_defaults(fn=_config_convert)
     data = groups.add_parser("data", help="dataset workflows").add_subparsers(dest="command", required=True)
+    dconv = data.add_parser("convert", help="convert an M1 ccil-trajectories/1 file into ccil.trajectories (#23)",
+                            description="Legacy pickles first cross the trust boundary through "
+                                        "correct_il/convert_legacy_dataset.py; ccil never unpickles.\n"
+                                        "exit: 0 written; 2 not an M1 file or unreadable",
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+    dconv.add_argument("src")
+    dconv.add_argument("dst")
+    dconv.add_argument("--manifest")
+    dconv.set_defaults(fn=_data_convert)
     prep = data.add_parser("prepare", help="validate a dataset, split it by episode, and write a run directory")
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
