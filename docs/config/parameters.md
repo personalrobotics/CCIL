@@ -109,7 +109,6 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `policy.observation_scaler` | choice | `"standard"` | - | `standard`, `none` | implemented | Observation normalization during policy training. | Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std. | - |
 | `policy.hidden_layers` | ints | `[256, 256]` | - | [1, inf] | implemented | Hidden-layer widths of the experimental vector policy. | d3rlpy's default VectorEncoderFactory, which legacy BC used. | - |
 | `policy.demonstration_weight` | float | `1.0` | - | [0.0, inf] | implemented | Loss weight of every demonstration row. | Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). | - |
-| `policy.checkpoint_every` | int | `null` | epochs | [1, inf] | implemented | Also write a resumable checkpoint every this many epochs. | Null writes only the final checkpoint. | - |
 
 ## evaluation
 

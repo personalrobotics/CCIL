@@ -199,8 +199,6 @@ PARAMS = [
     Param("policy.demonstration_weight", "float", 1.0, "Loss weight of every demonstration row.",
           "Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md).",
           "policy", low=0.0),
-    Param("policy.checkpoint_every", "int", None, "Also write a resumable checkpoint every this many epochs.",
-          "Null writes only the final checkpoint.", "policy", units="epochs", low=1, nullable=True),
     # evaluation --------------------------------------------------------------
     Param("evaluation.episodes", "int", 100, "Evaluation episodes per policy.", "Legacy literal in eval_bc_policy.py.",
           "evaluation", low=1, status=D, milestone="M7"),

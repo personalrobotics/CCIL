@@ -88,18 +88,12 @@ def run_policy_harness(cfg) -> list[StageResult]:
             noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
                             mask_probability=v["policy.noise_mask_probability"],
                             units="standardized observation units (after the observation scaler)")
-        every = v["policy.checkpoint_every"]
-
-        def on_epoch(policy, opt, epoch, state):
-            if every and epoch % every == 0:
-                policy.save(run.path(f"{layout.CHECKPOINTS}/policy-epoch-{epoch:04d}.npz"), opt, epoch, state)
-
-        device = v["compute.device"]
-        policy, record = vector_bc.train_vector_bc(sup, settings_of(v), seed=v["run.seed"], device=device,
-                                                   deterministic=v["compute.deterministic"], noise=noise,
-                                                   on_epoch=on_epoch)
+        # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
+        policy, record = vector_bc.train_vector_bc(sup, settings_of(v), seed=v["run.seed"], device=v["compute.device"],
+                                                   deterministic=v["compute.deterministic"], noise=noise)
         policy.save(run.path(POLICY_CHECKPOINT), None, record["epochs_run"],
-                    {"supervision": sup.manifest()["inputs"], "seed": v["run.seed"], "method": v["policy.method"]})
+                    {"supervision": sup.manifest()["inputs"], "seed": v["run.seed"], "method": v["policy.method"],
+                     "training_identity_sha256": record["training_identity_sha256"]})
         run.metrics({"experimental": True, "supervision": sup.manifest(), "training": record})
         run.log(f"trained {record['trainer']} ({v['policy.method']}) on {record['rows']} rows for "
                 f"{record['epochs_run']} epochs")

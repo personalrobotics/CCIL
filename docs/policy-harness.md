@@ -74,19 +74,40 @@ Per minibatch, in scaled action space:
 
 **Determinism.** On CPU, the same seed gives byte-identical checkpoints.
 
-**Resume.** A checkpoint written at an epoch boundary
-(`policy.checkpoint_every`) resumes exactly. It holds the parameters,
-scalers, Adam state, epoch and NoiseBC trace chain, and no RNG state is
-needed. On CPU the resumed run is byte-identical to an uninterrupted one. On
-CUDA this is not claimed: the evidence reports the measured difference.
+**Resume, at the command level.** `ccil policy train` reuses complete stages.
+An interrupted `policy.train` is not resumed: it restarts from scratch.
+Training is deterministic, so the rerun reproduces the same policy and costs
+only time.
+
+**Resume, at the library level.** `train_vector_bc(..., on_epoch=...)` can
+save a **resumable** checkpoint at an epoch boundary, with
+`policy.save(path, optimizer, epoch, state)`.
+- **What it holds:** the parameters, scalers, complete Adam state, epoch,
+  per-epoch records, NoiseBC trace chain and **training identity**. No RNG
+  state is needed.
+- **What the identity covers:** the supervision manifest's hash and inputs,
+  method, seed, model, scaler, optimizer and batching settings, balancing,
+  NoiseBC descriptor, and trainer version.
+- **What `resume=` refuses:**
+  - a checkpoint whose identity differs from the requested run's;
+  - an incomplete Adam state;
+  - an inference checkpoint.
+- **Exactness.** On CPU the resumed run is byte-identical to an
+  uninterrupted one. On CUDA this is not claimed: the evidence reports the
+  measured difference.
 
 ## Checkpoint and records
 
-`checkpoints/policy.npz` contains no executable serialization:
-- **Arrays:** `net/*` (parameters), `scaler/*`, and `adam/<i>/{step, exp_avg,
-  exp_avg_sq}`.
-- **Meta:** the trainer (`vector_mlp`), version, dimensions, scalers, epoch,
-  run seed, method, and the supervision's input hashes.
+Checkpoints contain no executable serialization. `meta.checkpoint_kind` says
+which kind a checkpoint is:
+- **Inference** (`checkpoints/policy.npz`, written by `policy.train`):
+  - `net/*` (parameters) and `scaler/*`;
+  - meta: the trainer (`vector_mlp`), version, dimensions, scalers, epoch,
+    run seed, method, the supervision's input hashes, and the training
+    identity's hash.
+- **Resumable** (library level only): the inference arrays, plus
+  `adam/<i>/{step, exp_avg, exp_avg_sq}` for every parameter, plus the full
+  training identity and the per-epoch state in the meta.
 
 **The training record** (`metrics.json` → `training`):
 - the settings and the optimizer;
@@ -122,7 +143,6 @@ Simulator evaluation belongs to #24 and M7, through
 | `policy.noise_scale` | (`noise_bc` only) | standardized observation units, ≥ 0 | Legacy `policy.noise_bc` | #89 / #24 |
 | `policy.noise_model` | `symmetric_uniform_half_batch` | or `legacy_uniform_half_batch` | #22 | #89 |
 | `policy.noise_mask_probability` | 0.5 | [0, 1] | Legacy `rand > 0.5` | #89 |
-| `policy.checkpoint_every` | null | epochs ≥ 1 | — | #89 |
 | `compute.device`, `compute.deterministic` | `cuda`, false | | M2 | M2 |
 
 These keys and their domains are generated into
@@ -149,6 +169,9 @@ The report shows:
     inputs.
   - Legacy and corrected noise are compared at the same scale.
 - **Resume.** It is byte-identical on CPU; the CUDA difference is measured.
+  Checkpoints from another training run (method, supervision, seed, learning
+  rate, batch size, balancing, NoiseBC), incomplete Adam state, and inference
+  checkpoints are all refused.
 - **Packaging.**
   - Checkpoints contain no pickle.
   - `ccil labels generate` runs without torch.
