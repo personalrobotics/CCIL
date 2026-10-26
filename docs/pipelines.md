@@ -70,7 +70,10 @@ CCIL owns stages 1–4. The downstream trainer plugs in through `PolicyTrainer`,
 either `policy.trainer` or `run_integrated(cfg, trainer=...)`. Changing only the
 trainer reuses stages 1–4 and reruns the two policy stages.
 
-A trainer implements `fit`, `predict`, `save` and `load`. `policy.evaluate`
+A trainer implements `fit`, `predict`, `save` and `load`. `policy.train` takes
+its rows from the supervision contract ([supervision.md](supervision.md)),
+and records the supervision manifest (arm, input hashes, row-count
+reconciliation) as its metrics. `policy.evaluate`
 always loads the policy from the `policy.train` checkpoint, so it evaluates the
 same policy whether training ran now or was reused. Changing only
 `evaluation.*` settings reuses stages 1–5.
