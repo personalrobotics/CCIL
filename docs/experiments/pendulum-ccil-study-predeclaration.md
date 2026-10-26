@@ -20,6 +20,10 @@ no outcome informed them:
   must show a detectable difference before a "no detectable difference"
   primary outcome is interpreted as one.
 
+**Clarifications** made while building the tooling, before any tuning or
+study run, which state what the data generator already did: the reward is
+evaluated on the pre-step state (§3), and the noise index k (§7).
+
 This study replaces the legacy refactor-parity comparison, which was
 withdrawn by the migration contract's 2026-10-26 amendment (§5) before it
 ran.
@@ -82,7 +86,7 @@ the physics that generated the demonstrations:
 | Dynamics | θ̈ = −(g/l) sin θ + a, with l = 1 and g = 9.81 |
 | Step | dt = 0.02, integrated by `scipy.integrate.solve_ivp` RK45 at its default tolerances, evaluated at dt |
 | Discontinuous variant | After each step, θ̇ changes sign when θ is within 1e-2 of π/6 or π/3 |
-| Reward | r = −½‖(θ, θ̇) − (π, 0)‖² − ½a², with θ = atan2(sin θ, cos θ) wrapped to [0, 2π) |
+| Reward | r = −½‖(θ, θ̇) − (π, 0)‖² − ½a², with θ = atan2(sin θ, cos θ) wrapped to [0, 2π), evaluated on the pre-step state and the applied action (as the data generator) |
 | Actions | Not clipped (as the data generator) |
 | Episode | 500 steps; no termination |
 
@@ -193,7 +197,7 @@ never reported as study results.
     - The spaces are the legacy bounds: observation [−1, −1, −4π] to
       [1, 1, 4π], and action [−3, 3].
     - n ∈ {0.01, 0.05, 0.1}, with draws from
-      `default_rng(SeedSequence([s, 8, k]))` shared across arms.
+      `default_rng(SeedSequence([s, 8, k]))` shared across arms, with k = 0, 1, 2 for n = 0.01, 0.05, 0.1.
     - It applies to BC, NoiseBC, CCIL and CCIL-tuned.
   - **Data size.** Nested episode subsets of 10%, 25% and 50%, chosen by
     `default_rng(SeedSequence([s, 9])).permutation`, for BC and CCIL, with
