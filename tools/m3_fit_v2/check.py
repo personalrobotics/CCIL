@@ -251,16 +251,6 @@ def stage_hooks(out: Path) -> dict:
                                             "policy.checkpoint_selection=validation",
                                             "policy.validation_interval_steps=10",
                                             "generation.labels_per_transition=2"])
-<<<<<<< ours
-    m1, m2 = modern(1), modern(2)
-    u1, u2 = policy_harness.unit_supervision(m1), policy_harness.unit_supervision(m2)
-    st = policy_harness.settings_of(m1.values)
-    [own_v] = v2.train_group([v2.Job(u1[2], 1, None, u1[4])], st, device="cpu", compile=False)
-    [other_v] = v2.train_group([v2.Job(u1[2], 1, None, u2[4])], st, device="cpu", compile=False)
-    res["changed_validation_refused"] = refused(
-        lambda: policy_harness.run_policy_harness(m1, trained=other_v, unit=u1), "not this unit")
-    policy_harness.run_policy_harness(m1, trained=own_v, unit=u1)
-=======
 
     def unit(c):  # what the harness trains on, and the held-out supervision that selects its checkpoint
         p_ = prepare_stage(c)
@@ -276,7 +266,6 @@ def stage_hooks(out: Path) -> dict:
     res["changed_validation_refused"] = refused(
         lambda: policy_harness.run_policy_harness(m1, trained=other_v), "not this unit")
     policy_harness.run_policy_harness(m1, trained=own_v)
->>>>>>> theirs
     res["own_validation_accepted"] = True
     return {"pass": all(res.values()), **res}
 
