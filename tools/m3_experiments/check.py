@@ -12,6 +12,9 @@
    a manifest naming the current commit; a later committed tooling change; a manifest naming no
    commit), ccil.experiments.gate with the #24 freeze decides exactly as the #24 provenance module, for real
    and smoke runs.
+3. plan: tools/m3_experiments/pendulum_v4.yaml (the #24 v4 design as a plan) expands to exactly the #24
+   drivers' units for tuning and for the study (with a tuning choice), in the same order, including every
+   arm's settings, noise levels and data fractions; malformed specs are refused with every problem listed.
 """
 import argparse
 import json
@@ -32,6 +35,7 @@ import check_study  # noqa: E402  (its synthetic tables)
 import provenance as p24  # noqa: E402  (the #24 gate, the reference)
 
 from ccil.experiments.analysis import Decision, decide  # noqa: E402
+from ccil.experiments import plan  # noqa: E402
 from ccil.experiments.gate import Freeze, gate  # noqa: E402
 
 FREEZE_24 = Freeze(ccil_commit=p24.CCIL_FROZEN, tooling_paths=p24.TOOLING_PATHS, manifest=p24.FREEZE)
@@ -109,6 +113,34 @@ def gate_matches_24(out: Path) -> dict:
             "both_outcomes_exercised": outcomes == {True, False}}
 
 
+def plan_matches_24(out: Path) -> dict:
+    import study as s24  # the #24 drivers, the reference
+    spec = plan.load(HERE / "pendulum_v4.yaml")
+    root = out / "plan-root"
+    root.mkdir()
+    choice = {t: {"noise_bc": {"value": 1e-4}, "ccil_tuned": {"value": 0.3}} for t in s24.DATASETS}
+    (root / "tuning-choice.json").write_text(json.dumps(choice))
+    tuning_same = spec.units("tuning") == s24.units(root, "tuning", smoke=False)
+    study_same = spec.units("study", choice) == s24.units(root, "study", smoke=False)
+    arms_same = all(spec.arms[n].settings == tuple(a[0] or ()) and spec.arms[n].noise_levels == tuple(a[1])
+                    and spec.arms[n].data_fraction == a[2] and (spec.arms[n].tuned or None) == a[3]
+                    and spec.arms[n].train == (a[0] is not None) for n, a in s24.ARMS.items())
+    bad = [{"study": "x"}, {**plan.yaml.safe_load((HERE / "pendulum_v4.yaml").read_text()), "phases": {
+        "tuning": {"seeds": [1, 2], "arms": ["bc"], "tuning": True}, "study": {"seeds": [2, 3], "arms": ["nope"]}}}]
+    refusals = []
+    for b in bad:
+        try:
+            plan.from_dict(b)
+            refusals.append(None)
+        except plan.PlanError as e:
+            refusals.append(e.args[0])
+    refused = all(r for r in refusals) and len(refusals[1]) >= 3  # tuned-only, unknown arm, shared seed
+    return {"pass": tuning_same and study_same and arms_same and refused, "tuning_units_same": tuning_same,
+            "study_units_same": study_same, "arms_same": arms_same, "units": {"tuning": len(spec.units("tuning")),
+                                                                           "study": len(spec.units("study", choice))},
+            "refusals": refusals}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
@@ -123,6 +155,8 @@ def main():
     record("analysis_matches_24", r.pop("pass"), **r)
     r = gate_matches_24(out)
     record("gate_matches_24", r.pop("pass"), **r)
+    r = plan_matches_24(out)
+    record("plan_matches_24", r.pop("pass"), **r)
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
               "environment": {"code_commit": git("rev-parse", "HEAD"),
