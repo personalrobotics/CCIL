@@ -1,0 +1,194 @@
+{
+ "device": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+ "torch": "2.14.1+cu130",
+ "tf32": false,
+ "workload": {
+  "rows": 1047900,
+  "obs": 3,
+  "act": 1,
+  "hidden": [
+   256,
+   256
+  ],
+  "batch": 512,
+  "data": "one shared table on the device, per-model index streams"
+ },
+ "steps": {
+  "agreement": 200,
+  "warmup": 50,
+  "timed": 1000
+ },
+ "results": [
+  {
+   "engine": "v1 torch.optim.Adam on nn.Sequential (no host syncs)",
+   "M": 1,
+   "ms_per_step_group": 1.8800840849871747
+  },
+  {
+   "engine": "stacked",
+   "compiled": false,
+   "M": 1,
+   "ms_per_step_group": 0.7207169360481203,
+   "ms_per_step_per_model": 0.7207169360481203,
+   "first_K_steps_seconds_incl_compile": 0.44859410397475585,
+   "peak_device_mb": 145.27783203125,
+   "agreement_vs_v1_max_abs_over_max": 0.05243508710375476
+  },
+  {
+   "engine": "stacked",
+   "compiled": false,
+   "M": 4,
+   "ms_per_step_group": 0.7110831519821659,
+   "ms_per_step_per_model": 0.17777078799554147,
+   "first_K_steps_seconds_incl_compile": 0.14829890202963725,
+   "peak_device_mb": 153.60693359375,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "stacked",
+   "compiled": false,
+   "M": 20,
+   "ms_per_step_group": 0.7121279159910046,
+   "ms_per_step_per_model": 0.03560639579955023,
+   "first_K_steps_seconds_incl_compile": 0.14533251198008657,
+   "peak_device_mb": 198.02880859375,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "stacked",
+   "compiled": false,
+   "M": 64,
+   "ms_per_step_group": 0.7602380839525722,
+   "ms_per_step_per_model": 0.01187872006175894,
+   "first_K_steps_seconds_incl_compile": 0.1495119080063887,
+   "peak_device_mb": 320.19140625,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "stacked",
+   "compiled": true,
+   "M": 1,
+   "ms_per_step_group": 0.3390857700142078,
+   "ms_per_step_per_model": 0.3390857700142078,
+   "first_K_steps_seconds_incl_compile": 0.6017212480073795,
+   "peak_device_mb": 143.26708984375,
+   "agreement_vs_v1_max_abs_over_max": 0.061807071103321044
+  },
+  {
+   "engine": "stacked",
+   "compiled": true,
+   "M": 4,
+   "ms_per_step_group": 0.35835827398113906,
+   "ms_per_step_per_model": 0.08958956849528477,
+   "first_K_steps_seconds_incl_compile": 0.3123281299485825,
+   "peak_device_mb": 120.6416015625,
+   "agreement_vs_v1_max_abs_over_max": 0.06180537050742201
+  },
+  {
+   "engine": "stacked",
+   "compiled": true,
+   "M": 20,
+   "ms_per_step_group": 0.3909197570174001,
+   "ms_per_step_per_model": 0.019545987850870007,
+   "first_K_steps_seconds_incl_compile": 0.32016733998898417,
+   "peak_device_mb": 161.0478515625,
+   "agreement_vs_v1_max_abs_over_max": 0.061805396080292674
+  },
+  {
+   "engine": "stacked",
+   "compiled": true,
+   "M": 64,
+   "ms_per_step_group": 0.5530958839808591,
+   "ms_per_step_per_model": 0.008642123187200923,
+   "first_K_steps_seconds_incl_compile": 0.34116750600514933,
+   "peak_device_mb": 272.25341796875,
+   "agreement_vs_v1_max_abs_over_max": 0.06180537050742201
+  },
+  {
+   "engine": "vmap",
+   "compiled": false,
+   "M": 1,
+   "ms_per_step_group": 1.292228782956954,
+   "ms_per_step_per_model": 1.292228782956954,
+   "first_K_steps_seconds_incl_compile": 0.25715063500683755,
+   "peak_device_mb": 146.0380859375,
+   "agreement_vs_v1_max_abs_over_max": 0.05243508710375476
+  },
+  {
+   "engine": "vmap",
+   "compiled": false,
+   "M": 4,
+   "ms_per_step_group": 1.264508762047626,
+   "ms_per_step_per_model": 0.3161271905119065,
+   "first_K_steps_seconds_incl_compile": 0.25379411899484694,
+   "peak_device_mb": 156.6494140625,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "vmap",
+   "compiled": false,
+   "M": 20,
+   "ms_per_step_group": 1.1824677769909613,
+   "ms_per_step_per_model": 0.05912338884954806,
+   "first_K_steps_seconds_incl_compile": 0.24983420298667625,
+   "peak_device_mb": 213.2431640625,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "vmap",
+   "compiled": false,
+   "M": 64,
+   "ms_per_step_group": 1.233041905972641,
+   "ms_per_step_per_model": 0.019266279780822515,
+   "first_K_steps_seconds_incl_compile": 0.23936403001425788,
+   "peak_device_mb": 368.87841796875,
+   "agreement_vs_v1_max_abs_over_max": 0.05243507431731943
+  },
+  {
+   "engine": "vmap",
+   "compiled": true,
+   "M": 1,
+   "ms_per_step_group": 0.14690546202473342,
+   "ms_per_step_per_model": 0.14690546202473342,
+   "first_K_steps_seconds_incl_compile": 0.41629663697676733,
+   "peak_device_mb": 145.77490234375,
+   "agreement_vs_v1_max_abs_over_max": 0.061807071103321044
+  },
+  {
+   "engine": "vmap",
+   "compiled": true,
+   "M": 4,
+   "ms_per_step_group": 0.15232549695065245,
+   "ms_per_step_per_model": 0.03808137423766311,
+   "first_K_steps_seconds_incl_compile": 0.26797803601948544,
+   "peak_device_mb": 155.57763671875,
+   "agreement_vs_v1_max_abs_over_max": 0.0671557648666605
+  },
+  {
+   "engine": "vmap",
+   "compiled": true,
+   "M": 20,
+   "ms_per_step_group": 0.1891146200359799,
+   "ms_per_step_per_model": 0.009455731001798995,
+   "first_K_steps_seconds_incl_compile": 0.273226423014421,
+   "peak_device_mb": 208.00732421875,
+   "agreement_vs_v1_max_abs_over_max": 0.061805396080292674
+  },
+  {
+   "engine": "vmap",
+   "compiled": true,
+   "M": 64,
+   "ms_per_step_group": 0.6044504789751954,
+   "ms_per_step_per_model": 0.009444538733987429,
+   "first_K_steps_seconds_incl_compile": 0.34941317804623395,
+   "peak_device_mb": 352.126953125,
+   "agreement_vs_v1_max_abs_over_max": 0.06180710946262704
+  }
+ ],
+ "batch_invariance_M1_vs_M20_max_abs": {
+  "stacked": 4.1643157601356506e-05,
+  "stacked+compile": 0.0037819971330463886,
+  "vmap": 4.1643157601356506e-05,
+  "vmap+compile": 0.0037819971330463886
+ }
+}

@@ -1,0 +1,70 @@
+commit 6ec1544f4a681877b7508ce5514f6f415754ee18
+ 16:46:10 up 3 days, 10:32,  3 users,  load average: 1.47, 1.36, 2.09
+concurrent with the phase-0 baseline on GPU 0
+{"engine": "v1 torch.optim.Adam on nn.Sequential (no host syncs)", "M": 1, "ms_per_step_group": 1.8744878750294447}
+{"engine": "stacked", "compiled": false, "M": 1, "ms_per_step_group": 0.8113630199804902, "ms_per_step_per_model": 0.8113630199804902, "first_K_steps_seconds_incl_compile": 0.8897277840296738, "peak_device_mb": 145.27783203125, "agreement_vs_v1_max_abs_over_max": 0.05243508710375476}
+{"engine": "stacked", "compiled": false, "M": 4, "ms_per_step_group": 0.8028562560211867, "ms_per_step_per_model": 0.20071406400529668, "first_K_steps_seconds_incl_compile": 0.2750766849494539, "peak_device_mb": 153.60693359375, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "stacked", "compiled": false, "M": 20, "ms_per_step_group": 0.7731575290090404, "ms_per_step_per_model": 0.038657876450452024, "first_K_steps_seconds_incl_compile": 0.157637080992572, "peak_device_mb": 198.02880859375, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "stacked", "compiled": false, "M": 64, "ms_per_step_group": 0.7723164890194312, "ms_per_step_per_model": 0.012067445140928612, "first_K_steps_seconds_incl_compile": 0.26734244101680815, "peak_device_mb": 320.19140625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:21.302000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 1, "ms_per_step_group": 0.39861899497918785, "ms_per_step_per_model": 0.39861899497918785, "first_K_steps_seconds_incl_compile": 2.9890167950070463, "peak_device_mb": 241.0283203125, "agreement_vs_v1_max_abs_over_max": 0.061807071103321044}
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:24.062000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 4, "ms_per_step_group": 0.40010386100038886, "ms_per_step_per_model": 0.10002596525009722, "first_K_steps_seconds_incl_compile": 2.2954772610100918, "peak_device_mb": 248.6416015625, "agreement_vs_v1_max_abs_over_max": 0.06180537050742201}
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:26.508000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 20, "ms_per_step_group": 0.40234348498051986, "ms_per_step_per_model": 0.020117174249025992, "first_K_steps_seconds_incl_compile": 2.002029454044532, "peak_device_mb": 289.0478515625, "agreement_vs_v1_max_abs_over_max": 0.061805396080292674}
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:29.498000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 64, "ms_per_step_group": 0.5348447130527347, "ms_per_step_per_model": 0.00835694864144898, "first_K_steps_seconds_incl_compile": 2.5646329010487534, "peak_device_mb": 400.31591796875, "agreement_vs_v1_max_abs_over_max": 0.06180537050742201}
+{"engine": "vmap", "compiled": false, "M": 1, "ms_per_step_group": 1.3592231330112554, "ms_per_step_per_model": 1.3592231330112554, "first_K_steps_seconds_incl_compile": 0.2715520379715599, "peak_device_mb": 146.5478515625, "agreement_vs_v1_max_abs_over_max": 0.05243508710375476}
+{"engine": "vmap", "compiled": false, "M": 4, "ms_per_step_group": 1.3077958889771253, "ms_per_step_per_model": 0.3269489722442813, "first_K_steps_seconds_incl_compile": 0.2621942560072057, "peak_device_mb": 156.6494140625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "vmap", "compiled": false, "M": 20, "ms_per_step_group": 1.326139132026583, "ms_per_step_per_model": 0.06630695660132915, "first_K_steps_seconds_incl_compile": 0.2804335079854354, "peak_device_mb": 213.2431640625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "vmap", "compiled": false, "M": 64, "ms_per_step_group": 1.3092329730279744, "ms_per_step_per_model": 0.0204567652035621, "first_K_steps_seconds_incl_compile": 0.26060119102476165, "peak_device_mb": 368.87841796875, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:38.396000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 1, "ms_per_step_group": 0.1485207629739307, "ms_per_step_per_model": 0.1485207629739307, "first_K_steps_seconds_incl_compile": 1.679023322998546, "peak_device_mb": 273.77490234375, "agreement_vs_v1_max_abs_over_max": 0.061807071103321044}
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:40.580000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 4, "ms_per_step_group": 0.15612421795958653, "ms_per_step_per_model": 0.03903105448989663, "first_K_steps_seconds_incl_compile": 2.058603718993254, "peak_device_mb": 283.57763671875, "agreement_vs_v1_max_abs_over_max": 0.0671557648666605}
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:42.551000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 20, "ms_per_step_group": 0.1837181150331162, "ms_per_step_per_model": 0.00918590575165581, "first_K_steps_seconds_incl_compile": 1.7738622190081514, "peak_device_mb": 336.00732421875, "agreement_vs_v1_max_abs_over_max": 0.061805396080292674}
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 16:46:45.128000 1619565 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 64, "ms_per_step_group": 0.5893867900012992, "ms_per_step_per_model": 0.0092091685937703, "first_K_steps_seconds_incl_compile": 2.6393224730272777, "peak_device_mb": 496.126953125, "agreement_vs_v1_max_abs_over_max": 0.06180710946262704}
+{"batch_invariance": {"stacked": 4.1643157601356506e-05, "stacked+compile": 0.0037819971330463886, "vmap": 4.1643157601356506e-05, "vmap+compile": 0.0037819971330463886}}
+EXIT=0

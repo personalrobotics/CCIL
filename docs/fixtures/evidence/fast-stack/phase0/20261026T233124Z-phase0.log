@@ -1,0 +1,154 @@
+commit 6ec1544f4a681877b7508ce5514f6f415754ee18
+ 16:31:24 up 3 days, 10:17,  2 users,  load average: 0.00, 0.36, 3.27
+continuous rep1: exit 0, 40 s, load before 0.00 0.36 3.27 1/1155 1583478
+discontinuous rep1: exit 0, 91 s, load before 0.49 0.44 3.17 1/1149 1583728
+{
+ "continuous": {
+  "cold": {
+   "median": 39.44450330734253,
+   "min": 39.44450330734253,
+   "max": 39.44450330734253,
+   "n": 1
+  }
+ },
+ "discontinuous": {
+  "cold": {
+   "median": 90.46069264411926,
+   "min": 90.46069264411926,
+   "max": 90.46069264411926,
+   "n": 1
+  }
+ }
+}
+{
+ "label": "PROJECTED (serial, one process, one GPU) from measured medians; not measured",
+ "per_task": {
+  "continuous": {
+   "study_seconds_per_seed": 115.1181235909462,
+   "study_seconds_20_seeds": 2302.362471818924,
+   "tuning_seconds_per_seed": 150.51553392410278,
+   "tuning_seconds_3_seeds": 451.54660177230835
+  },
+  "discontinuous": {
+   "study_seconds_per_seed": 220.82172548770905,
+   "study_seconds_20_seeds": 4416.434509754181,
+   "tuning_seconds_per_seed": 250.69894886016846,
+   "tuning_seconds_3_seeds": 752.0968465805054
+  }
+ },
+ "total_hours": 2.200677897201644,
+ "formula": "per seed: prep*(1+\u03a3f) + fit*(2+\u03a3f) + generate*(3+\u03a3f) + certify + train(bc,noise_bc,ccil,ccil_filtered) + 2*train(ccil) [noLip, tuned] + \u03a3f*(train(bc)+train(ccil)) + 28 rollouts; tuning per seed: prep + fit + 5*generate + 5*train(noise_bc) + 5*train(ccil) + 40 rollouts; \u03a3f = 0.85"
+}
+SMOKE_OK
+continuous rep1: exit 0, 312 s, load before 0.89 0.59 2.97 2/1160 1584545
+discontinuous rep1: exit 0, 437 s, load before 1.26 1.07 2.50 1/1283 1595224
+continuous rep2: exit 0, 309 s, load before 1.52 1.37 2.09 1/1279 1618895
+discontinuous rep2: exit 0, 425 s, load before 1.23 1.31 1.87 1/1282 1631246
+continuous rep3: exit 0, 300 s, load before 1.00 1.11 1.56 1/1143 1634120
+discontinuous rep3: exit 0, 428 s, load before 1.03 1.42 1.64 1/1141 1634754
+{
+ "continuous": {
+  "cold": {
+   "median": 308.4115746021271,
+   "min": 299.47805762290955,
+   "max": 311.8950583934784,
+   "n": 3
+  }
+ },
+ "discontinuous": {
+  "cold": {
+   "median": 427.6907637119293,
+   "min": 424.83854818344116,
+   "max": 436.57581996917725,
+   "n": 3
+  }
+ }
+}
+{
+ "label": "PROJECTED (serial, one process, one GPU) from measured medians; not measured",
+ "per_task": {
+  "continuous": {
+   "study_seconds_per_seed": 910.8078166365624,
+   "study_seconds_20_seeds": 18216.156332731247,
+   "tuning_seconds_per_seed": 1082.5650935173035,
+   "tuning_seconds_3_seeds": 3247.6952805519104
+  },
+  "discontinuous": {
+   "study_seconds_per_seed": 993.8353959441185,
+   "study_seconds_20_seeds": 19876.70791888237,
+   "tuning_seconds_per_seed": 1067.1216065883636,
+   "tuning_seconds_3_seeds": 3201.364819765091
+  }
+ },
+ "total_hours": 12.372756764425171,
+ "formula": "per seed: prep*(1+\u03a3f) + fit*(2+\u03a3f) + generate*(3+\u03a3f) + certify + train(bc,noise_bc,ccil,ccil_filtered) + 2*train(ccil) [noLip, tuned] + \u03a3f*(train(bc)+train(ccil)) + 28 rollouts; tuning per seed: prep + fit + 5*generate + 5*train(noise_bc) + 5*train(ccil) + 40 rollouts; \u03a3f = 0.85"
+}
+BASELINE_OK
+{"engine": "v1 torch.optim.Adam on nn.Sequential (no host syncs)", "M": 1, "ms_per_step_group": 1.8800840849871747}
+{"engine": "stacked", "compiled": false, "M": 1, "ms_per_step_group": 0.7207169360481203, "ms_per_step_per_model": 0.7207169360481203, "first_K_steps_seconds_incl_compile": 0.44859410397475585, "peak_device_mb": 145.27783203125, "agreement_vs_v1_max_abs_over_max": 0.05243508710375476}
+{"engine": "stacked", "compiled": false, "M": 4, "ms_per_step_group": 0.7110831519821659, "ms_per_step_per_model": 0.17777078799554147, "first_K_steps_seconds_incl_compile": 0.14829890202963725, "peak_device_mb": 153.60693359375, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "stacked", "compiled": false, "M": 20, "ms_per_step_group": 0.7121279159910046, "ms_per_step_per_model": 0.03560639579955023, "first_K_steps_seconds_incl_compile": 0.14533251198008657, "peak_device_mb": 198.02880859375, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "stacked", "compiled": false, "M": 64, "ms_per_step_group": 0.7602380839525722, "ms_per_step_per_model": 0.01187872006175894, "first_K_steps_seconds_incl_compile": 0.1495119080063887, "peak_device_mb": 320.19140625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:35.833000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 1, "ms_per_step_group": 0.3390857700142078, "ms_per_step_per_model": 0.3390857700142078, "first_K_steps_seconds_incl_compile": 0.6017212480073795, "peak_device_mb": 143.26708984375, "agreement_vs_v1_max_abs_over_max": 0.061807071103321044}
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:36.549000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 4, "ms_per_step_group": 0.35835827398113906, "ms_per_step_per_model": 0.08958956849528477, "first_K_steps_seconds_incl_compile": 0.3123281299485825, "peak_device_mb": 120.6416015625, "agreement_vs_v1_max_abs_over_max": 0.06180537050742201}
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:37.257000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 20, "ms_per_step_group": 0.3909197570174001, "ms_per_step_per_model": 0.019545987850870007, "first_K_steps_seconds_incl_compile": 0.32016733998898417, "peak_device_mb": 161.0478515625, "agreement_vs_v1_max_abs_over_max": 0.061805396080292674}
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 99, in torch_dynamo_resume_in_step_at_98
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:38.015000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "stacked", "compiled": true, "M": 64, "ms_per_step_group": 0.5530958839808591, "ms_per_step_per_model": 0.008642123187200923, "first_K_steps_seconds_incl_compile": 0.34116750600514933, "peak_device_mb": 272.25341796875, "agreement_vs_v1_max_abs_over_max": 0.06180537050742201}
+{"engine": "vmap", "compiled": false, "M": 1, "ms_per_step_group": 1.292228782956954, "ms_per_step_per_model": 1.292228782956954, "first_K_steps_seconds_incl_compile": 0.25715063500683755, "peak_device_mb": 146.0380859375, "agreement_vs_v1_max_abs_over_max": 0.05243508710375476}
+{"engine": "vmap", "compiled": false, "M": 4, "ms_per_step_group": 1.264508762047626, "ms_per_step_per_model": 0.3161271905119065, "first_K_steps_seconds_incl_compile": 0.25379411899484694, "peak_device_mb": 156.6494140625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "vmap", "compiled": false, "M": 20, "ms_per_step_group": 1.1824677769909613, "ms_per_step_per_model": 0.05912338884954806, "first_K_steps_seconds_incl_compile": 0.24983420298667625, "peak_device_mb": 213.2431640625, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+{"engine": "vmap", "compiled": false, "M": 64, "ms_per_step_group": 1.233041905972641, "ms_per_step_per_model": 0.019266279780822515, "first_K_steps_seconds_incl_compile": 0.23936403001425788, "peak_device_mb": 368.87841796875, "agreement_vs_v1_max_abs_over_max": 0.05243507431731943}
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:45.359000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 1, "ms_per_step_group": 0.14690546202473342, "ms_per_step_per_model": 0.14690546202473342, "first_K_steps_seconds_incl_compile": 0.41629663697676733, "peak_device_mb": 145.77490234375, "agreement_vs_v1_max_abs_over_max": 0.061807071103321044}
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:45.785000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 4, "ms_per_step_group": 0.15232549695065245, "ms_per_step_per_model": 0.03808137423766311, "first_K_steps_seconds_incl_compile": 0.26797803601948544, "peak_device_mb": 155.57763671875, "agreement_vs_v1_max_abs_over_max": 0.0671557648666605}
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:46.226000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 20, "ms_per_step_group": 0.1891146200359799, "ms_per_step_per_model": 0.009455731001798995, "first_K_steps_seconds_incl_compile": 0.273226423014421, "peak_device_mb": 208.00732421875, "agreement_vs_v1_max_abs_over_max": 0.061805396080292674}
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] skipping cudagraphs due to mutated inputs (19 instances). Found from : 
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]    File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 108, in step
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     adam_update(params, grads, m, v, step_t)
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]   File "/home/siddh/code/CCIL-dev/tools/fast_stack/spike_trainer.py", line 82, in adam_update
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs]     p.add_(mm / ((vv.sqrt() / bc2.sqrt()).add_(EPS)) * (-LR / bc1))  # torch.optim.Adam's order
+W1026 17:10:46.733000 1637421 torch/_inductor/cudagraph_utils.py:401] [__cudagraphs] 
+{"engine": "vmap", "compiled": true, "M": 64, "ms_per_step_group": 0.6044504789751954, "ms_per_step_per_model": 0.009444538733987429, "first_K_steps_seconds_incl_compile": 0.34941317804623395, "peak_device_mb": 352.126953125, "agreement_vs_v1_max_abs_over_max": 0.06180710946262704}
+{"batch_invariance": {"stacked": 4.1643157601356506e-05, "stacked+compile": 0.0037819971330463886, "vmap": 4.1643157601356506e-05, "vmap+compile": 0.0037819971330463886}}
+SPIKE_OK
+EXIT=0
