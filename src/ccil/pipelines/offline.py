@@ -128,6 +128,9 @@ def preflight(cfg) -> None:
             read_reference_dynamics(ref)
         except (OSError, SchemaError) as e:
             errors.append(f"certificate.reference_dynamics {ref}: {str(e).splitlines()[-1].strip()}")
+    if v["transition_model.fit_episodes"] == "train" and not v["data.validation_fraction"]:
+        errors.append("transition_model.fit_episodes train fits the label model on the train split: it needs "
+                      "data.validation_fraction > 0")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
@@ -151,11 +154,15 @@ def _fit(v, z, a, z_next):
 
 
 def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
-    """Fit the label model on every episode; score an evaluation model fitted on the train split (#13).
+    """Fit the label model and score a model fitted on the train split on the held-out episodes (#13).
+
+    transition_model.fit_episodes all fits the label model on every episode and a separate evaluation model on
+    the train split; train fits the label model on the train split only, and scores it.
 
     prefit, from a study runner that fitted many units together (models/mlp_batched.fit_group), supplies
     {"label": (model, fit record), "evaluation": (model, fit record) or None} instead of fitting here; it needs
-    transition_model.trainer_version 2, so its stage identity is never a per-fit one.
+    transition_model.trainer_version 2, so its stage identity is never a per-fit one. With fit_episodes train,
+    the label model is fitted on the train split and there is no separate evaluation model.
     """
     v = cfg.values
     if prefit is not None and v["transition_model.trainer_version"] != "2":
@@ -171,18 +178,29 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         z, a, z_next = batch.z, batch.a, batch.z_next
         if v["transition_model.direction"] == "backward":
             z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
-        model, record = prefit["label"] if prefit is not None else _fit(v, z, a, z_next)
-        metrics = {"label_model": record}
+        clean = v["transition_model.fit_episodes"] == "train"
+        tr = va = None
         if split_path.exists():
             import json
             split = json.loads(split_path.read_text())
-            train, val = set(split["train"]), set(split["validation"])
-            tr = np.isin(batch.episode_id, list(train))
-            va = np.isin(batch.episode_id, list(val))
-            evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
-                          else _fit(v, z[tr], a[tr], z_next[tr])[0])
+            tr = np.isin(batch.episode_id, list(split["train"]))
+            va = np.isin(batch.episode_id, list(split["validation"]))
+        if prefit is not None:
+            model, record = prefit["label"]
+        elif clean:
+            model, record = _fit(v, z[tr], a[tr], z_next[tr])
+        else:
+            model, record = _fit(v, z, a, z_next)
+        metrics = {"label_model": record, "fit_episodes": v["transition_model.fit_episodes"]}
+        if tr is not None:
+            if clean:
+                evaluation, note = model, "the label model, fitted on the train split only, scored on the held-out episodes"
+            else:
+                evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
+                              else _fit(v, z[tr], a[tr], z_next[tr])[0])
+                note = "evaluation model fitted on the train split; the label model saw every episode"
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
-            metrics["held_out"]["note"] = "evaluation model fitted on the train split; the label model saw every episode"
+            metrics["held_out"]["note"] = note
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")
