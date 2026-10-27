@@ -1,0 +1,67 @@
+{
+ "all_pass": true,
+ "cases": {
+  "cpu_chunk_boundaries": {
+   "pass": true,
+   "cases": [
+    {
+     "D": 3,
+     "A": 1,
+     "rows": 30000,
+     "unchunked": {
+      "budget_bytes": 1152921504606846976,
+      "max_rows_per_chunk": 40121154809536,
+      "rows": 30000,
+      "chunks": 1,
+      "rows_per_chunk": 30000
+     },
+     "chunked": {
+      "budget_bytes": 28649792,
+      "max_rows_per_chunk": 997,
+      "rows": 30000,
+      "chunks": 31,
+      "rows_per_chunk": 968
+     },
+     "rows_differing": 0,
+     "identical": true,
+     "balanced": true
+    },
+    {
+     "D": 64,
+     "A": 7,
+     "rows": 3000,
+     "unchunked": {
+      "budget_bytes": 1152921504606846976,
+      "max_rows_per_chunk": 2108318834268,
+      "rows": 3000,
+      "chunks": 1,
+      "rows_per_chunk": 3000
+     },
+     "chunked": {
+      "budget_bytes": 115384084,
+      "max_rows_per_chunk": 211,
+      "rows": 3000,
+      "chunks": 15,
+      "rows_per_chunk": 200
+     },
+     "rows_differing": 0,
+     "identical": true,
+     "balanced": true
+    }
+   ],
+   "max_rows_per_chunk_at_1_GiB": {
+    "3": 37365,
+    "16": 7876,
+    "64": 1969,
+    "512": 204
+   }
+  }
+ },
+ "environment": {
+  "code_commit": "93121a716deb2f58d1af249a52a7e855fa2b3ec1",
+  "code_dirty": false,
+  "torch": "2.14.1",
+  "gpu": null,
+  "platform": "macOS-26.6.2-arm64-arm-64bit"
+ }
+}
