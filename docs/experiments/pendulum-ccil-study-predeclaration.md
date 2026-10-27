@@ -163,6 +163,7 @@ before the freeze:
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
 | Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
 | Batched study runner | #112 | Writes the stage artifacts `ccil policy train` would (the CLI reuses every one); resumes without recomputation; a unit's evaluation does not depend on what it was batched with |
+| Provenance once per process | #127 | Code state is captured once and rechecked before every stage commit and every unit record: a source edit mid-unit writes no output for that unit. Content hashes are cached only for artifacts `ccil` wrote itself, keyed by path, device, inode, size and nanosecond mtime; inputs are hashed in full. Cached and strict (`CCIL_PROVENANCE_STRICT=1`) hashing give identical records |
 
 **The tooling is frozen too, before any outcome.** The tooling is developed,
 and its acceptance checks (§3) pass, without producing any tuning or study
@@ -181,6 +182,11 @@ outcome. Then **one tooling commit is frozen**:
     `correct_il`, `data`, `config`, and the conversion and artifact
     manifests) equals that commit;
   - `src`, `pyproject.toml` and `uv.lock` equal the frozen `ccil` commit.
+
+  The check is repeated, at the same HEAD, before each unit's record is
+  written. The running process's captured code state is checked at the
+  same point (#127). If either has changed, no record is written: the code
+  is the same at both ends of every recorded unit.
 - A behavior-changing tooling fix after the freeze needs a new version of
   this document and a **complete rerun** of tuning and the study. The earlier
   runs are reported, not mixed with the new ones.
@@ -282,9 +288,10 @@ values below. Nothing else is tuned.
 by trainer v2 (`policy.trainer_version 2`), with batch 512, 100 epochs (÷20
 when balanced), learning rate 1e-3, [256, 256], and standard and min_max
 scalers. Dynamics models fit with `transition_model.trainer_version 2` and
-`transition_model.lipschitz_coordinates model_normalized`. Balancing is the configuration's for the
-CCIL arms; BC and NoiseBC never balance
-(`policy.balance_noisy_labels false`).
+`transition_model.lipschitz_coordinates model_normalized`, set explicitly in every unit's
+configuration. It does not rely on a default: configuration version 2 defaults to `model_normalized`,
+and a version 1 configuration migrates to `raw`, its earlier meaning (#125). Balancing is the
+configuration's for the CCIL arms; BC and NoiseBC never balance (`policy.balance_noisy_labels false`).
 
 **The Lipschitz ablation (CCIL-noLip).** CCIL's dynamics model uses the
 configuration's regularizer: `soft_sampling` on continuous Pendulum and
@@ -488,6 +495,11 @@ rerun once, with identical inputs. (Version 6: a training group that runs out
 of device memory is first split in half and retried, down to single units;
 only a single unit's memory exhaustion is a fault.) A second fault excludes that seed for that
 arm, and the exclusion is reported.
+
+**A code change during a run** is neither kind of failure. A unit that sees
+one (§2) gets no record, and the phase stops. It resumes from a clean tree
+at the frozen commits. Completed stages are reused only when their recorded
+implementation matches the code. Every such stop is reported.
 
 **Algorithmic failures** are results: a non-finite loss, a crash inside the
 algorithm, or a non-finite return. They are reported per arm and seed.
