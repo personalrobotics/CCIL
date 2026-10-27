@@ -75,13 +75,25 @@ stage manifest.
   - `model_normalized` (the default). It perturbs the model's normalized input
     x = (q − shift) / (scale + 1e-8) by δx ~ ε N(0, I), and takes
     ‖g(x + δx) − g(x)‖ / ‖δx‖ with g the normalized residual. This ratio is
-    dimensionless, invariant to the units and timestep, and in the space the
-    network is optimized in.
+    dimensionless, in the space the network is optimized in.
+    - **Invariance.** It is invariant, up to the normalization's 1e-8 and
+      ReLU kinks, under a consistent per-coordinate rescaling of states,
+      actions and residuals.
+    - **Timestep.** A different timestep changes it only as far as the
+      refitted normalization absorbs the change.
+    - **Units of ε.** ε is a radius in normalized input units.
   - `raw` (#21). Raw residuals over raw perturbations, so the constant
     depends on the units and the timestep. On continuous Pendulum the paper's
     L = 2 never binds in raw coordinates.
-  - `soft_jac` supports `raw` only.
-  - A checkpoint written before #125 reads as `raw`.
+  - `soft_jac` supports `raw` only, and needs it set explicitly.
+  - **Compatibility.** The default is `config_version 2`'s. A configuration
+    of `config_version` 0 or 1 that does not set the key resolves to `raw`,
+    its meaning when it was written (the resolved configuration notes this).
+    Converted legacy configurations are version 1. A checkpoint written
+    before #125 loads as `raw`, explicitly.
+  - **Checkpoint provenance.** Checkpoints store the coordinates' descriptor
+    (coordinates, units, constraint and normalization SHA-256), and loading
+    verifies it against the weights.
   - Fit records state the coordinates, the units and a SHA-256 of the
     normalization.
 - **The penalty is a training regularizer, not a certificate.** The value of

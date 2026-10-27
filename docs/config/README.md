@@ -49,7 +49,12 @@ Everything is checked before any output is written or any model is built:
 
 ## Files and migration
 
-- **New files** declare `config_version: 1` and nest keys by stage.
+- **New files** declare `config_version: 2` and nest keys by stage.
+- **Version 1 files** are read with the meaning they had. Version 2 (#125)
+  changed one default, `transition_model.lipschitz_coordinates`, from `raw`
+  to `model_normalized`. A version 0 or 1 file that does not set it resolves
+  to `raw`, and the resolved configuration notes it. Converted legacy
+  configurations (#23) are written as version 1.
 - **A file without `config_version`** is read as a legacy `correct_il` YAML
   (version 0) and migrated. Renamed keys move to their canonical key. Keys that
   never affected behavior are dropped with a note. Keys that affected behavior

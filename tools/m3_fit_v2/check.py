@@ -265,7 +265,8 @@ def _transitions(out: Path, task: str):
     os.chdir(root / "inputs")
     cfg = resolve(config=str(root / "inputs" / "config" / study.CONFIGS[task]),
                   sets=[f"run.seed={DATA_SEED}", "compute.device=cuda", f"data.path={data}",
-                        f"run.output_dir={root / 'stages'}"])
+                        f"run.output_dir={root / 'stages'}",
+                        "transition_model.lipschitz_coordinates=model_normalized"])  # the study's (v6), not v1's
     prepared = prepare_stage(cfg)
     split = json.loads(prepared.out("data/split.json").read_text())
     batch = transitions(read_trajectories(prepared.out("data/dataset.npz")), IdentityRepresentation("state"))
@@ -525,34 +526,62 @@ def lipschitz_checks() -> dict:
                                       "gradient_max_relative_difference": dgrad,
                                       "note": "constraint lowered to 0.05 so the hinge is active"}
 
-    # Records, old checkpoints and refusals.
+    # Records, checkpoint descriptors, old checkpoints and refusals.
     import tempfile
     m, *_ = _fitted("soft_sampling", "model_normalized")
     rec = m.fit(z, a, zn, seed=5)
     [(_, rec2)] = fit_group([FitJob(z, a, zn, 5)], dict(m.settings), device="cpu", compile=False)
-    with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "old.npz"
-        mr, *_ = _fitted("soft_sampling", "raw")
-        mr.save(path)
+
+    def rewrite(path, change_meta=None, change_arrays=None):
         with np.load(path, allow_pickle=False) as f:
             arrays = {k_: f[k_] for k_ in f.files}
         meta = json.loads(str(arrays["meta"]))
-        del meta["settings"]["lipschitz_coordinates"]
+        if change_meta:
+            change_meta(meta)
+        if change_arrays:
+            change_arrays(arrays)
         arrays["meta"] = np.array(json.dumps(meta, sort_keys=True))
         np.savez(path, **arrays)
-        old = MLPTransitionModel.load(path)
+
+    with tempfile.TemporaryDirectory() as td:
+        new_path, old_path, bad_path = (Path(td) / f"{n}.npz" for n in ("new", "old", "bad"))
+        m.save(new_path)
+        stored = json.loads(str(np.load(new_path, allow_pickle=False)["meta"])).get("lipschitz")
+        reloaded = MLPTransitionModel.load(new_path).settings["lipschitz_coordinates"]
+        mr, *_ = _fitted("soft_sampling", "raw")
+        mr.save(old_path)  # as written before #125: no coordinates in its settings and no descriptor
+
+        def strip(meta):
+            del meta["settings"]["lipschitz_coordinates"]
+            meta.pop("lipschitz", None)
+        rewrite(old_path, change_meta=strip)
+        old = MLPTransitionModel.load(old_path)
+        m.save(bad_path)  # a descriptor that no longer matches the weights' normalization
+
+        def shift(arrays):
+            arrays["dynamics/s_scale"] = arrays["dynamics/s_scale"] * 1.01
+        rewrite(bad_path, change_arrays=shift)
+        try:
+            MLPTransitionModel.load(bad_path)
+            tampered_refused = False
+        except ValueError:
+            tampered_refused = True
     try:
         MLPTransitionModel(**{**BASE, "lipschitz_type": "soft_jac", "lipschitz_coordinates": "model_normalized"})
         jac_refused = False
     except ValueError:
         jac_refused = True
+    default = MLPTransitionModel(**{**BASE, "lipschitz_type": "soft_sampling"}).settings["lipschitz_coordinates"]
     recorded = all(r.get("lipschitz", {}).get("coordinates") == "model_normalized"
                    and len(r["lipschitz"]["normalization_sha256"]) == 64 for r in (rec, rec2))
-    out["records_and_old_checkpoints"] = {"pass": recorded and old.settings["lipschitz_coordinates"] == "raw"
-                                          and jac_refused, "recorded": recorded,
-                                          "old_checkpoint_reads_as": old.settings["lipschitz_coordinates"],
-                                          "soft_jac_model_normalized_refused": jac_refused,
-                                          "record": rec["lipschitz"]}
+    out["records_and_old_checkpoints"] = {
+        "pass": recorded and stored == rec["lipschitz"] and reloaded == "model_normalized"
+        and old.settings["lipschitz_coordinates"] == "raw" and tampered_refused and jac_refused
+        and default == "model_normalized",
+        "recorded": recorded, "checkpoint_descriptor": stored, "checkpoint_reloads_as": reloaded,
+        "old_checkpoint_reads_as": old.settings["lipschitz_coordinates"],
+        "mismatched_normalization_refused": tampered_refused, "soft_jac_model_normalized_refused": jac_refused,
+        "constructor_default": default}
     return out
 
 
