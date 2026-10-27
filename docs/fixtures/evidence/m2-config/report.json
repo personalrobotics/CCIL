@@ -9,11 +9,11 @@
    "default_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
+     "git_commit": "67905f9376b7e45ff05f28cbdbc6e89e15cd6682",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "aabc44b09422274ebbb0be8e9efd80bc5692ad69e7ba4f7bf220e546c52da4be",
+     "config_hash": "f4edf1a05bfb4a43f8a161ec79c72afd92cdc4721f2b45d1a5c95e063b5a4948",
      "path": "config.json"
     },
     "environment": {
@@ -29,8 +29,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "7ae1afbea12f7f4271dc465b91ec79abae92be36d5f01f7958f3c85f048b2920",
-      "size": 6858,
+      "sha256": "0ac7ef334582f7c57d3b26ef4332339683abacded7aa93bffe64ef5ac1711ab4",
+      "size": 9536,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -56,7 +56,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "357e1353775a11eda301344f5e8c17442f9886182d1bf3727f624fdd298e51f8",
+      "sha256": "766576992b6bad9123fbdd0de918531d8b1a954296a0926347945905fabfc867",
       "size": 586
      }
     },
@@ -66,7 +66,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-5acf0260fb92",
+    "run_id": "data-prepare-058e4f4e4eb4",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -75,10 +75,26 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "default_run": "data-prepare-5acf0260fb92",
+   "default_run": "data-prepare-058e4f4e4eb4",
    "default_value_sources": {
+    "certificate.demonstration_residual_bound": "default",
+    "certificate.discrepancy_action_lipschitz": "default",
+    "certificate.discrepancy_state_lipschitz": "default",
+    "certificate.learned_lipschitz_source": "default",
+    "certificate.learned_state_lipschitz": "default",
+    "certificate.max_total_error": "default",
+    "certificate.neighborhood_action": "default",
+    "certificate.neighborhood_state": "default",
+    "certificate.profile": "default",
+    "certificate.reference_dynamics": "default",
+    "certificate.score_threshold": "default",
+    "certificate.selection_population": "default",
+    "certificate.selection_quantile": "default",
+    "certificate.true_action_lipschitz": "default",
+    "certificate.true_state_lipschitz": "default",
     "compute.deterministic": "default",
     "compute.device": "recipe:pendulum_cont",
+    "compute.jacobian_memory_mb": "default",
     "data.action_high": "default",
     "data.action_low": "default",
     "data.path": "recipe:pendulum_cont",
@@ -90,10 +106,8 @@
     "evaluation.noise_model": "default",
     "generation.action_chunk_size": "default",
     "generation.action_noise_std": "recipe:pendulum_cont",
-    "generation.label_error_quantile": "default",
     "generation.labels_per_transition": "recipe:pendulum_cont",
     "generation.max_iterations": "recipe:pendulum_cont",
-    "generation.max_label_error": "default",
     "generation.method": "recipe:pendulum_cont",
     "generation.model_error_threshold": "default",
     "generation.root_tolerance": "default",
@@ -101,11 +115,16 @@
     "policy.action_scaler": "default",
     "policy.balance_noisy_labels": "recipe:pendulum_cont",
     "policy.batch_size": "recipe:pendulum_cont",
+    "policy.demonstration_weight": "default",
     "policy.epochs": "recipe:pendulum_cont",
+    "policy.exclude_validation_episodes": "default",
+    "policy.hidden_layers": "default",
     "policy.learning_rate": "recipe:pendulum_cont",
     "policy.method": "recipe:pendulum_cont",
+    "policy.noise_mask_probability": "default",
     "policy.noise_model": "default",
     "policy.noise_scale": "default",
+    "policy.observation_scaler": "default",
     "policy.trainer": "default",
     "representation.dim": "default",
     "representation.kind": "default",
@@ -131,11 +150,11 @@
    "override_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
+     "git_commit": "67905f9376b7e45ff05f28cbdbc6e89e15cd6682",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "7ff30c98d575265dc92f4a9a39c47359b615937382762424de0d37260ed501f8",
+     "config_hash": "805fe0b1d76f0809fb8a796776019a3e6cd15a71a0ffac9c7537cf5654c3c03a",
      "path": "config.json"
     },
     "environment": {
@@ -151,8 +170,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "6027d76d0e4a968ad54e75038a2b808f303986c55b88c9f31b0721f9ce8a1b19",
-      "size": 6841,
+      "sha256": "abe2b1460c532b881c941cbf0aa9ad83fa2d73697c42d316d0640cef3b25ef66",
+      "size": 9519,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -178,7 +197,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "b465274ce7e8f84c52e285c4550964ec6e11d8192fe6ce3fad76fce48c088c79",
+      "sha256": "1fa3bd98b05d0c15237af55bb86977b280a42b5d8e178a73983698474bec1adf",
       "size": 586
      }
     },
@@ -188,7 +207,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-bf38f17274fe",
+    "run_id": "data-prepare-333cae0568b9",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -197,7 +216,7 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "override_run": "data-prepare-bf38f17274fe",
+   "override_run": "data-prepare-333cae0568b9",
    "override_source": "cli",
    "pass": true,
    "seed": 42,
@@ -209,22 +228,22 @@
   {
    "case": "replay_is_byte_identical",
    "files": {
-    "config.json": "7ae1afbea12f7f4271dc465b91ec79abae92be36d5f01f7958f3c85f048b2920",
+    "config.json": "0ac7ef334582f7c57d3b26ef4332339683abacded7aa93bffe64ef5ac1711ab4",
     "data/dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
     "data/split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb",
     "logs/run.log": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
-    "manifest.json": "db3f21d965c5510aa3b13f97a8de64e42632c9e4782ff3ac6d12dccac65514b8",
+    "manifest.json": "611e9aae50f01c3f3518165d140267c9049d379c1cffa65f3a796fe8d3d3a8f3",
     "metrics.json": "df5eb6b3cfb6bc2a069a38b394db94387bcb13cb7caa746ef0414fe24a58a7ac",
-    "stage.json": "357e1353775a11eda301344f5e8c17442f9886182d1bf3727f624fdd298e51f8"
+    "stage.json": "766576992b6bad9123fbdd0de918531d8b1a954296a0926347945905fabfc867"
    },
    "pass": true,
-   "run_id": "data-prepare-5acf0260fb92"
+   "run_id": "data-prepare-058e4f4e4eb4"
   },
   {
    "case": "existing_run_reused_then_replaced_atomically",
    "leftovers": [],
    "pass": true,
-   "rerun_stdout": "wrote runs/data-prepare-5acf0260fb92"
+   "rerun_stdout": "wrote runs/data-prepare-058e4f4e4eb4"
   },
   {
    "case": "fails_before_output[misspelled_key]",
@@ -258,7 +277,7 @@
   },
   {
    "case": "fails_before_output[noise_bc_without_scale]",
-   "error": "invalid configuration:\n  policy.method noise_bc requires a positive policy.noise_scale [noise_bc_scale; sources: policy.method=cli, policy.noise_scale=default]",
+   "error": "invalid configuration:\n  policy.method noise_bc requires a positive policy.noise_scale [noise_bc_scale; sources: policy.method=cli, policy.noise_scale=default, policy.balance_noisy_labels=recipe:pendulum_cont, generation.method=recipe:pendulum_cont]",
    "pass": true
   },
   {
@@ -347,7 +366,7 @@
   }
  ],
  "environment": {
-  "code_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
+  "code_commit": "67905f9376b7e45ff05f28cbdbc6e89e15cd6682",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

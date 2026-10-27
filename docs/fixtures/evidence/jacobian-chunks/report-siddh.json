@@ -10,13 +10,13 @@
      "rows": 30000,
      "unchunked": {
       "budget_bytes": 1152921504606846976,
-      "max_rows_per_chunk": 40121154809536,
+      "max_rows_per_chunk": 39987566058783,
       "rows": 30000,
       "chunks": 1,
       "rows_per_chunk": 30000
      },
      "chunked": {
-      "budget_bytes": 28649792,
+      "budget_bytes": 28745504,
       "max_rows_per_chunk": 997,
       "rows": 30000,
       "chunks": 31,
@@ -32,13 +32,13 @@
      "rows": 3000,
      "unchunked": {
       "budget_bytes": 1152921504606846976,
-      "max_rows_per_chunk": 2108318834268,
+      "max_rows_per_chunk": 1976902284320,
       "rows": 3000,
       "chunks": 1,
       "rows_per_chunk": 3000
      },
      "chunked": {
-      "budget_bytes": 115384084,
+      "budget_bytes": 123054356,
       "max_rows_per_chunk": 211,
       "rows": 3000,
       "chunks": 15,
@@ -50,10 +50,17 @@
     }
    ],
    "max_rows_per_chunk_at_1_GiB": {
-    "3": 37365,
-    "16": 7876,
-    "64": 1969,
-    "512": 204
+    "3": 37241,
+    "16": 7752,
+    "64": 1855,
+    "512": 146
+   },
+   "below_one_row": {
+    "D": 512,
+    "A": 7,
+    "budget_mib": 1,
+    "estimated_row_mib": 7.046901702880859,
+    "refusal": "one Jacobian row needs about 7.05 MiB (D = 512, A = 7, hidden [256, 256]), more than compute.jacobian_memory_mb = 1.00 MiB; raise it to at least 8"
    }
   },
   "cuda_real_labels": {
@@ -65,7 +72,7 @@
    "budget_bytes": 2147483648,
    "chunking": {
     "budget_bytes": 2147483648,
-    "max_rows_per_chunk": 74731,
+    "max_rows_per_chunk": 74482,
     "rows": 4305936,
     "chunks": 58,
     "rows_per_chunk": 74241
@@ -75,8 +82,8 @@
     "unchunked": 45.64096975326538
    },
    "seconds": {
-    "chunked": 0.1898355484008789,
-    "unchunked": 0.2749621868133545
+    "chunked": 0.19204998016357422,
+    "unchunked": 0.2694211006164551
    },
    "jacobian_rows_differing": 1,
    "jacobian_max_abs_difference": 0.0004475880414247513,
@@ -90,19 +97,42 @@
   },
   "cuda_width": {
    "pass": true,
-   "budget_bytes": 268435456,
-   "peak_bytes": 113339392,
-   "chunking": {
-    "budget_bytes": 268435456,
-    "max_rows_per_chunk": 490,
-    "rows": 20000,
-    "chunks": 41,
-    "rows_per_chunk": 488
-   }
+   "cases": [
+    {
+     "D": 64,
+     "A": 7,
+     "rows": 20000,
+     "budget_bytes": 268435456,
+     "peak_bytes": 105675776,
+     "chunking": {
+      "budget_bytes": 268435456,
+      "max_rows_per_chunk": 460,
+      "rows": 20000,
+      "chunks": 44,
+      "rows_per_chunk": 455
+     },
+     "ok": true
+    },
+    {
+     "D": 512,
+     "A": 7,
+     "rows": 2000,
+     "budget_bytes": 268435456,
+     "peak_bytes": 228342784,
+     "chunking": {
+      "budget_bytes": 268435456,
+      "max_rows_per_chunk": 36,
+      "rows": 2000,
+      "chunks": 56,
+      "rows_per_chunk": 36
+     },
+     "ok": true
+    }
+   ]
   }
  },
  "environment": {
-  "code_commit": "93121a716deb2f58d1af249a52a7e855fa2b3ec1",
+  "code_commit": "67905f9376b7e45ff05f28cbdbc6e89e15cd6682",
   "code_dirty": false,
   "torch": "2.14.1+cu130",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",

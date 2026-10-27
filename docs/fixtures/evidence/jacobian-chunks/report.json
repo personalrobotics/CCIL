@@ -10,13 +10,13 @@
      "rows": 30000,
      "unchunked": {
       "budget_bytes": 1152921504606846976,
-      "max_rows_per_chunk": 40121154809536,
+      "max_rows_per_chunk": 39987566058783,
       "rows": 30000,
       "chunks": 1,
       "rows_per_chunk": 30000
      },
      "chunked": {
-      "budget_bytes": 28649792,
+      "budget_bytes": 28745504,
       "max_rows_per_chunk": 997,
       "rows": 30000,
       "chunks": 31,
@@ -32,13 +32,13 @@
      "rows": 3000,
      "unchunked": {
       "budget_bytes": 1152921504606846976,
-      "max_rows_per_chunk": 2108318834268,
+      "max_rows_per_chunk": 1976902284320,
       "rows": 3000,
       "chunks": 1,
       "rows_per_chunk": 3000
      },
      "chunked": {
-      "budget_bytes": 115384084,
+      "budget_bytes": 123054356,
       "max_rows_per_chunk": 211,
       "rows": 3000,
       "chunks": 15,
@@ -50,15 +50,22 @@
     }
    ],
    "max_rows_per_chunk_at_1_GiB": {
-    "3": 37365,
-    "16": 7876,
-    "64": 1969,
-    "512": 204
+    "3": 37241,
+    "16": 7752,
+    "64": 1855,
+    "512": 146
+   },
+   "below_one_row": {
+    "D": 512,
+    "A": 7,
+    "budget_mib": 1,
+    "estimated_row_mib": 7.046901702880859,
+    "refusal": "one Jacobian row needs about 7.05 MiB (D = 512, A = 7, hidden [256, 256]), more than compute.jacobian_memory_mb = 1.00 MiB; raise it to at least 8"
    }
   }
  },
  "environment": {
-  "code_commit": "93121a716deb2f58d1af249a52a7e855fa2b3ec1",
+  "code_commit": "67905f9376b7e45ff05f28cbdbc6e89e15cd6682",
   "code_dirty": false,
   "torch": "2.14.1",
   "gpu": null,
