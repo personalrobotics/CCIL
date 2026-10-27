@@ -44,19 +44,45 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "c4c5d3c734d33bd758479dc15a64c19f424b59f5e705976c7715a5920e21da19",
+  "position": 0
+ },
  "group": {
+  "batch_size": 32,
+  "bucket": 1,
   "chunk_steps": 256,
+  "compile_mode": null,
   "data_mode": "resident",
   "deterministic": false,
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.01614689826965332,
-   0.003437042236328125,
-   0.0035219192504882812,
-   0.003175973892211914
+   0.01536107063293457,
+   0.003023862838745117,
+   0.0025501251220703125,
+   0.002298116683959961
   ],
-  "setup_seconds": 0.0030851364135742188,
+  "execution_sha256": "c4c5d3c734d33bd758479dc15a64c19f424b59f5e705976c7715a5920e21da19",
+  "members": [
+   {
+    "method": "bc",
+    "noise_bc": null,
+    "seed": 20261023,
+    "supervision_sha256": "e9c3242dafbd05740b71f028544efbbe0bca4133b2b75c458d29b27bd8b48b21"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.002540111541748047,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -66,11 +92,10 @@
     "start": 0
    }
   ],
-  "table_bytes": 864,
+  "table_bytes": 918,
   "table_rows": 54,
-  "tf32_matmul": false,
   "torch": "2.14.1",
-  "train_seconds": 0.5640478134155273
+  "train_seconds": 0.5257210731506348
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,

@@ -44,19 +44,57 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "position": 0
+ },
  "group": {
+  "batch_size": 32,
+  "bucket": 1,
   "chunk_steps": 256,
+  "compile_mode": null,
   "data_mode": "resident",
   "deterministic": false,
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.014820098876953125,
-   0.0030481815338134766,
-   0.002802133560180664,
-   0.0028629302978515625
+   0.015514135360717773,
+   0.0033621788024902344,
+   0.0026509761810302734,
+   0.0026700496673583984
   ],
-  "setup_seconds": 0.002907991409301758,
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "members": [
+   {
+    "method": "noise_bc",
+    "noise_bc": {
+     "component": "noise_bc",
+     "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+     "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+     "mask_probability": 0.5,
+     "mode": "symmetric_uniform_half_batch",
+     "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+     "scale": 0.1,
+     "seed": 20261023,
+     "truncation": "none (bounded by construction)",
+     "units": "standardized observation units (after the observation scaler)",
+     "version": "1"
+    },
+    "seed": 20261023,
+    "supervision_sha256": "a729f4a2dd2952f5abb79976c8089fadc7d240adfc648ed0e64259bb36299790"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.0031082630157470703,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -66,11 +104,10 @@
     "start": 0
    }
   ],
-  "table_bytes": 1728,
+  "table_bytes": 1782,
   "table_rows": 54,
-  "tf32_matmul": false,
   "torch": "2.14.1",
-  "train_seconds": 0.47563695907592773
+  "train_seconds": 0.5116908550262451
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": {

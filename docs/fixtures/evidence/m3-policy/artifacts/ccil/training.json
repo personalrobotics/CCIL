@@ -44,19 +44,45 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "6dd8690762ff4c2d7b3211ad6370c180dcdf780ad7cb9cc5198c4d63a2db501a",
+  "position": 0
+ },
  "group": {
+  "batch_size": 32,
+  "bucket": 1,
   "chunk_steps": 256,
+  "compile_mode": null,
   "data_mode": "resident",
   "deterministic": false,
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.02188420295715332,
-   0.00868988037109375,
-   0.007730960845947266,
-   0.009335994720458984
+   0.021907329559326172,
+   0.008610010147094727,
+   0.008572816848754883,
+   0.008224010467529297
   ],
-  "setup_seconds": 0.0025360584259033203,
+  "execution_sha256": "6dd8690762ff4c2d7b3211ad6370c180dcdf780ad7cb9cc5198c4d63a2db501a",
+  "members": [
+   {
+    "method": "ccil",
+    "noise_bc": null,
+    "seed": 20261023,
+    "supervision_sha256": "6b5fdca320298ee929a7104d7d48befa9e4be25ce09d4392f1995bae3bf6417f"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.0029802322387695312,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -71,11 +97,10 @@
     "start": 54
    }
   ],
-  "table_bytes": 2288,
+  "table_bytes": 2431,
   "table_rows": 143,
-  "tf32_matmul": false,
   "torch": "2.14.1",
-  "train_seconds": 0.5195870399475098
+  "train_seconds": 0.5333471298217773
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,
@@ -112,6 +137,6 @@
  "steps_per_epoch": 4,
  "trainer": "vector_mlp",
  "trainer_version": "2",
- "training_identity_sha256": "7e6bc54a6ad1f90c24205b98db6894e85d72a47fc19b1991416d532008962649",
+ "training_identity_sha256": "9188d0b94e780a05a56966f9beb6aab4ed13d1c9f8e800295f1fa2caa8f8e2af",
  "version": "1"
 }
