@@ -44,6 +44,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
+| `transition_model.trainer_version` | choice | `"1"` | - | `1`, `2` | implemented | How mlp transition models are fitted (#110). | 1 fits each model with its own loop (MLPTransitionModel.fit); 2 with the batched engine (models/mlp_batched.py), which study runners use to fit many seeds together. Same protocol, not bit-compatible, so the version is part of the stage identity. | - |
 | `transition_model.kind` | choice | `"mlp"` | - | `linear`, `mlp` | implemented | Transition-model family: linear (least squares) or mlp. | Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+). | - |
 | `transition_model.direction` | choice | `"forward"` | - | `forward`, `backward` | implemented | Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t). | Legacy dynamics.backward, absent (forward) in every config. | `dynamics.backward` |
 | `transition_model.lipschitz_type` | choice | `null` | - | `none`, `spectral_normalization`, `slack`, `spectral_normalization_slack`, `soft_sampling`, `soft_sampling_slack`, `soft_jac` | implemented | Lipschitz regularization of the transition model. | Task-specific in legacy configs. | `dynamics.lipschitz_type` |

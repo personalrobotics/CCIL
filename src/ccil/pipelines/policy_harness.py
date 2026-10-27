@@ -58,8 +58,12 @@ def settings_of(v) -> dict:
             "balance_labels": v["generation.labels_per_transition"] if v["policy.balance_noisy_labels"] else None}
 
 
-def run_policy_harness(cfg) -> list[StageResult]:
-    """Run the label stages (reused when complete), then policy.train and policy.evaluate."""
+def run_policy_harness(cfg, trained=None) -> list[StageResult]:
+    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+
+    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
+    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    """
     v = cfg.values
     problems = harness_problems(v)
     if problems:
@@ -90,7 +94,11 @@ def run_policy_harness(cfg) -> list[StageResult]:
                             mask_probability=v["policy.noise_mask_probability"],
                             units="standardized observation units (after the observation scaler)")
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
-        if v["policy.trainer_version"] == "2":
+        if trained is not None:
+            if v["policy.trainer_version"] != "2":
+                raise ConfigError(["a trained policy from a group comes from trainer v2: set policy.trainer_version 2"])
+            policy, record = trained
+        elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
             [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise)], settings_of(v),
                                                           device=v["compute.device"],
