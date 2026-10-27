@@ -45,7 +45,7 @@
    "case": "correctness_determinism_and_preflight",
    "flag_restored": true,
    "pass": true,
-   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1\n  transition_model.lipschitz_type soft_jac has no model_normalized form yet (#125): set transition_model.lipschitz_coordinates raw",
+   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1\n  compute.device 'cuda' requested but CUDA is not available",
    "recorded": true
   },
   {
@@ -53,9 +53,12 @@
    "own_fit_accepted": true,
    "own_policy_accepted": true,
    "pass": true,
+   "policy_wrong_execution_refused": true,
    "swapped_fit_refused": true,
    "swapped_policy_refused": true,
-   "tampered_weights_refused": true
+   "tampered_weights_refused": true,
+   "wrong_execution_right_record_refused": true,
+   "wrong_model_right_record_refused": true
   },
   {
    "all": {
@@ -132,21 +135,24 @@
   },
   {
    "case": "lipschitz_records_and_old_checkpoints",
-   "old_checkpoint_reads_as": "raw",
-   "pass": true,
-   "record": {
+   "checkpoint_descriptor": {
     "constraint": 2.0,
     "coordinates": "model_normalized",
     "normalization_sha256": "7245bbb40924b56a61d92155e8aab6411423c57e9e8c71e8c22e9da2b457e0ac",
     "role": "training regularizer; not a certified bound",
     "units": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)"
    },
+   "checkpoint_reloads_as": "model_normalized",
+   "constructor_default": "model_normalized",
+   "mismatched_normalization_refused": true,
+   "old_checkpoint_reads_as": "raw",
+   "pass": true,
    "recorded": true,
    "soft_jac_model_normalized_refused": true
   }
  ],
  "environment": {
-  "code_commit": "8d2b6a24e3b369ed60953a3d02abb8ce90f146d4",
+  "code_commit": "6aaf4893117b9d12df6e150e728999671bf8130a",
   "code_dirty": false,
   "device": "cpu",
   "gpu": null,
