@@ -19,6 +19,19 @@
    Pendulum hooks accepts the clean root with the same recomputed R as the #24 verify_phase, recomputes the
    same tuning choice, and refuses exactly when the #24 verifier refuses: an edited study-record R and an extra
    study unit (each restored afterwards).
+5. runner (with --runner): ccil.experiments.runner on a small smoke plan (both tasks; bc, ccil, noise_bc, bc_frac10
+   and zero; two seeds) with the Pendulum suite:
+   - every record verifies (verify_phase, every rollout replayed through the integrator that produced it);
+   - `ccil policy train` with each trained record's overrides reuses every stage the runner wrote, in the same
+     directories (the runner's stage identities are the CLI's);
+   - a second run writes nothing; with two records removed, a run writes exactly those, trains nothing and
+     reuses every stage, and the phase verifies again;
+   - batched evaluation: each trained unit's policy rolled out alone (tools/vector_env rollout) gives the same
+     saved rollout, bit for bit (every array), as its batched evaluation;
+   - memory exhaustion (injected: any fit or training group of more than two models raises
+     torch.cuda.OutOfMemoryError, and every training of one bc_frac10 unit does) splits groups down to the size
+     that fits, records the always-failing unit as an infrastructure fault after its retry, and the phase
+     verifies.
 """
 import argparse
 import json
@@ -199,10 +212,152 @@ def records_match_24(root: Path) -> dict:
                                  for ph, v in clean.items()}}
 
 
+RUNNER_PLAN = {
+    "study": "runner-check", "version": 1, "tasks": ["continuous", "discontinuous"],
+    "settings": ["transition_model.trainer_version=2", "policy.trainer_version=2",
+                 "policy.exclude_validation_episodes=false"],
+    "phases": {"study": {"seeds": [9002, 9003], "arms": "all"}},
+    "arms": {"bc": {"settings": ["policy.method=bc", "policy.balance_noisy_labels=false"], "noise_levels": [0.0, 0.01]},
+             "ccil": {"settings": ["policy.method=ccil"], "noise_levels": [0.0, 0.01]},
+             "noise_bc": {"settings": ["policy.method=noise_bc", "policy.noise_model=symmetric_uniform_half_batch",
+                                       "policy.balance_noisy_labels=false", "policy.noise_scale=0.01"]},
+             "bc_frac10": {"settings": ["policy.method=bc", "policy.balance_noisy_labels=false"], "data_fraction": 0.1},
+             "zero": {"train": False, "noise_levels": [0.0, 0.01]}},
+}
+GATE_DEV = {"ok": True, "real": False, "head": "check", "tooling": {}}
+
+
+def _cli_reuses(root: Path, records: list, device: str) -> list:
+    out = []
+    for r in records:
+        if "stages" not in r:
+            continue
+        cfg = {k: v["value"] for k, v in r["resolved_config"]["values"].items()}
+        sets = [f"run.seed={r['seed']}", f"compute.device={device}", f"data.path={cfg['data.path']}",
+                f"run.output_dir={cfg['run.output_dir']}", *r["overrides"], "transition_model.epochs=1",
+                f"policy.epochs={cfg['policy.epochs']}"]
+        conf = "pendulum_cont.corrected.yaml" if r["task"] == "continuous" else "pendulum_disc.corrected.yaml"
+        cmd = [sys.executable, "-m", "ccil", "policy", "train", "--config", str(root / "inputs" / "config" / conf)]
+        for x in sets:
+            cmd += ["--set", x]
+        p = subprocess.run(cmd, capture_output=True, text=True)
+        lines = [ln.split() for ln in p.stdout.splitlines() if len(ln.split()) == 3 and ln.split()[1] in ("wrote", "reused")]
+        out.append({"unit": f"{r['task']}/{r['arm']}/s{r['seed']}", "exit": p.returncode,
+                    "stages": {x[0]: x[1] for x in lines},
+                    "same_directories": bool(lines) and all(Path(x[2]).resolve() == Path(r["stages"][x[0]]).resolve()
+                                                            for x in lines)})
+    return out
+
+
+def runner_check(out: Path, device: str) -> dict:
+    import torch
+
+    sys.path.insert(0, str(HERE))
+    sys.path.insert(0, str(REPO / "tools" / "vector_env"))
+    import pendulum as vector
+    from pendulum_suite import PendulumSuite
+
+    from ccil.experiments import records, runner
+    from ccil.models import mlp_batched
+    from ccil.training import vector_bc_v2
+    from ccil.training.vector_bc import VectorBCPolicy
+
+    study = plan.from_dict(RUNNER_PLAN)
+    root = out / "runner"
+    suite = PendulumSuite(root, study, smoke=True)
+    res = {}
+
+    def verify(r, s):
+        return records.verify_phase(r, study, "study", smoke=True, audit=PendulumSuite.audit,
+                                    expected_inputs=s.expected_inputs, jobs=4)
+    first = runner.run_phase(root, study, "study", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
+    recs = verify(root, suite)
+    res["first_run"] = {"units": first["units"], "timing": first["timing"],
+                        "status": {f"{r['task']}/{r['arm']}/s{r['seed']}": r["status"] for r in recs}}
+    ok_first = first["units"] == 20 and all(r["status"] == "ok" for r in recs)
+
+    cli = _cli_reuses(root, recs, device)
+    res["cli"] = cli
+    ok_cli = len(cli) == 16 and all(c["exit"] == 0 and c["same_directories"]
+                                    and set(c["stages"].values()) == {"reused"} for c in cli)
+
+    again = runner.run_phase(root, study, "study", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
+    removed = [records.result_path(root, "study", "discontinuous", "ccil", 9003),
+               records.result_path(root, "study", "continuous", "zero", 9002)]
+    for p in removed:
+        p.unlink()
+    resumed = runner.run_phase(root, study, "study", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
+    recs2 = verify(root, suite)
+    res["resume"] = {"second_run_units": again["units"], "after_removal_units": resumed["units"],
+                     "train_groups": resumed["timing"]["train_groups"], "fit_groups": resumed["timing"]["fit_groups"]}
+    ok_resume = (again["units"] == 0 and resumed["units"] == 2 and not resumed["timing"]["train_groups"]
+                 and not resumed["timing"]["fit_groups"] and all(p.exists() for p in removed) and len(recs2) == 20)
+
+    diffs = []
+    for r in recs2:
+        if "stages" not in r:
+            continue
+        net, _, _ = VectorBCPolicy.load(Path(r["stages"]["policy.train"]) / "checkpoints" / "policy.npz", device=device)
+        for n, e in r["evaluations"].items():
+            alone = vector.rollout(net.predict, r["task"], r["seed"], float(n))
+            with np.load(root / e["rollout"], allow_pickle=False) as z:
+                differ = [k for k in z.files if k != "meta" and not np.array_equal(z[k], alone[k], equal_nan=True)]
+            diffs.append({"unit": f"{r['task']}/{r['arm']}/s{r['seed']}", "noise": n, "arrays_differing": differ,
+                          "R_alone": float(alone["R"]), "R_recorded": e["R"]})
+    res["batched_evaluation"] = {"rollouts": len(diffs), "per_rollout": diffs}
+    ok_eval = len(diffs) == 24 and not any(d["arrays_differing"] for d in diffs)
+
+    # Injected memory exhaustion.
+    real_fit, real_train = mlp_batched.fit_group, vector_bc_v2.train_group
+    calls = {"fit": [], "train": []}
+    doomed = None
+
+    def fit(jobs, *a, **k):
+        calls["fit"].append(len(jobs))
+        if len(jobs) > 2:
+            raise torch.cuda.OutOfMemoryError("injected: CUDA out of memory")
+        return real_fit(jobs, *a, **k)
+
+    def train(jobs, *a, **k):
+        calls["train"].append(len(jobs))
+        if len(jobs) > 2 or any(j.supervision is doomed[0] for j in jobs if doomed):
+            raise torch.cuda.OutOfMemoryError("injected: CUDA out of memory")
+        return real_train(jobs, *a, **k)
+    from ccil.pipelines import policy_harness
+    real_sup = policy_harness.unit_supervision
+
+    def sup(cfg):
+        nonlocal doomed
+        got = real_sup(cfg)
+        if cfg["run.seed"] == 9002 and cfg["data.path"].endswith("-f0.1.npz") and "cont" in cfg["data.path"]:
+            doomed = (got[2],)
+        return got
+    root2 = out / "runner-oom"
+    suite2 = PendulumSuite(root2, study, smoke=True)
+    mlp_batched.fit_group, vector_bc_v2.train_group, policy_harness.unit_supervision = fit, train, sup
+    try:
+        oom = runner.run_phase(root2, study, "study", suite2, gate=GATE_DEV, smoke=True, device=device,
+                               log=lambda m: None)
+    finally:
+        mlp_batched.fit_group, vector_bc_v2.train_group, policy_harness.unit_supervision = real_fit, real_train, real_sup
+    recs3 = verify(root2, suite2)
+    status = {f"{r['task']}/{r['arm']}/s{r['seed']}": r["status"] for r in recs3}
+    res["memory_exhaustion"] = {"fit_group_sizes": calls["fit"], "train_group_sizes": calls["train"], "status": status,
+                                "timing": oom["timing"]}
+    faults = {k for k, v in status.items() if v != "ok"}
+    ok_oom = (faults == {"continuous/bc_frac10/s9002"} and status["continuous/bc_frac10/s9002"] == "infrastructure_fault"
+              and max(calls["fit"]) > 2 and max(calls["train"]) > 2)
+    res["checks"] = {"first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
+                     "batched_evaluation": ok_eval, "memory_exhaustion": ok_oom}
+    return {"pass": all(res["checks"].values()), **res}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--smoke-root", type=Path, help="a #24 check_study smoke root, for the records case")
+    ap.add_argument("--runner", action="store_true", help="run the runner case")
+    ap.add_argument("--device", default="cpu")
     args = ap.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -220,6 +375,9 @@ def main():
     if args.smoke_root:
         r = records_match_24(args.smoke_root.resolve())
         record("records_match_24", r.pop("pass"), **r)
+    if args.runner:
+        r = runner_check(out, args.device)
+        record("runner", r.pop("pass"), **r)
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
               "environment": {"code_commit": git("rev-parse", "HEAD"),

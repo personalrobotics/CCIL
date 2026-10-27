@@ -190,11 +190,11 @@ def rollout(policy, task: str, seed: int, noise_level: float = 0.0) -> dict:
 
 def rollouts(items: list, task: str) -> list[dict]:
     """rollout() for many (policy, seed, noise_level) items at once: one step() over every live episode of every
-    item, and one policy call per distinct policy per step (on all of its items' rows).
+    item; each item's policy is called on exactly the rows rollout() would give it (its live episodes, in order).
 
-    Each result has rollout()'s arrays and meta. The dynamics are row-wise, so for the same actions a row's
-    states do not depend on what else is in the batch; a policy's float32 outputs can differ in the last bits
-    with its batch size (as they already do in rollout() when episodes fail), and the evidence measures that.
+    The dynamics are row-wise and the policy inputs are rollout()'s, so each result equals rollout(policy, task,
+    seed, noise_level) bit for bit, whatever else is in the batch (the evidence compares the two). Calling a
+    policy once on several items' rows would change its float32 batch size and, through rounding, its actions.
     """
     import env as canonical
     discontinuous = canonical.TASKS[task]
@@ -218,20 +218,14 @@ def rollouts(items: list, task: str) -> list[dict]:
     flipped = np.zeros((K, E, T), dtype=bool)
     alive = np.ones((K, E), dtype=bool)
     noisy = np.array([bool(n) for _, _, n in items])
-    groups = {}
-    for i, (policy, _, _) in enumerate(items):
-        groups.setdefault(id(policy), (policy, []))[1].append(i)
     for t in range(T):
         obs = states[:, :, t].copy()
         obs[noisy] = obs[noisy] * (1 - level[noisy]) + level[noisy] * obs_noise[noisy, :, t]
         observations[alive, t] = obs[alive]
         pa = np.full((K, E, 1), np.nan)
-        for policy, idx in groups.values():
-            live = alive[idx]
-            if live.any():
-                sub = pa[idx]
-                sub[live] = np.asarray(policy(obs[idx][live]), dtype=np.float64).reshape(-1, 1)
-                pa[idx] = sub
+        for i, (policy, _, _) in enumerate(items):
+            if alive[i].any():
+                pa[i, alive[i]] = np.asarray(policy(obs[i, alive[i]]), dtype=np.float64).reshape(-1, 1)
         policy_actions[alive, t] = pa[alive]
         act = pa.copy()
         act[noisy] = pa[noisy] * (1 - level[noisy]) + level[noisy] * act_noise[noisy, :, t]
