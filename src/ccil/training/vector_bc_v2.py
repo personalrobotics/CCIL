@@ -127,10 +127,12 @@ def permute(pos: torch.Tensor, key: torch.Tensor, n: torch.Tensor) -> torch.Tens
     a, b = k // 2, k - k // 2
     n_, key_ = n[:, None], key[:, None]
     x = _feistel(pos, key_, a, b)
-    out = x >= n_
-    while bool(out.any()):  # one host check per walk iteration per chunk; the domain is < 2n, so few iterations
-        x = torch.where(out, _feistel(x, key_, a, b), x)
-        out = x >= n_
+    rows, cols = torch.nonzero(x >= n_, as_tuple=True)
+    while len(rows):  # walk only the positions still outside [0, n): the domain is < 2n, so the set halves each pass
+        y = _feistel(x[rows, cols], key[rows], a[rows, 0], b[rows, 0])
+        x[rows, cols] = y
+        keep = y >= n[rows]
+        rows, cols = rows[keep], cols[keep]
     return x
 
 
@@ -351,7 +353,11 @@ def _step_resident(params, m1, m2, t, X, Y, W, WORDS, idx, active, gstep, c, lay
 
 _COMPILED: dict = {}
 BUCKETS = (1, 2, 4, 8, 16, 32, 64, 128)  # group sizes are padded to these, so compilation specializes per bucket
-COMPILE_MODE = "reduce-overhead"         # CUDA graphs: the step is launch-bound, not compute-bound
+# Plain compilation (Inductor). CUDA graphs ("reduce-overhead") were measured slower here: a replay copies every
+# input that is not static into its own buffers, which for the resident table is the whole table on every step
+# (3.4 against 1.2 ms per step at D = 512, 2.6 against 1.0 at 64 models; #117).
+COMPILE_MODE = "default"
+CUDA_GRAPHS = COMPILE_MODE in ("reduce-overhead", "max-autotune")
 
 
 def _compiled(fn):
@@ -611,7 +617,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                             out = step_fn(params, m1, m2, t, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
                                           rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
                             syn_j = rows["syn"][:, j]
-                        params, m1, m2, t, loss, upd = _own(out) if step_fn.state.startswith("compiled") else out
+                        params, m1, m2, t, loss, upd = (_own(out) if CUDA_GRAPHS and step_fn.state.startswith("compiled")
+                                                        else out)
                         loss_sum += loss
                         n_steps += upd.to(n_steps.dtype)
                         seen_syn += torch.where(active, syn_j.sum(dim=1).to(seen_syn.dtype), 0.0)

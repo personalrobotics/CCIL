@@ -53,7 +53,9 @@ def run(out: Path, device: str) -> dict:
     from ccil.training.noise_bc import NoiseBC
     root = out / "realworkload"
     study.prepare(root)
-    gpus = list(range(torch.cuda.device_count())) or [0]
+    # Workers address physical devices: map the visible (logical) devices back through CUDA_VISIBLE_DEVICES.
+    visible = [d for d in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if d.strip()]
+    gpus = visible or [str(i) for i in range(torch.cuda.device_count())] or ["0"]
     jobs = [(task, s, str(root), gpus[i % len(gpus)]) for i, (task, s) in enumerate((t, s) for t in study.DATASETS
                                                                                      for s in SEEDS)]
     t0 = time.time()
