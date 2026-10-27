@@ -66,12 +66,14 @@ JACOBIAN_MEMORY_BYTES = 2048 * 2**20  # default device-memory budget of one Jaco
 def jacobian_row_bytes(state_dim: int, action_dim: int, hidden_layers) -> int:
     """Estimated device bytes of one row of a vmap(jacrev) chunk.
 
-    A row costs its float32 Jacobian, D(D + A) values, plus the activations reverse mode keeps for each of its D
-    output directions. Measured on Pendulum's [256, 256] model (D = 3), a chunk peaks at about 2 D sum(hidden)
-    floats per row (0.76 GB for 65,536 rows); the estimate allows twice that, plus one forward pass.
+    A row costs the activations reverse mode keeps for each of its D output directions, about 2 D sum(hidden)
+    floats (measured on Pendulum's [256, 256] model, D = 3: 0.76 GB for 65,536 rows), and its float32 Jacobian,
+    D (D + A) values, held about three times over at large D (the D x D cotangent basis, the result and its copy;
+    measured at D = 512, A = 7). The estimate allows twice the activations and three Jacobians, plus one forward
+    pass.
     """
     h = sum(int(x) for x in hidden_layers)
-    return 4 * (state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
+    return 4 * (3 * state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
 
 
 class JacobianBudgetError(ValueError):
