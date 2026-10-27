@@ -158,7 +158,7 @@ before the freeze:
 |---|---|---|
 | Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
 | Normalized Lipschitz coordinates | #125 | The penalty equals its definition; it is invariant to a change of units; the two engines give the same penalty and gradients; fit records state the coordinates and the normalization hash |
-| Batched dynamics fits | #110 | One step equals `MLPTransitionModel.fit` for each regularizer used; held-out one-step error on the Pendulum data matches v1's |
+| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits) |
 | Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
 | Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
