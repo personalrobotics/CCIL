@@ -127,10 +127,12 @@ def permute(pos: torch.Tensor, key: torch.Tensor, n: torch.Tensor) -> torch.Tens
     a, b = k // 2, k - k // 2
     n_, key_ = n[:, None], key[:, None]
     x = _feistel(pos, key_, a, b)
-    out = x >= n_
-    while bool(out.any()):  # one host check per walk iteration per chunk; the domain is < 2n, so few iterations
-        x = torch.where(out, _feistel(x, key_, a, b), x)
-        out = x >= n_
+    rows, cols = torch.nonzero(x >= n_, as_tuple=True)
+    while len(rows):  # walk only the positions still outside [0, n): the domain is < 2n, so the set halves each pass
+        y = _feistel(x[rows, cols], key[rows], a[rows, 0], b[rows, 0])
+        x[rows, cols] = y
+        keep = y >= n[rows]
+        rows, cols = rows[keep], cols[keep]
     return x
 
 
