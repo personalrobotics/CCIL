@@ -63,6 +63,14 @@ class Study:
     tuning: dict = field(default_factory=dict)  # tuned arm -> Tuning
     settings: tuple[str, ...] = ()    # configuration overrides of every trained arm, before the arm's own
 
+    def deferred(self, phase: str) -> tuple[str, ...]:
+        """Arms whose returns a phase must not compute: in a tuning phase, those selected by validation loss. Their
+        returns come after the choice is recorded (runner.evaluate_deferred), so no return can inform it."""
+        if not self.phases[phase]["tuning"]:
+            return ()
+        return tuple(a for a in self.phases[phase]["arms"]
+                     if a in self.tuning and self.tuning[a].select == "lowest_mean_validation_loss")
+
     def unit_settings(self, arm: str, value=None) -> list[str]:
         """The overrides a trained unit runs with: the study's, the arm's, then the tuned value."""
         a = self.arms[arm]

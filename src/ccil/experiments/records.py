@@ -119,13 +119,68 @@ def verify_phase(root, study, phase, *, smoke: bool, audit, expected_inputs, cho
                 problems.append(f"{name} noise {n}: the record disagrees with its rollout's audit")
                 continue
             r["verified"][n] = a["R_recomputed"]
-        planned = {str(x) for x in study.arms[r["arm"]].noise_levels} if r["arm"] in study.arms else set()
+        planned = ({str(x) for x in study.arms[r["arm"]].noise_levels}
+                   if r["arm"] in study.arms and r["arm"] not in study.deferred(phase) else set())
         if r["status"] == "ok" and (set(r["verified"]) != planned
                                     or not all(np.isfinite(v) for v in r["verified"].values())):
             problems.append(f"{name}: status ok without every finite, verified evaluation")
     if problems:
         raise RecordsRefused(f"{phase} records refused ({len(problems)} problems): " + "; ".join(problems[:10]))
     return records
+
+
+CHOICE = "tuning-choice.json"
+
+
+def record_choice(root, study, tuning: list, phase: str = "tuning", acceptance_arms=("ccil_tuned",)) -> str:
+    """compute_choice from verified tuning records, written once to root/tuning-choice.json; returns its SHA-256.
+
+    Arms selected by validation loss have no returns in the tuning records, so their choice is made, and fixed
+    here, before any of their tuning-seed returns exists."""
+    path = Path(root) / CHOICE
+    write_once({"choice": compute_choice(study, tuning, phase, acceptance_arms), "phase": phase}, path)
+    return sha(path)
+
+
+def verify_deferred(root, study, phase, *, smoke: bool, audit, jobs: int = 8) -> list:
+    """The deferred returns of a tuning phase (runner.evaluate_deferred), verified like a phase's records.
+
+    Refuses unless they are exactly the phase's deferred units that are ok, each names the recorded choice by its
+    SHA-256 and its tuning record by its SHA-256 (so it was computed after the choice, from that unit's policy),
+    and every rollout passes the audit and agrees with its record."""
+    root = Path(root).resolve()
+    choice_sha = sha(root / CHOICE)
+    tuning = {(r["task"], r["arm"], r["seed"], r["value"]): (p, r) for p in (root / "results" / phase).rglob("s*.json")
+              if ".fault" not in p.name for r in [json.loads(p.read_text())]}
+    want = {k for k, (_, r) in tuning.items() if k[1] in study.deferred(phase) and r["status"] == "ok"}
+    files = sorted((root / "results" / f"{phase}_returns").rglob("s*.json"))
+    recs = [json.loads(p.read_text()) for p in files]
+    problems = []
+    have = Counter((r["task"], r["arm"], r["seed"], r["value"]) for r in recs)
+    if have != Counter(want):
+        problems.append(f"deferred returns are not exactly the ok deferred units of {phase}")
+    for p, r in zip(files, recs):
+        k = (r["task"], r["arm"], r["seed"], r["value"])
+        if r.get("choice_sha256") != choice_sha:
+            problems.append(f"{p.name}: does not name the recorded choice")
+        if k in tuning and r.get("tuning_record_sha256") != sha(tuning[k][0]):
+            problems.append(f"{p.name}: does not name its tuning record")
+        if r.get("smoke") != smoke:
+            problems.append(f"{p.name}: smoke and real records are mixed")
+    jobs_list = [(str(root), e["rollout"], e["rollout_sha256"], audit) for r in recs for e in r["evaluations"].values()]
+    audits = {rel: (same, a) for rel, same, a in map(_verify_one, jobs_list)}
+    for r in recs:
+        r["verified"] = {}
+        for n, e in r["evaluations"].items():
+            same, a = audits[e["rollout"]]
+            if not same or not a["ok"] or a["failed_episodes"] != e["failed_episodes"] or (
+                    abs(e["R"] - a["R_recomputed"]) > TOL and not (np.isnan(e["R"]) and np.isnan(a["R_recomputed"]))):
+                problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']} noise {n}: refused")
+                continue
+            r["verified"][n] = a["R_recomputed"]
+    if problems:
+        raise RecordsRefused(f"{phase} deferred returns refused ({len(problems)} problems): " + "; ".join(problems[:10]))
+    return recs
 
 
 def _finite(x):
@@ -135,7 +190,7 @@ def _finite(x):
 def validation_loss(record):
     """A unit's selected-checkpoint validation loss (checkpoint_selection validation), or None."""
     v = (record.get("training") or {}).get("validation")
-    return None if not v or v.get("selected_epoch") is None else v["loss_per_epoch"][v["selected_epoch"]]
+    return None if not v else v.get("selected_loss")
 
 
 def compute_choice(study, tuning: list, phase: str = "tuning", acceptance_arms=("ccil_tuned",)) -> dict:

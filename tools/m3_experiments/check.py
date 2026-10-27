@@ -23,7 +23,10 @@
    and zero; two seeds) with the Pendulum suite:
    - every record verifies (verify_phase, every rollout replayed through the integrator that produced it);
    - a tuning phase of a modern-recipe BC arm (AdamW, cosine, step budget, clipping, EMA, checkpoint selection on
-     held-out episodes) chooses, per task, the learning rate with the lowest selected-checkpoint validation loss;
+     held-out episodes every 50 steps, a label model fitted on the train split) chooses, per task, the learning
+     rate with the lowest selected-checkpoint validation loss. No return exists until the choice is recorded:
+     the tuning records and rollouts have none, evaluating them earlier is refused, and the returns computed
+     afterwards verify against the choice's and their tuning records' SHA-256;
    - `ccil policy train` with each trained record's overrides reuses every stage the runner wrote, in the same
      directories (the runner's stage identities are the CLI's);
    - a second run writes nothing; with two records removed, a run writes exactly those, trains nothing and
@@ -232,7 +235,8 @@ RUNNER_PLAN = {
                                         "policy.exclude_validation_episodes=true", "policy.optimizer=adamw",
                                         "policy.weight_decay=0.0001", "policy.lr_schedule=cosine",
                                         "policy.warmup_steps=20", "policy.step_budget=200", "policy.grad_clip_norm=1.0",
-                                        "policy.ema_decay=0.99", "policy.checkpoint_selection=validation"],
+                                        "policy.ema_decay=0.99", "policy.checkpoint_selection=validation",
+                                        "policy.validation_interval_steps=50", "transition_model.fit_episodes=train"],
                            "tuned": "policy.learning_rate"}},
     "tuning": {"bc_modern": {"grid": [1.0e-4, 3.0e-3], "select": "lowest_mean_validation_loss"}},
 }
@@ -302,17 +306,37 @@ def runner_check(out: Path, device: str) -> dict:
     tun = runner.run_phase(root, study, "tuning", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
     trecs = records.verify_phase(root, study, "tuning", smoke=True, audit=PendulumSuite.audit,
                                  expected_inputs=suite.expected_inputs, jobs=4)
-    choice = records.compute_choice(study, trecs, acceptance_arms=())
+    try:  # returns of a validation-tuned arm before its choice is recorded: refused
+        runner.evaluate_deferred(root, study, "tuning", suite, gate=GATE_DEV, smoke=True, device=device,
+                                 log=lambda m: None)
+        early_refused = False
+    except SystemExit:
+        early_refused = True
+    no_returns = all(r["evaluations"] == {} and not list((root / "rollouts" / "tuning").rglob("*.npz")) for r in trecs)
+    choice_sha = records.record_choice(root, study, trecs, acceptance_arms=())
+    choice = json.loads((root / records.CHOICE).read_text())["choice"]
     losses = {(r["task"], r["value"]): records.validation_loss(r) for r in trecs}
     want = {t: min(v for (tt, v) in losses if tt == t and losses[(tt, v)] == min(x for (u, _), x in losses.items()
                                                                                     if u == t))
             for t in study.tasks}
+    n_returns = runner.evaluate_deferred(root, study, "tuning", suite, gate=GATE_DEV, smoke=True, device=device,
+                                         log=lambda m: None)
+    returns = records.verify_deferred(root, study, "tuning", smoke=True, audit=PendulumSuite.audit)
     res["validation_loss_tuning"] = {"units": tun["units"], "losses": {f"{t}@{v}": x for (t, v), x in losses.items()},
                                      "choice": {t: choice[t]["bc_modern"]["value"] for t in study.tasks},
-                                     "selected_epochs": [r["training"]["validation"]["selected_epoch"] for r in trecs]}
+                                     "choice_sha256": choice_sha, "returns_refused_before_choice": early_refused,
+                                     "no_returns_in_tuning_records": no_returns, "deferred_returns": n_returns,
+                                     "selected_steps": [r["training"]["validation"]["selected_step"] for r in trecs],
+                                     "validation_steps": [[e["step"] for e in r["training"]["validation"]["evaluations"]]
+                                                          for r in trecs[:1]],
+                                     "fit_episodes": sorted({r["resolved_config"]["values"]["transition_model.fit_episodes"]
+                                                             ["value"] for r in trecs})}
     ok_tuning = (tun["units"] == 4 and all(x is not None for x in losses.values())
                  and all(choice[t]["bc_modern"]["value"] == want[t] for t in study.tasks)
-                 and all(r["training"]["recipe"]["step_budget"] == 200 for r in trecs))
+                 and all(r["training"]["recipe"]["step_budget"] == 200 for r in trecs)
+                 and early_refused and no_returns and n_returns == 4 and len(returns) == 4
+                 and res["validation_loss_tuning"]["validation_steps"] == [[50, 100, 150, 200]]
+                 and res["validation_loss_tuning"]["fit_episodes"] == ["train"])
     cli = _cli_reuses(root, recs, device)
     res["cli"] = cli
     ok_cli = len(cli) == 16 and all(c["exit"] == 0 and c["same_directories"]

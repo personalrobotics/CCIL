@@ -395,10 +395,14 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
 def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, device, log):
     """Evaluate units in the simulator and write their records (failed units are recorded without evaluation)."""
     by_task = {}
+    deferred = study.deferred(phase)
     for u in units:
         if u.status is None and u.cfg is not None:
             _describe(u, suite)
-        if u.status is None:
+        if u.status is None and u.arm in deferred:  # no return before the choice (evaluate_deferred)
+            u.status, u.record["evaluations"] = "ok", {}
+            u.record["returns"] = f"deferred: evaluated into {phase}_returns after the tuning choice is recorded"
+        elif u.status is None:
             by_task.setdefault(u.task, []).append(u)
     for task, us in by_task.items():
         items = []
@@ -425,6 +429,50 @@ def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, dev
         u.record["finished"] = _now()
         write_once(u.record, result_path(root, phase, u.task, u.arm, u.seed, u.value))
         u.recorded = True
+
+
+def evaluate_deferred(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
+                      log=print) -> int:
+    """The returns a tuning phase deferred, computed only once the choice is recorded (records.record_choice).
+
+    Each ok deferred unit's policy is evaluated as run_phase would, into a write-once record under
+    results/<phase>_returns that names the choice and the unit's tuning record by their SHA-256. Returns the
+    number of records written."""
+    from ..training.vector_bc import VectorBCPolicy
+    from .records import CHOICE
+    root = Path(root).resolve()
+    if not (root / CHOICE).exists():
+        raise SystemExit(f"{root / CHOICE} is missing: deferred returns are computed only after the choice is recorded")
+    choice_sha = sha(root / CHOICE)
+    by_task = {}
+    for p in sorted((root / "results" / phase).rglob("s*.json")):
+        r = json.loads(p.read_text())
+        if ".fault" in p.name or r["arm"] not in study.deferred(phase) or r["status"] != "ok":
+            continue
+        if result_path(root, f"{phase}_returns", r["task"], r["arm"], r["seed"], r["value"]).exists():
+            continue
+        by_task.setdefault(r["task"], []).append((p, r))
+    written = 0
+    for task, rs in by_task.items():
+        items = []
+        for _, r in rs:
+            net, _, _ = VectorBCPolicy.load(Path(r["stages"]["policy.train"]) / "checkpoints" / "policy.npz",
+                                            device=device)
+            items.append(((task, r["arm"], r["seed"], r["value"]), net.predict, r["seed"],
+                          study.arms[r["arm"]].noise_levels))
+        evaluations = suite.evaluate(f"{phase}_returns", task, items)
+        for p, r in rs:
+            ev = evaluations[(task, r["arm"], r["seed"], r["value"])]
+            if not all(e["audit_ok"] for e in ev.values()):
+                raise SystemExit(f"the audit refused a deferred rollout of {p}: {ev}")
+            rec = {"version": VERSION, "phase": f"{phase}_returns", "task": task, "arm": r["arm"], "seed": r["seed"],
+                   "value": r["value"], "smoke": smoke, "gate": gate, "choice_sha256": choice_sha,
+                   "tuning_record_sha256": sha(p), "evaluations": ev, "finished": _now(),
+                   "status": "ok" if all(np.isfinite(e["R"]) for e in ev.values()) else "algorithmic_failure"}
+            write_once(rec, result_path(root, f"{phase}_returns", task, r["arm"], r["seed"], r["value"]))
+            written += 1
+        log(f"  deferred returns: {len(rs)} {task} units")
+    return written
 
 
 def _describe(u, suite):
