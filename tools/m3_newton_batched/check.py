@@ -10,7 +10,9 @@ src/ccil/core/generators.py at 7a7a5e8).
    success flags equal the reference exactly; timing is reported.
 2. Real labels: noisy_action label generation on discontinuous Pendulum (the ordinary pipeline at
    seed 501, paper settings, with the dynamics fit shortened to 5 epochs for speed) with the
-   reference solve and with the stacked solve: every candidate array is identical.
+   reference solve and with the stacked solve. Both runs have the same stage identity, so the whole candidate
+   file must be byte-identical (its SHA-256): every array, including source identity, weights, measurements and
+   any action chunks, and the metadata.
 """
 from __future__ import annotations
 
@@ -85,14 +87,17 @@ def real_labels(out: Path, device: str):
                                 f"run.output_dir={out / ('stages-' + name)}", "transition_model.epochs=5"])
             t0 = time.time()
             labeled = offline.generate_offline(cfg)[2]
-            results[name] = (read_candidates(labeled.out("labels/candidates.npz")), time.time() - t0)
+            path = labeled.out("labels/candidates.npz")
+            results[name] = (read_candidates(path), time.time() - t0,
+                             __import__("hashlib").sha256(path.read_bytes()).hexdigest(), labeled.run_dir.name)
         finally:
             generators._solve_rows = original
-    a, b = results["per_row"][0], results["stacked"][0]
-    same = (np.array_equal(a.observations["state"], b.observations["state"]) and np.array_equal(a.actions, b.actions)
-            and np.array_equal(a.target_observations["state"], b.target_observations["state"])
-            and np.array_equal(a.accepted, b.accepted) and np.array_equal(a.reasons, b.reasons))
-    return {"identical_candidates": bool(same), "candidates": int(len(a.accepted)), "accepted": int(np.sum(a.accepted)),
+    a = results["per_row"][0]
+    sha = {k: v[2] for k, v in results.items()}
+    run_ids = {k: v[3] for k, v in results.items()}
+    same = sha["per_row"] == sha["stacked"] and run_ids["per_row"] == run_ids["stacked"]
+    return {"identical_candidates": bool(same), "candidates_sha256": sha, "stage_run_ids": run_ids,
+            "candidates": int(len(a.accepted)), "accepted": int(np.sum(a.accepted)),
             "pipeline_seconds": {k: v[1] for k, v in results.items()}}
 
 
