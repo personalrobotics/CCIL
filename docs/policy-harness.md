@@ -181,23 +181,35 @@ and the training identity includes it. The record's `group` field holds:
 - the shuffle rule;
 - the setup, training and per-epoch times.
 
-**Measured on siddh** (RTX PRO 6000 Blackwell, compiled; the scaling report
-below):
-- **Steady time per step** is flat at 0.32–0.36 ms from 10⁵ to 10⁸ rows.
+**Measured on siddh** (RTX PRO 6000 Blackwell, compiled, commit `d7257e0`;
+the scaling report below):
+- **Steady time per step** is flat at 0.34–0.38 ms from 10⁵ to 10⁸ rows.
   Groups of 1 to 16 models take the same time per step, so per-model cost
-  falls linearly; 64 models take 0.98 ms per step.
+  falls linearly; 64 models take 0.89 ms per step.
 - **For comparison,** v1 takes about 1.7 ms per step for one model (phase 0,
   #114).
+- **Real Pendulum workloads**, 20 distinct label sets trained as one group,
+  against one model alone:
+
+  | Task, arm | 20 models | 1 model |
+  |---|---|---|
+  | Continuous CCIL, 100 epochs | 0.45 ms per step, 95 s | 0.33 ms per step, 69 s |
+  | Discontinuous CCIL, balanced | 0.49 ms per step, 53 s | 0.37 ms per step, 35 s |
+  | BC and NoiseBC, either task | 0.44–0.50 ms per step, 7–25 s | |
+
 - **Peak device memory:**
-  - streaming stays at about 0.2 GB from 10⁷ to 10⁸ rows;
+  - streaming stays at 0.12 GB from 10⁷ to 10⁸ rows;
   - 16 models at a 512-dimensional observation use 2.1 GB resident, of
-    which the table is 1.9 GB.
+    which the table is 1.9 GB, and 0.84 GB streaming.
 - **One-time costs:** compiling takes a few seconds per new shape, and a
   repeated group of the same shapes reuses it. Host setup at 10⁸ rows is
   23 s.
 - **Limitation.** Streaming wide observations is bound by host memory
-  bandwidth: 2.6 ms per step at D = 512, against 0.52 ms resident. Resident
+  bandwidth: 2.65 ms per step at D = 512, against 0.51 ms resident. Resident
   mode is chosen whenever the table fits the memory budget.
+- **CUDA graphs** (`reduce-overhead`) were measured and rejected: 2.6 against
+  1.0 ms per step at 64 models, and 3.4 against 1.2 ms per step with 1.8 GB
+  more memory at D = 512, because each replay copies the resident table.
 
 ### The training recipe (#115)
 
@@ -340,10 +352,19 @@ The report shows:
 
 ```bash
 uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \
-    python tools/m3_trainer_v2/check.py --out <new-dir> --device cuda --parts correctness,modes,equivalence,scaling
+    python tools/m3_trainer_v2/check.py --out <new-dir> --device cuda --parts correctness,robustness,modes,equivalence
+# timing, on a quiet host:
+uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \
+    python tools/m3_trainer_v2/check.py --out <new-dir> --device cuda --parts realworkload,scaling
 ```
 
-The reports are in [`fixtures/evidence/m3-trainer-v2/`](fixtures/evidence/m3-trainer-v2/).
+The reports are in [`fixtures/evidence/m3-trainer-v2/`](fixtures/evidence/m3-trainer-v2/), all from the
+clean commit `d7257e0`:
+- `report.json`: macOS, CPU, 10/10 (correctness, robustness, modes);
+- `report-siddh.json`: CUDA, 11/11 (adds the comparison with v1), with
+  per-seed returns in `equivalence-siddh.json`;
+- `scaling-siddh.json`: CUDA, 2/2 (real workloads and scaling), on a quiet
+  host.
 
 - **Engine correctness:**
   - one full-batch step equals a `torch.optim.Adam` step of v1's model on
