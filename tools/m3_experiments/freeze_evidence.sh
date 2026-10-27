@@ -56,10 +56,10 @@ else
     run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz
 fi
 run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device "$DEV"
-# Timing and the equivalence gate, last and one at a time (CUDA host).
+# Timing, last and one at a time (CUDA host). The batched-fit gate is cited, not rerun: the confirmatory gate
+# (b2cbf71) decided it, and the freeze records the fit-path diff from that commit (predeclaration section 11).
 if [ "$DEV" = cuda ]; then
     run m3_trainer_v2_timing "${PEND[@]}" -- m3_trainer_v2 --device cuda --parts realworkload,scaling
     run m3_fit_v2_timing "${PEND[@]}" -- m3_fit_v2 --device cuda --parts timing
-    run m3_fit_v2_equivalence "${PEND[@]}" -- m3_fit_v2 --device cuda --parts equivalence
 fi
 echo ALL_DONE >> "$OUT/status.txt"
