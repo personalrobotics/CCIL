@@ -99,7 +99,7 @@ os.utime(fx, ns=(st.st_atime_ns, st.st_mtime_ns))
 out["user_input"] = {"meta_before": before, "meta_after": meta(fx), "rerun": run(),
                      "hash_is_content": p.sha256(fx) == truth(fx)}
 # 3. atomic replacement of a registered artifact: same size and mtime, new inode
-a = runs["data.prepare"] / "dataset.npz"
+a = runs["data.prepare"] / "data" / "dataset.npz"
 cached = p.sha256(a)
 data = bytearray(a.read_bytes()); data[-1] ^= 1
 tmp = a.with_name(".replacement")
@@ -111,8 +111,8 @@ os.replace(tmp, a)
 out["atomic_replacement"] = {"meta_before": m0, "meta_after": meta(a), "cached_before": cached,
                              "after": p.sha256(a), "truth": truth(a)}
 # 4. in-place edits of a registered artifact
-b = runs["labels.generate"] / "candidates.npz"
-c = next(f for f in sorted(runs["transition.fit"].rglob("*.npz")))
+b = runs["labels.generate"] / "labels" / "candidates.npz"
+c = runs["transition.fit"] / "checkpoints" / "transition_model.npz"
 cached_b, cached_c = p.sha256(b), p.sha256(c)
 flip_in_place(b, keep_mtime=False)
 flip_in_place(c, keep_mtime=True)
@@ -188,12 +188,11 @@ def main():
     }
     results = {}
     for name, (src, edit) in variants.items():
-        if name == "unedited":
-            subprocess.run(["git", "-C", str(clone), "checkout", "-q", "--", "."], check=True)
+        subprocess.run(["git", "-C", str(clone), "checkout", "-q", "--", "."], check=True)  # clean at each start
         w = workdir(f"code_{name}")
         r = child(EDIT_MID_UNIT.format(src=str(src), edit=str(edit)), *ARGS, cwd=w)
         results[name] = {"rc": r.returncode, "runs": runs(w / "runs"), "stdout": r.stdout.strip().splitlines(),
-                         "stderr": r.stderr.strip()[-400:]}
+                         "stderr": r.stderr.strip()[-1500:]}
     se, ng, ns, un = (results[k] for k in variants)
     record("source_edit_mid_unit_fails_the_unit",
            all(x["rc"] == 3 and len(x["runs"]) == 1 and x["runs"][0].startswith("data-prepare")
