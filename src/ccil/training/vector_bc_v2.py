@@ -13,8 +13,10 @@ segments of the table (balancing repeats the demonstration segment), and its
 minibatches come from a counter-based permutation of [0, n_m): a keyed
 unbalanced Feistel network over the next power of two with cycle-walking,
 keyed by (seed, epoch). Positions map to table rows through the segments.
-Working memory is therefore O(M * chunk * B + M * P) besides the table, where
-chunk is the number of steps whose indices are computed together.
+Working memory is therefore O(M * chunk * B) indices + O(M * P) parameters
+besides the table: resident mode gathers each step's rows inside the step, and
+streaming mode sizes a chunk of gathered rows by a byte budget, so neither
+grows with the observation width or the table.
 
 Two data modes, the same batches. The index function is ordinary torch code
 that runs identically on the GPU and on the CPU:
@@ -30,8 +32,15 @@ recorded; both modes give the same rows in the same order.
 Step. torch.func vmap over the stacked parameters (stack_module_state): the
 weighted loss, its gradient, and a functional Adam in torch.optim.Adam's update
 order with per-model step counts and masks (models past their last step, and
-minibatches whose weights sum to 0, take no step), compiled with torch.compile
-on CUDA (eager elsewhere, or when compile is off); the engine is recorded.
+minibatches whose weights sum to 0, take no step). The step is a module-level
+function of its tensors, compiled with torch.compile once per process on CUDA
+(eager elsewhere, or when compile is off), so later groups of the same shapes
+reuse the compiled code; the engine is recorded.
+
+Setup is linear in the distinct data: blocks are keyed by hashing raw bytes,
+scalers come from per-block statistics combined with their repetitions (each
+distinct row set once), and NoiseBC identity words are hashed once per distinct
+(episode, frame).
 
 NoiseBC runs on the device: noise_bc.py's counter-keyed splitmix64 draws,
 bit-identical for the same key (int64 wrapping arithmetic, logical shifts by
@@ -56,7 +65,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-from torch.func import functional_call, grad, stack_module_state, vmap
+from torch.func import grad, stack_module_state, vmap
 
 from ..core.identity import identity_words64
 from .vector_bc import ACT_EPS, ADAM, OBS_EPS, TrainingError, VectorBCPolicy, training_identity
@@ -140,44 +149,111 @@ class Job:
     noise: object = None
 
 
+def _bytes_of(a: np.ndarray) -> bytes:
+    a = np.ascontiguousarray(a)
+    if a.dtype == object:
+        a = a.astype(str)  # only for object arrays; supervision ids are already fixed-width unicode
+    return str(a.dtype).encode() + str(a.shape).encode() + a.tobytes()
+
+
 def _block_key(*arrays) -> str:
-    h = hashlib.sha256()
+    """Content identity of a block: BLAKE2b over the raw bytes, with no per-element conversion."""
+    h = hashlib.blake2b(digest_size=32)
     for a in arrays:
-        a = np.ascontiguousarray(a)
-        h.update(str(a.dtype).encode() + str(a.shape).encode())
-        h.update(a.tobytes() if a.dtype != object else "\0".join(map(str, a.tolist())).encode())
+        h.update(_bytes_of(a))
     return h.hexdigest()
 
 
 def _table(jobs):
-    """The shared row table, and each job's {part: (table start, rows)} blocks."""
-    blocks, order, job_blocks = {}, [], []
+    """The shared row table, each job's {part: (table start, rows)} blocks, and the table's block list.
+
+    Blocks are deduplicated by content, so seeds that share demonstrations (or labels) store them once; a
+    supervision object seen twice is keyed once.
+    """
+    blocks, order, job_blocks, seen = {}, [], [], {}
     for job in jobs:
         sup = job.supervision
+        if id(sup) in seen:
+            job_blocks.append(seen[id(sup)])
+            continue
         obs, act, w = sup.arrays()
         mine = {}
         for part in ("demonstration", "synthetic"):
             rows = np.flatnonzero(sup.source == part)
             if not len(rows):
                 continue
-            if not np.array_equal(rows, np.arange(rows[0], rows[0] + len(rows))):
+            lo, hi = int(rows[0]), int(rows[0]) + len(rows)
+            if rows[-1] != hi - 1:
                 raise TrainingError("supervision rows must be demonstrations, then synthetic rows (the contract)")
-            key = _block_key(obs[rows], act[rows], w[rows], sup.episode_id[rows].astype(str), sup.frame[rows])
+            key = _block_key(obs[lo:hi], act[lo:hi], w[lo:hi], sup.episode_id[lo:hi], sup.frame[lo:hi])
             if key not in blocks:
-                start = sum(len(blocks[k][0]) for k in order)
-                blocks[key] = (np.asarray(obs[rows], np.float32), np.asarray(act[rows], np.float32),
-                               np.asarray(w[rows], np.float32), sup.episode_id[rows].astype(str),
-                               np.asarray(sup.frame[rows], np.int64), part, start)
+                start = sum(blocks[k]["rows"] for k in order)
+                blocks[key] = {"part": part, "rows": hi - lo, "start": start, "sup": sup, "lo": lo, "hi": hi}
                 order.append(key)
-            mine[part] = (blocks[key][6], len(rows))
+            mine[part] = (blocks[key]["start"], hi - lo)
+        seen[id(sup)] = mine
         job_blocks.append(mine)
     parts = [blocks[k] for k in order]
-    table = {"obs": np.concatenate([p[0] for p in parts]), "act": np.concatenate([p[1] for p in parts]),
-             "w": np.concatenate([p[2] for p in parts]), "episode_id": np.concatenate([p[3] for p in parts]),
-             "frame": np.concatenate([p[4] for p in parts]),
-             "synthetic": np.concatenate([np.full(len(p[0]), p[5] == "synthetic") for p in parts]),
-             "blocks": [{"part": p[5], "rows": len(p[0]), "start": p[6]} for p in parts]}
+
+    def cat(fn, dtype):
+        return np.concatenate([np.asarray(fn(p["sup"])[p["lo"]:p["hi"]], dtype) for p in parts])
+    table = {"obs": cat(lambda u: u.observations, np.float32), "act": cat(lambda u: u.actions, np.float32),
+             "w": cat(lambda u: u.weights, np.float32),
+             "synthetic": np.concatenate([np.full(p["rows"], p["part"] == "synthetic") for p in parts]),
+             "blocks": [{"part": p["part"], "rows": p["rows"], "start": p["start"]} for p in parts],
+             "_parts": parts}
     return table, job_blocks
+
+
+def _identity_words(table) -> np.ndarray:
+    """(R, 2) int64 identity words of every table row, hashing each distinct (episode_id, frame) once."""
+    out = np.empty((sum(p["rows"] for p in table["_parts"]), 2), np.int64)
+    for p in table["_parts"]:
+        ep = np.asarray(p["sup"].episode_id[p["lo"]:p["hi"]])
+        fr = np.asarray(p["sup"].frame[p["lo"]:p["hi"]], np.int64)
+        keys, inverse = np.unique(np.stack([ep.astype(str), fr.astype(str)], 1), axis=0, return_inverse=True)
+        words = np.array([identity_words64(e, int(f)) for e, f in keys], np.uint64).reshape(-1, 2).view(np.int64)
+        out[p["start"]:p["start"] + p["rows"]] = words[inverse.reshape(-1)]
+    return out
+
+
+def _scalers(table, segments, observation_scaler, action_scaler):
+    """v1's scalers for a model's training rows (with balancing repetitions) from per-block float64 statistics.
+
+    The observation mean and population std combine blocks by Chan's parallel update, so repeated
+    demonstrations count with their multiplicity without materializing rows; each distinct block is
+    reduced once. Same quantities as v1's fit_scalers, not bit-identical arithmetic.
+    """
+    stats = {}
+
+    def block(start, length):
+        if (start, length) not in stats:
+            o = np.asarray(table["obs"][start:start + length], np.float64)
+            a = table["act"][start:start + length]
+            mean = o.mean(axis=0)
+            stats[(start, length)] = (length, mean, ((o - mean) ** 2).sum(axis=0), a.min(axis=0), a.max(axis=0),
+                                      float(np.abs(a).max()))
+        return stats[(start, length)]
+    n, mean, m2 = 0, 0.0, 0.0
+    amin, amax, amax_abs = None, None, 0.0
+    for st, ln in segments:
+        k, mu, q, lo, hi, ab = block(st, ln)
+        delta = mu - mean
+        tot = n + k
+        mean = mean + delta * (k / tot)
+        m2 = m2 + q + delta ** 2 * (n * k / tot)
+        n = tot
+        amin = lo if amin is None else np.minimum(amin, lo)
+        amax = hi if amax is None else np.maximum(amax, hi)
+        amax_abs = max(amax_abs, ab)
+    out = {"obs_mean": None, "obs_std": None, "act_min": None, "act_max": None}
+    if observation_scaler == "standard":
+        out["obs_mean"], out["obs_std"] = mean, np.sqrt(m2 / n)
+    if action_scaler == "min_max":
+        out["act_min"], out["act_max"] = amin, amax
+    elif amax_abs > 1:
+        raise TrainingError("action_scaler none needs actions in [-1, 1]: the policy output is tanh")
+    return out
 
 
 def _segments(blocks: dict, balance) -> list[tuple[int, int]]:
@@ -223,14 +299,80 @@ def training_identity_v2(supervision, settings: dict, seed: int, noise) -> dict:
     return {**ident, "sha256": hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()}
 
 
+def _mlp(p: dict, x: torch.Tensor, layers: int) -> torch.Tensor:
+    """VectorBCPolicy.net's forward from its state-dict names (Sequential: Linear, ReLU, ..., Linear, Tanh)."""
+    for i in range(layers):
+        x = x @ p[f"{2 * i}.weight"].T + p[f"{2 * i}.bias"]
+        x = torch.relu(x) if i < layers - 1 else torch.tanh(x)
+    return x
+
+
+def _step(params, m1, m2, t, x, y, w, words, active, gstep, c, layers: int, noisy: bool, scale_obs: bool,
+          scale_act: bool, lr: float):
+    """One masked Adam step for all models on a gathered minibatch (M, B, ·). c holds the per-model constants."""
+    M = active.shape[0]
+    if scale_obs:
+        x = (x - c["obs_mean"][:, None]) / (c["obs_std"][:, None] + OBS_EPS)
+    if noisy:
+        u = counter_uniforms_device(c["n_seed"], gstep, words, 0, 1 + x.shape[-1])
+        mask = u[..., 0] > c["n_thresh"][:, None]
+        unit = torch.where(c["n_sym"][:, None, None], 2.0 * u[..., 1:] - 1.0, u[..., 1:])
+        x = x + torch.where(mask[..., None], c["n_scale"][:, None, None] * unit, 0.0).to(x.dtype)
+    if scale_act:
+        y = ((y - c["act_min"][:, None]) / (c["act_max"][:, None] - c["act_min"][:, None] + ACT_EPS)) * 2.0 - 1.0
+
+    def loss_one(p, x_, y_, w_):
+        per_row = ((_mlp(p, x_, layers) - y_) ** 2).mean(dim=1)
+        return (w_ * per_row).sum() / w_.sum().clamp_min(1e-30)
+    g = vmap(grad(loss_one))(params, x, y, w)
+    loss = vmap(loss_one)(params, x, y, w)
+    upd = active & (w.sum(dim=1) > 0)  # zero-weight minibatches take no step, as in v1
+    b1, b2 = ADAM["betas"]
+    t = t + upd.to(t.dtype)
+    bc1, bc2 = 1 - b1 ** t, 1 - b2 ** t
+    new_p, new_m1, new_m2 = {}, {}, {}
+    for k in params:
+        shape = (M,) + (1,) * (params[k].dim() - 1)
+        u_ = upd.view(shape)
+        mk = torch.where(u_, m1[k] * b1 + g[k] * (1 - b1), m1[k])
+        vk = torch.where(u_, m2[k] * b2 + g[k] * g[k] * (1 - b2), m2[k])
+        denom = (vk.sqrt() / bc2.clamp_min(1e-30).sqrt().view(shape)) + ADAM["eps"]
+        stepped = params[k] - (lr / bc1.clamp_min(1e-30)).view(shape) * mk / denom
+        new_p[k], new_m1[k], new_m2[k] = torch.where(u_, stepped, params[k]), mk, vk
+    return new_p, new_m1, new_m2, t, torch.where(upd, loss, 0.0), upd
+
+
+def _step_resident(params, m1, m2, t, X, Y, W, WORDS, idx, active, gstep, c, layers: int, noisy: bool,
+                   scale_obs: bool, scale_act: bool, lr: float):
+    """_step with the minibatch gathered from the device-resident table inside the step (no chunk of rows)."""
+    return _step(params, m1, m2, t, X[idx], Y[idx], W[idx], WORDS[idx] if noisy else None, active, gstep, c,
+                 layers, noisy, scale_obs, scale_act, lr)
+
+
+_COMPILED: dict = {}
+
+
+def _engine(fn, compile: bool):
+    """The step function, compiled once per process (torch.compile then specializes per shape bucket)."""
+    if not compile:
+        return fn, "eager"
+    if fn.__name__ not in _COMPILED:
+        try:
+            _COMPILED[fn.__name__] = (torch.compile(fn), "compiled")
+        except Exception as e:  # recorded, never silent
+            _COMPILED[fn.__name__] = (fn, f"eager (compile unavailable: {type(e).__name__})")
+    return _COMPILED[fn.__name__]
+
+
 def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile: bool | None = None,
                 data_mode: str = "auto", memory_budget_fraction: float = 0.5, chunk_steps: int = CHUNK_STEPS,
-                deterministic: bool = False):
+                stream_chunk_bytes: int = 256 * 2**20, deterministic: bool = False):
     """Train every job's policy together; return [(policy, record)] in job order.
 
     settings are v1's (hidden_layers, learning_rate, batch_size, epochs, observation_scaler, action_scaler,
     balance_labels) and are shared by the group. compile defaults to True on CUDA and False elsewhere.
     data_mode: "auto" (resident when the table fits the budget, else streaming), "resident" or "streaming".
+    Streaming chunks are sized so one chunk of gathered rows is at most stream_chunk_bytes.
     deterministic: torch.use_deterministic_algorithms during training (recorded).
     """
     if not jobs:
@@ -239,13 +381,13 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         raise TrainingError(f"data_mode {data_mode!r} is not auto, resident or streaming")
     device = torch.device(device)
     compile = (device.type == "cuda") if compile is None else bool(compile)
+    balance = settings.get("balance_labels")
     for job in jobs:
         method = job.supervision.manifest()["method"]
         if (job.noise is not None) != (method == "noise_bc"):
             raise TrainingError("NoiseBC perturbation applies to the noise_bc arm, and the noise_bc arm needs one")
-        if settings.get("balance_labels") and method != "ccil":
+        if balance and method != "ccil":
             raise TrainingError("balance_labels repeats demonstrations against labels; it applies to ccil only")
-    balance = settings.get("balance_labels")
     bs = int(settings["batch_size"])
     t_setup = time.time()
 
@@ -255,104 +397,68 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     M, R = len(jobs), len(table["w"])
     D, A = table["obs"].shape[1], table["act"].shape[1]
     noisy = any(j.noise is not None for j in jobs)
-    table_bytes = R * 4 * (D + A + 1) + (R * 16 if noisy else 0)
+    row_bytes = 4 * (D + A + 1) + (16 if noisy else 0)
+    table_bytes = R * row_bytes
     if data_mode == "auto":
         free = torch.cuda.mem_get_info(device)[0] if device.type == "cuda" else table_bytes * 4
         data_mode = "resident" if table_bytes <= memory_budget_fraction * free else "streaming"
-    streams = _Streams(segments, [j.seed for j in jobs], bs, device)  # index math needs only the segments, never the table
+    if data_mode == "streaming":  # bound a chunk of gathered rows, whatever the row width
+        chunk_steps = max(1, min(chunk_steps, stream_chunk_bytes // (M * bs * row_bytes)))
+    streams = _Streams(segments, [j.seed for j in jobs], bs, device)  # index math needs only the segments
     steps = streams.steps.tolist()
-    for job, e, s in zip(jobs, epochs, steps):
-        if e < 1 or s < 1:
-            raise TrainingError(f"job (seed {job.seed}): {s} minibatches and {e} epochs leave no optimizer step")
+    for job, e, n in zip(jobs, epochs, steps):
+        if e < 1 or n < 1:
+            raise TrainingError(f"job (seed {job.seed}): {n} minibatches and {e} epochs leave no optimizer step")
 
-    # Policies: v1's initialization per seed and v1's scalers (fitted on the model's training rows), then stacked.
-    policies = []
+    # Policies: v1's initialization per seed, v1's scalers (once per distinct row set), then stacked.
+    policies, scaler_cache = [], {}
     for job, segs in zip(jobs, segments):
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(int(job.seed))
             p = VectorBCPolicy(D, A, settings["hidden_layers"], settings["observation_scaler"], settings["action_scaler"])
-        rows = np.concatenate([np.arange(st, st + ln) for st, ln in segs])
-        p.fit_scalers(table["obs"][rows], table["act"][rows])
+        key = tuple(segs)
+        if key not in scaler_cache:
+            scaler_cache[key] = _scalers(table, segs, settings["observation_scaler"], settings["action_scaler"])
+        for name, value in scaler_cache[key].items():
+            setattr(p, name, value)
         policies.append(p)
     params, _ = stack_module_state([p.net for p in policies])
     params = {k: v.detach().to(device) for k, v in params.items()}
-    template = policies[0].net.to("meta")
+    layers = len(settings["hidden_layers"]) + 1
 
     def stat(name, default):
         return torch.tensor(np.stack([getattr(p, name) if getattr(p, name) is not None else default for p in policies]),
                             dtype=torch.float32, device=device)
-    obs_mean, obs_std = stat("obs_mean", np.zeros(D)), stat("obs_std", np.ones(D) - OBS_EPS)
-    act_min, act_max = stat("act_min", -np.ones(A)), stat("act_max", np.ones(A))
+    c = {"obs_mean": stat("obs_mean", np.zeros(D)), "obs_std": stat("obs_std", np.ones(D) - OBS_EPS),
+         "act_min": stat("act_min", -np.ones(A)), "act_max": stat("act_max", np.ones(A))}
     scale_obs, scale_act = settings["observation_scaler"] != "none", settings["action_scaler"] != "none"
-
-    host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"]),
-            "syn": torch.as_tensor(table["synthetic"])}
+    host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"])}
     if noisy:
-        host["words"] = torch.as_tensor(np.array([identity_words64(e, f) for e, f in zip(table["episode_id"], table["frame"])],
-                                                 dtype=np.uint64).reshape(-1, 2).view(np.int64))
-        n_seed = torch.tensor([_s64(int(j.noise.seed) & _M64) if j.noise else 0 for j in jobs], device=device)
-        n_scale = torch.tensor([j.noise.scale if j.noise else 0.0 for j in jobs], dtype=torch.float64, device=device)
-        n_thresh = torch.tensor([1.0 - j.noise.mask_probability if j.noise else 2.0 for j in jobs],
-                                dtype=torch.float64, device=device)
-        n_sym = torch.tensor([j.noise is not None and j.noise.mode == "symmetric_uniform_half_batch" for j in jobs],
-                             device=device)
+        host["words"] = torch.as_tensor(_identity_words(table))
+        c["n_seed"] = torch.tensor([_s64(int(j.noise.seed) & _M64) if j.noise else 0 for j in jobs], device=device)
+        c["n_scale"] = torch.tensor([j.noise.scale if j.noise else 0.0 for j in jobs], dtype=torch.float64, device=device)
+        c["n_thresh"] = torch.tensor([1.0 - j.noise.mask_probability if j.noise else 2.0 for j in jobs],
+                                     dtype=torch.float64, device=device)
+        c["n_sym"] = torch.tensor([j.noise is not None and j.noise.mode == "symmetric_uniform_half_batch" for j in jobs],
+                                  device=device)
+    syn = torch.as_tensor(table["synthetic"], device=device)
     if data_mode == "resident":
-        dev_table = {k: v.to(device) for k, v in host.items()}
-    else:
-        host = {k: v.pin_memory() if device.type == "cuda" else v for k, v in host.items()}
-
-    b1, b2 = ADAM["betas"]
-    eps, lr = ADAM["eps"], float(settings["learning_rate"])
-
-    def loss_one(p, x, y, w):
-        per_row = ((functional_call(template, p, (x,)) - y) ** 2).mean(dim=1)
-        return (w * per_row).sum() / w.sum().clamp_min(1e-30)
-    grad_all, loss_all = vmap(grad(loss_one)), vmap(loss_one)
-
-    def step(params, m1, m2, t, x, y, w, words, active, gstep):
-        """One masked Adam step for all models on a gathered minibatch (M, B, ·)."""
-        if scale_obs:
-            x = (x - obs_mean[:, None]) / (obs_std[:, None] + OBS_EPS)
-        if noisy:
-            u = counter_uniforms_device(n_seed, gstep, words, 0, 1 + D)
-            mask = u[..., 0] > n_thresh[:, None]
-            unit = torch.where(n_sym[:, None, None], 2.0 * u[..., 1:] - 1.0, u[..., 1:])
-            x = x + torch.where(mask[..., None], n_scale[:, None, None] * unit, 0.0).to(x.dtype)
-        if scale_act:
-            y = ((y - act_min[:, None]) / (act_max[:, None] - act_min[:, None] + ACT_EPS)) * 2.0 - 1.0
-        upd = active & (w.sum(dim=1) > 0)  # zero-weight minibatches take no step, as in v1
-        g = grad_all(params, x, y, w)
-        loss = loss_all(params, x, y, w)
-        t = t + upd.to(t.dtype)
-        bc1, bc2 = 1 - b1 ** t, 1 - b2 ** t
-        new_p, new_m1, new_m2 = {}, {}, {}
-        for k in params:
-            shape = (M,) + (1,) * (params[k].dim() - 1)
-            u_ = upd.view(shape)
-            mk = torch.where(u_, m1[k] * b1 + g[k] * (1 - b1), m1[k])
-            vk = torch.where(u_, m2[k] * b2 + g[k] * g[k] * (1 - b2), m2[k])
-            denom = (vk.sqrt() / bc2.clamp_min(1e-30).sqrt().view(shape)) + eps
-            stepped = params[k] - (lr / bc1.clamp_min(1e-30)).view(shape) * mk / denom
-            new_p[k], new_m1[k], new_m2[k] = torch.where(u_, stepped, params[k]), mk, vk
-        return new_p, new_m1, new_m2, t, torch.where(upd, loss, 0.0), upd
-    engine = "eager"
-    if compile:
-        try:
-            step = torch.compile(step)
-            engine = "compiled"
-        except Exception as e:  # recorded, never silent
-            engine = f"eager (compile unavailable: {type(e).__name__})"
-
-    def gather(src, idx):
-        return {k: src[k][idx] for k in src}
+        dev = {k: v.to(device) for k, v in host.items()}
+        if not noisy:
+            dev["words"] = torch.zeros((1, 2), dtype=torch.int64, device=device)
+    elif device.type == "cuda":
+        host = {k: v.pin_memory() for k, v in host.items()}
+    lr = float(settings["learning_rate"])
+    statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr}
+    step_fn, engine = _engine(_step_resident if data_mode == "resident" else _step, compile)
 
     def chunks(epoch):
-        """(first step, gathered device batch dict for the chunk) for every chunk of the epoch."""
-        max_steps = max(s for s, e in zip(steps, epochs) if epoch < e)
+        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch."""
+        max_steps = max(n for n, e in zip(steps, epochs) if epoch < e)
         bounds = [(s0, min(chunk_steps, max_steps - s0)) for s0 in range(0, max_steps, chunk_steps)]
         if data_mode == "resident":
             for s0, n in bounds:
-                yield s0, gather(dev_table, streams.chunk(epoch, s0, n))
+                yield s0, streams.chunk(epoch, s0, n), None
             return
         q: queue.Queue = queue.Queue(maxsize=2)  # double buffering: one chunk training, one in flight
         side = torch.cuda.Stream(device) if device.type == "cuda" else None
@@ -361,27 +467,28 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
             for s0, n in bounds:
                 if side is not None:  # indices on the device (the same code as resident mode), rows from the host
                     with torch.cuda.stream(side):
-                        idx = streams.chunk(epoch, s0, n).cpu()
-                    cpu = {k: v.pin_memory() for k, v in gather(host, idx).items()}
+                        idx = streams.chunk(epoch, s0, n)
+                        idx_cpu = idx.cpu()
+                    cpu = {k: v[idx_cpu].pin_memory() for k, v in host.items()}
                     with torch.cuda.stream(side):
-                        dev = {k: v.to(device, non_blocking=True) for k, v in cpu.items()}
+                        rows = {k: v.to(device, non_blocking=True) for k, v in cpu.items()}
                     ev = torch.cuda.Event()
                     ev.record(side)
-                    q.put((s0, dev, ev, cpu))
+                    q.put((s0, idx, rows, ev, cpu))
                 else:
-                    cpu = gather(host, streams.chunk(epoch, s0, n))
-                    q.put((s0, cpu, None, cpu))
+                    idx = streams.chunk(epoch, s0, n)
+                    q.put((s0, idx, {k: v[idx] for k, v in host.items()}, None, None))
             q.put(None)
         th = threading.Thread(target=produce, daemon=True)
         th.start()
         while (item := q.get()) is not None:
-            s0, dev, ev, _keepalive = item
+            s0, idx, rows, ev, _keepalive = item
             if ev is not None:
                 main = torch.cuda.current_stream(device)
                 main.wait_event(ev)
-                for v in dev.values():  # allocated on the side stream, used on this one: keep the allocator from
-                    v.record_stream(main)  # reusing the memory before this stream's kernels have read it
-            yield s0, dev
+                for v in (idx, *rows.values()):  # allocated on the side stream, used on this one: keep the
+                    v.record_stream(main)        # allocator from reusing the memory before this stream reads it
+            yield s0, idx, rows
         th.join()
 
     m1 = {k: torch.zeros_like(v) for k, v in params.items()}
@@ -389,28 +496,34 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     t = torch.zeros(M, device=device)
     S_dev = torch.tensor(steps, device=device)
     epochs_dev = torch.tensor(epochs, device=device)
-    epoch_records = [[] for _ in jobs]
+    epoch_records, epoch_seconds = [[] for _ in jobs], []
     t_train = time.time()
     previous = torch.are_deterministic_algorithms_enabled()
     torch.use_deterministic_algorithms(bool(deterministic) or previous)
     try:
         for epoch in range(max(epochs)):
+            t_epoch = time.time()
             live = epoch < epochs_dev
             loss_sum = torch.zeros(M, device=device)
             n_steps = torch.zeros(M, device=device)
             seen_syn = torch.zeros(M, device=device)
-            for s0, batch in chunks(epoch):
-                for j in range(batch["x"].shape[1]):
+            for s0, idx, rows in chunks(epoch):
+                for j in range(idx.shape[1]):
                     b = s0 + j
                     active = live & (b < S_dev)
                     gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
-                    params, m1, m2, t, loss, upd = step(params, m1, m2, t, batch["x"][:, j], batch["y"][:, j],
-                                                        batch["w"][:, j], batch["words"][:, j] if noisy else None,
-                                                        active, gstep)
+                    if rows is None:
+                        out = step_fn(params, m1, m2, t, dev["x"], dev["y"], dev["w"], dev["words"], idx[:, j],
+                                      active, gstep, c, **statics)
+                    else:
+                        out = step_fn(params, m1, m2, t, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
+                                      rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
+                    params, m1, m2, t, loss, upd = out
                     loss_sum += loss
                     n_steps += upd.to(n_steps.dtype)
-                    seen_syn += torch.where(active, batch["syn"][:, j].sum(dim=1).to(seen_syn.dtype), 0.0)
+                    seen_syn += torch.where(active, syn[idx[:, j]].sum(dim=1).to(seen_syn.dtype), 0.0)
             ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
+            epoch_seconds.append(time.time() - t_epoch)
             for i in range(M):
                 if epoch < epochs[i]:
                     epoch_records[i].append({"epoch": epoch, "steps": steps[i],
@@ -426,14 +539,13 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
 
     group = {"size": M, "table_rows": R, "table_bytes": table_bytes, "table_blocks": table["blocks"],
              "data_mode": data_mode, "chunk_steps": chunk_steps, "engine": engine, "device": str(device),
-             "deterministic": bool(deterministic),
-             "torch": torch.__version__, "tf32_matmul": bool(torch.backends.cuda.matmul.allow_tf32),
+             "deterministic": bool(deterministic), "torch": torch.__version__,
+             "tf32_matmul": bool(torch.backends.cuda.matmul.allow_tf32),
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
-             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train}
+             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds}
     out = []
     for i, (job, policy) in enumerate(zip(jobs, policies)):
-        policy.net.to_empty(device="cpu")
         policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in params.items()})
         policy.net.eval()
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
@@ -447,7 +559,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                   "row_sources": {"demonstration": int(n_demo), "synthetic": int(streams.n[i]) - int(n_demo)},
                   "epochs": epoch_records[i], "group": group,
                   "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
-                  "optimizer": {"name": "adam", "learning_rate": lr, "betas": list(ADAM["betas"]), "eps": eps,
+                  "optimizer": {"name": "adam", "learning_rate": lr, "betas": list(ADAM["betas"]), "eps": ADAM["eps"],
                                 "weight_decay": ADAM["weight_decay"], "implementation": "functional, per-model masked"},
                   "noise_bc": None if job.noise is None else job.noise.descriptor()}
         out.append((policy, json.loads(json.dumps(record, default=str))))

@@ -20,6 +20,8 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 STUDY = REPO / "tools" / "m3_pendulum"
 ARMS = ("bc", "ccil")
+MARGIN_SEEDS = tuple(range(211, 251))
+MARGIN = 250.0  # return units; about a third of the per-seed CCIL - BC effects of the v4 run
 
 
 def _supervision(paths: dict, arm: str):
@@ -50,7 +52,8 @@ def _evaluate(args):
     return float(pendulum.rollout(policy.predict, task, seed, 0.0)["R"])
 
 
-def run(out: Path, device: str, seeds, label_seed: int) -> dict:
+def run(out: Path, device: str, seeds, label_seed: int, arms=ARMS, margin: float | None = None,
+        tag: str = "equivalence") -> dict:
     sys.path.insert(0, str(STUDY))
     import analyze
     import study
@@ -59,7 +62,7 @@ def run(out: Path, device: str, seeds, label_seed: int) -> dict:
     from ccil.pipelines.offline import generate_offline
     from ccil.pipelines.policy_harness import settings_of
     from ccil.training import vector_bc_v2 as v2
-    root = out / "equivalence"
+    root = out / tag
     study.prepare(root)
     results, per_unit = {}, []
     jobs_v1, v2_ckpts = [], []
@@ -75,34 +78,38 @@ def run(out: Path, device: str, seeds, label_seed: int) -> dict:
         finally:
             os.chdir(cwd)
         paths = {"dataset": str(prepared.out("data/dataset.npz")), "candidates": str(labeled.out("labels/candidates.npz"))}
-        for arm in ARMS:
+        for arm in arms:
             settings = settings_of(cfg.values)
             if arm == "bc":
                 settings["balance_labels"] = None
             sup = _supervision(paths, arm)
             trained = v2.train_group([v2.Job(sup, s) for s in seeds], settings, device=device)
             for s, (policy, record) in zip(seeds, trained):
-                path = out / f"v2-{task}-{arm}-s{s}.npz"
+                path = root / f"v2-{task}-{arm}-s{s}.npz"
                 policy.save(path)
                 v2_ckpts.append((task, arm, s, str(path)))
-            jobs_v1 += [(task, arm, s, paths, settings, str(out)) for s in seeds]
+            jobs_v1 += [(task, arm, s, paths, settings, str(root)) for s in seeds]
     ctx = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(6, mp_context=ctx) as pool:
         r1 = {(t, a, s): R for t, a, s, R in pool.map(_v1_unit, jobs_v1)}
         r2 = dict(zip([(t, a, s) for t, a, s, _ in v2_ckpts],
                       pool.map(_evaluate, [(t, s, p) for t, a, s, p in v2_ckpts])))
     for task in study.DATASETS:
-        for arm in ARMS:
+        for arm in arms:
             d = np.array([r2[(task, arm, s)] - r1[(task, arm, s)] for s in seeds])
             iv = analyze.union_interval(d, 0.95)
             results[f"{task}/{arm}"] = {"contains_zero": iv["interval"][0] <= 0 <= iv["interval"][1],
+                                        "within_margin": None if margin is None else
+                                        -margin <= iv["interval"][0] and iv["interval"][1] <= margin,
                                         "interval": iv["interval"], "width": iv["interval"][1] - iv["interval"][0],
                                         "mean_difference": iv["mean"],
                                         "mean_R_v1": float(np.mean([r1[(task, arm, s)] for s in seeds])),
                                         "mean_R_v2": float(np.mean([r2[(task, arm, s)] for s in seeds]))}
             per_unit += [{"task": task, "arm": arm, "seed": s, "R_v1": r1[(task, arm, s)], "R_v2": r2[(task, arm, s)]}
                          for s in seeds]
-    (out / "equivalence.json").write_text(json.dumps({"results": results, "per_seed": per_unit}, indent=1) + "\n")
-    return {"pass": all(v["contains_zero"] for v in results.values()), "results": results, "seeds": list(seeds),
-            "label_seed": label_seed, "criterion": "95% union interval (BCa with t) of mean(R_v2 - R_v1) contains 0",
-            "per_seed": "<out>/equivalence.json"}
+    (out / f"{tag}.json").write_text(json.dumps({"results": results, "per_seed": per_unit}, indent=1) + "\n")
+    key = "contains_zero" if margin is None else "within_margin"
+    criterion = ("95% union interval (BCa with t) of mean(R_v2 - R_v1) contains 0" if margin is None else
+                 f"95% union interval (BCa with t) of mean(R_v2 - R_v1) lies within [-{margin:g}, {margin:g}]")
+    return {"pass": all(v[key] for v in results.values()), "results": results, "seeds": list(seeds),
+            "arms": list(arms), "label_seed": label_seed, "criterion": criterion, "per_seed": f"<out>/{tag}.json"}

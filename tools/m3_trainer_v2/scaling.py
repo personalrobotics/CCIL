@@ -1,8 +1,10 @@
 """Scaling of trainer v2 (#108): time per step and peak memory as models, rows, dimension and width grow.
 
-Synthetic BC supervision (one shared table; M models with distinct seeds), one epoch each, compiled on
-CUDA. Time per step is the group's train time divided by its steps; memory is torch's peak allocated
-during training. Rows grow from 10^4 to 10^7 resident and 10^7 to 10^8 streaming.
+Synthetic BC supervision (one shared table; M models with distinct seeds), two epochs each, compiled on
+CUDA. The steady-state time per step is the second epoch's time divided by its steps; the first epoch's
+excess over it is the one-time cost (compilation, warm-up), reported separately, as is host setup.
+Memory is torch's peak allocated during training. Rows grow from 10^4 to 10^7 resident and 10^7 to 10^8
+streaming. A repeated group of the same shapes shows whether the compiled step is reused.
 """
 from __future__ import annotations
 
@@ -27,7 +29,7 @@ def _sup(n, d):
 
 def _measure(n, d, M, width, mode, device):
     sup = _sup(n, d)
-    settings = {"hidden_layers": [width, width], "learning_rate": 1e-3, "batch_size": 512, "epochs": 1,
+    settings = {"hidden_layers": [width, width], "learning_rate": 1e-3, "batch_size": 512, "epochs": 2,
                 "observation_scaler": "standard", "action_scaler": "min_max", "balance_labels": None}
     torch.cuda.synchronize()
     torch.cuda.reset_peak_memory_stats()
@@ -36,9 +38,10 @@ def _measure(n, d, M, width, mode, device):
     wall = time.time() - t0
     g = out[0][1]["group"]
     steps = out[0][1]["steps_per_epoch"]
-    return {"rows": n, "dim": d, "models": M, "width": width, "mode": g["data_mode"], "steps": steps,
-            "ms_per_step": 1000 * g["train_seconds"] / steps, "train_seconds": g["train_seconds"],
-            "setup_seconds": g["setup_seconds"], "wall_seconds": wall,
+    e1, e2 = g["epoch_seconds"]
+    return {"rows": n, "dim": d, "models": M, "width": width, "mode": g["data_mode"], "steps_per_epoch": steps,
+            "steady_ms_per_step": 1000 * e2 / steps, "one_time_seconds": max(0.0, e1 - e2),
+            "setup_seconds": g["setup_seconds"], "wall_seconds": wall, "chunk_steps": g["chunk_steps"],
             "peak_device_gb": torch.cuda.max_memory_allocated() / 2**30, "table_gb": g["table_bytes"] / 2**30}
 
 
@@ -52,7 +55,12 @@ def run(device) -> dict:
     for d in (64, 512):
         rows.append(_measure(10**6, d, 16, 256, "resident", device))
     rows.append(_measure(10**6, 3, 16, 1024, "resident", device))
-    stream = [r for r in rows if r["mode"] == "streaming"]
+    rows.append(_measure(10**6, 3, 16, 1024, "resident", device))  # same shapes again: is the compiled step reused?
+    rows.append(_measure(10**6, 512, 16, 256, "streaming", device))
+    stream = [r for r in rows if r["mode"] == "streaming" and r["dim"] == 3]
     bounded = max(r["peak_device_gb"] for r in stream) < 4 * min(r["peak_device_gb"] for r in stream) + 0.5
+    big_d = [r for r in rows if r["dim"] == 512]
     return {"pass": bool(bounded), "criterion": "streaming peak device memory does not grow with rows "
-                                                "(10^7 to 10^8 within 4x + 0.5 GB)", "measurements": rows}
+                                                "(10^7 to 10^8 within 4x + 0.5 GB)",
+            "compile_reused": rows[-2]["one_time_seconds"] < 0.5 * max(rows[-3]["one_time_seconds"], 1e-9),
+            "dim512_peak_gb": {r["mode"]: r["peak_device_gb"] for r in big_d}, "measurements": rows}

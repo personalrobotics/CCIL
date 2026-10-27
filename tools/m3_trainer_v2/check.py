@@ -23,9 +23,16 @@ Parts, each a case in DIR/report.json:
    Pendulum environment (tools/m3_pendulum/env.py) at its seed's initial states;
    per task and arm, the 95% union interval (BCa with t) of mean(R_v2 - R_v1)
    must contain 0. Its width is reported.
-4. scaling (CUDA host): steady-state ms per step and peak device memory for a
-   fixed number of steps, as models M, rows N (resident to 10^7, streaming to
-   10^8), observation dimension D and hidden width grow.
+4. equivalence_margin (CUDA host; declared before running, after the 10-seed
+   result was seen, to tighten it): CCIL only, fresh training seeds 211-250,
+   the same seed-501 supervision; the 95% union interval of mean(R_v2 - R_v1)
+   must lie within [-250, 250] return units (about a third of the per-seed
+   CCIL - BC effects of the v4 run) on both tasks.
+5. scaling (CUDA host): steady-state ms per step (second epoch), one-time cost
+   (first-epoch excess) and setup, and peak device memory, as models M, rows N
+   (resident to 10^7, streaming to 10^8), observation dimension D and hidden
+   width grow; whether a repeated group of the same shapes reuses the compiled
+   step; peak memory at D = 512 in both modes.
 """
 from __future__ import annotations
 
@@ -164,7 +171,8 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "modes", "equivalence", "scaling"]
+    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "modes", "equivalence", "equivalence_margin",
+                                                          "scaling"]
     cases = []
 
     def record(name, ok, **detail):
@@ -180,6 +188,11 @@ def main():
         import equivalence
         r = equivalence.run(out, a.device, EQ_SEEDS, LABEL_SEED)
         record("statistical_equivalence_v1_v2", r.pop("pass"), **r)
+    if "equivalence_margin" in parts:
+        import equivalence
+        r = equivalence.run(out, a.device, equivalence.MARGIN_SEEDS, LABEL_SEED, arms=("ccil",),
+                            margin=equivalence.MARGIN, tag="equivalence_margin")
+        record("equivalence_within_margin_v1_v2_ccil", r.pop("pass"), **r)
     if "scaling" in parts:
         import scaling
         r = scaling.run(a.device)
