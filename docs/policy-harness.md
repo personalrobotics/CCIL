@@ -105,12 +105,25 @@ per-step loop described above, kept for comparison. Both train the same
 scalers, loss, Adam settings, batch size, epochs and balancing.
 
 v2 is **not bit-compatible** with v1. Its shuffle and its arithmetic order
-differ, so it is validated by engine-correctness checks and statistical
-equivalence (below), not by parameter agreement.
+differ, so it is validated by engine-correctness checks and a comparison on
+Pendulum that found no detected difference (below), not by parameter
+agreement.
 
 **One batched program for a group of models.** `vector_bc_v2.train_group`
 trains M jobs (supervision, seed and, for NoiseBC, a perturbation) together.
 `ccil policy train` runs a group of one; batched groups come through #112.
+
+**Groups have fixed buckets and an execution identity.**
+- **Buckets.** A group is padded to the next of 1, 2, 4, 8, …, 128 models
+  with masked copies of its first job, which never update and are not
+  returned. Compilation therefore specializes per bucket.
+- **Why identity matters.** float32 rounding can depend on the bucket and
+  the members.
+- **What is recorded.** Every record and checkpoint carries the group's
+  execution identity: the ordered members, the model's position, the bucket,
+  the engine, the data mode and the precision. Two runs of the same job in
+  different groups share a training identity, but not an execution
+  identity.
 
 **Data:**
 - **Shared rows.** Rows are stored once in a shared table, and blocks are
@@ -127,8 +140,12 @@ trains M jobs (supervision, seed and, for NoiseBC, a perturbation) together.
   inside the step.
 - **Streaming:** the table stays in pinned host memory. Indices are computed
   on the device, rows are gathered on the host, and chunks bounded by a byte
-  budget are copied on a side stream, double-buffered. Device memory does not
-  grow with the table or the row width.
+  budget are copied on a side stream, double-buffered. The source flag is
+  streamed with the rows. Device memory does not grow with the table or the
+  row width.
+  - A failure in the producer reaches the trainer as an error, never a
+    hang.
+  - A trainer failure stops and joins the producer.
 
 Both modes give bit-identical parameters.
 
@@ -137,8 +154,13 @@ Both modes give bit-identical parameters.
 - **Optimizer:** a functional Adam in `torch.optim.Adam`'s update order, with
   per-model masks. Models past their last step, and zero-weight minibatches,
   take no step.
-- **Compilation:** `torch.compile` once per process on CUDA, so groups of the
-  same shapes reuse the compiled step.
+- **Compilation:** `torch.compile(mode="reduce-overhead")` (CUDA graphs) once
+  per process on CUDA, so groups of the same shapes reuse the compiled step.
+  - Compilation is lazy, so the first compiled step is guarded. A compiler
+    failure there falls back to eager for the whole run, with nothing
+    updated, and the outcome is recorded as the engine.
+- **Precision:** float32 with TF32 off is enforced during training, and the
+  caller's settings are restored afterwards.
 - **NoiseBC:** the #22 counter draws are computed on the device, bit-identical
   to the host draws.
 - **Synchronization:** the host synchronizes once per chunk and once per
@@ -275,13 +297,21 @@ The reports are in [`fixtures/evidence/m3-trainer-v2/`](fixtures/evidence/m3-tra
     remainder), and balancing matches v1.
 - **Modes and determinism:** resident equals streaming, and reruns are
   identical, on CPU and CUDA.
-- **Equivalence with v1 on Pendulum:** 10 training seeds, on BC and CCIL.
+- **Robustness:**
+  - a failing producer raises promptly;
+  - a synthetic block identical to the demonstration block keeps its source;
+  - execution identities differ between groups;
+  - a compiler failure falls back to eager with unchanged results;
+  - TF32 is enforced off and restored.
+- **No detected difference from v1 on Pendulum:** 10 training seeds, on BC
+  and CCIL.
   - The rule was declared before running: each 95% union interval of
     mean(R_v2 − R_v1) must contain 0.
-  - The CCIL intervals are wide, so this shows no detectable difference
-    rather than tight agreement.
+  - The CCIL intervals are wide, so this is **not** evidence of equivalence.
   - A tighter 40-seed margin test (`--parts equivalence_margin`) is
-    declared in the tool and was not run; #108 records why.
+    declared in the tool and was not run; #108 records why. v2 rests on
+    engine correctness, and #113 compares arms trained by the same trainer.
+- **Real workloads:** 20 distinct Pendulum label sets per task, trained as
+  20-seed groups of BC, NoiseBC and CCIL (balanced on discontinuous).
 - **Scaling:** steady-state time per step, one-time compile cost, setup and
   peak memory, as models, rows, observation dimension and width grow.
-

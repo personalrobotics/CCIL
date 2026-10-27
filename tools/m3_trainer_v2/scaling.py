@@ -57,10 +57,10 @@ def run(device) -> dict:
     rows.append(_measure(10**6, 3, 16, 1024, "resident", device))
     rows.append(_measure(10**6, 3, 16, 1024, "resident", device))  # same shapes again: is the compiled step reused?
     rows.append(_measure(10**6, 512, 16, 256, "streaming", device))
-    stream = [r for r in rows if r["mode"] == "streaming" and r["dim"] == 3]
-    bounded = max(r["peak_device_gb"] for r in stream) < 4 * min(r["peak_device_gb"] for r in stream) + 0.5
+    stream = {r["rows"]: r["peak_device_gb"] for r in rows if r["mode"] == "streaming" and r["dim"] == 3}
+    bounded = stream[10**8] <= 1.1 * stream[10**7] + 0.02  # 10x the rows: at most 10% + 20 MB more device memory
     big_d = [r for r in rows if r["dim"] == 512]
-    return {"pass": bool(bounded), "criterion": "streaming peak device memory does not grow with rows "
-                                                "(10^7 to 10^8 within 4x + 0.5 GB)",
+    return {"pass": bool(bounded), "criterion": "streaming peak device memory at 10^8 rows is at most 1.1x that at "
+                                                "10^7 rows + 0.02 GB",
             "compile_reused": rows[-2]["one_time_seconds"] < 0.5 * max(rows[-3]["one_time_seconds"], 1e-9),
             "dim512_peak_gb": {r["mode"]: r["peak_device_gb"] for r in big_d}, "measurements": rows}

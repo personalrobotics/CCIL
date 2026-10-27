@@ -185,7 +185,7 @@ def _table(jobs):
             lo, hi = int(rows[0]), int(rows[0]) + len(rows)
             if rows[-1] != hi - 1:
                 raise TrainingError("supervision rows must be demonstrations, then synthetic rows (the contract)")
-            key = _block_key(obs[lo:hi], act[lo:hi], w[lo:hi], sup.episode_id[lo:hi], sup.frame[lo:hi])
+            key = _block_key(np.array(part), obs[lo:hi], act[lo:hi], w[lo:hi], sup.episode_id[lo:hi], sup.frame[lo:hi])
             if key not in blocks:
                 start = sum(blocks[k]["rows"] for k in order)
                 blocks[key] = {"part": part, "rows": hi - lo, "start": start, "sup": sup, "lo": lo, "hi": hi}
@@ -350,18 +350,78 @@ def _step_resident(params, m1, m2, t, X, Y, W, WORDS, idx, active, gstep, c, lay
 
 
 _COMPILED: dict = {}
+BUCKETS = (1, 2, 4, 8, 16, 32, 64, 128)  # group sizes are padded to these, so compilation specializes per bucket
+COMPILE_MODE = "reduce-overhead"         # CUDA graphs: the step is launch-bound, not compute-bound
 
 
-def _engine(fn, compile: bool):
-    """The step function, compiled once per process (torch.compile then specializes per shape bucket)."""
-    if not compile:
-        return fn, "eager"
+def _compiled(fn):
+    """fn compiled once per process with COMPILE_MODE; torch.compile then specializes per shape bucket."""
     if fn.__name__ not in _COMPILED:
-        try:
-            _COMPILED[fn.__name__] = (torch.compile(fn), "compiled")
-        except Exception as e:  # recorded, never silent
-            _COMPILED[fn.__name__] = (fn, f"eager (compile unavailable: {type(e).__name__})")
+        _COMPILED[fn.__name__] = torch.compile(fn, mode=COMPILE_MODE)
     return _COMPILED[fn.__name__]
+
+
+class _Engine:
+    """The step, compiled or eager. Compilation is lazy, so the first compiled call is guarded: a compiler
+    failure before any update falls back to eager for the whole run (the step is functional, so a failed call
+    changed nothing), and the outcome is recorded."""
+
+    def __init__(self, fn, compile: bool):
+        self.fn, self.eager = (_compiled(fn), fn) if compile else (fn, fn)
+        self.state = f"compiled ({COMPILE_MODE})" if compile else "eager"
+        self.first = compile
+
+    def __call__(self, *args, **kwargs):
+        if not self.first:
+            return self.fn(*args, **kwargs)
+        self.first = False
+        try:
+            return self.fn(*args, **kwargs)
+        except Exception as e:  # a compiler failure on the first call: recorded, never silent
+            self.fn, self.state = self.eager, f"eager (compilation failed on the first step: {type(e).__name__}: {e})"[:300]
+            return self.fn(*args, **kwargs)
+
+
+def _bucket(m: int) -> int:
+    for b in BUCKETS:
+        if m <= b:
+            return b
+    raise TrainingError(f"a group has at most {BUCKETS[-1]} models; split {m} jobs into several groups")
+
+
+class _Precision:
+    """float32 with TF32 off for the training scope (the #108 protocol), restoring the caller's settings."""
+
+    def __enter__(self):
+        self.saved = (torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32,
+                      torch.get_float32_matmul_precision())
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        torch.set_float32_matmul_precision("highest")
+        self.effective = {"dtype": "float32", "tf32_matmul": False, "tf32_cudnn": False,
+                          "float32_matmul_precision": "highest"}
+        return self
+
+    def __exit__(self, *exc):
+        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32, prec = self.saved
+        torch.set_float32_matmul_precision(prec)
+        return False
+
+
+def _own(out):
+    """Clone a compiled step's outputs: a CUDA-graph replay overwrites its previous outputs."""
+    return tuple(v.clone() if isinstance(v, torch.Tensor) else {k: x.clone() for k, x in v.items()} for v in out)
+
+
+def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
+    """Put unless the consumer has stopped; never blocks forever."""
+    while not stop.is_set():
+        try:
+            q.put(item, timeout=0.1)
+            return True
+        except queue.Full:
+            continue
+    return False
 
 
 def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile: bool | None = None,
@@ -374,6 +434,11 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     data_mode: "auto" (resident when the table fits the budget, else streaming), "resident" or "streaming".
     Streaming chunks are sized so one chunk of gathered rows is at most stream_chunk_bytes.
     deterministic: torch.use_deterministic_algorithms during training (recorded).
+
+    The group is padded to the next size in BUCKETS with masked copies of its first job (they never update and
+    are not returned), so a group's compiled shapes, and therefore its float32 rounding, depend only on its
+    bucket; each record carries the group's execution identity (ordered members, its position, bucket, engine,
+    mode), because results can depend on it through rounding.
     """
     if not jobs:
         raise TrainingError("a group needs at least one job")
@@ -391,20 +456,25 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     bs = int(settings["batch_size"])
     t_setup = time.time()
 
-    table, job_blocks = _table(jobs)
+    n_real = len(jobs)
+    M = _bucket(n_real)
+    padded = list(jobs) + [jobs[0]] * (M - n_real)  # masked pads: they share job 0's data and never update
+    real = torch.tensor([i < n_real for i in range(M)], device=device)
+
+    table, job_blocks = _table(padded)
     segments = [_segments(b, balance) for b in job_blocks]
-    epochs = [int(settings["epochs"]) // int(balance) if balance else int(settings["epochs"]) for _ in jobs]
-    M, R = len(jobs), len(table["w"])
+    epochs = [int(settings["epochs"]) // int(balance) if balance else int(settings["epochs"]) for _ in padded]
+    R = len(table["w"])
     D, A = table["obs"].shape[1], table["act"].shape[1]
     noisy = any(j.noise is not None for j in jobs)
-    row_bytes = 4 * (D + A + 1) + (16 if noisy else 0)
+    row_bytes = 4 * (D + A + 1) + 1 + (16 if noisy else 0)  # features, weight, source flag, identity words
     table_bytes = R * row_bytes
     if data_mode == "auto":
         free = torch.cuda.mem_get_info(device)[0] if device.type == "cuda" else table_bytes * 4
         data_mode = "resident" if table_bytes <= memory_budget_fraction * free else "streaming"
     if data_mode == "streaming":  # bound a chunk of gathered rows, whatever the row width
         chunk_steps = max(1, min(chunk_steps, stream_chunk_bytes // (M * bs * row_bytes)))
-    streams = _Streams(segments, [j.seed for j in jobs], bs, device)  # index math needs only the segments
+    streams = _Streams(segments, [j.seed for j in padded], bs, device)  # index math needs only the segments
     steps = streams.steps.tolist()
     for job, e, n in zip(jobs, epochs, steps):
         if e < 1 or n < 1:
@@ -412,7 +482,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
 
     # Policies: v1's initialization per seed, v1's scalers (once per distinct row set), then stacked.
     policies, scaler_cache = [], {}
-    for job, segs in zip(jobs, segments):
+    for job, segs in zip(padded, segments):
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(int(job.seed))
             p = VectorBCPolicy(D, A, settings["hidden_layers"], settings["observation_scaler"], settings["action_scaler"])
@@ -432,16 +502,17 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     c = {"obs_mean": stat("obs_mean", np.zeros(D)), "obs_std": stat("obs_std", np.ones(D) - OBS_EPS),
          "act_min": stat("act_min", -np.ones(A)), "act_max": stat("act_max", np.ones(A))}
     scale_obs, scale_act = settings["observation_scaler"] != "none", settings["action_scaler"] != "none"
-    host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"])}
+    host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"]),
+            "syn": torch.as_tensor(table["synthetic"])}
     if noisy:
         host["words"] = torch.as_tensor(_identity_words(table))
-        c["n_seed"] = torch.tensor([_s64(int(j.noise.seed) & _M64) if j.noise else 0 for j in jobs], device=device)
-        c["n_scale"] = torch.tensor([j.noise.scale if j.noise else 0.0 for j in jobs], dtype=torch.float64, device=device)
-        c["n_thresh"] = torch.tensor([1.0 - j.noise.mask_probability if j.noise else 2.0 for j in jobs],
+        c["n_seed"] = torch.tensor([_s64(int(j.noise.seed) & _M64) if j.noise else 0 for j in padded], device=device)
+        c["n_scale"] = torch.tensor([j.noise.scale if j.noise else 0.0 for j in padded], dtype=torch.float64,
+                                    device=device)
+        c["n_thresh"] = torch.tensor([1.0 - j.noise.mask_probability if j.noise else 2.0 for j in padded],
                                      dtype=torch.float64, device=device)
-        c["n_sym"] = torch.tensor([j.noise is not None and j.noise.mode == "symmetric_uniform_half_batch" for j in jobs],
-                                  device=device)
-    syn = torch.as_tensor(table["synthetic"], device=device)
+        c["n_sym"] = torch.tensor([j.noise is not None and j.noise.mode == "symmetric_uniform_half_batch"
+                                   for j in padded], device=device)
     if data_mode == "resident":
         dev = {k: v.to(device) for k, v in host.items()}
         if not noisy:
@@ -450,7 +521,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         host = {k: v.pin_memory() for k, v in host.items()}
     lr = float(settings["learning_rate"])
     statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr}
-    step_fn, engine = _engine(_step_resident if data_mode == "resident" else _step, compile)
+    step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile)
 
     def chunks(epoch):
         """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch."""
@@ -461,35 +532,54 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                 yield s0, streams.chunk(epoch, s0, n), None
             return
         q: queue.Queue = queue.Queue(maxsize=2)  # double buffering: one chunk training, one in flight
+        stop = threading.Event()
         side = torch.cuda.Stream(device) if device.type == "cuda" else None
 
         def produce():
-            for s0, n in bounds:
-                if side is not None:  # indices on the device (the same code as resident mode), rows from the host
-                    with torch.cuda.stream(side):
+            try:
+                for s0, n in bounds:
+                    if stop.is_set():
+                        return
+                    if side is not None:  # indices on the device (the same code as resident mode), rows from the host
+                        with torch.cuda.stream(side):
+                            idx = streams.chunk(epoch, s0, n)
+                            idx_cpu = idx.cpu()
+                        cpu = {k: v[idx_cpu].pin_memory() for k, v in host.items()}
+                        with torch.cuda.stream(side):
+                            rows = {k: v.to(device, non_blocking=True) for k, v in cpu.items()}
+                        ev = torch.cuda.Event()
+                        ev.record(side)
+                        item = (s0, idx, rows, ev, cpu)
+                    else:
                         idx = streams.chunk(epoch, s0, n)
-                        idx_cpu = idx.cpu()
-                    cpu = {k: v[idx_cpu].pin_memory() for k, v in host.items()}
-                    with torch.cuda.stream(side):
-                        rows = {k: v.to(device, non_blocking=True) for k, v in cpu.items()}
-                    ev = torch.cuda.Event()
-                    ev.record(side)
-                    q.put((s0, idx, rows, ev, cpu))
-                else:
-                    idx = streams.chunk(epoch, s0, n)
-                    q.put((s0, idx, {k: v[idx] for k, v in host.items()}, None, None))
-            q.put(None)
-        th = threading.Thread(target=produce, daemon=True)
+                        item = (s0, idx, {k: v[idx] for k, v in host.items()}, None, None)
+                    if not _put(q, item, stop):
+                        return
+            except BaseException as e:  # reaches the consumer as an error, never as a silent hang
+                _put(q, ("error", e), stop)
+            finally:
+                _put(q, None, stop)
+        th = threading.Thread(target=produce, daemon=True, name="ccil-v2-producer")
         th.start()
-        while (item := q.get()) is not None:
-            s0, idx, rows, ev, _keepalive = item
-            if ev is not None:
-                main = torch.cuda.current_stream(device)
-                main.wait_event(ev)
-                for v in (idx, *rows.values()):  # allocated on the side stream, used on this one: keep the
-                    v.record_stream(main)        # allocator from reusing the memory before this stream reads it
-            yield s0, idx, rows
-        th.join()
+        try:
+            while (item := q.get()) is not None:
+                if item[0] == "error":
+                    raise TrainingError(f"the streaming producer failed: {type(item[1]).__name__}: {item[1]}") from item[1]
+                s0, idx, rows, ev, _keepalive = item
+                if ev is not None:
+                    main = torch.cuda.current_stream(device)
+                    main.wait_event(ev)
+                    for v in (idx, *rows.values()):  # allocated on the side stream, used on this one: keep the
+                        v.record_stream(main)        # allocator from reusing the memory before this stream reads it
+                yield s0, idx, rows
+        finally:  # the consumer finished or failed: release and join the producer either way
+            stop.set()
+            while True:
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    break
+            th.join(timeout=30)
 
     m1 = {k: torch.zeros_like(v) for k, v in params.items()}
     m2 = {k: torch.zeros_like(v) for k, v in params.items()}
@@ -501,46 +591,55 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     previous = torch.are_deterministic_algorithms_enabled()
     torch.use_deterministic_algorithms(bool(deterministic) or previous)
     try:
-        for epoch in range(max(epochs)):
-            t_epoch = time.time()
-            live = epoch < epochs_dev
-            loss_sum = torch.zeros(M, device=device)
-            n_steps = torch.zeros(M, device=device)
-            seen_syn = torch.zeros(M, device=device)
-            for s0, idx, rows in chunks(epoch):
-                for j in range(idx.shape[1]):
-                    b = s0 + j
-                    active = live & (b < S_dev)
-                    gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
-                    if rows is None:
-                        out = step_fn(params, m1, m2, t, dev["x"], dev["y"], dev["w"], dev["words"], idx[:, j],
-                                      active, gstep, c, **statics)
-                    else:
-                        out = step_fn(params, m1, m2, t, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
-                                      rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
-                    params, m1, m2, t, loss, upd = out
-                    loss_sum += loss
-                    n_steps += upd.to(n_steps.dtype)
-                    seen_syn += torch.where(active, syn[idx[:, j]].sum(dim=1).to(seen_syn.dtype), 0.0)
-            ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
-            epoch_seconds.append(time.time() - t_epoch)
-            for i in range(M):
-                if epoch < epochs[i]:
-                    epoch_records[i].append({"epoch": epoch, "steps": steps[i],
-                                             "mean_loss": ls[i] / ns[i] if ns[i] else None,
-                                             "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]),
-                                                           "synthetic": int(sy[i])},
-                                             "zero_weight_steps": int(steps[i] - ns[i])})
+        with _Precision() as precision:
+            for epoch in range(max(epochs)):
+                t_epoch = time.time()
+                live = (epoch < epochs_dev) & real
+                loss_sum = torch.zeros(M, device=device)
+                n_steps = torch.zeros(M, device=device)
+                seen_syn = torch.zeros(M, device=device)
+                for s0, idx, rows in chunks(epoch):
+                    for j in range(idx.shape[1]):
+                        b = s0 + j
+                        active = live & (b < S_dev)
+                        gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
+                        if rows is None:
+                            out = step_fn(params, m1, m2, t, dev["x"], dev["y"], dev["w"], dev["words"], idx[:, j],
+                                          active, gstep, c, **statics)
+                            syn_j = dev["syn"][idx[:, j]]
+                        else:
+                            out = step_fn(params, m1, m2, t, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
+                                          rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
+                            syn_j = rows["syn"][:, j]
+                        params, m1, m2, t, loss, upd = _own(out) if step_fn.state.startswith("compiled") else out
+                        loss_sum += loss
+                        n_steps += upd.to(n_steps.dtype)
+                        seen_syn += torch.where(active, syn_j.sum(dim=1).to(seen_syn.dtype), 0.0)
+                ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
+                epoch_seconds.append(time.time() - t_epoch)
+                for i in range(n_real):
+                    if epoch < epochs[i]:
+                        epoch_records[i].append({"epoch": epoch, "steps": steps[i],
+                                                 "mean_loss": ls[i] / ns[i] if ns[i] else None,
+                                                 "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]),
+                                                               "synthetic": int(sy[i])},
+                                                 "zero_weight_steps": int(steps[i] - ns[i])})
     finally:
         torch.use_deterministic_algorithms(previous)
     if device.type == "cuda":
         torch.cuda.synchronize(device)
     t_done = time.time()
 
-    group = {"size": M, "table_rows": R, "table_bytes": table_bytes, "table_blocks": table["blocks"],
-             "data_mode": data_mode, "chunk_steps": chunk_steps, "engine": engine, "device": str(device),
-             "deterministic": bool(deterministic), "torch": torch.__version__,
-             "tf32_matmul": bool(torch.backends.cuda.matmul.allow_tf32),
+    members = [{"seed": int(j.seed), "method": j.supervision.manifest()["method"],
+                "supervision_sha256": training_identity_v2(j.supervision, settings, j.seed, j.noise)["supervision_sha256"],
+                "noise_bc": None if j.noise is None else j.noise.descriptor()} for j in jobs]
+    execution = {"members": members, "bucket": M, "padding": M - n_real, "engine": step_fn.state,
+                 "compile_mode": COMPILE_MODE if compile else None, "data_mode": data_mode, "chunk_steps": chunk_steps,
+                 "batch_size": bs, "device": str(device), "torch": torch.__version__, "precision": precision.effective,
+                 "deterministic": bool(deterministic)}
+    execution_sha = hashlib.sha256(json.dumps(execution, sort_keys=True, default=str).encode()).hexdigest()
+    group = {**execution, "size": n_real, "execution_sha256": execution_sha, "table_rows": R, "table_bytes": table_bytes,
+             "table_blocks": table["blocks"],
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
              "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds}
@@ -552,6 +651,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         ident = training_identity_v2(job.supervision, settings, job.seed, job.noise)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
                   "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
+                  "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
+                                "engine": step_fn.state, "data_mode": data_mode},
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
                   "device": str(device), "rows": int(streams.n[i]), "steps_per_epoch": steps[i],
                   "rows_dropped_per_epoch": int(streams.n[i]) % bs, "epochs_run": epochs[i],

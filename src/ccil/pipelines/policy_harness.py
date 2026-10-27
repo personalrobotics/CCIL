@@ -101,6 +101,7 @@ def run_policy_harness(cfg) -> list[StageResult]:
         policy.save(run.path(POLICY_CHECKPOINT), None, record["epochs_run"],
                     {"supervision": sup.manifest()["inputs"], "seed": v["run.seed"], "method": v["policy.method"],
                      "trainer_version": record.get("trainer_version", "1"),
+                     "execution_sha256": record.get("execution", {}).get("execution_sha256"),
                      "training_identity_sha256": record["training_identity_sha256"]})
         run.metrics({"experimental": True, "supervision": sup.manifest(), "training": record})
         run.log(f"trained {record['trainer']} ({v['policy.method']}) on {record['rows']} rows for "
