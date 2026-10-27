@@ -108,15 +108,16 @@ def unit_supervision(cfg):
     return results, inputs, sup, noise, held
 
 
-def run_policy_harness(cfg, trained=None) -> list[StageResult]:
+def run_policy_harness(cfg, trained=None, unit=None) -> list[StageResult]:
     """Run the label stages (reused when complete), then policy.train and policy.evaluate.
 
     trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
-    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    unit's (policy, record) instead of training here; it needs policy.trainer_version 2. unit is the runner's
+    unit_supervision(cfg), so the supervision is not built twice.
     """
     v = cfg.values
     vector_bc = _trainer_module()
-    results, inputs, sup, noise, held = unit_supervision(cfg)
+    results, inputs, sup, noise, held = unit if unit is not None else unit_supervision(cfg)
     rep = IdentityRepresentation(v["representation.modality"])
     split_path = results[0].out(layout.SPLIT)
 
@@ -144,8 +145,8 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
         run.metrics({"experimental": True, "supervision": sup.manifest(), "training": record})
         run.log(f"trained {record['trainer']} ({v['policy.method']}) on {record['rows']} rows for "
                 f"{record['epochs_run']} epochs")
-    trained = run_stage("policy.train", cfg, inputs, train, components={"trainer": VectorMLP()})
-    eval_inputs = {**inputs, "policy": trained.out(POLICY_CHECKPOINT)}
+    train_result = run_stage("policy.train", cfg, inputs, train, components={"trainer": VectorMLP()})
+    eval_inputs = {**inputs, "policy": train_result.out(POLICY_CHECKPOINT)}
     if split_path.exists():
         eval_inputs["split"] = split_path  # evaluated on both splits even when training used every episode
 
@@ -174,4 +175,4 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
                 metrics[f"{part}_transitions"] = int(m.sum())
         run.metrics(metrics)
     evaluated = run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": VectorMLP()})
-    return [*results, trained, evaluated]
+    return [*results, train_result, evaluated]

@@ -87,6 +87,29 @@ def stage_run_id(identity: dict) -> str:
     return f"{identity['stage'].replace('.', '-')}-{hashlib.sha256(blob.encode()).hexdigest()[:12]}"
 
 
+def stage_dest(stage: str, cfg, inputs: dict, components: dict | None = None, parameters: dict | None = None) -> Path:
+    """The run directory run_stage uses for these arguments (its identity's run ID under run.output_dir)."""
+    identity = stage_identity(stage, cfg, inputs, {role: component(c) for role, c in (components or {}).items()},
+                              parameters)
+    return Path(cfg["run.output_dir"]) / stage_run_id(identity)
+
+
+def completed_stage(stage: str, cfg, inputs: dict, components: dict | None = None,
+                    parameters: dict | None = None) -> StageResult | None:
+    """The complete run run_stage would reuse for these arguments, or None (it would run the stage).
+
+    Study runners ask before batching work across units, so completed stages are never recomputed.
+    """
+    if cfg["run.overwrite"]:
+        return None
+    dest = stage_dest(stage, cfg, inputs, components, parameters)
+    if dest.parent.is_dir():
+        recover(dest.parent, dest.name)
+    if dest.exists() and validate_run(dest)[0] == "complete":
+        return StageResult(stage, dest, reused=True)
+    return None
+
+
 def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = None,
               parameters: dict | None = None) -> StageResult:
     """Run body(run) inside a RunWriter for this stage, or reuse a complete prior run.
