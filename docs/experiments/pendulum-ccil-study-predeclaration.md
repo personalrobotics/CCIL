@@ -403,7 +403,8 @@ never reported as study results.
     related evidence, not as a reproduction.
   - **Training diagnostics:** the dynamics model's held-out one-step error,
     the label counts by reason, and the supervision manifests; for the
-    modern arms, the per-epoch validation losses and the selected epoch.
+    modern arms, every validation (step, epoch, loss) on the fixed step
+    cadence, and the selected step and its loss.
   - **Zero-action reference.** R(s, zero), the zero-action policy (a = 0 at
     every step), on each study seed's initial states, noise-free and at
     each noise level, for both tasks. It needs no training and has no tuning.
