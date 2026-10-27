@@ -254,6 +254,34 @@ scalers. Dynamics models fit with `transition_model.trainer_version 2`. Balancin
 CCIL arms; BC and NoiseBC never balance
 (`policy.balance_noisy_labels false`).
 
+**CCIL-noLip on continuous Pendulum, stated before any version 5 run.** At
+the paper's continuous settings (`soft_sampling`, constraint 2.0, ε = 3e-4),
+the Lipschitz penalty is never active:
+- **The evidence.** In the dev timing runs of the version 5 stack, the
+  recorded penalty is exactly 0 in every epoch of every continuous fit.
+- **Why.** The finite-difference ratio of the trained residual model peaks
+  near 0.24, against the bound of 2.0. A one-step residual over dt = 0.02
+  has a small Lipschitz constant.
+- **The consequence.** CCIL-noLip and CCIL then train the same model:
+  - under trainer v1, bit for bit;
+  - with batched fits, differing only by compiled-kernel rounding.
+
+  So **CCIL-noLip − CCIL on continuous Pendulum is expected to be null by
+  construction.** It is reported, and it is not read as evidence about
+  Lipschitz regularization.
+
+The ablation does act on discontinuous Pendulum, whose `slack` regularizer
+reweights every sample.
+
+**Why this differs from the paper's ablation.** Legacy's soft-sampling term,
+which #21 corrected, compared the normalized residual with the next-state
+prediction, against 2 times the norm of the unscaled noise. At the same
+trained weights, that term is active on about 29% of samples. So the
+paper's continuous "no Lipschitz" ablation removed a different term than
+its name says.
+
+These are training diagnostics only. No return was used.
+
 **The modern recipe** (#115), for BC-modern and CCIL-modern only. Each value
 is a fixed design choice, with the reason for it; only the learning rate is
 tuned (§6).
