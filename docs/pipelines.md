@@ -53,8 +53,10 @@ stage manifest.
   model fits every episode, and a separate evaluation model, fitted on the train
   split, is scored on the held-out episodes.
 - **`train`:** the label model fits the train split only, and it is the model
-  scored. Held-out episodes then influence no label: a clean holdout, for
-  studies that select or tune on those episodes.
+  scored. Held-out episodes then influence no training label: a clean
+  holdout, for studies that select or tune on those episodes. Labels are
+  still generated for held-out episodes' transitions; supervision excludes
+  them when `policy.exclude_validation_episodes` is true.
 - **`transition_model.trainer_version 2`** fits mlp models with the batched
   engine (`models/mlp_batched.py`): the same protocol (initialization,
   regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a

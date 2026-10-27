@@ -26,6 +26,10 @@ SUPERVISION = "supervision.json"
 NOISY = ("noisy_action", "noisy_action_fe")
 
 
+class PolicyMismatch(RuntimeError):
+    """A policy trained elsewhere does not belong to this unit, or to its record: a study-runner defect."""
+
+
 class VectorMLP:
     """Component identity of the experimental trainer (stage identity)."""
 
@@ -98,6 +102,13 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
             if v["policy.trainer_version"] != "2":
                 raise ConfigError(["a trained policy from a group comes from trainer v2: set policy.trainer_version 2"])
             policy, record = trained
+            from ..training import vector_bc_v2
+            want = vector_bc_v2.training_identity_v2(sup, settings_of(v), v["run.seed"], noise)["sha256"]
+            if record.get("training_identity_sha256") != want:
+                raise PolicyMismatch(f"the trained policy's training identity {record.get('training_identity_sha256')} "
+                                     f"is not this unit's {want}")
+            if record.get("parameters_sha256") != vector_bc_v2.parameters_sha256(policy):
+                raise PolicyMismatch("the trained policy's weights are not the ones its record describes")
         elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
             [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise)], settings_of(v),

@@ -5,8 +5,15 @@
         python tools/m3_fit_v2/check.py --out DIR [--device cuda] [--parts all]
 
 1. correctness (any host): for none and slack, one full-batch step (order-free) equals
-   MLPTransitionModel.fit's step from the same initialization (float32 tolerance); a rerun is identical;
-   fit_group refuses the regularizers it does not support.
+   MLPTransitionModel.fit's step from the same initialization (float32 tolerance); for soft_sampling and
+   soft_sampling_slack, with the same injected perturbations and the constraint at half the fixture's median
+   ratio, so the hinge is active,
+   the two engines give the same loss and gradients (float64); a rerun is identical; fit_group refuses the
+   regularizers it does not support, and so does preflight for trainer_version 2; compute.deterministic is
+   honored, recorded and restored.
+1b. stage_hooks (any host): fit_transition_stage(prefit=...) and run_policy_harness(trained=...) accept a
+   group's result for its own unit and refuse another unit's (a swapped fit, a swapped policy) and a policy
+   whose weights are not its record's.
 2. pendulum (CUDA host; declared before running): on each task's training transitions (the ordinary
    pipeline's data.prepare at seed 501), with the task's paper settings (continuous soft_sampling,
    discontinuous slack) and with lipschitz_type none, fit seeds 401-405 per-fit (MLPTransitionModel.fit)
@@ -14,6 +21,13 @@
    mean(error_batched - error_perfit) over the 5 paired seeds is reported (no decision: the fits use
    different shuffles and perturbation draws, so this measures how much the engine changes the fitted
    model, against the seed-to-seed spread).
+2b. equivalence (CUDA host; the gate). Declared before any of its fits ran: for each task, with the task's
+   paper regularizer and with lipschitz_type none, fit fresh seeds 601-640 per-fit (MLPTransitionModel.fit)
+   and as one batched group, on the task's training transitions (data.prepare at seed 501). The batched engine
+   is equivalent when the 90% union interval (BCa with paired t; TOST at 5% per side) of
+   mean(error_batched - error_perfit) lies within +-25% of the per-fit mean held-out one-step error. The 25%
+   bound is a declared practical-equivalence margin, fixed before these fits and not derived from any observed
+   spread.
 3. timing (CUDA host): wall time of one per-fit fit, and of 20 seeds as one batched group, per task.
 4. clean_holdout (any host): on the first 20 continuous Pendulum episodes (labels_per_transition 2, 2 dynamics
    epochs), the label pipeline runs on the data and on a copy whose held-out episodes (the data.prepare split
@@ -54,6 +68,144 @@ def _data(n, seed):
 BASE = dict(hidden_layers=[64, 64], epochs=1, batch_size=512, activation="relu", lipschitz_constraint=2.0,
             soft_penalty_weight=0.001, soft_sampling_eps=0.0003, soft_samples=5, slack_weight=0.1,
             learning_rate=1e-3, weight_decay=1e-5)
+
+
+def activated_references() -> dict:
+    """v1's and v2's sampled Lipschitz losses and gradients from the same perturbations, hinge active (float64)."""
+    from ccil.models import mlp as mlp_mod
+    from ccil.models import mlp_batched as mb
+    out, g = {}, torch.Generator().manual_seed(0)
+    n, eps = BASE["soft_samples"], BASE["soft_sampling_eps"]
+    for lt in ("soft_sampling", "soft_sampling_slack"):
+        z, a, zn = _data(2048, 6)
+        mm = MLPTransitionModel(**{**BASE, "lipschitz_type": lt, "epochs": 2})
+        mm.fit(z, a, zn, seed=6)
+        mm.net.double()
+        if mm.lam is not None:
+            mm.lam.double()
+        s_, a_, sp_ = (torch.as_tensor(x[:128], dtype=torch.float64) for x in (z, a, zn))
+        nz = torch.randn((128 * n, 4), generator=g, dtype=torch.float64)
+        with torch.no_grad():  # the constraint at half the fixture's median ratio, so the hinge is active
+            L = 0.5 * float(mlp_mod.lipschitz_ratio(s_, a_, mm.net.predict, n, eps, noise=(nz[:, :3], nz[:, 3:])).median())
+        trainable = {"net": {k: v.detach().clone().requires_grad_(True) for k, v in mm.net.named_parameters()}}
+        buffers = {"net": {k: v.clone() for k, v in mm.net.named_buffers()}}
+        if mm.lam is not None:
+            trainable["lam"] = {k: v.detach().clone().requires_grad_(True) for k, v in mm.lam.named_parameters()}
+            buffers["lam"] = {k: v.clone() for k, v in mm.lam.named_buffers()}
+        k = {"layers": len(BASE["hidden_layers"]) + 1, "relu": True, "lipschitz_type": lt, "lipschitz_constraint": L,
+             "soft_penalty_weight": 1.0, "soft_sampling_eps": eps, "soft_samples": n, "slack_weight": BASE["slack_weight"],
+             "coordinates": "raw"}
+        loss2, terms2 = mb._loss(trainable, buffers, s_, a_, sp_, nz, k)
+        g2 = torch.autograd.grad(loss2, [v for d in trainable.values() for v in d.values()])
+        y = (sp_ - s_ - mm.net.out_shift) / (mm.net.out_scale + 1e-8)
+        if lt == "soft_sampling":
+            ratio = mlp_mod.lipschitz_ratio(s_, a_, mm.net.predict, n, eps, noise=(nz[:, :3], nz[:, 3:]))
+            pen = torch.relu(ratio - L).mean()
+        else:
+            terms, slack = mlp_mod.slack_sampling_terms((s_, a_), mm.net.predict, lambda s0, a0: mm.lam.predict(s0, a0),
+                                                        L, eps, n, noise=(nz[:, :3], nz[:, 3:]))
+            pen = terms.mean() + 1 - torch.exp(-0.1 * torch.abs(slack).mean())
+        loss1 = torch.nn.functional.mse_loss(mm.net(s_, a_), y) + pen
+        g1 = torch.autograd.grad(loss1, list(mm.net.parameters()) + (list(mm.lam.parameters()) if mm.lam else []))
+        dl = abs(float(loss2) - float(loss1)) / abs(float(loss1))
+        dg = max(float((x - y_).abs().max() / (y_.abs().max() + 1e-12)) for x, y_ in zip(g2, g1))
+        active = float((ratio > L).float().mean()) if lt == "soft_sampling" else None
+        out[f"activated_reference_{lt}"] = {"pass": dl < 1e-9 and dg < 1e-8 and float(pen) > 0, "dtype": "float64",
+                                            "penalty": float(pen), "loss_relative_difference": dl,
+                                            "gradient_max_relative_difference": dg, "active_share": active,
+                                            "constraint": L, "note": "constraint at half the median ratio"}
+    return out
+
+
+def determinism_and_preflight() -> dict:
+    from ccil.config import ConfigError, resolve
+    from ccil.pipelines import offline
+    z, a, zn = _data(1024, 2)
+    before = torch.are_deterministic_algorithms_enabled()
+    [(_, rec)] = fit_group([FitJob(z, a, zn, 1)], {**BASE, "lipschitz_type": "none"}, device="cpu", compile=False,
+                           deterministic=True)
+    restored = torch.are_deterministic_algorithms_enabled() == before
+    try:
+        offline.preflight(resolve(recipe="pendulum_cont", sets=["data.path=x.npz", "transition_model.trainer_version=2",
+                                                                "transition_model.lipschitz_type=soft_jac"]))
+        refused = None
+    except ConfigError as e:
+        refused = str(e)
+    return {"pass": rec["group"]["deterministic"] is True and restored and refused is not None
+            and "trainer_version" in refused, "recorded": rec["group"]["deterministic"], "flag_restored": restored,
+            "preflight_refusal": refused}
+
+
+def _rows(prepared, rep):
+    """(z, a, z_next, train mask) of a prepared stage, as fit_transition_stage reads them (forward direction)."""
+    from ccil.core import transitions
+    from ccil.schema import read_trajectories
+    b = transitions(read_trajectories(prepared.out("data/dataset.npz")), rep)
+    split = json.loads(prepared.out("data/split.json").read_text())
+    return b.z, b.a, b.z_next, np.isin(b.episode_id, list(split["train"]))
+
+
+def stage_hooks(out: Path) -> dict:
+    """A group's fit and policy are accepted for their own unit and refused for another's."""
+    import study
+
+    from ccil.config import resolve
+    from ccil.core import IdentityRepresentation
+    from ccil.data.prepare import prepare_stage
+    from ccil.pipelines import offline, policy_harness
+    from ccil.schema import read_trajectories, write_trajectories
+    from ccil.schema.trajectories import TrajectoryDataset
+    from ccil.supervision import build_supervision
+    from ccil.training import vector_bc_v2 as v2
+    root = out / "hooks"
+    study.prepare(root)
+    full = read_trajectories(root / "inputs" / "data" / f"{study.DATASETS['continuous']}.npz")
+    data = root / "small.npz"
+    write_trajectories(TrajectoryDataset(full.episodes[:20], full.meta), data)
+    os.chdir(root / "inputs")
+    config = str(root / "inputs" / "config" / study.CONFIGS["continuous"])
+
+    def cfg(seed):
+        return resolve(config=config, sets=[f"run.seed={seed}", "compute.device=cpu", f"data.path={data}",
+                                            f"run.output_dir={root / 'stages'}", "transition_model.epochs=1",
+                                            "transition_model.trainer_version=2", "policy.trainer_version=2",
+                                            "policy.method=bc", "policy.epochs=1",
+                                            "policy.exclude_validation_episodes=false",
+                                            "generation.labels_per_transition=2"])
+    c1, c2 = cfg(1), cfg(2)
+    rep = IdentityRepresentation("state")
+    fits, prepared = {}, {}
+    for c in (c1, c2):
+        p = prepare_stage(c)
+        prepared[c["run.seed"]] = p
+        zz, aa, zn, tr = _rows(p, rep)
+        settings = dict(offline.build_model(c.values).settings)
+        out_ = fit_group([FitJob(zz, aa, zn, c["run.seed"]), FitJob(zz[tr], aa[tr], zn[tr], c["run.seed"])], settings,
+                         device="cpu", compile=False)
+        fits[c["run.seed"]] = {"label": out_[0], "evaluation": out_[1]}
+    res = {}
+    try:
+        offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[2])
+        res["swapped_fit_refused"] = False
+    except Exception as e:  # noqa: BLE001 - the stage wraps the refusal
+        res["swapped_fit_refused"] = "PrefitMismatch" in repr(e) or "fit identity" in str(e)
+    offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[1])
+    res["own_fit_accepted"] = True
+    offline.generate_offline(c1)
+    sup = build_supervision(prepared[1].out("data/dataset.npz"), "bc", representation=rep,
+                            demonstration_weight=c1["policy.demonstration_weight"])
+    [own, other] = v2.train_group([v2.Job(sup, 1), v2.Job(sup, 2)], policy_harness.settings_of(c1.values),
+                                  device="cpu", compile=False)
+    for name, trained in (("swapped_policy_refused", other),
+                          ("tampered_weights_refused", (other[0], {**own[1]}))):
+        try:
+            policy_harness.run_policy_harness(c1, trained=trained)
+            res[name] = False
+        except Exception as e:  # noqa: BLE001 - the stage wraps the refusal
+            res[name] = "PolicyMismatch" in repr(e) or "not this unit" in str(e) or "not the ones" in str(e)
+    policy_harness.run_policy_harness(c1, trained=own)
+    res["own_policy_accepted"] = True
+    return {"pass": all(res.values()), **res}
 
 
 def correctness(device):
@@ -133,6 +285,38 @@ def pendulum(out: Path, device: str):
                                        "perfit_seed_sd": float(np.std(per, ddof=1))}
     return {"pass": True, "results": results, "seeds": list(SEEDS),
             "criterion": "reported, no decision (declared in the tool's docstring)"}
+
+
+EQUIVALENCE_SEEDS, EQUIVALENCE_MARGIN, EQUIVALENCE_LEVEL = tuple(range(601, 641)), 0.25, 0.90
+
+
+def equivalence(out: Path, device: str) -> dict:
+    sys.path.insert(0, str(REPO / "tools" / "m3_pendulum"))
+    import analyze
+    results = {}
+    for task in ("continuous", "discontinuous"):
+        (z, a, zn), (zh, ah, znh), paper = _transitions(out, task)
+        for lt in (paper["lipschitz_type"], "none"):
+            st = {**paper, "lipschitz_type": lt}
+            err = lambda m: float(np.linalg.norm(m.delta(zh, ah) + zh - znh, axis=1).mean())  # noqa: E731
+            per = []
+            for s_ in EQUIVALENCE_SEEDS:
+                m = MLPTransitionModel(**st, device=device)
+                m.fit(z, a, zn, seed=s_)
+                per.append(err(m))
+            batched = [err(m) for m, _ in fit_group([FitJob(z, a, zn, s_) for s_ in EQUIVALENCE_SEEDS], st,
+                                                    device=device)]
+            d = np.array(batched) - np.array(per)
+            iv = analyze.union_interval(d, EQUIVALENCE_LEVEL)
+            margin = EQUIVALENCE_MARGIN * float(np.mean(per))
+            results[f"{task}/{lt}"] = {"equivalent": bool(-margin < iv["interval"][0] and iv["interval"][1] < margin),
+                                       "interval": iv["interval"], "mean_difference": iv["mean"], "margin": margin,
+                                       "perfit_mean": float(np.mean(per)), "batched_mean": float(np.mean(batched)),
+                                       "held_out_error_perfit": per, "held_out_error_batched": batched,
+                                       "lipschitz_coordinates": st.get("lipschitz_coordinates", "raw")}
+    return {"pass": all(r["equivalent"] for r in results.values()), "seeds": list(EQUIVALENCE_SEEDS),
+            "criterion": f"{int(EQUIVALENCE_LEVEL * 100)}% union interval of mean(batched - per-fit) within "
+                         f"+-{int(EQUIVALENCE_MARGIN * 100)}% of the per-fit mean", "results": results}
 
 
 def timing(out: Path, device: str):
@@ -222,18 +406,27 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = ["correctness", "clean_holdout", "pendulum", "timing"] if a.parts == "all" else a.parts.split(",")
+    parts = (["correctness", "stage_hooks", "clean_holdout", "pendulum", "timing"] if a.parts == "all"
+             else a.parts.split(","))
     cases = []
 
     def record(name, ok, **detail):
         cases.append({"case": name, "pass": bool(ok), **detail})
         print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else json.dumps(detail, default=str)[:600]}", flush=True)
     if "correctness" in parts:
-        for name, r in correctness(a.device).items():
+        for name, r in {**correctness(a.device), **activated_references()}.items():
             record(f"correctness_{name}", r.pop("pass"), **r)
+        r = determinism_and_preflight()
+        record("correctness_determinism_and_preflight", r.pop("pass"), **r)
+    if "stage_hooks" in parts:
+        r = stage_hooks(out)
+        record("stage_hooks", r.pop("pass"), **r)
     if "clean_holdout" in parts:
         r = clean_holdout(out, a.device)
         record("clean_holdout", r.pop("pass"), **r)
+    if "equivalence" in parts:
+        r = equivalence(out, a.device)
+        record("equivalence", r.pop("pass"), **r)
     if "pendulum" in parts:
         r = pendulum(out, a.device)
         record("pendulum_held_out_error", r.pop("pass"), **r)
