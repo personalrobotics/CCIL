@@ -331,7 +331,78 @@ def recipe(device) -> dict:
     except v2.TrainingError:
         refused = True
     out["validation_requires_held_out_data"] = {"pass": refused}
+
+    # A step budget bounds the work: with 64 minibatches per epoch, a budget of 100 runs 64 + 36 steps, and a
+    # budget of 10 runs 10, whatever the epoch length; each epoch's record is exact.
+    calls = {"n": 0}
+    real_call = v2._Engine.__call__
+
+    def counting(self, *a, **k):
+        calls["n"] += 1
+        return real_call(self, *a, **k)
+    big_train = labelled(2048, 7, 0.5)
+    budget_rows = []
+    v2._Engine.__call__ = counting
+    try:
+        for budget in (100, 10):
+            calls["n"] = 0
+            [(_, rb)] = v2.train_group([v2.Job(big_train, 5)], {**SETTINGS, "batch_size": 32, "epochs": 1,
+                                                                 "step_budget": budget}, device=device, compile=False)
+            budget_rows.append({"budget": budget, "steps_per_epoch": rb["steps_per_epoch"], "engine_calls": calls["n"],
+                                "epoch_steps": [e["steps"] for e in rb["epochs"]],
+                                "optimizer_steps": sum(e["optimizer_steps"] for e in rb["epochs"]),
+                                "rows_seen": sum(sum(e["rows_seen"].values()) for e in rb["epochs"])})
+    finally:
+        v2._Engine.__call__ = real_call
+    out["step_budget_bounds_work"] = {
+        "pass": all(r["engine_calls"] == r["budget"] == sum(r["epoch_steps"]) == r["optimizer_steps"]
+                    and r["rows_seen"] == r["budget"] * 32 for r in budget_rows)
+        and budget_rows[0]["epoch_steps"] == [64, 36] and budget_rows[1]["epoch_steps"] == [10],
+        "cases": budget_rows}
+
+    # Validation is deduplicated and reduced in bounded chunks: two models sharing one held-out set store it once,
+    # and a tiny chunk (7 rows per model) selects the same checkpoints with the same losses as one large chunk.
+    vs = {"batch_size": 32, "epochs": 6, "learning_rate": 3e-3, "checkpoint_selection": "validation"}
+    jobs_v = [v2.Job(train, 5, validation=held), v2.Job(train, 6, validation=held)]
+    tiny = v2.train_group(jobs_v, {**SETTINGS, **vs}, device=device, compile=False,
+                          stream_chunk_bytes=2 * 7 * 4 * (3 + 1 + 1))
+    large = v2.train_group(jobs_v, {**SETTINGS, **vs}, device=device, compile=False)
+    same = all(a_[1]["validation"]["selected"] == b_[1]["validation"]["selected"]
+               and max(abs(x["loss"] - y["loss"]) / max(abs(y["loss"]), 1e-12)
+                       for x, y in zip(a_[1]["validation"]["evaluations"], b_[1]["validation"]["evaluations"])) < 1e-5
+               for a_, b_ in zip(tiny, large))
+    g_tiny, g_large = tiny[0][1]["group"]["validation"], large[0][1]["group"]["validation"]
+    out["validation_bounded_and_deduplicated"] = {
+        "pass": same and g_tiny["distinct_sets"] == 1 and g_tiny["rows_per_chunk"] == 7 and g_large["rows_per_chunk"] > 1000,
+        "same_selection_and_losses": same, "tiny": g_tiny, "large": g_large}
+
+    # The training identity includes the validation set: a different held-out set is a different training run.
+    other_held = labelled(2048, 8, 0.0)
+    ids = [v2.training_identity_v2(train, {**SETTINGS, **vs}, 5, None, h)["sha256"] for h in (held, held, other_held, None)]
+    out["validation_in_training_identity"] = {"pass": ids[0] == ids[1] and len({ids[0], ids[2], ids[3]}) == 3,
+                                              "identities": ids}
+
+    # Ingress: a cosine warm-up that is not shorter than the budget, and validation with zero total weight.
+    refusals = {}
+    cases = {"warmup_not_shorter_than_budget": ([v2.Job(train, 5)], {**SETTINGS, "lr_schedule": "cosine",
+                                                                      "warmup_steps": 50, "step_budget": 50,
+                                                                      "batch_size": 32}),
+             "zero_weight_validation": ([v2.Job(train, 5, validation=_zero_weight(held))],
+                                        {**SETTINGS, "batch_size": 32, "checkpoint_selection": "validation"})}
+    for name, (jobs_, st_) in cases.items():
+        try:
+            v2.train_group(jobs_, st_, device=device, compile=False)
+            refusals[name] = False
+        except v2.TrainingError:
+            refusals[name] = True
+    out["ingress_refusals"] = {"pass": all(refusals.values()), **refusals}
     return out
+
+
+def _zero_weight(sup):
+    """sup with every weight 0 (the same rows)."""
+    import dataclasses
+    return dataclasses.replace(sup, weights=np.zeros_like(np.asarray(sup.weights)))
 
 
 def modes_and_determinism(device) -> dict:

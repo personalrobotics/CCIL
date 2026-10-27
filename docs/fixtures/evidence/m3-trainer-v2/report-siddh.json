@@ -38,7 +38,7 @@
    "case": "robustness_producer_failure_raises_promptly",
    "error": "the streaming producer failed: MemoryError: injected producer failure",
    "pass": true,
-   "seconds": 0.51
+   "seconds": 0.45
   },
   {
    "case": "robustness_identical_blocks_keep_their_source",
@@ -76,6 +76,142 @@
    }
   },
   {
+   "case": "recipe_adamw_cosine",
+   "max_relative_difference": 9.069370207726024e-06,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "case": "recipe_adamw_cosine_clip",
+   "max_relative_difference": 1.6800915545900352e-05,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "case": "recipe_adamw_cosine_ema",
+   "max_relative_difference": 5.888176929147448e-06,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "best_recorded": 0.02945246361196041,
+   "case": "recipe_validation_selection",
+   "epochs": 150,
+   "interior": true,
+   "last_epoch_loss": 0.16529910266399384,
+   "pass": true,
+   "returned_loss": 0.029452461749315262,
+   "selected": 3
+  },
+  {
+   "case": "recipe_validation_step_cadence",
+   "expected_steps": [
+    40,
+    80,
+    120,
+    160,
+    200,
+    240,
+    280,
+    300
+   ],
+   "models": [
+    {
+     "best_recorded": 0.04175125062465668,
+     "ok": true,
+     "returned_loss": 0.04175125062465668,
+     "selected_step": 40,
+     "steps": [
+      40,
+      80,
+      120,
+      160,
+      200,
+      240,
+      280,
+      300
+     ]
+    },
+    {
+     "best_recorded": 0.020841728895902634,
+     "ok": true,
+     "returned_loss": 0.020841728895902634,
+     "selected_step": 80,
+     "steps": [
+      40,
+      80,
+      120,
+      160,
+      200,
+      240,
+      280,
+      300
+     ]
+    }
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_validation_requires_held_out_data",
+   "pass": true
+  },
+  {
+   "case": "recipe_step_budget_bounds_work",
+   "cases": [
+    {
+     "budget": 100,
+     "engine_calls": 100,
+     "epoch_steps": [
+      64,
+      36
+     ],
+     "optimizer_steps": 100,
+     "rows_seen": 3200,
+     "steps_per_epoch": 64
+    },
+    {
+     "budget": 10,
+     "engine_calls": 10,
+     "epoch_steps": [
+      10
+     ],
+     "optimizer_steps": 10,
+     "rows_seen": 320,
+     "steps_per_epoch": 64
+    }
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_validation_bounded_and_deduplicated",
+   "large": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 6710886
+   },
+   "pass": true,
+   "same_selection_and_losses": true,
+   "tiny": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 7
+   }
+  },
+  {
+   "case": "recipe_validation_in_training_identity",
+   "identities": [
+    "76ad72dcc6ed65cba1d048cfa3e0d40b97631c8275cc0f48e47a00eba98dc81e",
+    "76ad72dcc6ed65cba1d048cfa3e0d40b97631c8275cc0f48e47a00eba98dc81e",
+    "8114f350151e2537e7bce168aec818f38a5bdadf06c9013476052f8a5e18ab6d",
+    "1a185d49b87f8afcf99f4ddfd2bde78846973d68ba5c4169e8a5894d3b01fa66"
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_ingress_refusals",
+   "pass": true,
+   "warmup_not_shorter_than_budget": true,
+   "zero_weight_validation": true
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -89,83 +225,10 @@
    },
    "device": "cuda",
    "pass": true
-  },
-  {
-   "arms": [
-    "bc",
-    "ccil"
-   ],
-   "case": "no_detected_difference_v1_v2",
-   "criterion": "95% union interval (BCa with t) of mean(R_v2 - R_v1) contains 0",
-   "label_seed": 501,
-   "pass": true,
-   "per_seed": "<out>/equivalence.json",
-   "results": {
-    "continuous/bc": {
-     "contains_zero": true,
-     "interval": [
-      -127.7205895498136,
-      103.33059988992137
-     ],
-     "mean_R_v1": -3231.868255491,
-     "mean_R_v2": -3244.0632503209463,
-     "mean_difference": -12.194994829946108,
-     "width": 231.05118943973497,
-     "within_margin": null
-    },
-    "continuous/ccil": {
-     "contains_zero": true,
-     "interval": [
-      -202.95364415959318,
-      516.0121907251009
-     ],
-     "mean_R_v1": -2682.6098622337777,
-     "mean_R_v2": -2526.0805889510234,
-     "mean_difference": 156.52927328275388,
-     "width": 718.9658348846941,
-     "within_margin": null
-    },
-    "discontinuous/bc": {
-     "contains_zero": true,
-     "interval": [
-      -136.86126668039088,
-      400.5384429496738
-     ],
-     "mean_R_v1": -3133.0028329919323,
-     "mean_R_v2": -3002.2406307352476,
-     "mean_difference": 130.7622022566852,
-     "width": 537.3997096300648,
-     "within_margin": null
-    },
-    "discontinuous/ccil": {
-     "contains_zero": true,
-     "interval": [
-      -424.9725817796226,
-      573.6796837964334
-     ],
-     "mean_R_v1": -2944.289516853066,
-     "mean_R_v2": -2869.93596584466,
-     "mean_difference": 74.35355100840543,
-     "width": 998.652265576056,
-     "within_margin": null
-    }
-   },
-   "seeds": [
-    201,
-    202,
-    203,
-    204,
-    205,
-    206,
-    207,
-    208,
-    209,
-    210
-   ]
   }
  ],
  "environment": {
-  "code_commit": "d7257e089892ded971be9d4f9a3dc63fcd2475b0",
+  "code_commit": "207262a6eafb7995301771c628158a03f6813f91",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",

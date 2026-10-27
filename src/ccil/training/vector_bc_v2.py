@@ -295,10 +295,16 @@ class _Streams:
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
 
 
-def training_identity_v2(supervision, settings: dict, seed: int, noise) -> dict:
-    """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run."""
+def training_identity_v2(supervision, settings: dict, seed: int, noise, validation=None) -> dict:
+    """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run, and the
+    held-out validation supervision that selected the checkpoint (#115), on which the returned policy depends."""
     ident = {k: v for k, v in training_identity(supervision, settings, seed, noise).items() if k != "sha256"}
     ident["trainer_version"] = TRAINER_VERSION
+    if validation is not None:  # by content: the rows that judge the checkpoints, not only their provenance
+        o, act, w = validation.arrays()
+        ident["validation_sha256"] = _block_key(o, act, w, np.asarray(validation.episode_id).astype(str),
+                                                np.asarray(validation.frame))
+        ident["validation_inputs"] = validation.manifest()["inputs"]
     return {**ident, "sha256": hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()}
 
 
@@ -447,36 +453,54 @@ def _own(out):
                  for v in out)  # None: no EMA
 
 
-def _validation_rows(jobs, padded, D, A, device):
-    """Each model's held-out rows on the device, padded to the longest with zero weight: x, y, w (M, V, ·)."""
-    sups = [j.validation for j in padded]
-    n = [len(sup.weights) for sup in sups]
-    V = max(n)
-    x = np.zeros((len(sups), V, D), np.float32)
-    y = np.zeros((len(sups), V, A), np.float32)
-    w = np.zeros((len(sups), V), np.float32)
-    for i, sup in enumerate(sups):
-        o, a, ww = sup.arrays()
-        x[i, :n[i]], y[i, :n[i]], w[i, :n[i]] = o, a, ww
-    return {"x": torch.as_tensor(x, device=device), "y": torch.as_tensor(y, device=device),
-            "w": torch.as_tensor(w, device=device), "n": n}
+def _validation_rows(padded, D, A, chunk_bytes: int):
+    """The models' held-out rows as one deduplicated host table and per-model segments.
+
+    Identical validation sets (for example the arms of one seed) are stored once. Each model's set is a segment
+    (start, n) of the table, and the loss reads it in chunks of at most `rows` rows per model, so device memory
+    is bounded by chunk_bytes whatever the number and size of the validation sets. A set with zero total weight
+    is refused: it cannot select a checkpoint.
+    """
+    blocks, segments, parts = {}, [], []
+    for job in padded:
+        o, a, w = job.validation.arrays()
+        if not np.isfinite(w).all() or float(np.sum(w)) <= 0:
+            raise TrainingError(f"job (seed {job.seed}): the validation supervision has zero total weight")
+        key = _block_key(o, a, w)
+        if key not in blocks:
+            blocks[key] = (sum(len(p[2]) for p in parts), len(w))
+            parts.append((np.asarray(o, np.float32), np.asarray(a, np.float32), np.asarray(w, np.float32)))
+        segments.append(blocks[key])
+    table = {k: torch.as_tensor(np.concatenate([p[i] for p in parts])) for i, k in enumerate(("x", "y", "w"))}
+    rows = max(1, int(chunk_bytes) // (len(padded) * 4 * (D + A + 1)))
+    return {**table, "segments": segments, "n": [n for _, n in segments], "rows": rows, "blocks": len(parts)}
 
 
-def _validation_loss(params, v, c, layers, scale_obs, scale_act, chunk: int = 65536):
-    """The weighted training loss of every model on its held-out rows (M,), in bounded row chunks."""
-    num = torch.zeros(v["w"].shape[0], device=v["w"].device)
+def _validation_loss(params, v, c, layers, scale_obs, scale_act, device):
+    """The weighted training loss of every model on its held-out rows (M,).
+
+    Chunk j gathers rows [j * rows, (j + 1) * rows) of each model's segment from the host table (padding rows
+    carry zero weight), so at most M * rows rows are on the device at once."""
+    M, rows = len(v["segments"]), v["rows"]
+    start = torch.tensor([st for st, _ in v["segments"]])
+    n = torch.tensor(v["n"])
+    num = torch.zeros(M, device=device, dtype=torch.float64)
     den = torch.zeros_like(num)
     with torch.no_grad():
-        for i in range(0, v["w"].shape[1], chunk):
-            x, y, w = v["x"][:, i:i + chunk], v["y"][:, i:i + chunk], v["w"][:, i:i + chunk]
+        for j in range(0, int(n.max()), rows):
+            pos = j + torch.arange(rows)
+            valid = pos[None, :] < n[:, None]                            # (M, rows)
+            idx = torch.where(valid, start[:, None] + pos[None, :], 0)
+            x, y = v["x"][idx].to(device), v["y"][idx].to(device)
+            w = torch.where(valid, v["w"][idx], 0.0).to(device)
             if scale_obs:
                 x = (x - c["obs_mean"][:, None]) / (c["obs_std"][:, None] + OBS_EPS)
             if scale_act:
                 y = ((y - c["act_min"][:, None]) / (c["act_max"][:, None] - c["act_min"][:, None] + ACT_EPS)) * 2.0 - 1.0
             per = ((vmap(lambda p, x_: _mlp(p, x_, layers))(params, x) - y) ** 2).mean(dim=2)
-            num += (w * per).sum(dim=1)
-            den += w.sum(dim=1)
-    return num / den.clamp_min(1e-30)
+            num += (w * per).sum(dim=1).double()
+            den += w.sum(dim=1).double()
+    return (num / den).float()
 
 
 def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
@@ -574,9 +598,12 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     if budget:  # a step budget replaces epochs: as many epochs as it takes, the last one cut at the budget
         epochs = [-(-int(budget) // n) for n in steps]
     total_steps = [int(budget) if budget else e * n for e, n in zip(epochs, steps)]
-    for job, e, n in zip(jobs, epochs, steps):
+    for job, e, n, total in zip(jobs, epochs, steps, total_steps):
         if e < 1 or n < 1:
             raise TrainingError(f"job (seed {job.seed}): {n} minibatches and {e} epochs leave no optimizer step")
+        if recipe["lr_schedule"] == "cosine" and int(recipe["warmup_steps"]) >= total:
+            raise TrainingError(f"job (seed {job.seed}): warmup_steps {recipe['warmup_steps']} is not shorter than its "
+                                f"{total} optimizer steps, so the cosine decay never starts")
 
     # Policies: v1's initialization per seed, v1's scalers (once per distinct row set), then stacked.
     policies, scaler_cache = [], {}
@@ -622,12 +649,20 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     recipe_key = tuple(sorted((k, v) for k, v in recipe.items() if k not in ("step_budget", "checkpoint_selection")))
     statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr,
                "recipe": recipe_key}
-    validation = _validation_rows(jobs, padded, D, A, device) if recipe["checkpoint_selection"] == "validation" else None
+    validation = (_validation_rows(padded, D, A, stream_chunk_bytes) if recipe["checkpoint_selection"] == "validation"
+                  else None)
     step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile)
 
+    def epoch_steps(epoch: int, i: int) -> int:
+        """Model i's optimizer steps in this epoch: a full epoch, or what remains of its budget."""
+        return max(0, min(steps[i], total_steps[i] - epoch * steps[i])) if epoch < epochs[i] else 0
+
     def chunks(epoch):
-        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch."""
-        max_steps = max(n for n, e in zip(steps, epochs) if epoch < e)
+        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch.
+
+        The epoch runs only as many steps as its longest remaining budget, so a step budget bounds the work
+        whatever the dataset size."""
+        max_steps = max(epoch_steps(epoch, i) for i in range(M))
         bounds = [(s0, min(chunk_steps, max_steps - s0)) for s0 in range(0, max_steps, chunk_steps)]
         if data_mode == "resident":
             for s0, n in bounds:
@@ -694,7 +729,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         when EMA is on (they are the policy), else the parameters."""
         nonlocal best, best_loss
         weights = ema if ema is not None else params
-        vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act)
+        vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act, device)
         due_t = torch.tensor(due + [False] * (M - len(due)), device=device)
         better = due_t & (vl < best_loss) if best_loss is not None else due_t.clone()
         best = ({k: v.clone() for k, v in weights.items()} if best is None else
@@ -751,11 +786,12 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                 epoch_seconds.append(time.time() - t_epoch)
                 for i in range(n_real):
                     if epoch < epochs[i]:
-                        epoch_records[i].append({"epoch": epoch, "steps": steps[i],
+                        k = epoch_steps(epoch, i)
+                        epoch_records[i].append({"epoch": epoch, "steps": k, "optimizer_steps": int(ns[i]),
                                                  "mean_loss": ls[i] / ns[i] if ns[i] else None,
-                                                 "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]),
+                                                 "rows_seen": {"demonstration": int(k * bs - sy[i]),
                                                                "synthetic": int(sy[i])},
-                                                 "zero_weight_steps": int(steps[i] - ns[i])})
+                                                 "zero_weight_steps": int(k - ns[i])})
     finally:
         torch.use_deterministic_algorithms(previous)
     if device.type == "cuda":
@@ -774,14 +810,16 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
              "table_blocks": table["blocks"],
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
-             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds}
+             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds,
+             "validation": None if validation is None else {"distinct_sets": validation["blocks"],
+                                                             "rows_per_chunk": validation["rows"]}}
     final = best if best is not None else (ema if ema is not None else params)
     out = []
     for i, (job, policy) in enumerate(zip(jobs, policies)):
         policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in final.items()})
         policy.net.eval()
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
-        ident = training_identity_v2(job.supervision, settings, job.seed, job.noise)
+        ident = training_identity_v2(job.supervision, settings, job.seed, job.noise, job.validation)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
                   "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
