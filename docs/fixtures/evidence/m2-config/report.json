@@ -9,11 +9,11 @@
    "default_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+     "git_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "18336a350d4c9b9429dae1793711e743ddb72353fbf460d6bf0c8dbba8970fff",
+     "config_hash": "2d8b7baa9a6e2435c244d83b5a4df28ed6c0d9d057d41381652cd53469af9b8f",
      "path": "config.json"
     },
     "environment": {
@@ -29,8 +29,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "f899074162beaef2faabbf577f3f2ede6aa48431571d7c1f38b50f991f7439d7",
-      "size": 9529,
+      "sha256": "d96122c44d19c67525c5a01e5870fc6543179f795857c2cfdc5b8a75e7fb72d0",
+      "size": 10612,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -56,7 +56,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "7388e13494b7d1857caac8b9c69b68c07cea521a6dc46f42f1c243984a5e5157",
+      "sha256": "fcfc6488ed867fdb9e4a696b2793e9779fb7521ed209957a53586d312eba00b3",
       "size": 586
      }
     },
@@ -66,7 +66,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-94fa24669dc4",
+    "run_id": "data-prepare-21619f4b4875",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -75,7 +75,7 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "default_run": "data-prepare-94fa24669dc4",
+   "default_run": "data-prepare-21619f4b4875",
    "default_value_sources": {
     "certificate.demonstration_residual_bound": "default",
     "certificate.discrepancy_action_lipschitz": "default",
@@ -114,18 +114,27 @@
     "policy.action_scaler": "default",
     "policy.balance_noisy_labels": "recipe:pendulum_cont",
     "policy.batch_size": "recipe:pendulum_cont",
+    "policy.checkpoint_selection": "default",
     "policy.demonstration_weight": "default",
+    "policy.ema_decay": "default",
     "policy.epochs": "recipe:pendulum_cont",
     "policy.exclude_validation_episodes": "default",
+    "policy.grad_clip_norm": "default",
     "policy.hidden_layers": "default",
     "policy.learning_rate": "recipe:pendulum_cont",
+    "policy.lr_schedule": "default",
     "policy.method": "recipe:pendulum_cont",
     "policy.noise_mask_probability": "default",
     "policy.noise_model": "default",
     "policy.noise_scale": "default",
     "policy.observation_scaler": "default",
+    "policy.optimizer": "default",
+    "policy.step_budget": "default",
     "policy.trainer": "default",
     "policy.trainer_version": "default",
+    "policy.validation_interval_steps": "default",
+    "policy.warmup_steps": "default",
+    "policy.weight_decay": "default",
     "representation.dim": "default",
     "representation.kind": "default",
     "representation.modality": "default",
@@ -150,11 +159,11 @@
    "override_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+     "git_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "55a1214887cacb96af4cfcb13dc426053b40d43ca15ae872f207e8351f9b3a81",
+     "config_hash": "7d8b368dafb9d80e604a86074487ba8e49df0dbdc4f0f455331afa3a136ca93f",
      "path": "config.json"
     },
     "environment": {
@@ -170,8 +179,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "1df39f6667b6645fa4e95a09f209153cbdf3f119d8f3ba7816390137c08b5f44",
-      "size": 9512,
+      "sha256": "d90b9fa2094c97e2c338617a5d902217174cee4700bd0ed7a40405cf0b841a3e",
+      "size": 10595,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -197,7 +206,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "4dddb1d70ec1c666ff7cc94665aed94c02fa9930ed9db70c649f5a8b7cec2021",
+      "sha256": "8422f807b61a289f74cf1d1b9c482ee3799d16e34950ccd45eea6b5652ad7581",
       "size": 586
      }
     },
@@ -207,7 +216,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-ec84baf50b09",
+    "run_id": "data-prepare-b2648fe9a35e",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -216,7 +225,7 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "override_run": "data-prepare-ec84baf50b09",
+   "override_run": "data-prepare-b2648fe9a35e",
    "override_source": "cli",
    "pass": true,
    "seed": 42,
@@ -228,22 +237,22 @@
   {
    "case": "replay_is_byte_identical",
    "files": {
-    "config.json": "f899074162beaef2faabbf577f3f2ede6aa48431571d7c1f38b50f991f7439d7",
+    "config.json": "d96122c44d19c67525c5a01e5870fc6543179f795857c2cfdc5b8a75e7fb72d0",
     "data/dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
     "data/split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb",
     "logs/run.log": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
-    "manifest.json": "eaee285a52d986fa231dcae496985fb263315a23ac94ac7895d94bb395627e7b",
+    "manifest.json": "e637d0a50d6ecf939e250209a5c8cc7b87746c3e8f66db0da0b64fb9bc2bb33d",
     "metrics.json": "df5eb6b3cfb6bc2a069a38b394db94387bcb13cb7caa746ef0414fe24a58a7ac",
-    "stage.json": "7388e13494b7d1857caac8b9c69b68c07cea521a6dc46f42f1c243984a5e5157"
+    "stage.json": "fcfc6488ed867fdb9e4a696b2793e9779fb7521ed209957a53586d312eba00b3"
    },
    "pass": true,
-   "run_id": "data-prepare-94fa24669dc4"
+   "run_id": "data-prepare-21619f4b4875"
   },
   {
    "case": "existing_run_reused_then_replaced_atomically",
    "leftovers": [],
    "pass": true,
-   "rerun_stdout": "wrote runs/data-prepare-94fa24669dc4"
+   "rerun_stdout": "wrote runs/data-prepare-21619f4b4875"
   },
   {
    "case": "fails_before_output[misspelled_key]",
@@ -366,7 +375,7 @@
   }
  ],
  "environment": {
-  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
