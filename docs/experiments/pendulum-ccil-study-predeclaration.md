@@ -158,7 +158,7 @@ before the freeze:
 |---|---|---|
 | Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
 | Normalized Lipschitz coordinates | #125 | The penalty equals its definition; it is invariant to a change of units; the two engines give the same penalty and gradients; fit records state the coordinates and the normalization hash |
-| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits) |
+| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits). **It failed** on continuous `none` (see below); the confirmatory rerun decides |
 | Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
 | Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
@@ -190,6 +190,64 @@ outcome. Then **one tooling commit is frozen**:
 - A behavior-changing tooling fix after the freeze needs a new version of
   this document and a **complete rerun** of tuning and the study. The earlier
   runs are reported, not mixed with the new ones.
+
+**The batched-fit gate: the first result and its one confirmatory rerun.**
+
+The first gate failed. It ran from the clean commit
+`6aaf4893117b9d12df6e150e728999671bf8130a` on siddh, with seeds 601–640:
+
+| Configuration | Mean difference | 90% interval | Margin | Equivalent |
+|---|---|---|---|---|
+| continuous `soft_sampling` | −3.2% | [−9.9e-5, 7.8e-5] | ±1.20e-4 | yes |
+| continuous `none` | −8.5% | [−1.34e-4, 4.9e-5] | ±1.24e-4 | **no** |
+| discontinuous `none` | −1.1% | [−2.4e-3, 1.6e-3] | ±9.3e-3 | yes |
+| discontinuous `slack` | −3.4% | [−1.5e-3, 2.9e-4] | ±4.3e-3 | yes |
+
+The interval for continuous `none` includes 0, and it fails on the side
+where the batched models have lower error. The design was underpowered for
+continuous Pendulum:
+- the seed-to-seed spread of the held-out error is about 50% of its mean;
+- the standard deviation of the paired difference is about 69% of the mean;
+- with 40 seeds, a gate with no true difference passes only about 55% of the
+  time.
+
+This result stays reported as failed. It is excluded from the decision below.
+
+**The confirmatory rerun.** It was declared here before any of its fits ran,
+and it is the gate's only rerun.
+- **Frozen.** Everything the first gate used is unchanged:
+  - the statistic: the mean over paired seeds of (batched − per-fit)
+    held-out one-step error;
+  - the interval: the 90% union of BCa and paired t, which is TOST at 5% per
+    side;
+  - the margin: ±25% of the per-fit mean;
+  - the data: each task's training transitions, from `data.prepare` at seed
+    501, with the held-out error on that split's validation transitions;
+  - the configurations: each task with its paper regularizer, and with
+    `none`;
+  - no exclusions: every seed is used.
+- **Code.** The gate runs from the clean commit
+  `b2cbf71b88f7d1bce0d00a5ed6e8bd2e862ac39c`, with
+  `tools/m3_fit_v2/check.py --parts confirmatory`. Its `src`,
+  `pyproject.toml` and `uv.lock` are identical to the first gate's commit.
+- **Seeds.** Fresh seeds 641–780: 140 per configuration, the same range for
+  all four. Per-fit models are fitted one at a time. Batched models are fitted
+  in groups of 35 consecutive seeds, close to the first gate's 40.
+- **Power.** These figures use the first gate's spread and a t-interval
+  approximation; the union interval is slightly wider. For continuous
+  `none`, power is about 0.99 if there is no true difference, and about 0.88
+  if the observed −8.5% difference is real. All four configurations pass
+  together with probability of about 0.87 under the observed differences.
+- **Decision.** The batched engine is accepted only if all four
+  configurations pass.
+- **No third attempt.** If this gate fails, every study fit uses the
+  per-fit engine (`transition_model.trainer_version=1` in the plan's study
+  settings). The runner then fits each unit through `generate_offline`, and
+  that is reported.
+- **Blocking.** #123 is blocked until this gate passes.
+- **Independence.** The normalized Lipschitz coordinates (#125) are
+  established independently of this gate. The configuration that failed has
+  no Lipschitz regularizer, so the coordinate choice cannot affect it.
 
 **Host.** All study runs execute on one host (siddh, CUDA). Timings are not
 compared.
