@@ -28,7 +28,7 @@ from pathlib import Path
 
 import yaml
 
-SELECT_RULES = ("highest_mean_noise_free_R",)
+SELECT_RULES = ("highest_mean_noise_free_R", "lowest_mean_validation_loss")
 TIE_RULES = ("smaller",)
 
 

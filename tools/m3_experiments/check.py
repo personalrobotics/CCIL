@@ -22,6 +22,8 @@
 5. runner (with --runner): ccil.experiments.runner on a small smoke plan (both tasks; bc, ccil, noise_bc, bc_frac10
    and zero; two seeds) with the Pendulum suite:
    - every record verifies (verify_phase, every rollout replayed through the integrator that produced it);
+   - a tuning phase of a modern-recipe BC arm (AdamW, cosine, step budget, clipping, EMA, checkpoint selection on
+     held-out episodes) chooses, per task, the learning rate with the lowest selected-checkpoint validation loss;
    - `ccil policy train` with each trained record's overrides reuses every stage the runner wrote, in the same
      directories (the runner's stage identities are the CLI's);
    - a second run writes nothing; with two records removed, a run writes exactly those, trains nothing and
@@ -216,13 +218,21 @@ RUNNER_PLAN = {
     "study": "runner-check", "version": 1, "tasks": ["continuous", "discontinuous"],
     "settings": ["transition_model.trainer_version=2", "policy.trainer_version=2",
                  "policy.exclude_validation_episodes=false"],
-    "phases": {"study": {"seeds": [9002, 9003], "arms": "all"}},
+    "phases": {"tuning": {"seeds": [9001], "arms": ["bc_modern"], "tuning": True},
+               "study": {"seeds": [9002, 9003], "arms": ["bc", "ccil", "noise_bc", "bc_frac10", "zero"]}},
     "arms": {"bc": {"settings": ["policy.method=bc", "policy.balance_noisy_labels=false"], "noise_levels": [0.0, 0.01]},
              "ccil": {"settings": ["policy.method=ccil"], "noise_levels": [0.0, 0.01]},
              "noise_bc": {"settings": ["policy.method=noise_bc", "policy.noise_model=symmetric_uniform_half_batch",
                                        "policy.balance_noisy_labels=false", "policy.noise_scale=0.01"]},
              "bc_frac10": {"settings": ["policy.method=bc", "policy.balance_noisy_labels=false"], "data_fraction": 0.1},
-             "zero": {"train": False, "noise_levels": [0.0, 0.01]}},
+             "zero": {"train": False, "noise_levels": [0.0, 0.01]},
+             "bc_modern": {"settings": ["policy.method=bc", "policy.balance_noisy_labels=false",
+                                        "policy.exclude_validation_episodes=true", "policy.optimizer=adamw",
+                                        "policy.weight_decay=0.0001", "policy.lr_schedule=cosine",
+                                        "policy.warmup_steps=20", "policy.step_budget=200", "policy.grad_clip_norm=1.0",
+                                        "policy.ema_decay=0.99", "policy.checkpoint_selection=validation"],
+                           "tuned": "policy.learning_rate"}},
+    "tuning": {"bc_modern": {"grid": [1.0e-4, 3.0e-3], "select": "lowest_mean_validation_loss"}},
 }
 GATE_DEV = {"ok": True, "real": False, "head": "check", "tooling": {}}
 
@@ -276,6 +286,20 @@ def runner_check(out: Path, device: str) -> dict:
                         "status": {f"{r['task']}/{r['arm']}/s{r['seed']}": r["status"] for r in recs}}
     ok_first = first["units"] == 20 and all(r["status"] == "ok" for r in recs)
 
+    tun = runner.run_phase(root, study, "tuning", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
+    trecs = records.verify_phase(root, study, "tuning", smoke=True, audit=PendulumSuite.audit,
+                                 expected_inputs=suite.expected_inputs, jobs=4)
+    choice = records.compute_choice(study, trecs, acceptance_arms=())
+    losses = {(r["task"], r["value"]): records.validation_loss(r) for r in trecs}
+    want = {t: min(v for (tt, v) in losses if tt == t and losses[(tt, v)] == min(x for (u, _), x in losses.items()
+                                                                                    if u == t))
+            for t in study.tasks}
+    res["validation_loss_tuning"] = {"units": tun["units"], "losses": {f"{t}@{v}": x for (t, v), x in losses.items()},
+                                     "choice": {t: choice[t]["bc_modern"]["value"] for t in study.tasks},
+                                     "selected_epochs": [r["training"]["validation"]["selected_epoch"] for r in trecs]}
+    ok_tuning = (tun["units"] == 4 and all(x is not None for x in losses.values())
+                 and all(choice[t]["bc_modern"]["value"] == want[t] for t in study.tasks)
+                 and all(r["training"]["recipe"]["step_budget"] == 200 for r in trecs))
     cli = _cli_reuses(root, recs, device)
     res["cli"] = cli
     ok_cli = len(cli) == 16 and all(c["exit"] == 0 and c["same_directories"]
@@ -347,7 +371,7 @@ def runner_check(out: Path, device: str) -> dict:
     faults = {k for k, v in status.items() if v != "ok"}
     ok_oom = (faults == {"continuous/bc_frac10/s9002"} and status["continuous/bc_frac10/s9002"] == "infrastructure_fault"
               and max(calls["fit"]) > 2 and max(calls["train"]) > 2)
-    res["checks"] = {"first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
+    res["checks"] = {"validation_loss_tuning": ok_tuning, "first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
                      "batched_evaluation": ok_eval, "memory_exhaustion": ok_oom}
     return {"pass": all(res["checks"].values()), **res}
 

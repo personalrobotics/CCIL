@@ -132,10 +132,18 @@ def _finite(x):
     return x if x is not None and np.isfinite(x) else None  # JSON-stable: NaN never equals itself
 
 
+def validation_loss(record):
+    """A unit's selected-checkpoint validation loss (checkpoint_selection validation), or None."""
+    v = (record.get("training") or {}).get("validation")
+    return None if not v or v.get("selected_epoch") is None else v["loss_per_epoch"][v["selected_epoch"]]
+
+
 def compute_choice(study, tuning: list, phase: str = "tuning", acceptance_arms=("ccil_tuned",)) -> dict:
     """The plan's tuning rule from verified tuning records: per task and tuned arm, the eligible value with the
-    highest mean noise-free R over the phase's seeds, ties to the smaller; every value-by-seed result is kept,
-    with the label acceptance rate for acceptance_arms."""
+    best mean over the phase's seeds, ties to the smaller. The rule is the arm's select: highest_mean_noise_free_R
+    (the audited noise-free R) or lowest_mean_validation_loss (the selected checkpoint's held-out validation loss,
+    from the training record; returns are never used). Every value-by-seed result is kept, with the label
+    acceptance rate for acceptance_arms."""
     seeds = study.phases[phase]["seeds"]
     by = {(r["task"], r["arm"], r["value"], r["seed"]): r for r in tuning}
     out = {}
@@ -143,21 +151,30 @@ def compute_choice(study, tuning: list, phase: str = "tuning", acceptance_arms=(
         out[task] = {}
         for arm in study.phases[phase]["arms"]:
             grid = study.tuning[arm].grid[task]
+            by_loss = study.tuning[arm].select == "lowest_mean_validation_loss"
             table, eligible = {}, {}
             for v in grid:
                 recs = [by[(task, arm, v, s)] for s in seeds]
                 ok = all(r["status"] == "ok" for r in recs)
                 row = {"R": {str(r["seed"]): _finite(r["verified"].get("0.0")) for r in recs},
-                       "status": {str(r["seed"]): r["status"] for r in recs}, "eligible": ok}
+                       "status": {str(r["seed"]): r["status"] for r in recs}}
+                if by_loss:
+                    row["validation_loss"] = {str(r["seed"]): _finite(validation_loss(r)) for r in recs}
+                    ok = ok and all(x is not None for x in row["validation_loss"].values())
+                row["eligible"] = ok
                 if arm in acceptance_arms:
                     row["label_acceptance_rate"] = {str(r["seed"]): r.get("label_accuracy", {}).get("acceptance_rate")
                                                     for r in recs}
-                if ok:
+                if ok and by_loss:  # lower is better: rank by the negated mean loss
+                    row["mean_validation_loss"] = float(np.mean(list(row["validation_loss"].values())))
+                    eligible[v] = -row["mean_validation_loss"]
+                elif ok:
                     eligible[v] = row["mean_R"] = float(np.mean([r["verified"]["0.0"] for r in recs]))
                 table[repr(v)] = row
             if eligible:
                 best = max(eligible.values())
-                value, rule = min(v for v, m in eligible.items() if m == best), "highest mean R; ties to the smaller value"
+                value = min(v for v, m in eligible.items() if m == best)
+                rule = ("lowest mean validation loss" if by_loss else "highest mean R") + "; ties to the smaller value"
             else:
                 value, rule = grid[0], "every value ineligible: the paper's value"
             out[task][arm] = {"value": value, "rule": rule, "table": table}

@@ -355,7 +355,7 @@ def _describe(u, suite):
     training = json.loads((st["policy.train"] / "metrics.json").read_text())["values"]["training"]
     losses = [e["mean_loss"] for e in training["epochs"]]
     r["training"] = {k: training.get(k) for k in ("trainer", "trainer_version", "epochs_run", "rows", "row_sources",
-                                                  "execution", "recipe", "selected_epoch", "seconds")}
+                                                  "execution", "recipe", "validation", "seconds")}
     r["training"]["mean_loss"] = losses
     r["dynamics_held_out"] = json.loads((st["transition.fit"] / "metrics.json").read_text())["values"].get("held_out")
     r["labels_report"] = json.loads((st["labels.generate"] / "metrics.json").read_text())["values"]
