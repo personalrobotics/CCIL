@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Evidence for batched transition-model fits (#110).
+
+    uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \\
+        python tools/m3_fit_v2/check.py --out DIR [--device cuda] [--parts all]
+
+1. correctness (any host): for none and slack, one full-batch step (order-free) equals
+   MLPTransitionModel.fit's step from the same initialization (float32 tolerance); a rerun is identical;
+   fit_group refuses the regularizers it does not support.
+2. pendulum (CUDA host; declared before running): on each task's training transitions (the ordinary
+   pipeline's data.prepare at seed 501), with the task's paper settings (continuous soft_sampling,
+   discontinuous slack) and with lipschitz_type none, fit seeds 401-405 per-fit (MLPTransitionModel.fit)
+   and as one batched group. Report the held-out one-step error of every fit; the 95% union interval of
+   mean(error_batched - error_perfit) over the 5 paired seeds is reported (no decision: the fits use
+   different shuffles and perturbation draws, so this measures how much the engine changes the fitted
+   model, against the seed-to-seed spread).
+3. timing (CUDA host): wall time of one per-fit fit, and of 20 seeds as one batched group, per task.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+sys.path.insert(0, str(REPO / "tools" / "m3_pendulum"))
+
+from ccil.models.mlp import MLPTransitionModel  # noqa: E402
+from ccil.models.mlp_batched import FitJob, fit_group  # noqa: E402
+
+SEEDS, TIMING_SEEDS, DATA_SEED = tuple(range(401, 406)), tuple(range(401, 421)), 501
+
+
+def _data(n, seed):
+    r = np.random.default_rng(seed)
+    z, a = r.normal(size=(n, 3)), r.normal(size=(n, 1))
+    return z, a, z + 0.05 * np.tanh(z @ r.normal(size=(3, 3)) + a) + 0.001 * r.normal(size=z.shape)
+
+
+BASE = dict(hidden_layers=[64, 64], epochs=1, batch_size=512, activation="relu", lipschitz_constraint=2.0,
+            soft_penalty_weight=0.001, soft_sampling_eps=0.0003, soft_samples=5, slack_weight=0.1,
+            learning_rate=1e-3, weight_decay=1e-5)
+
+
+def correctness(device):
+    out = {}
+    z, a, zn = _data(512, 0)
+    for lt in ("none", "slack"):
+        st = {**BASE, "lipschitz_type": lt}
+        ref = MLPTransitionModel(**st, device=device)
+        ref.fit(z, a, zn, seed=3)
+        [(m, _)] = fit_group([FitJob(z, a, zn, 3)], st, device=device, compile=False)
+        nets = [(m.net, ref.net)] + ([(m.lam, ref.lam)] if lt == "slack" else [])
+        d = max(float((x - y).abs().max() / (y.abs().max() + 1e-12)) for p, q in nets
+                for x, y in zip(p.state_dict().values(), q.state_dict().values()))
+        out[f"one_step_matches_fit_{lt}"] = {"pass": d < 1e-5, "max_relative_difference": d}
+    z, a, zn = _data(4096, 1)
+    st = {**BASE, "lipschitz_type": "soft_sampling", "epochs": 2}
+    g1 = fit_group([FitJob(z, a, zn, s) for s in (1, 2, 3)], st, device=device)
+    g2 = fit_group([FitJob(z, a, zn, s) for s in (1, 2, 3)], st, device=device)
+    same = all(torch.equal(x, y) for (m1, _), (m2, _) in zip(g1, g2)
+               for x, y in zip(m1.net.state_dict().values(), m2.net.state_dict().values()))
+    out["rerun_identical"] = {"pass": same}
+    try:
+        fit_group([FitJob(z, a, zn, 1)], {**BASE, "lipschitz_type": "soft_jac"}, device=device)
+        refused = False
+    except ValueError:
+        refused = True
+    out["refuses_unsupported_regularizer"] = {"pass": refused}
+    return out
+
+
+def _transitions(out: Path, task: str):
+    """(z, a, z_next) of the training episodes and of the held-out episodes, from data.prepare at seed 501."""
+    import study
+
+    from ccil.config import resolve
+    from ccil.core import IdentityRepresentation, transitions
+    from ccil.data.prepare import prepare_stage
+    from ccil.schema import read_trajectories
+    root = out / "pendulum"
+    study.prepare(root)
+    data = root / "inputs" / "data" / f"{study.DATASETS[task]}.npz"
+    os.chdir(root / "inputs")
+    cfg = resolve(config=str(root / "inputs" / "config" / study.CONFIGS[task]),
+                  sets=[f"run.seed={DATA_SEED}", "compute.device=cuda", f"data.path={data}",
+                        f"run.output_dir={root / 'stages'}"])
+    prepared = prepare_stage(cfg)
+    split = json.loads(prepared.out("data/split.json").read_text())
+    batch = transitions(read_trajectories(prepared.out("data/dataset.npz")), IdentityRepresentation("state"))
+    train = np.isin(batch.episode_id, split["train"])
+    v = cfg.values
+    settings = {k: v[f"transition_model.{k}"] for k in ("hidden_layers", "activation", "lipschitz_type",
+                                                         "lipschitz_constraint", "soft_penalty_weight",
+                                                         "soft_sampling_eps", "soft_samples", "slack_weight",
+                                                         "learning_rate", "weight_decay", "epochs", "batch_size")}
+    return (batch.z[train], batch.a[train], batch.z_next[train]), (batch.z[~train], batch.a[~train], batch.z_next[~train]), settings
+
+
+def pendulum(out: Path, device: str):
+    sys.path.insert(0, str(REPO / "tools" / "m3_pendulum"))
+    import analyze
+    results = {}
+    for task in ("continuous", "discontinuous"):
+        (z, a, zn), (zh, ah, znh), paper = _transitions(out, task)
+        for lt in (paper["lipschitz_type"], "none"):
+            st = {**paper, "lipschitz_type": lt}
+            err = lambda m: float(np.linalg.norm(m.delta(zh, ah) + zh - znh, axis=1).mean())  # noqa: E731
+            per = []
+            for s in SEEDS:
+                m = MLPTransitionModel(**st, device=device)
+                m.fit(z, a, zn, seed=s)
+                per.append(err(m))
+            batched = [err(m) for m, _ in fit_group([FitJob(z, a, zn, s) for s in SEEDS], st, device=device)]
+            d = np.array(batched) - np.array(per)
+            iv = analyze.union_interval(d, 0.95)
+            results[f"{task}/{lt}"] = {"held_out_error_perfit": per, "held_out_error_batched": batched,
+                                       "mean_difference": iv["mean"], "interval": iv["interval"],
+                                       "perfit_seed_sd": float(np.std(per, ddof=1))}
+    return {"pass": True, "results": results, "seeds": list(SEEDS),
+            "criterion": "reported, no decision (declared in the tool's docstring)"}
+
+
+def timing(out: Path, device: str):
+    rows = []
+    for task in ("continuous", "discontinuous"):
+        (z, a, zn), _, st = _transitions(out, task)
+        torch.cuda.synchronize()
+        t0 = time.time()
+        MLPTransitionModel(**st, device=device).fit(z, a, zn, seed=TIMING_SEEDS[0])
+        torch.cuda.synchronize()
+        one = time.time() - t0
+        torch.cuda.reset_peak_memory_stats()
+        t0 = time.time()
+        g = fit_group([FitJob(z, a, zn, s) for s in TIMING_SEEDS], st, device=device)
+        torch.cuda.synchronize()
+        rows.append({"task": task, "lipschitz_type": st["lipschitz_type"], "transitions": len(z),
+                     "epochs": st["epochs"], "batch_size": st["batch_size"], "perfit_one_seed_seconds": one,
+                     "batched_20_seeds_seconds": time.time() - t0, "engine": g[0][1]["execution"]["engine"],
+                     "epoch_seconds": g[0][1]["group"]["epoch_seconds"][:3],
+                     "peak_device_gb": torch.cuda.max_memory_allocated() / 2**30})
+        print(rows[-1], flush=True)
+    return {"pass": all(r["engine"].startswith("compiled") for r in rows), "measurements": rows}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--device", default="cpu")
+    ap.add_argument("--parts", default="correctness")
+    a = ap.parse_args()
+    out = a.out.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    parts = ["correctness", "pendulum", "timing"] if a.parts == "all" else a.parts.split(",")
+    cases = []
+
+    def record(name, ok, **detail):
+        cases.append({"case": name, "pass": bool(ok), **detail})
+        print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else json.dumps(detail, default=str)[:600]}", flush=True)
+    if "correctness" in parts:
+        for name, r in correctness(a.device).items():
+            record(f"correctness_{name}", r.pop("pass"), **r)
+    if "pendulum" in parts:
+        r = pendulum(out, a.device)
+        record("pendulum_held_out_error", r.pop("pass"), **r)
+    if "timing" in parts:
+        r = timing(out, a.device)
+        record("timing", r.pop("pass"), **r)
+    git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
+    report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
+              "environment": {"code_commit": git("rev-parse", "HEAD"),
+                              "code_dirty": bool(git("status", "--porcelain", "--untracked-files=all")),
+                              "python": platform.python_version(), "platform": platform.platform(),
+                              "torch": torch.__version__, "device": a.device,
+                              "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}}
+    text = json.dumps(report, indent=1, sort_keys=True, default=str) + "\n"
+    (out / "report.json").write_text(text.replace(str(out), "<out>").replace(str(REPO), "<repo>"))
+    print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
+    return 0 if report["all_pass"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
