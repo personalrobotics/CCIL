@@ -20,6 +20,44 @@
    "pass": true
   },
   {
+   "active_share": 0.8765624761581421,
+   "case": "correctness_activated_reference_soft_sampling",
+   "constraint": 0.002337108249000304,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 9.407337354409545e-13,
+   "loss_relative_difference": 2.2515875113484447e-16,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.0026885866422439357
+  },
+  {
+   "active_share": null,
+   "case": "correctness_activated_reference_soft_sampling_slack",
+   "constraint": 0.0022828638491513347,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 1.3706737133035227e-14,
+   "loss_relative_difference": 1.125854919968072e-16,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.002635011056188463
+  },
+  {
+   "case": "correctness_determinism_and_preflight",
+   "flag_restored": true,
+   "pass": true,
+   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1\n  transition_model.lipschitz_type soft_jac has no model_normalized form yet (#125): set transition_model.lipschitz_coordinates raw",
+   "recorded": true
+  },
+  {
+   "case": "stage_hooks",
+   "own_fit_accepted": true,
+   "own_policy_accepted": true,
+   "pass": true,
+   "swapped_fit_refused": true,
+   "swapped_policy_refused": true,
+   "tampered_weights_refused": true
+  },
+  {
    "all": {
     "held_out_episodes": [
      "10",
@@ -45,6 +83,222 @@
     "split_unchanged": true,
     "training_episode_labels": 15968,
     "training_episode_labels_equal": true
+   }
+  },
+  {
+   "case": "lipschitz_definition",
+   "dtype": "float64",
+   "max_relative_difference": 9.842794969155725e-12,
+   "pass": true
+  },
+  {
+   "case": "lipschitz_rescaling_invariance",
+   "dtype": "float64",
+   "model_normalized_relative_change": {
+    "max": 7.438673760435824e-05,
+    "median": 5.788412923502118e-13,
+    "p99": 1.2715382241536844e-06
+   },
+   "pass": true,
+   "raw_median_ratio_of_ratios": 10.523040791363833,
+   "units": {
+    "action": [
+     0.5
+    ],
+    "state": [
+     10.0,
+     0.1,
+     3.0
+    ]
+   }
+  },
+  {
+   "case": "lipschitz_engines_agree_soft_sampling",
+   "dtype": "float64",
+   "gradient_max_relative_difference": 7.89942217034983e-13,
+   "note": "constraint lowered to 0.05 so the hinge is active",
+   "pass": true,
+   "penalty": 0.09813025341554625,
+   "penalty_relative_difference": 7.636794113315283e-15
+  },
+  {
+   "case": "lipschitz_engines_agree_soft_sampling_slack",
+   "dtype": "float64",
+   "gradient_max_relative_difference": 9.978286515855641e-13,
+   "note": "constraint lowered to 0.05 so the hinge is active",
+   "pass": true,
+   "penalty": 0.0013173793793144206,
+   "penalty_relative_difference": 8.427511786338491e-14
+  },
+  {
+   "case": "lipschitz_records_and_old_checkpoints",
+   "old_checkpoint_reads_as": "raw",
+   "pass": true,
+   "record": {
+    "constraint": 2.0,
+    "coordinates": "model_normalized",
+    "normalization_sha256": "7a0f24db665536bd3d4cdef6c8340bfd78695f5d9b9fd08710bdb21b24f67568",
+    "role": "training regularizer; not a certified bound",
+    "units": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)"
+   },
+   "recorded": true,
+   "soft_jac_model_normalized_refused": true
+  },
+  {
+   "case": "lipschitz_pendulum",
+   "constraint": 2.0,
+   "criterion": "reported, no decision (declared in the tool's docstring)",
+   "pass": true,
+   "results": {
+    "model_normalized": [
+     {
+      "epochs_with_penalty": 100,
+      "held_out_error": 0.0002561741065741592,
+      "legacy_term_at_these_weights": null,
+      "penalty_last_epoch": 1.201018130814191e-05,
+      "ratio_max": 3.4539434909820557,
+      "ratio_quantiles": {
+       "0.5": 0.9566941261291504,
+       "0.99": 2.4621493816375732
+      },
+      "seed": 401,
+      "share_above_constraint": 0.03275551274418831
+     },
+     {
+      "epochs_with_penalty": 100,
+      "held_out_error": 0.00045639446187712123,
+      "legacy_term_at_these_weights": null,
+      "penalty_last_epoch": 1.1578355952224229e-05,
+      "ratio_max": 3.381288766860962,
+      "ratio_quantiles": {
+       "0.5": 0.9549786448478699,
+       "0.99": 2.4682602882385254
+      },
+      "seed": 402,
+      "share_above_constraint": 0.03330160304903984
+     },
+     {
+      "epochs_with_penalty": 100,
+      "held_out_error": 0.0004785221257003675,
+      "legacy_term_at_these_weights": null,
+      "penalty_last_epoch": 1.1935669135709759e-05,
+      "ratio_max": 3.450983762741089,
+      "ratio_quantiles": {
+       "0.5": 0.9832322597503662,
+       "0.99": 2.4638824462890625
+      },
+      "seed": 403,
+      "share_above_constraint": 0.033081162720918655
+     },
+     {
+      "epochs_with_penalty": 100,
+      "held_out_error": 0.0006669412707655307,
+      "legacy_term_at_these_weights": null,
+      "penalty_last_epoch": 1.2275589142518584e-05,
+      "ratio_max": 3.4071731567382812,
+      "ratio_quantiles": {
+       "0.5": 0.9558181762695312,
+       "0.99": 2.4791436195373535
+      },
+      "seed": 404,
+      "share_above_constraint": 0.03337174654006958
+     },
+     {
+      "epochs_with_penalty": 100,
+      "held_out_error": 0.00034233597212895474,
+      "legacy_term_at_these_weights": null,
+      "penalty_last_epoch": 1.1579450983845163e-05,
+      "ratio_max": 3.3550450801849365,
+      "ratio_quantiles": {
+       "0.5": 0.9738327264785767,
+       "0.99": 2.4605872631073
+      },
+      "seed": 405,
+      "share_above_constraint": 0.033351704478263855
+     }
+    ],
+    "raw": [
+     {
+      "epochs_with_penalty": 0,
+      "held_out_error": 0.0008679802993548767,
+      "legacy_term_at_these_weights": {
+       "active_share": 0.28723448514938354,
+       "mean_hinge": 0.7899187207221985
+      },
+      "penalty_last_epoch": 0.0,
+      "ratio_max": 0.23758865892887115,
+      "ratio_quantiles": {
+       "0.5": 0.074723020195961,
+       "0.99": 0.18805396556854248
+      },
+      "seed": 401,
+      "share_above_constraint": 0.0
+     },
+     {
+      "epochs_with_penalty": 0,
+      "held_out_error": 0.0008313417536741687,
+      "legacy_term_at_these_weights": {
+       "active_share": 0.2881813645362854,
+       "mean_hinge": 0.7935956716537476
+      },
+      "penalty_last_epoch": 0.0,
+      "ratio_max": 0.24395626783370972,
+      "ratio_quantiles": {
+       "0.5": 0.07521268725395203,
+       "0.99": 0.19033502042293549
+      },
+      "seed": 402,
+      "share_above_constraint": 0.0
+     },
+     {
+      "epochs_with_penalty": 0,
+      "held_out_error": 0.0002446530999990685,
+      "legacy_term_at_these_weights": {
+       "active_share": 0.2869539260864258,
+       "mean_hinge": 0.7874438166618347
+      },
+      "penalty_last_epoch": 0.0,
+      "ratio_max": 0.23530927300453186,
+      "ratio_quantiles": {
+       "0.5": 0.07581167668104172,
+       "0.99": 0.1885630339384079
+      },
+      "seed": 403,
+      "share_above_constraint": 0.0
+     },
+     {
+      "epochs_with_penalty": 0,
+      "held_out_error": 0.0001794665448220474,
+      "legacy_term_at_these_weights": {
+       "active_share": 0.2866082191467285,
+       "mean_hinge": 0.7884765267372131
+      },
+      "penalty_last_epoch": 0.0,
+      "ratio_max": 0.23830510675907135,
+      "ratio_quantiles": {
+       "0.5": 0.07612542808055878,
+       "0.99": 0.18799741566181183
+      },
+      "seed": 404,
+      "share_above_constraint": 0.0
+     },
+     {
+      "epochs_with_penalty": 0,
+      "held_out_error": 0.0005293144413959497,
+      "legacy_term_at_these_weights": {
+       "active_share": 0.28737977147102356,
+       "mean_hinge": 0.7944641709327698
+      },
+      "penalty_last_epoch": 0.0,
+      "ratio_max": 0.23594969511032104,
+      "ratio_quantiles": {
+       "0.5": 0.07724747061729431,
+       "0.99": 0.189361110329628
+      },
+      "seed": 405,
+      "share_above_constraint": 0.0
+     }
+    ]
    }
   },
   {
@@ -76,33 +330,33 @@
     },
     "continuous/soft_sampling": {
      "held_out_error_batched": [
-      0.000566056002414508,
-      0.0004991753281455828,
-      0.0004772813801830978,
-      0.0002036459877543033,
-      0.00036434673832086976
+      0.0002561741065741592,
+      0.00045639446187712123,
+      0.0004785221257003675,
+      0.0006669412707655307,
+      0.00034233597212895474
      ],
      "held_out_error_perfit": [
-      0.0004821505492045444,
-      0.00023928772764201123,
-      0.00041956478636855516,
-      0.0009776711935963888,
-      0.0004993660806277571
+      0.0002918593161889043,
+      0.0002883734675556153,
+      0.00033933269880844906,
+      0.0009109717129058179,
+      0.00030928281023951835
      ],
      "interval": [
-      -0.000599621583736647,
-      0.000396607623488289
+      -0.00019265991590915942,
+      0.00021687908844829075
      ],
-     "mean_difference": -0.00010150698012417899,
-     "perfit_seed_sd": 0.0002739264418766086
+     "mean_difference": 1.2109586269565666e-05,
+     "perfit_seed_sd": 0.000270761511659156
     },
     "discontinuous/none": {
      "held_out_error_batched": [
-      0.04073867204856743,
-      0.024918929266691776,
-      0.03061449884798105,
-      0.03917958496123355,
-      0.034045127409710454
+      0.03977434108783051,
+      0.02352439426511275,
+      0.031202698407777514,
+      0.03686845522215474,
+      0.028773679930558613
      ],
      "held_out_error_perfit": [
       0.028268012381114142,
@@ -112,19 +366,19 @@
       0.05129369278767915
      ],
      "interval": [
-      -0.01906885444345136,
-      0.012001437652925436
+      -0.022936585090840744,
+      0.012127870852014767
      ],
-     "mean_difference": -0.003533708395262962,
+     "mean_difference": -0.0054043571194129884,
      "perfit_seed_sd": 0.010463846799167887
     },
     "discontinuous/slack": {
      "held_out_error_batched": [
-      0.015463714901789605,
-      0.020938995368834205,
-      0.015489886039332929,
-      0.017776614695508574,
-      0.016477944197477945
+      0.019552571528595318,
+      0.015976256254570605,
+      0.015518584914601726,
+      0.016447783456953288,
+      0.01952674768437902
      ],
      "held_out_error_perfit": [
       0.015478263347760755,
@@ -134,10 +388,10 @@
       0.01586219562464345
      ],
      "interval": [
-      -0.0005323332141859345,
-      0.0025120579864945265
+      -0.002133014095670576,
+      0.0044626543224418475
      ],
-     "mean_difference": 0.000989862386154296,
+     "mean_difference": 0.001164820113385636,
      "perfit_seed_sd": 0.001106353059666375
     }
    },
@@ -154,33 +408,33 @@
    "measurements": [
     {
      "batch_size": 512,
-     "batched_20_seeds_seconds": 80.97502875328064,
+     "batched_20_seeds_seconds": 79.87668251991272,
      "engine": "compiled (default)",
      "epoch_seconds": [
-      5.365469455718994,
-      0.7492990493774414,
-      0.7495496273040771
+      6.6675379276275635,
+      0.7263083457946777,
+      0.7257277965545654
      ],
      "epochs": 100,
      "lipschitz_type": "soft_sampling",
-     "peak_device_gb": 1.1171903610229492,
-     "perfit_one_seed_seconds": 10.29212212562561,
+     "peak_device_gb": 1.205080509185791,
+     "perfit_one_seed_seconds": 9.463023900985718,
      "task": "continuous",
      "transitions": 39920
     },
     {
      "batch_size": 2048,
-     "batched_20_seeds_seconds": 172.57163071632385,
+     "batched_20_seeds_seconds": 168.28477668762207,
      "engine": "compiled (default)",
      "epoch_seconds": [
-      1.7818093299865723,
-      0.334301233291626,
-      0.3349597454071045
+      1.354536533355713,
+      0.3281693458557129,
+      0.3286323547363281
      ],
      "epochs": 500,
      "lipschitz_type": "slack",
-     "peak_device_gb": 0.6110191345214844,
-     "perfit_one_seed_seconds": 50.69799757003784,
+     "peak_device_gb": 0.5953941345214844,
+     "perfit_one_seed_seconds": 50.25836801528931,
      "task": "discontinuous",
      "transitions": 199600
     }
@@ -189,7 +443,7 @@
   }
  ],
  "environment": {
-  "code_commit": "d230b8c04c265f37721af5e9fc83c5145847df1d",
+  "code_commit": "8d2b6a24e3b369ed60953a3d02abb8ce90f146d4",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
