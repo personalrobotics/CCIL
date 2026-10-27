@@ -214,15 +214,28 @@ is set.
 | `policy.step_budget` | null | Optimizer steps per model, replacing epochs; the last epoch is cut at the budget |
 | `policy.grad_clip_norm` | null | Global gradient-norm clipping, per model |
 | `policy.ema_decay` | null | An exponential moving average of the weights, which then becomes the policy |
-| `policy.checkpoint_selection` | `last` | `validation`: keep the epoch with the lowest weighted loss on the split's validation-episode demonstrations |
+| `policy.checkpoint_selection` | `last` | `validation`: keep the weights with the lowest weighted loss on the split's validation-episode demonstrations |
+| `policy.validation_interval_steps` | null | With `validation`: validate every this many optimizer steps and at the last step; null validates once per epoch |
 
 **Validation selection.**
 - **Data:** it uses only held-out demonstrations, never evaluation data or
   generated labels.
 - **Requirements:** `policy.exclude_validation_episodes true` and a
   validation fraction.
-- **Records:** the per-epoch validation losses and the selected epoch go in
-  the training record.
+- **Loss:** the training loss, Σ w·mean((π(s) − a)²) / Σ w in the scaled
+  action space, on the weights that would be returned: the EMA weights when
+  EMA is on, which are then the policy.
+- **Cadence:** once per epoch, or every `policy.validation_interval_steps`
+  optimizer steps and at each model's last step. Steps are counted as v1
+  counts them (epoch × steps per epoch + step), so arms of different dataset
+  sizes get the same selection points under a shared step budget.
+- **Records:** every validation (step, epoch, loss), the selected one, and
+  its step and loss go in the training record.
+
+**Schedule details.** The cosine schedule warms up linearly from lr/W at the
+first step to lr at step W (W = `policy.warmup_steps`), then decays to 0 at
+the model's last step. AdamW uses β = (0.9, 0.999) and ε = 1e-8, as
+`torch.optim.AdamW`.
 
 **Trainer v1** refuses every recipe key.
 

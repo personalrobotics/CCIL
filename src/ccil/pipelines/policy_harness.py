@@ -50,7 +50,7 @@ def harness_problems(v) -> list[str]:
         problems.append("policy.checkpoint_selection validation needs held-out validation episodes: "
                         "policy.exclude_validation_episodes true and data.validation_fraction > 0")
     recipe_set = [k for k in ("optimizer", "weight_decay", "lr_schedule", "warmup_steps", "step_budget",
-                              "grad_clip_norm", "ema_decay", "checkpoint_selection")
+                              "grad_clip_norm", "ema_decay", "checkpoint_selection", "validation_interval_steps")
                   if v[f"policy.{k}"] != {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant",
                                           "warmup_steps": 0, "checkpoint_selection": "last"}.get(k)]
     if recipe_set and v["policy.trainer_version"] != "2":
@@ -67,7 +67,8 @@ def settings_of(v) -> dict:
             "observation_scaler": v["policy.observation_scaler"], "action_scaler": v["policy.action_scaler"],
             "balance_labels": v["generation.labels_per_transition"] if v["policy.balance_noisy_labels"] else None,
             **{k: v[f"policy.{k}"] for k in ("optimizer", "weight_decay", "lr_schedule", "warmup_steps", "step_budget",
-                                             "grad_clip_norm", "ema_decay", "checkpoint_selection")}}
+                                             "grad_clip_norm", "ema_decay", "checkpoint_selection",
+                                             "validation_interval_steps")}}
 
 
 def run_policy_harness(cfg) -> list[StageResult]:
