@@ -217,12 +217,14 @@ class CandidateSet:
         chunked = self._check_chunks(out, n)
         if dataset is not None:
             lengths = {ep.episode_id: ep.length for ep in dataset.episodes}
-            for i in range(n):
-                T = lengths.get(str(self.source_episode_id[i]))
-                if T is None:
+            ids, inverse = np.unique(np.asarray(self.source_episode_id).astype(str), return_inverse=True)
+            T = np.array([lengths.get(str(e), -1) for e in ids], dtype=np.int64)[inverse.reshape(-1)]  # -1: unknown
+            frame = np.asarray(self.source_frame)
+            for i in np.flatnonzero((T < 0) | (frame < 0) | (frame > T - 2)):  # rows in order, as a per-row loop
+                if T[i] < 0:
                     out.add("source_identity", f"row {i}", f"unknown source episode {self.source_episode_id[i]!r}")
-                elif not 0 <= self.source_frame[i] <= T - 2:
-                    out.add("source_identity", f"row {i}", f"source_frame {int(self.source_frame[i])} is not a transition of a {T}-frame episode")
+                else:
+                    out.add("source_identity", f"row {i}", f"source_frame {int(frame[i])} is not a transition of a {int(T[i])}-frame episode")
             if chunked:
                 self._check_chunks_against(dataset, out)
         out.raise_if_any()
