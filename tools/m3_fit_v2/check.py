@@ -15,6 +15,19 @@
    different shuffles and perturbation draws, so this measures how much the engine changes the fitted
    model, against the seed-to-seed spread).
 3. timing (CUDA host): wall time of one per-fit fit, and of 20 seeds as one batched group, per task.
+5. lipschitz (any host; #125): the model_normalized sampled Lipschitz ratio
+   - equals a direct computation of ||g(x + dx) - g(x)|| / ||dx|| from the state dict (x the normalized input,
+     g the normalized residual, dx = eps * N(0, I) in normalized space);
+   - is invariant to a change of units (states, actions and residuals rescaled per coordinate, normalization
+     refitted, the same weights), while the raw ratio scales with the units;
+   - gives the same penalty, and the same gradients, in both engines from the same perturbations, for
+     soft_sampling and soft_sampling_slack;
+   - is recorded (coordinates, units, normalization hash) in fit records, and a checkpoint saved before #125
+     (no lipschitz_coordinates in its settings) loads as raw; soft_jac refuses model_normalized.
+6. lipschitz_pendulum (CUDA host; reported, no decision; no policy is trained): continuous Pendulum at the paper's
+   settings (soft_sampling, constraint 2, eps 3e-4), seeds 401-405, fitted as one batched group under each
+   coordinate system: per-epoch penalty, the share of training samples whose ratio exceeds the constraint at the
+   final weights, and the held-out one-step error.
 4. clean_holdout (any host): on the first 20 continuous Pendulum episodes (labels_per_transition 2, 2 dynamics
    epochs), the label pipeline runs on the data and on a copy whose held-out episodes (the data.prepare split
    at seed 501) are perturbed. With transition_model.fit_episodes train, the label model and every label from a
@@ -214,6 +227,175 @@ def clean_holdout(out: Path, device: str) -> dict:
     return {"pass": ok, **out_}
 
 
+def _fitted(lt, coordinates, seed=5):
+    z, a, zn = _data(2048, seed)
+    m = MLPTransitionModel(**{**BASE, "lipschitz_type": lt, "epochs": 3, "lipschitz_coordinates": coordinates})
+    m.fit(z, a, zn, seed=seed)
+    return m, z, a, zn
+
+
+def _reference_ratio(sd: dict, s, a, noise, eps, relu=True):
+    """||g(x + dx) - g(x)|| / ||dx|| written out from the state dict, float64."""
+    sd = {k: v.double() for k, v in sd.items()}
+    x = torch.cat([(s - sd["s_shift"]) / (sd["s_scale"] + 1e-8), (a - sd["a_shift"]) / (sd["a_scale"] + 1e-8)], -1)
+    layers = len([k for k in sd if k.startswith("fc_layers.") and k.endswith(".weight")])
+
+    def g(v):
+        for i in range(layers):
+            v = v @ sd[f"fc_layers.{i}.weight"].T + sd[f"fc_layers.{i}.bias"]
+            if i < layers - 1:
+                v = torch.relu(v) if relu else torch.tanh(v)
+        return v
+    n = noise.shape[0] // len(s)
+    xr = x.repeat_interleave(n, 0)
+    dx = noise * eps
+    return torch.linalg.norm(g(xr + dx) - g(xr), dim=-1) / torch.linalg.norm(dx, dim=-1)
+
+
+def lipschitz_checks() -> dict:
+    from ccil.models import mlp as mlp_mod
+    from ccil.models import mlp_batched as mb
+    out = {}
+    eps, n = BASE["soft_sampling_eps"], BASE["soft_samples"]
+    # In float64: the ratio divides a difference of O(1) outputs by a 3e-4 step, which amplifies float32 rounding
+    # about 3,000-fold; float64 tests the definition rather than the precision.
+    m, z, a, zn = _fitted("soft_sampling", "model_normalized")
+    m.net.double()
+    s, act = torch.as_tensor(z[:256], dtype=torch.float64), torch.as_tensor(a[:256], dtype=torch.float64)
+    g = torch.Generator().manual_seed(0)
+    noise = torch.randn((256 * n, 4), generator=g, dtype=torch.float64)
+    with torch.no_grad():
+        got = mlp_mod.lipschitz_ratio(s, act, m.net.predict, n, eps, noise=(noise[:, :3], noise[:, 3:]),
+                                      coordinates="model_normalized", net=m.net)
+    ref = _reference_ratio(dict(m.net.state_dict()), s.double(), act.double(), noise.double(), eps)
+    rel = float(((got - ref).abs() / ref.abs().clamp_min(1e-12)).max())
+    out["definition"] = {"pass": rel < 1e-9, "max_relative_difference": rel, "dtype": "float64"}
+
+    # A change of units: per-coordinate scales of state (and therefore residual) and action.
+    cs, ca = torch.tensor([10.0, 0.1, 3.0], dtype=torch.float64), torch.tensor([0.5], dtype=torch.float64)
+    m2, _, _, _ = _fitted("soft_sampling", "model_normalized")
+    m2.net.double()
+    m2.net.load_state_dict(m.net.state_dict())
+    sh = {k: v.clone() for k, v in m.net.named_buffers()}
+    m2.net.set_transformations(s_shift=sh["s_shift"] * cs, s_scale=sh["s_scale"] * cs, a_shift=sh["a_shift"] * ca,
+                               a_scale=sh["a_scale"] * ca, out_shift=sh["out_shift"] * cs, out_scale=sh["out_scale"] * cs)
+    with torch.no_grad():
+        r_n = [mlp_mod.lipschitz_ratio(ss, aa, mm.net.predict, n, eps, noise=(noise[:, :3], noise[:, 3:]),
+                                       coordinates="model_normalized", net=mm.net)
+               for mm, ss, aa in ((m, s, act), (m2, s * cs, act * ca))]
+        r_raw = [mlp_mod.lipschitz_ratio(ss, aa, mm.net.predict, n, eps, noise=(noise[:, :3], noise[:, 3:]))
+                 for mm, ss, aa in ((m, s, act), (m2, s * cs, act * ca))]
+    # Exact up to the normalization's absolute 1e-8 in (scale + 1e-8), which shifts normalized inputs by up to
+    # about 1e-8 / scale after rescaling and can tip a sample lying at a ReLU kink: the bulk is tested tightly.
+    rel = ((r_n[0] - r_n[1]).abs() / r_n[0].clamp_min(1e-12)).sort().values
+    q = {"median": float(rel.median()), "p99": float(rel[int(0.99 * len(rel))]), "max": float(rel[-1])}
+    raw_factor = float((r_raw[1] / r_raw[0]).median())
+    out["rescaling_invariance"] = {"pass": q["median"] <= 1e-9 and q["p99"] <= 1e-5 and q["max"] <= 1e-3
+                                   and abs(raw_factor - 1) > 0.5, "dtype": "float64",
+                                   "model_normalized_relative_change": q,
+                                   "raw_median_ratio_of_ratios": raw_factor,
+                                   "units": {"state": cs.tolist(), "action": ca.tolist()}}
+
+    # The engines: the same penalty and gradients from the same perturbations.
+    for lt in ("soft_sampling", "soft_sampling_slack"):
+        mm, z_, a_, zn_ = _fitted(lt, "model_normalized", seed=6)
+        mm.net.double()
+        if mm.lam is not None:
+            mm.lam.double()
+        s_, aa_, sp_ = (torch.as_tensor(x[:128], dtype=torch.float64) for x in (z_, a_, zn_))
+        nz = torch.randn((128 * n, 4), generator=g, dtype=torch.float64)
+        trainable = {"net": {k: v.detach().clone().requires_grad_(True) for k, v in mm.net.named_parameters()}}
+        buffers = {"net": {k: v.clone() for k, v in mm.net.named_buffers()}}
+        if mm.lam is not None:
+            trainable["lam"] = {k: v.detach().clone().requires_grad_(True) for k, v in mm.lam.named_parameters()}
+            buffers["lam"] = {k: v.clone() for k, v in mm.lam.named_buffers()}
+        k = {"layers": len(BASE["hidden_layers"]) + 1, "relu": True, "lipschitz_type": lt,
+             "lipschitz_constraint": 0.05, "soft_penalty_weight": 1.0, "soft_sampling_eps": eps, "soft_samples": n,
+             "slack_weight": BASE["slack_weight"], "coordinates": "model_normalized"}
+        loss2, terms2 = mb._loss(trainable, buffers, s_, aa_, sp_, nz, k)
+        g2 = torch.autograd.grad(loss2, [v for d in trainable.values() for v in d.values()])
+        mm.net.zero_grad()
+        if mm.lam is not None:
+            mm.lam.zero_grad()
+        y = (sp_ - s_ - mm.net.out_shift) / (mm.net.out_scale + 1e-8)
+        lam_fn = (lambda s0, a0: mm.lam.predict(s0, a0)) if mm.lam is not None else None
+        if lt == "soft_sampling":
+            ratio = mlp_mod.lipschitz_ratio(s_, aa_, mm.net.predict, n, eps, noise=(nz[:, :3], nz[:, 3:]),
+                                            coordinates="model_normalized", net=mm.net)
+            pen = 1.0 * torch.relu(ratio - 0.05).mean()
+        else:
+            terms, slack = mlp_mod.slack_sampling_terms((s_, aa_), mm.net.predict, lam_fn, 0.05, eps, n,
+                                                        noise=(nz[:, :3], nz[:, 3:]), coordinates="model_normalized",
+                                                        net=mm.net)
+            pen = 1.0 * (terms.mean() + 1 - torch.exp(-0.1 * torch.abs(slack).mean()))
+        loss1 = torch.nn.functional.mse_loss(mm.net(s_, aa_), y) + pen
+        params1 = list(mm.net.parameters()) + (list(mm.lam.parameters()) if mm.lam is not None else [])
+        g1 = torch.autograd.grad(loss1, params1)
+        dpen = abs(float(terms2["lipschitz_penalty"]) - float(pen)) / max(abs(float(pen)), 1e-12)
+        dgrad = max(float((x - y_).abs().max() / (y_.abs().max() + 1e-12)) for x, y_ in zip(g2, g1))
+        out[f"engines_agree_{lt}"] = {"pass": dpen < 1e-9 and dgrad < 1e-8 and float(pen) > 0, "dtype": "float64",
+                                      "penalty": float(pen), "penalty_relative_difference": dpen,
+                                      "gradient_max_relative_difference": dgrad,
+                                      "note": "constraint lowered to 0.05 so the hinge is active"}
+
+    # Records, old checkpoints and refusals.
+    import tempfile
+    m, *_ = _fitted("soft_sampling", "model_normalized")
+    rec = m.fit(z, a, zn, seed=5)
+    [(_, rec2)] = fit_group([FitJob(z, a, zn, 5)], dict(m.settings), device="cpu", compile=False)
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "old.npz"
+        mr, *_ = _fitted("soft_sampling", "raw")
+        mr.save(path)
+        with np.load(path, allow_pickle=False) as f:
+            arrays = {k_: f[k_] for k_ in f.files}
+        meta = json.loads(str(arrays["meta"]))
+        del meta["settings"]["lipschitz_coordinates"]
+        arrays["meta"] = np.array(json.dumps(meta, sort_keys=True))
+        np.savez(path, **arrays)
+        old = MLPTransitionModel.load(path)
+    try:
+        MLPTransitionModel(**{**BASE, "lipschitz_type": "soft_jac", "lipschitz_coordinates": "model_normalized"})
+        jac_refused = False
+    except ValueError:
+        jac_refused = True
+    recorded = all(r.get("lipschitz", {}).get("coordinates") == "model_normalized"
+                   and len(r["lipschitz"]["normalization_sha256"]) == 64 for r in (rec, rec2))
+    out["records_and_old_checkpoints"] = {"pass": recorded and old.settings["lipschitz_coordinates"] == "raw"
+                                          and jac_refused, "recorded": recorded,
+                                          "old_checkpoint_reads_as": old.settings["lipschitz_coordinates"],
+                                          "soft_jac_model_normalized_refused": jac_refused,
+                                          "record": rec["lipschitz"]}
+    return out
+
+
+def lipschitz_pendulum(out: Path, device: str) -> dict:
+    from ccil.models import mlp as mlp_mod
+    (z, a, zn), (zh, ah, znh), paper = _transitions(out, "continuous")
+    res = {}
+    for coords in ("raw", "model_normalized"):
+        st = {**paper, "lipschitz_coordinates": coords}
+        fits = fit_group([FitJob(z, a, zn, s) for s in SEEDS], st, device=device)
+        rows = []
+        for (m, rec), seed in zip(fits, SEEDS):
+            s_ = torch.as_tensor(z, dtype=torch.float32, device=device)
+            a_ = torch.as_tensor(a, dtype=torch.float32, device=device)
+            g = torch.Generator(device=device).manual_seed(seed)
+            nz = torch.randn((len(z) * st["soft_samples"], z.shape[1] + a.shape[1]), generator=g, device=device)
+            with torch.no_grad():
+                r = mlp_mod.lipschitz_ratio(s_, a_, m.net.predict, st["soft_samples"], st["soft_sampling_eps"],
+                                            noise=(nz[:, :z.shape[1]], nz[:, z.shape[1]:]), coordinates=coords, net=m.net)
+            pen = rec["epoch_losses"]["lipschitz_penalty"]
+            rows.append({"seed": seed, "share_above_constraint": float((r > st["lipschitz_constraint"]).float().mean()),
+                         "ratio_quantiles": {q: float(r.quantile(q)) for q in (0.5, 0.99)},
+                         "ratio_max": float(r.max()), "epochs_with_penalty": int(sum(p > 0 for p in pen)),
+                         "penalty_last_epoch": pen[-1],
+                         "held_out_error": float(np.linalg.norm(m.delta(zh, ah) + zh - znh, axis=1).mean())})
+        res[coords] = rows
+    return {"pass": True, "criterion": "reported, no decision (declared in the tool's docstring)",
+            "constraint": paper["lipschitz_constraint"], "results": res}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
@@ -222,7 +404,8 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = ["correctness", "clean_holdout", "pendulum", "timing"] if a.parts == "all" else a.parts.split(",")
+    parts = (["correctness", "clean_holdout", "lipschitz", "pendulum", "lipschitz_pendulum", "timing"]
+             if a.parts == "all" else a.parts.split(","))
     cases = []
 
     def record(name, ok, **detail):
@@ -234,6 +417,12 @@ def main():
     if "clean_holdout" in parts:
         r = clean_holdout(out, a.device)
         record("clean_holdout", r.pop("pass"), **r)
+    if "lipschitz" in parts:
+        for name, r in lipschitz_checks().items():
+            record(f"lipschitz_{name}", r.pop("pass"), **r)
+    if "lipschitz_pendulum" in parts:
+        r = lipschitz_pendulum(out, a.device)
+        record("lipschitz_pendulum", r.pop("pass"), **r)
     if "pendulum" in parts:
         r = pendulum(out, a.device)
         record("pendulum_held_out_error", r.pop("pass"), **r)

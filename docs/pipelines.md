@@ -61,6 +61,27 @@ stage manifest.
   study runner can fit many seeds as one group. It is not bit-compatible with
   version 1, so the version is part of the stage identity. It supports
   lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`.
+- **`transition_model.lipschitz_coordinates`** (#125) says which ratio the
+  sampled Lipschitz penalties (`soft_sampling`, `soft_sampling_slack`) hinge
+  at `lipschitz_constraint`:
+  - `model_normalized` (the default). It perturbs the model's normalized input
+    x = (q − shift) / (scale + 1e-8) by δx ~ ε N(0, I), and takes
+    ‖g(x + δx) − g(x)‖ / ‖δx‖ with g the normalized residual. This ratio is
+    dimensionless, invariant to the units and timestep, and in the space the
+    network is optimized in.
+  - `raw` (#21). Raw residuals over raw perturbations, so the constant
+    depends on the units and the timestep. On continuous Pendulum the paper's
+    L = 2 never binds in raw coordinates.
+  - `soft_jac` supports `raw` only.
+  - A checkpoint written before #125 reads as `raw`.
+  - Fit records state the coordinates, the units and a SHA-256 of the
+    normalization.
+- **The penalty is a training regularizer, not a certificate.** The value of
+  `lipschitz_constraint` is never a proven bound in either coordinate system.
+  Certificates recompute model bounds from the weights and normalization
+  transforms (no certificate code reads it). A normalized bound used directly
+  in a theorem would need every distance in that theorem measured in the same
+  weighted norm, or a conservative conversion to raw coordinates.
 - **Evidence:** `tools/m3_fit_v2/check.py`.
   - One step equals version 1's step from the same initialization.
   - The held-out error of batched fits is compared with per-fit ones on

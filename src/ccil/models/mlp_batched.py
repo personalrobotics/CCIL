@@ -35,7 +35,7 @@ from torch.utils._pytree import tree_map
 
 from ..training.vector_bc_v2 import (CUDA_GRAPHS, _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64,
                                      _Streams)
-from .mlp import DynamicsNet, MLPTransitionModel, one_step_metrics
+from .mlp import DynamicsNet, MLPTransitionModel, lipschitz_record, one_step_metrics
 
 SUPPORTED = ("none", "slack", "soft_sampling", "soft_sampling_slack")
 _PERTURB = _s64(0x50455254 << 32)  # domain separation of the perturbation draws
@@ -63,9 +63,19 @@ def _normals(seed: torch.Tensor, step: torch.Tensor, shape: tuple, device) -> to
     return z.to(torch.float32).view(M, *shape)
 
 
+def _normalize(p: dict, s, a):
+    """DynamicsNet.normalize: the normalized input of (s, a)."""
+    return torch.cat([(s - p["s_shift"]) / (p["s_scale"] + 1e-8), (a - p["a_shift"]) / (p["a_scale"] + 1e-8)], -1)
+
+
 def _forward(p: dict, s, a, layers: int, relu: bool):
     """DynamicsNet.forward from its state-dict names, one model."""
-    out = torch.cat([(s - p["s_shift"]) / (p["s_scale"] + 1e-8), (a - p["a_shift"]) / (p["a_scale"] + 1e-8)], -1)
+    return _forward_normalized(p, _normalize(p, s, a), layers, relu)
+
+
+def _forward_normalized(p: dict, x, layers: int, relu: bool):
+    """DynamicsNet.forward_normalized: the normalized residual of a normalized input."""
+    out = x
     for i in range(layers):
         out = out @ p[f"fc_layers.{i}.weight"].T + p[f"fc_layers.{i}.bias"]
         if i < layers - 1:
@@ -100,11 +110,18 @@ def _loss(trainable: dict, buffers: dict, s, a, sp, noise, k: dict):
                                                      "slack_penalty": avg, "slack_std": slack.std()}
     # soft_sampling and soft_sampling_slack: the finite-difference Lipschitz hinge over perturbations.
     n = k["soft_samples"]
-    base = _predict(p, s, a, k["layers"], k["relu"]).repeat_interleave(n, dim=0)
-    ss, aa = s.repeat_interleave(n, dim=0), a.repeat_interleave(n, dim=0)
-    ds, da = noise[:, :ss.shape[1]] * k["soft_sampling_eps"], noise[:, ss.shape[1]:] * k["soft_sampling_eps"]
-    step_norm = torch.linalg.norm(torch.cat([ds, da], dim=-1), dim=-1)
-    ratio = torch.linalg.norm(_predict(p, ss + ds, aa + da, k["layers"], k["relu"]) - base, dim=-1) / step_norm
+    if k["coordinates"] == "model_normalized":  # lipschitz_ratio's model_normalized form (models/mlp.py)
+        x = _normalize(p, s, a)
+        base = _forward_normalized(p, x, k["layers"], k["relu"]).repeat_interleave(n, dim=0)
+        dx = noise * k["soft_sampling_eps"]
+        ratio = torch.linalg.norm(_forward_normalized(p, x.repeat_interleave(n, dim=0) + dx, k["layers"], k["relu"])
+                                  - base, dim=-1) / torch.linalg.norm(dx, dim=-1)
+    else:
+        base = _predict(p, s, a, k["layers"], k["relu"]).repeat_interleave(n, dim=0)
+        ss, aa = s.repeat_interleave(n, dim=0), a.repeat_interleave(n, dim=0)
+        ds, da = noise[:, :ss.shape[1]] * k["soft_sampling_eps"], noise[:, ss.shape[1]:] * k["soft_sampling_eps"]
+        step_norm = torch.linalg.norm(torch.cat([ds, da], dim=-1), dim=-1)
+        ratio = torch.linalg.norm(_predict(p, ss + ds, aa + da, k["layers"], k["relu"]) - base, dim=-1) / step_norm
     hinge = torch.relu(ratio - k["lipschitz_constraint"])
     if lt == "soft_sampling":
         penalty = k["soft_penalty_weight"] * hinge.mean()
@@ -212,7 +229,8 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
          "soft_penalty_weight": settings.get("soft_penalty_weight"),
          "soft_sampling_eps": settings.get("soft_sampling_eps"), "soft_samples": int(settings.get("soft_samples") or 1),
          "slack_weight": settings.get("slack_weight"), "learning_rate": float(settings["learning_rate"]),
-         "weight_decay": float(settings["weight_decay"]), "needs_noise": lt.startswith("soft_sampling")}
+         "weight_decay": float(settings["weight_decay"]), "needs_noise": lt.startswith("soft_sampling"),
+         "coordinates": settings.get("lipschitz_coordinates", "raw")}
     noise_seed = torch.tensor([_s64(int(j.seed) & _M64) for j in padded], device=device)
     engine = _Engine(_step, compile)
     m1 = {n_: {q: torch.zeros_like(v) for q, v in d.items()} for n_, d in trainable.items()}
@@ -267,6 +285,6 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
                   "shuffle": "counter-based permutation (policy trainer v2's), keyed by (seed, epoch)",
                   "perturbations": "counter-keyed normals (seed, step, minibatch row, sample, component)"
                   if k["needs_noise"] else None,
-                  **one_step_metrics(m, j.z, j.a, j.z_next)}
+                  **lipschitz_record(m.settings, m.net), **one_step_metrics(m, j.z, j.a, j.z_next)}
         out.append((m, json.loads(json.dumps(record, default=float))))
     return out
