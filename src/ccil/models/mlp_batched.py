@@ -176,6 +176,18 @@ def fit_identity(z, a, z_next, settings: dict, seed: int) -> str:
     return h.hexdigest()
 
 
+def model_sha256(model) -> str:
+    """SHA-256 of a fitted model's complete payload: the dynamics network, the slack network when there is one,
+    and the normalization buffers (both state dicts include them), binding a fit record to the model it returns."""
+    h = hashlib.sha256()
+    for prefix, net in (("dynamics/", model.net), ("lambda/", model.lam)):
+        if net is None:
+            continue
+        for name, value in sorted(net.state_dict().items()):
+            h.update((prefix + name).encode() + value.detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
 def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compile: bool | None = None,
               chunk_steps: int = 256, deterministic: bool = False):
     """Fit every job's transition model together; return [(MLPTransitionModel, fit record)] in job order.
@@ -291,6 +303,7 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
                                     **{q: v[i] for q, v in buffers[name].items()}})
         record = {"method": "adam", "trainer": "batched", "epochs": epochs, "steps_per_epoch": steps[i],
                   "fit_identity_sha256": fit_identity(j.z, j.a, j.z_next, settings, j.seed),
+                  "model_sha256": model_sha256(m),
                   "final_epoch_losses": {q: v[-1] for q, v in history[i].items()}, "epoch_losses": history[i],
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M, "engine": engine.state},
                   "group": {**execution, "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train,
