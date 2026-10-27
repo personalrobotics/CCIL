@@ -127,8 +127,20 @@ def _split_on_oom(items: list, run, log) -> list:
         return _split_on_oom(items[:h], run, log) + _split_on_oom(items[h:], run, log)
 
 
-def _chunks(xs: list, n: int) -> list:
-    return [xs[i:i + n] for i in range(0, len(xs), n)]
+def _chunks(xs: list, cap: int, per: int = 1) -> list:
+    """xs in chunks whose model counts (per models an item) are exactly bucket sizes, largest first, at most cap.
+
+    The trainers pad a group to the next bucket with masked models that still compute; a chunk of exactly a bucket
+    wastes none (80 fits run as 64 + 16 rather than as 128).
+    """
+    from ..training.vector_bc_v2 import BUCKETS
+    sizes = sorted({b // per for b in BUCKETS if b <= cap and b % per == 0 and b >= per}, reverse=True) or [1]
+    out, i = [], 0
+    while i < len(xs):
+        n = next(z for z in sizes if z <= len(xs) - i) if any(z <= len(xs) - i for z in sizes) else 1
+        out.append(xs[i:i + n])
+        i += n
+    return out
 
 
 def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
@@ -151,6 +163,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     from ..pipelines.policy_harness import (POLICY_CHECKPOINT, VectorMLP, run_policy_harness, settings_of,
                                             unit_supervision)
     from ..pipelines.stages import StageError, completed_stage, stage_dest
+    from ..runs import layout
     from ..training import vector_bc_v2
     from ..training.vector_bc import VectorBCPolicy
 
@@ -204,7 +217,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     fit_groups = []
     for key, members in by_settings.items():
         settings, dev = json.loads(key)
-        for chunk in _chunks(members, max(1, max_group // 2)):  # two fits per unit: label and evaluation models
+        per = 2 if any(us[0].prepared.out(layout.SPLIT).exists() for us in members) else 1  # label + evaluation
+        for chunk in _chunks(members, max_group, per):
             jobs, owners = [], []
             for us in chunk:
                 u = us[0]
