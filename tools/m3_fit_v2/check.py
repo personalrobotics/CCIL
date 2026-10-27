@@ -28,7 +28,15 @@
    is equivalent when the 90% union interval (BCa with paired t; TOST at 5% per side) of
    mean(error_batched - error_perfit) lies within +-25% of the per-fit mean held-out one-step error. The 25%
    bound is a declared practical-equivalence margin, fixed before these fits and not derived from any observed
-   spread.
+   spread. Result (6aaf489, siddh): failed on continuous/none, interval [-1.34e-4, 4.9e-5] against +-1.24e-4;
+   the other three passed. It stays reported as failed and is excluded from the confirmatory decision.
+2c. confirmatory (CUDA host; the gate's one rerun, declared in the predeclaration before any of its fits ran).
+   The 601-640 design had about 55% power on continuous Pendulum, whose seed-to-seed spread is about 50% of the
+   mean. Same statistic, interval, level, margin, data and configurations as 2b, on fresh seeds 641-780 (140 per
+   configuration); batched fits in groups of 35 consecutive seeds, near 2b's 40. All four configurations are
+   rerun, and the batched engine is accepted only if all four pass. There is no third attempt: a failure
+   means per-fit fits (transition_model.trainer_version 1) for the study. --tasks splits the configurations
+   across processes (one per GPU); the decision reads every configuration's result.
 3. timing (CUDA host): wall time of one per-fit fit, and of 20 seeds as one batched group, per task.
 5. lipschitz (any host; #125): the model_normalized sampled Lipschitz ratio
    - equals a direct computation of ||g(x + dx) - g(x)|| / ||dx|| from the state dict (x the normalized input,
@@ -243,6 +251,7 @@ def stage_hooks(out: Path) -> dict:
                                             "policy.checkpoint_selection=validation",
                                             "policy.validation_interval_steps=10",
                                             "generation.labels_per_transition=2"])
+<<<<<<< ours
     m1, m2 = modern(1), modern(2)
     u1, u2 = policy_harness.unit_supervision(m1), policy_harness.unit_supervision(m2)
     st = policy_harness.settings_of(m1.values)
@@ -251,6 +260,23 @@ def stage_hooks(out: Path) -> dict:
     res["changed_validation_refused"] = refused(
         lambda: policy_harness.run_policy_harness(m1, trained=other_v, unit=u1), "not this unit")
     policy_harness.run_policy_harness(m1, trained=own_v, unit=u1)
+=======
+
+    def unit(c):  # what the harness trains on, and the held-out supervision that selects its checkpoint
+        p_ = prepare_stage(c)
+        ds, split = p_.out("data/dataset.npz"), p_.out("data/split.json")
+        w = c["policy.demonstration_weight"]
+        return (build_supervision(ds, "bc", representation=rep, split=split, demonstration_weight=w),
+                build_supervision(ds, "bc", representation=rep, split=split, part="validation", demonstration_weight=w))
+    m1, m2 = modern(1), modern(2)
+    (sup1, held1), (_, held2) = unit(m1), unit(m2)
+    st = policy_harness.settings_of(m1.values)
+    [own_v] = v2.train_group([v2.Job(sup1, 1, None, held1)], st, device="cpu", compile=False)
+    [other_v] = v2.train_group([v2.Job(sup1, 1, None, held2)], st, device="cpu", compile=False)
+    res["changed_validation_refused"] = refused(
+        lambda: policy_harness.run_policy_harness(m1, trained=other_v), "not this unit")
+    policy_harness.run_policy_harness(m1, trained=own_v)
+>>>>>>> theirs
     res["own_validation_accepted"] = True
     return {"pass": all(res.values()), **res}
 
@@ -337,24 +363,27 @@ def pendulum(out: Path, device: str):
 
 
 EQUIVALENCE_SEEDS, EQUIVALENCE_MARGIN, EQUIVALENCE_LEVEL = tuple(range(601, 641)), 0.25, 0.90
+CONFIRMATORY_SEEDS, CONFIRMATORY_GROUP = tuple(range(641, 781)), 35
 
 
-def equivalence(out: Path, device: str) -> dict:
+def equivalence(out: Path, device: str, seeds=EQUIVALENCE_SEEDS, group=None,
+                tasks=("continuous", "discontinuous")) -> dict:
     sys.path.insert(0, str(REPO / "tools" / "m3_pendulum"))
     import analyze
     results = {}
-    for task in ("continuous", "discontinuous"):
+    for task in tasks:
         (z, a, zn), (zh, ah, znh), paper = _transitions(out, task)
         for lt in (paper["lipschitz_type"], "none"):
             st = {**paper, "lipschitz_type": lt}
             err = lambda m: float(np.linalg.norm(m.delta(zh, ah) + zh - znh, axis=1).mean())  # noqa: E731
             per = []
-            for s_ in EQUIVALENCE_SEEDS:
+            for s_ in seeds:
                 m = MLPTransitionModel(**st, device=device)
                 m.fit(z, a, zn, seed=s_)
                 per.append(err(m))
-            batched = [err(m) for m, _ in fit_group([FitJob(z, a, zn, s_) for s_ in EQUIVALENCE_SEEDS], st,
-                                                    device=device)]
+            size = group or len(seeds)
+            batched = [err(m) for i in range(0, len(seeds), size)
+                       for m, _ in fit_group([FitJob(z, a, zn, s_) for s_ in seeds[i:i + size]], st, device=device)]
             d = np.array(batched) - np.array(per)
             iv = analyze.union_interval(d, EQUIVALENCE_LEVEL)
             margin = EQUIVALENCE_MARGIN * float(np.mean(per))
@@ -363,7 +392,7 @@ def equivalence(out: Path, device: str) -> dict:
                                        "perfit_mean": float(np.mean(per)), "batched_mean": float(np.mean(batched)),
                                        "held_out_error_perfit": per, "held_out_error_batched": batched,
                                        "lipschitz_coordinates": st.get("lipschitz_coordinates", "raw")}
-    return {"pass": all(r["equivalent"] for r in results.values()), "seeds": list(EQUIVALENCE_SEEDS),
+    return {"pass": all(r["equivalent"] for r in results.values()), "seeds": list(seeds), "group": group or len(seeds),
             "criterion": f"{int(EQUIVALENCE_LEVEL * 100)}% union interval of mean(batched - per-fit) within "
                          f"+-{int(EQUIVALENCE_MARGIN * 100)}% of the per-fit mean", "results": results}
 
@@ -660,6 +689,7 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--parts", default="correctness")
+    ap.add_argument("--tasks", default="continuous,discontinuous", help="equivalence parts: the tasks to run")
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -688,8 +718,11 @@ def main():
         r = lipschitz_pendulum(out, a.device)
         record("lipschitz_pendulum", r.pop("pass"), **r)
     if "equivalence" in parts:
-        r = equivalence(out, a.device)
+        r = equivalence(out, a.device, tasks=tuple(a.tasks.split(",")))
         record("equivalence", r.pop("pass"), **r)
+    if "confirmatory" in parts:
+        r = equivalence(out, a.device, CONFIRMATORY_SEEDS, CONFIRMATORY_GROUP, tuple(a.tasks.split(",")))
+        record("confirmatory_equivalence", r.pop("pass"), **r)
     if "pendulum" in parts:
         r = pendulum(out, a.device)
         record("pendulum_held_out_error", r.pop("pass"), **r)
