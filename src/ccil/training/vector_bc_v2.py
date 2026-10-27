@@ -491,7 +491,8 @@ def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
 
 
 RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant", "warmup_steps": 0,
-                   "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last"}
+                   "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
+                   "validation_interval_steps": None}
 
 
 def recipe_of(settings: dict) -> dict:
@@ -508,6 +509,9 @@ def recipe_of(settings: dict) -> dict:
         raise TrainingError(f"checkpoint_selection {r['checkpoint_selection']!r} is not last or validation")
     if r["ema_decay"] is not None and not 0 < float(r["ema_decay"]) < 1:
         raise TrainingError("ema_decay must be in (0, 1)")
+    if r["validation_interval_steps"] is not None and (r["checkpoint_selection"] != "validation"
+                                                       or int(r["validation_interval_steps"]) < 1):
+        raise TrainingError("validation_interval_steps is a positive step count, for checkpoint_selection validation")
     return r
 
 
@@ -682,7 +686,24 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     m1 = {k: torch.zeros_like(v) for k, v in params.items()}
     m2 = {k: torch.zeros_like(v) for k, v in params.items()}
     ema = {k: v.clone() for k, v in params.items()} if recipe["ema_decay"] is not None else None
-    best, best_loss, best_epoch, val_history = None, None, [None] * M, [[] for _ in jobs]
+    best, best_loss, best_at, val_history = None, None, [None] * M, [[] for _ in jobs]
+    interval = recipe["validation_interval_steps"]
+
+    def select(due: list, epoch: int, at: list):
+        """Validate the models in due (host booleans) and keep each one's best weights so far: the EMA weights
+        when EMA is on (they are the policy), else the parameters."""
+        nonlocal best, best_loss
+        weights = ema if ema is not None else params
+        vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act)
+        due_t = torch.tensor(due + [False] * (M - len(due)), device=device)
+        better = due_t & (vl < best_loss) if best_loss is not None else due_t.clone()
+        best = ({k: v.clone() for k, v in weights.items()} if best is None else
+                {k: torch.where(better.view((M,) + (1,) * (v.dim() - 1)), weights[k], v) for k, v in best.items()})
+        best_loss = torch.where(better, vl, best_loss) if best_loss is not None else torch.where(due_t, vl, float("inf"))
+        for i, (bt, v) in enumerate(zip(better.tolist(), vl.tolist())):
+            if i < n_real and due[i]:
+                val_history[i].append({"step": at[i], "epoch": epoch, "loss": v})
+                best_at[i] = len(val_history[i]) - 1 if bt else best_at[i]
     t = torch.zeros(M, device=device)
     S_dev = torch.tensor(steps, device=device)
     budget_dev = torch.tensor(total_steps, device=device)
@@ -717,19 +738,16 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                         loss_sum += loss
                         n_steps += upd.to(n_steps.dtype)
                         seen_syn += torch.where(active, syn_j.sum(dim=1).to(seen_syn.dtype), 0.0)
+                        if validation is not None and interval:  # a fixed step cadence, plus each model's last step
+                            at = [epoch * steps[i] + b + 1 for i in range(n_real)]
+                            due = [epoch < epochs[i] and b < steps[i] and at[i] <= total_steps[i]
+                                   and (at[i] % int(interval) == 0 or at[i] == total_steps[i]) for i in range(n_real)]
+                            if any(due):
+                                select(due, epoch, at)
                 ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
-                if validation is not None:  # select by held-out loss: keep each model's best weights so far
-                    weights = ema if ema is not None else params
-                    vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act)
-                    better = (vl < best_loss) & live if best_loss is not None else live.clone()
-                    best = ({k: v.clone() for k, v in weights.items()} if best is None else
-                            {k: torch.where(better.view((M,) + (1,) * (v.dim() - 1)), weights[k], v)
-                             for k, v in best.items()})
-                    best_loss = vl if best_loss is None else torch.where(better, vl, best_loss)
-                    for i, (bt, v) in enumerate(zip(better.tolist(), vl.tolist())):
-                        if i < n_real and epoch < epochs[i]:
-                            val_history[i].append(v)
-                            best_epoch[i] = epoch if bt else best_epoch[i]
+                if validation is not None and not interval:  # once per epoch, after its last step
+                    select([epoch < epochs[i] for i in range(n_real)], epoch,
+                           [min(total_steps[i], (epoch + 1) * steps[i]) for i in range(n_real)])
                 epoch_seconds.append(time.time() - t_epoch)
                 for i in range(n_real):
                     if epoch < epochs[i]:
@@ -781,9 +799,14 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                   "recipe": {**recipe, "total_steps": total_steps[i],
                              "weights_returned": ("best validation epoch" if best is not None else
                                                   "EMA" if ema is not None else "last")},
-                  "validation": None if validation is None else {"loss_per_epoch": val_history[i],
-                                                                 "selected_epoch": best_epoch[i],
-                                                                 "rows": int(validation["n"][i])},
+                  "validation": None if validation is None else {
+                      "cadence": f"every {interval} steps and the last" if interval else "every epoch",
+                      "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i over the held-out demonstrations, "
+                              "scaled action space, of the weights returned (EMA when on)",
+                      "evaluations": val_history[i], "selected": best_at[i],
+                      "selected_step": None if best_at[i] is None else val_history[i][best_at[i]]["step"],
+                      "selected_loss": None if best_at[i] is None else val_history[i][best_at[i]]["loss"],
+                      "rows": int(validation["n"][i])},
                   "noise_bc": None if job.noise is None else job.noise.descriptor()}
         out.append((policy, json.loads(json.dumps(record, default=str))))
     return out

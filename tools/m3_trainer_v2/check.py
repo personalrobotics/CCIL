@@ -293,14 +293,38 @@ def recipe(device) -> dict:
     y = p.scale_act(torch.as_tensor(a_, dtype=torch.float32))
     with torch.no_grad():
         returned = float(v1.weighted_loss(p.net(x), y, torch.as_tensor(ww, dtype=torch.float32)))
-    hist = r["validation"]["loss_per_epoch"]
-    interior = 0 < r["validation"]["selected_epoch"] < len(hist) - 1
+    hist = [e["loss"] for e in r["validation"]["evaluations"]]
+    interior = 0 < r["validation"]["selected"] < len(hist) - 1
     out["validation_selection"] = {"pass": abs(returned - min(hist)) <= 1e-6 * max(1.0, abs(min(hist)))
-                                   and r["validation"]["selected_epoch"] == int(np.argmin(hist)) and interior,
+                                   and r["validation"]["selected"] == int(np.argmin(hist)) and interior,
                                    "epochs": len(hist), "interior": interior,
                                    "last_epoch_loss": hist[-1],
                                    "returned_loss": returned, "best_recorded": min(hist),
-                                   "selected_epoch": r["validation"]["selected_epoch"]}
+                                   "selected": r["validation"]["selected"]}
+    # A step cadence shared by models of very different dataset sizes: under one step budget, a 128-row and a
+    # 2,048-row training set are validated at the same steps (every 40 and the last), the selection is the best
+    # of those, and with EMA on, the EMA weights are both judged and returned.
+    big = labelled(2048, 6, 1.0)
+    budget, every = 300, 40
+    outs = v2.train_group([v2.Job(train, 5, validation=held), v2.Job(big, 6, validation=held)],
+                          {**SETTINGS, "batch_size": 32, "epochs": 1, "learning_rate": 3e-3, "step_budget": budget,
+                           "ema_decay": 0.9, "checkpoint_selection": "validation", "validation_interval_steps": every},
+                          device=device, compile=False)
+    want = [s_ for s_ in range(every, budget + 1, every)] + ([budget] if budget % every else [])
+    cadence = []
+    for p_, r_ in outs:
+        steps_seen = [e["step"] for e in r_["validation"]["evaluations"]]
+        losses = [e["loss"] for e in r_["validation"]["evaluations"]]
+        with torch.no_grad():
+            got = float(v1.weighted_loss(p_.net(p_.scale_obs(torch.as_tensor(o, dtype=torch.float32))),
+                                         p_.scale_act(torch.as_tensor(a_, dtype=torch.float32)),
+                                         torch.as_tensor(ww, dtype=torch.float32)))
+        cadence.append({"steps": steps_seen, "selected_step": r_["validation"]["selected_step"],
+                        "returned_loss": got, "best_recorded": min(losses),
+                        "ok": steps_seen == want and abs(got - min(losses)) <= 1e-6 * max(1.0, abs(min(losses)))
+                        and r_["validation"]["selected"] == int(np.argmin(losses))})
+    out["validation_step_cadence"] = {"pass": all(c_["ok"] for c_ in cadence), "expected_steps": want,
+                                      "models": cadence}
     try:
         v2.train_group([v2.Job(train, 5)], {**SETTINGS, "checkpoint_selection": "validation"}, device=device)
         refused = False

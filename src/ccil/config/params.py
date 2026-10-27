@@ -228,6 +228,11 @@ PARAMS = [
           "last is v1's; validation keeps the epoch with the lowest loss on the split's validation-episode "
           "demonstrations, never on evaluation data, and needs policy.exclude_validation_episodes.",
           "policy", choices=("last", "validation")),
+    Param("policy.validation_interval_steps", "int", None,
+          "With checkpoint_selection validation: validate every this many optimizer steps and at the last step, "
+          "rather than once per epoch (#115).",
+          "A step cadence gives arms of very different dataset sizes the same number of selection points.",
+          "policy", low=1, nullable=True),
     Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
           "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
     Param("policy.exclude_validation_episodes", "bool", True,
