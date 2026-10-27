@@ -369,10 +369,16 @@ CUDA_GRAPHS = COMPILE_MODE in ("reduce-overhead", "max-autotune")
 
 
 def _compiled(fn):
-    """fn compiled once per process with COMPILE_MODE; torch.compile then specializes per shape bucket."""
-    if fn.__name__ not in _COMPILED:
-        _COMPILED[fn.__name__] = torch.compile(fn, mode=COMPILE_MODE)
-    return _COMPILED[fn.__name__]
+    """fn compiled once per process with COMPILE_MODE; torch.compile then specializes per shape bucket.
+
+    Keyed by module and qualified name: the policy trainer and the batched fits (models/mlp_batched.py) both
+    have a _step, and one process (a study runner) compiles both. dynamic=False specializes every setting, so a
+    recompile never turns a float hyperparameter into a symbolic one (Inductor refused one, "x must be Tensor or
+    scalar, got SymFloat", for the slack loss after a recompile)."""
+    key = f"{fn.__module__}.{fn.__qualname__}"
+    if key not in _COMPILED:
+        _COMPILED[key] = torch.compile(fn, mode=COMPILE_MODE, dynamic=False)
+    return _COMPILED[key]
 
 
 class _Engine:
