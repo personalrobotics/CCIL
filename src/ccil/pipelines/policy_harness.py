@@ -140,6 +140,10 @@ def run_policy_harness(cfg, trained=None, unit=None) -> list[StageResult]:
                                      f"is not this unit's {want}")
             if record.get("parameters_sha256") != vector_bc_v2.parameters_sha256(policy):
                 raise PolicyMismatch("the trained policy's weights are not the ones its record describes")
+            from .offline import requested_execution_problem
+            problem = requested_execution_problem(record, v)
+            if problem:
+                raise PolicyMismatch(f"the trained policy {problem}")
         elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
             [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise, held)],
