@@ -7,26 +7,27 @@
    "pass": true,
    "runs": {
     "bc": {
-     "checkpoint": "<out>/work/runs/policy-train-e17eb8745206/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-6c69178951e2/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
-      "expert_data_error": 0.3331320988694937,
+      "expert_data_error": 0.3324776019279649,
       "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
       "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
-      "train_action_error": 0.3729886845802498,
+      "train_action_error": 0.36275625832138314,
       "train_transitions": 54,
       "transitions": 72,
-      "validation_action_error": 0.21356234173722538,
+      "validation_action_error": 0.24164163274770978,
+      "validation_episodes_in_training": false,
       "validation_transitions": 18
      },
      "reused": [],
      "stages": {
-      "data.prepare": "runs/data-prepare-1537167eeb7b",
-      "labels.generate": "runs/labels-generate-ca36ebb6252c",
-      "policy.evaluate": "runs/policy-evaluate-0fa19179586d",
-      "policy.train": "runs/policy-train-e17eb8745206",
-      "transition.fit": "runs/transition-fit-9c9229b7744a"
+      "data.prepare": "runs/data-prepare-11bba1a002b5",
+      "labels.generate": "runs/labels-generate-966190c17670",
+      "policy.evaluate": "runs/policy-evaluate-3996955c92e2",
+      "policy.train": "runs/policy-train-6c69178951e2",
+      "transition.fit": "runs/transition-fit-0adcdffd851e"
      },
      "status": {
       "data.prepare": "complete",
@@ -37,17 +38,18 @@
      }
     },
     "ccil": {
-     "checkpoint": "<out>/work/runs/policy-train-08d8972de32c/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-b9d9001055fc/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
-      "expert_data_error": 0.3040492876144423,
+      "expert_data_error": 0.2970048628163229,
       "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
       "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
-      "train_action_error": 0.33329333003383105,
+      "train_action_error": 0.3339638714385916,
       "train_transitions": 54,
       "transitions": 72,
-      "validation_action_error": 0.21631716035627585,
+      "validation_action_error": 0.18612783694951687,
+      "validation_episodes_in_training": false,
       "validation_transitions": 18
      },
      "reused": [
@@ -56,12 +58,12 @@
       "labels.generate"
      ],
      "stages": {
-      "data.prepare": "runs/data-prepare-1537167eeb7b",
-      "labels.certify": "runs/labels-certify-47e57a7d9387",
-      "labels.generate": "runs/labels-generate-ca36ebb6252c",
-      "policy.evaluate": "runs/policy-evaluate-4afc61933007",
-      "policy.train": "runs/policy-train-08d8972de32c",
-      "transition.fit": "runs/transition-fit-9c9229b7744a"
+      "data.prepare": "runs/data-prepare-11bba1a002b5",
+      "labels.certify": "runs/labels-certify-ea6d2035acab",
+      "labels.generate": "runs/labels-generate-966190c17670",
+      "policy.evaluate": "runs/policy-evaluate-9ee06b73b5b2",
+      "policy.train": "runs/policy-train-b9d9001055fc",
+      "transition.fit": "runs/transition-fit-0adcdffd851e"
      },
      "status": {
       "data.prepare": "complete",
@@ -73,17 +75,18 @@
      }
     },
     "noise_bc": {
-     "checkpoint": "<out>/work/runs/policy-train-9843f74bec55/checkpoints/policy.npz",
+     "checkpoint": "<out>/work/runs/policy-train-86ad0b446334/checkpoints/policy.npz",
      "exit": 0,
      "offline": {
       "experimental": true,
-      "expert_data_error": 0.3318296354849423,
+      "expert_data_error": 0.33160209041227406,
       "expert_data_error_definition": "mean over every demonstration transition of sum_j (a - pi(s))_j^2, raw action units (legacy d3rlpy continuous_action_diff_scorer)",
       "note": "offline metrics only; simulator evaluation is #24 / M7 through VectorBCPolicy.predict",
-      "train_action_error": 0.37250470340622843,
+      "train_action_error": 0.36568866511683945,
       "train_transitions": 54,
       "transitions": 72,
-      "validation_action_error": 0.20980443172108398,
+      "validation_action_error": 0.22934236629857796,
+      "validation_episodes_in_training": false,
       "validation_transitions": 18
      },
      "reused": [
@@ -92,11 +95,11 @@
       "labels.generate"
      ],
      "stages": {
-      "data.prepare": "runs/data-prepare-1537167eeb7b",
-      "labels.generate": "runs/labels-generate-ca36ebb6252c",
-      "policy.evaluate": "runs/policy-evaluate-e0a706e23efe",
-      "policy.train": "runs/policy-train-9843f74bec55",
-      "transition.fit": "runs/transition-fit-9c9229b7744a"
+      "data.prepare": "runs/data-prepare-11bba1a002b5",
+      "labels.generate": "runs/labels-generate-966190c17670",
+      "policy.evaluate": "runs/policy-evaluate-42cbc5863bc6",
+      "policy.train": "runs/policy-train-86ad0b446334",
+      "transition.fit": "runs/transition-fit-0adcdffd851e"
      },
      "status": {
       "data.prepare": "complete",
@@ -132,9 +135,9 @@
   },
   {
    "case": "weights_follow_the_declared_loss",
-   "manual": 2.248361825942993,
+   "manual": 2.079625368118286,
    "pass": true,
-   "weighted_loss": 2.248361825942993,
+   "weighted_loss": 2.079625368118286,
    "zero_weight_steps": [
     1,
     1
@@ -308,7 +311,7 @@
   }
  ],
  "environment": {
-  "code_commit": "912d2cbceb789e15607a57b6dde3a247695fac4a",
+  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
   "code_dirty": false,
   "device_requested": "cpu",
   "numpy": "2.4.6",

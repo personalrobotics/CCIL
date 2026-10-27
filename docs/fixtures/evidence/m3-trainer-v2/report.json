@@ -1,0 +1,104 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "correctness_one_step_matches_adam",
+   "max_relative_difference": 1.2291125131014269e-06,
+   "pass": true
+  },
+  {
+   "case": "correctness_zero_weight_model_unchanged",
+   "pass": true,
+   "zero_weight_steps": 4
+  },
+  {
+   "case": "correctness_noise_draws_bit_identical",
+   "pass": true,
+   "trials": 20
+  },
+  {
+   "case": "correctness_index_streams",
+   "cases": {
+    "balance4-epoch0-model0": true,
+    "balance4-epoch0-model1": true,
+    "balance4-epoch0-model2": true,
+    "balance4-epoch1-model0": true,
+    "balance4-epoch1-model1": true,
+    "balance4-epoch1-model2": true,
+    "balanceNone-epoch0-model0": true,
+    "balanceNone-epoch0-model1": true,
+    "balanceNone-epoch0-model2": true,
+    "balanceNone-epoch1-model0": true,
+    "balanceNone-epoch1-model1": true,
+    "balanceNone-epoch1-model2": true
+   },
+   "pass": true
+  },
+  {
+   "case": "robustness_producer_failure_raises_promptly",
+   "error": "the streaming producer failed: MemoryError: injected producer failure",
+   "pass": true,
+   "seconds": 0.0
+  },
+  {
+   "case": "robustness_identical_blocks_keep_their_source",
+   "pass": true,
+   "row_sources": {
+    "demonstration": 512,
+    "synthetic": 512
+   },
+   "rows_seen": {
+    "demonstration": 512,
+    "synthetic": 512
+   }
+  },
+  {
+   "buckets": [
+    1,
+    4
+   ],
+   "case": "robustness_execution_identity",
+   "pass": true
+  },
+  {
+   "case": "robustness_compile_failure_falls_back",
+   "engine": "eager (compilation failed on the first step: RuntimeError: injected compiler failure)",
+   "pass": true
+  },
+  {
+   "case": "robustness_precision_enforced_and_restored",
+   "pass": true,
+   "precision": {
+    "dtype": "float32",
+    "float32_matmul_precision": "highest",
+    "tf32_cudnn": false,
+    "tf32_matmul": false
+   }
+  },
+  {
+   "case": "modes_and_determinism",
+   "cases": {
+    "ccil": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    },
+    "noise_bc": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    }
+   },
+   "device": "cpu",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "d7257e089892ded971be9d4f9a3dc63fcd2475b0",
+  "code_dirty": false,
+  "device": "cpu",
+  "gpu": null,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.14.1"
+ }
+}

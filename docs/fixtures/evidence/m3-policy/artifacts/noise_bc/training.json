@@ -1,11 +1,10 @@
 {
  "balance_labels": null,
- "deterministic": false,
  "device": "cpu",
  "epochs": [
   {
    "epoch": 0,
-   "mean_loss": 0.40826308727264404,
+   "mean_loss": 0.4613049030303955,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -15,7 +14,7 @@
   },
   {
    "epoch": 1,
-   "mean_loss": 0.3936866223812103,
+   "mean_loss": 0.3778305649757385,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -25,7 +24,7 @@
   },
   {
    "epoch": 2,
-   "mean_loss": 0.35184669494628906,
+   "mean_loss": 0.3863399028778076,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -35,7 +34,7 @@
   },
   {
    "epoch": 3,
-   "mean_loss": 0.21421562135219574,
+   "mean_loss": 0.34039896726608276,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -45,9 +44,36 @@
   }
  ],
  "epochs_run": 4,
+ "group": {
+  "chunk_steps": 256,
+  "data_mode": "resident",
+  "deterministic": false,
+  "device": "cpu",
+  "engine": "eager",
+  "epoch_seconds": [
+   0.014820098876953125,
+   0.0030481815338134766,
+   0.002802133560180664,
+   0.0028629302978515625
+  ],
+  "setup_seconds": 0.002907991409301758,
+  "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
+  "size": 1,
+  "table_blocks": [
+   {
+    "part": "demonstration",
+    "rows": 54,
+    "start": 0
+   }
+  ],
+  "table_bytes": 1728,
+  "table_rows": 54,
+  "tf32_matmul": false,
+  "torch": "2.14.1",
+  "train_seconds": 0.47563695907592773
+ },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": {
-  "applied_to": "standardized observations of each minibatch (after the observation scaler)",
   "component": "noise_bc",
   "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
   "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
@@ -56,13 +82,6 @@
   "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
   "scale": 0.1,
   "seed": 20261023,
-  "trace_epochs": [
-   "43d78a8f363813893400addbc494d38b201613dead33694d8b2637b98949e717",
-   "7811b966697be73eb8f8cf27e3f0e3acaf9b8b17eab3031257e30cb5ef634a26",
-   "5bae5404f7c79a6f99a9e8a733fd9f025d7c341605bc3e81406fabb2d5767cb9",
-   "86593425d9e53d303123ace322b139216554ca6d88e1b5493d96ff31391f9b3c"
-  ],
-  "trace_sha256": "85a7d3c476f092b0d7afc9a6738cb21d9bd6220c69c768987f5f6681dba027c4",
   "truncation": "none (bounded by construction)",
   "units": "standardized observation units (after the observation scaler)",
   "version": "1"
@@ -73,6 +92,7 @@
    0.999
   ],
   "eps": 1e-08,
+  "implementation": "functional, per-model masked",
   "learning_rate": 0.001,
   "name": "adam",
   "weight_decay": 0.0
@@ -98,6 +118,7 @@
  },
  "steps_per_epoch": 1,
  "trainer": "vector_mlp",
- "training_identity_sha256": "8ce1d0ce77c4808a0bb251a2cd2efa69dedce7b0a4e5aa7903931a5e4365e54f",
+ "trainer_version": "2",
+ "training_identity_sha256": "8d36d9763d903286bf45f46dc2b938e730dc1353db316677bc53ed9caa600b25",
  "version": "1"
 }
