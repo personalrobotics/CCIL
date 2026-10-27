@@ -231,6 +231,20 @@ is set.
   sizes get the same selection points under a shared step budget.
 - **Records:** every validation (step, epoch, loss), the selected one, and
   its step and loss go in the training record.
+- **Memory:** identical held-out sets (the arms of one seed) are stored once
+  in a host table. The loss reads each model's set in chunks of at most
+  `stream_chunk_bytes`, so device memory does not grow with the number or
+  size of the validation sets.
+- **Identity:** the training identity includes the held-out rows' content
+  (`validation_sha256`), since the returned policy depends on them.
+- **Refused at ingress:**
+  - a held-out set with zero total weight;
+  - a cosine warm-up that is not shorter than the model's optimizer steps.
+
+**Step budget.** Each epoch runs only as many steps as its longest remaining
+budget, so a budget bounds the work whatever the dataset size. Each epoch's
+record gives the steps run, the optimizer updates and the rows seen,
+including a last epoch cut short by the budget.
 
 **Schedule details.** The cosine schedule warms up linearly from lr/W at the
 first step to lr at step W (W = `policy.warmup_steps`), then decays to 0 at
