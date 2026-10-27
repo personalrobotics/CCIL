@@ -227,7 +227,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
             _free()
     timing["prepare_and_fit_seconds"] = round(time.time() - t0, 1)
     timing["fit_groups"] = fit_groups
-    log(f"  fits: {sum(len(us) for us in fits.values())} distinct, {len(fit_groups)} groups, "
+    log(f"  fits: {len(fits)} distinct for {sum(len(us) for us in fits.values())} units, {len(fit_groups)} groups, "
         f"{timing['prepare_and_fit_seconds']}s")
 
     # 2. labels per unit -----------------------------------------------------------------------------------------
