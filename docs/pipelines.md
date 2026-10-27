@@ -62,7 +62,13 @@ stage manifest.
   regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a
   study runner can fit many seeds as one group. It is not bit-compatible with
   version 1, so the version is part of the stage identity. It supports
-  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`.
+  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`
+  (preflight refuses the others), and honors `compute.deterministic`.
+- **Grouped results are authenticated.** Each batched fit records a content
+  identity: its exact rows, settings, seed and engine. `transition.fit` with a
+  prefit model recomputes it from the unit's own inputs and refuses a mismatch.
+  Likewise, `policy.train` with a group-trained policy recomputes the training
+  identity and checks the policy's parameter hash against its record.
 - **Evidence:** `tools/m3_fit_v2/check.py`.
   - One step equals version 1's step from the same initialization.
   - The held-out error of batched fits is compared with per-fit ones on
