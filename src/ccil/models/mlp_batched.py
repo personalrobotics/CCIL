@@ -165,8 +165,36 @@ def _step(trainable, m1, m2, t, buffers, s, a, sp, noise_seed, gstep, active, k:
     return new_tr, new_m1, new_m2, t, loss, terms
 
 
+class _restore_determinism:
+    """Restore torch's deterministic-algorithms flag on exit, whatever happened."""
+
+    def __init__(self, previous: bool):
+        self.previous = previous
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        torch.use_deterministic_algorithms(self.previous)
+        return False
+
+
+def fit_identity(z, a, z_next, settings: dict, seed: int) -> str:
+    """Content identity of one fit: its exact transition rows, settings and seed, and the engine.
+
+    A stage that receives a model fitted elsewhere (fit_transition_stage(prefit=...)) recomputes this from its
+    own inputs and refuses a mismatch, so a grouped result can never be written under another unit's stage."""
+    h = hashlib.blake2b(digest_size=32)
+    for x in (z, a, z_next):
+        x = np.ascontiguousarray(x)
+        h.update(f"{x.dtype.str}{x.shape}".encode() + x.tobytes())
+    h.update(json.dumps({"settings": settings, "seed": int(seed), "engine": "mlp_batched/1"}, sort_keys=True,
+                        default=str).encode())
+    return h.hexdigest()
+
+
 def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compile: bool | None = None,
-              chunk_steps: int = 256):
+              chunk_steps: int = 256, deterministic: bool = False):
     """Fit every job's transition model together; return [(MLPTransitionModel, fit record)] in job order.
 
     settings are MLPTransitionModel's (hidden_layers, activation, lipschitz_type, lipschitz_constraint,
@@ -240,7 +268,9 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
     history = [{} for _ in jobs]
     epoch_seconds = []
     t_train = time.time()
-    with _Precision() as precision:
+    previous = torch.are_deterministic_algorithms_enabled()
+    torch.use_deterministic_algorithms(bool(deterministic) or previous)  # compute.deterministic, as v1
+    with _Precision() as precision, _restore_determinism(previous):
         for epoch in range(epochs):
             t_epoch = time.time()
             totals: dict = {}
@@ -269,7 +299,7 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
     t_done = time.time()
     execution = {"members": [{"seed": int(j.seed), "rows": int(len(j.z))} for j in jobs], "bucket": M,
                  "padding": M - n_real, "engine": engine.state, "device": str(device), "torch": torch.__version__,
-                 "precision": precision.effective, "data_mode": "resident"}
+                 "precision": precision.effective, "data_mode": "resident", "deterministic": bool(deterministic)}
     execution_sha = hashlib.sha256(json.dumps(execution, sort_keys=True).encode()).hexdigest()
     out = []
     for i, (j, m) in enumerate(zip(jobs, models)):
@@ -278,6 +308,7 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
             target.load_state_dict({**{q: v[i] for q, v in trainable[name].items()},
                                     **{q: v[i] for q, v in buffers[name].items()}})
         record = {"method": "adam", "trainer": "batched", "epochs": epochs, "steps_per_epoch": steps[i],
+                  "fit_identity_sha256": fit_identity(j.z, j.a, j.z_next, settings, j.seed),
                   "final_epoch_losses": {q: v[-1] for q, v in history[i].items()}, "epoch_losses": history[i],
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M, "engine": engine.state},
                   "group": {**execution, "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train,

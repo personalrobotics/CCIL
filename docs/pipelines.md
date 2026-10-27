@@ -53,14 +53,22 @@ stage manifest.
   model fits every episode, and a separate evaluation model, fitted on the train
   split, is scored on the held-out episodes.
 - **`train`:** the label model fits the train split only, and it is the model
-  scored. Held-out episodes then influence no label: a clean holdout, for
-  studies that select or tune on those episodes.
+  scored. Held-out episodes then influence no training label: a clean
+  holdout, for studies that select or tune on those episodes. Labels are
+  still generated for held-out episodes' transitions; supervision excludes
+  them when `policy.exclude_validation_episodes` is true.
 - **`transition_model.trainer_version 2`** fits mlp models with the batched
   engine (`models/mlp_batched.py`): the same protocol (initialization,
   regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a
   study runner can fit many seeds as one group. It is not bit-compatible with
   version 1, so the version is part of the stage identity. It supports
-  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`.
+  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`
+  (preflight refuses the others), and honors `compute.deterministic`.
+- **Grouped results are authenticated.** Each batched fit records a content
+  identity: its exact rows, settings, seed and engine. `transition.fit` with a
+  prefit model recomputes it from the unit's own inputs and refuses a mismatch.
+  Likewise, `policy.train` with a group-trained policy recomputes the training
+  identity and checks the policy's parameter hash against its record.
 - **`transition_model.lipschitz_coordinates`** (#125) says which ratio the
   sampled Lipschitz penalties (`soft_sampling`, `soft_sampling_slack`) hinge
   at `lipschitz_constraint`:

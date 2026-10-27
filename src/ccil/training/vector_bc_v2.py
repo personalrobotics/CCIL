@@ -294,6 +294,14 @@ class _Streams:
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
 
 
+def parameters_sha256(policy) -> str:
+    """SHA-256 of a policy's returned network parameters, binding a training record to the weights it describes."""
+    h = hashlib.sha256()
+    for name, value in sorted(policy.net.state_dict().items()):
+        h.update(name.encode() + value.detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
 def training_identity_v2(supervision, settings: dict, seed: int, noise) -> dict:
     """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run."""
     ident = {k: v for k, v in training_identity(supervision, settings, seed, noise).items() if k != "sha256"}
@@ -657,7 +665,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
         ident = training_identity_v2(job.supervision, settings, job.seed, job.noise)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
-                  "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
+                  "training_identity_sha256": ident["sha256"], "parameters_sha256": parameters_sha256(policy),
+                  "seed": int(job.seed),
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
                                 "engine": step_fn.state, "data_mode": data_mode},
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},

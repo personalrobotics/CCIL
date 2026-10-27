@@ -57,7 +57,7 @@ PARAMS = [
     Param("transition_model.fit_episodes", "choice", "all", "Episodes the label model is fitted on.",
           "all (legacy) fits it on every episode, and a separate evaluation model on the train split is scored on "
           "the held-out episodes; train fits the label model on the train split only, so held-out episodes "
-          "influence no label (a clean holdout), and that model is the one scored.", "transition_model",
+          "influence no training label (a clean holdout), and that model is the one scored.", "transition_model",
           choices=("all", "train")),
     Param("transition_model.kind", "choice", "mlp", "Transition-model family: linear (least squares) or mlp.",
           "Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+).",
