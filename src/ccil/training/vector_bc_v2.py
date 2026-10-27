@@ -437,7 +437,8 @@ class _Precision:
 
 def _own(out):
     """Clone a compiled step's outputs: a CUDA-graph replay overwrites its previous outputs."""
-    return tuple(v.clone() if isinstance(v, torch.Tensor) else {k: x.clone() for k, x in v.items()} for v in out)
+    return tuple(v.clone() if isinstance(v, torch.Tensor) else None if v is None else {k: x.clone() for k, x in v.items()}
+                 for v in out)  # None: no EMA
 
 
 def _validation_rows(jobs, padded, D, A, device):
