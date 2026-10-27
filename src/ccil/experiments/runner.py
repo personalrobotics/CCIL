@@ -127,19 +127,25 @@ def _split_on_oom(items: list, run, log) -> list:
         return _split_on_oom(items[:h], run, log) + _split_on_oom(items[h:], run, log)
 
 
-def _chunks(xs: list, cap: int, per: int = 1) -> list:
-    """xs in chunks whose model counts (per models an item) are exactly bucket sizes, largest first, at most cap.
+def _chunks(xs: list, cap: int, per: int = 1, overhead: float = 0.0) -> list:
+    """xs in chunks sized to minimize the group work, at most cap models per chunk (per models an item).
 
-    The trainers pad a group to the next bucket with masked models that still compute; a chunk of exactly a bucket
-    wastes none (80 fits run as 64 + 16 rather than as 128).
+    The trainers pad a group to the next bucket with masked models that still compute, and chunks run one after
+    another, each paying a per-step overhead. A step of a group of bucket b costs about b + overhead model units
+    (measured on siddh: overhead about 4 for transition fits and 14 for policies), and the chunking minimizes
+    the total: 84 policies run as 52 (padded to 64) + 32 rather than as 128, and 15 as one padded group of 16.
     """
     from ..training.vector_bc_v2 import BUCKETS
-    sizes = sorted({b // per for b in BUCKETS if b <= cap and b % per == 0 and b >= per}, reverse=True) or [1]
+    buckets = [b for b in BUCKETS if per <= b <= cap] or [per]
+    n = len(xs)
+    best = [(0.0, ())] + [None] * n  # best[m]: (cost, chunk sizes in items) for m items; ties to fewer chunks
+    for m in range(1, n + 1):
+        best[m] = min(((best[max(0, m - b // per)][0] + b + overhead, best[max(0, m - b // per)][1] + (min(b // per, m),))
+                       for b in buckets), key=lambda c: (c[0], len(c[1])))
     out, i = [], 0
-    while i < len(xs):
-        n = next(z for z in sizes if z <= len(xs) - i) if any(z <= len(xs) - i for z in sizes) else 1
-        out.append(xs[i:i + n])
-        i += n
+    for size in sorted(best[n][1], reverse=True):
+        out.append(xs[i:i + size])
+        i += size
     return out
 
 
@@ -218,7 +224,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     for key, members in by_settings.items():
         settings, dev = json.loads(key)
         per = 2 if any(us[0].prepared.out(layout.SPLIT).exists() for us in members) else 1  # label + evaluation
-        for chunk in _chunks(members, max_group, per):
+        for chunk in _chunks(members, max_group, per, overhead=4.0):
             jobs, owners = [], []
             for us in chunk:
                 u = us[0]
@@ -288,7 +294,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     train_groups = []
     for key, members in groups.items():
         settings, dev, det = json.loads(key)
-        for chunk in _chunks(members, max_group):
+        for chunk in _chunks(members, max_group, overhead=14.0):
             sups, todo = {}, []
             for u in chunk:
                 sups[id(u)] = unit_supervision(u.cfg)
