@@ -156,6 +156,62 @@
    "pass": true
   },
   {
+   "case": "recipe_step_budget_bounds_work",
+   "cases": [
+    {
+     "budget": 100,
+     "engine_calls": 100,
+     "epoch_steps": [
+      64,
+      36
+     ],
+     "optimizer_steps": 100,
+     "rows_seen": 3200,
+     "steps_per_epoch": 64
+    },
+    {
+     "budget": 10,
+     "engine_calls": 10,
+     "epoch_steps": [
+      10
+     ],
+     "optimizer_steps": 10,
+     "rows_seen": 320,
+     "steps_per_epoch": 64
+    }
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_validation_bounded_and_deduplicated",
+   "large": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 6710886
+   },
+   "pass": true,
+   "same_selection_and_losses": true,
+   "tiny": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 7
+   }
+  },
+  {
+   "case": "recipe_validation_in_training_identity",
+   "identities": [
+    "46dc783c9a39ba3525350419f1eba5bf6b04af998c19c1eb60d988e7393b0216",
+    "46dc783c9a39ba3525350419f1eba5bf6b04af998c19c1eb60d988e7393b0216",
+    "89c354b2cce395798ab23a725eb2e9f4f2797ab981381d3273254aa5640a51fc",
+    "1a185d49b87f8afcf99f4ddfd2bde78846973d68ba5c4169e8a5894d3b01fa66"
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_ingress_refusals",
+   "pass": true,
+   "warmup_not_shorter_than_budget": true,
+   "zero_weight_validation": true
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -172,7 +228,7 @@
   }
  ],
  "environment": {
-  "code_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
+  "code_commit": "207262a6eafb7995301771c628158a03f6813f91",
   "code_dirty": false,
   "device": "cpu",
   "gpu": null,

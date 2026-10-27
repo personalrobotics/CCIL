@@ -38,7 +38,7 @@
    "case": "robustness_producer_failure_raises_promptly",
    "error": "the streaming producer failed: MemoryError: injected producer failure",
    "pass": true,
-   "seconds": 0.49
+   "seconds": 0.45
   },
   {
    "case": "robustness_identical_blocks_keep_their_source",
@@ -133,7 +133,7 @@
      ]
     },
     {
-     "best_recorded": 0.020841730758547783,
+     "best_recorded": 0.020841728895902634,
      "ok": true,
      "returned_loss": 0.020841728895902634,
      "selected_step": 80,
@@ -156,6 +156,62 @@
    "pass": true
   },
   {
+   "case": "recipe_step_budget_bounds_work",
+   "cases": [
+    {
+     "budget": 100,
+     "engine_calls": 100,
+     "epoch_steps": [
+      64,
+      36
+     ],
+     "optimizer_steps": 100,
+     "rows_seen": 3200,
+     "steps_per_epoch": 64
+    },
+    {
+     "budget": 10,
+     "engine_calls": 10,
+     "epoch_steps": [
+      10
+     ],
+     "optimizer_steps": 10,
+     "rows_seen": 320,
+     "steps_per_epoch": 64
+    }
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_validation_bounded_and_deduplicated",
+   "large": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 6710886
+   },
+   "pass": true,
+   "same_selection_and_losses": true,
+   "tiny": {
+    "distinct_sets": 1,
+    "rows_per_chunk": 7
+   }
+  },
+  {
+   "case": "recipe_validation_in_training_identity",
+   "identities": [
+    "76ad72dcc6ed65cba1d048cfa3e0d40b97631c8275cc0f48e47a00eba98dc81e",
+    "76ad72dcc6ed65cba1d048cfa3e0d40b97631c8275cc0f48e47a00eba98dc81e",
+    "8114f350151e2537e7bce168aec818f38a5bdadf06c9013476052f8a5e18ab6d",
+    "1a185d49b87f8afcf99f4ddfd2bde78846973d68ba5c4169e8a5894d3b01fa66"
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_ingress_refusals",
+   "pass": true,
+   "warmup_not_shorter_than_budget": true,
+   "zero_weight_validation": true
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -172,7 +228,7 @@
   }
  ],
  "environment": {
-  "code_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
+  "code_commit": "207262a6eafb7995301771c628158a03f6813f91",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
