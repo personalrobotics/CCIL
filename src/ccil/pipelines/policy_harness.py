@@ -70,8 +70,12 @@ def settings_of(v) -> dict:
                                              "grad_clip_norm", "ema_decay", "checkpoint_selection")}}
 
 
-def run_policy_harness(cfg) -> list[StageResult]:
-    """Run the label stages (reused when complete), then policy.train and policy.evaluate."""
+def run_policy_harness(cfg, trained=None) -> list[StageResult]:
+    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+
+    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
+    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    """
     v = cfg.values
     problems = harness_problems(v)
     if problems:
@@ -102,7 +106,11 @@ def run_policy_harness(cfg) -> list[StageResult]:
                             mask_probability=v["policy.noise_mask_probability"],
                             units="standardized observation units (after the observation scaler)")
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
-        if v["policy.trainer_version"] == "2":
+        if trained is not None:
+            if v["policy.trainer_version"] != "2":
+                raise ConfigError(["a trained policy from a group comes from trainer v2: set policy.trainer_version 2"])
+            policy, record = trained
+        elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
             held = None
             if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations

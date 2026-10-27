@@ -141,9 +141,25 @@ def preflight(cfg) -> None:
         raise ConfigError(errors)
 
 
-def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None) -> StageResult:
-    """Fit the label model on every episode; score an evaluation model fitted on the train split (#13)."""
+def _fit(v, z, a, z_next):
+    """Fit one transition model with the configured engine: (model, fit record)."""
+    model = build_model(v)
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import FitJob, fit_group
+        return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"])[0]
+    return model, model.fit(z, a, z_next, seed=v["run.seed"])
+
+
+def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
+    """Fit the label model on every episode; score an evaluation model fitted on the train split (#13).
+
+    prefit, from a study runner that fitted many units together (models/mlp_batched.fit_group), supplies
+    {"label": (model, fit record), "evaluation": (model, fit record) or None} instead of fitting here; it needs
+    transition_model.trainer_version 2, so its stage identity is never a per-fit one.
+    """
     v = cfg.values
+    if prefit is not None and v["transition_model.trainer_version"] != "2":
+        raise ConfigError(["prefit transition models come from the batched engine: set transition_model.trainer_version 2"])
     split_path = prepared.out(layout.SPLIT)
     inputs = {"dataset": prepared.out(layout.DATASET), **(extra_inputs or {})}
     if split_path.exists():
@@ -155,16 +171,16 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         z, a, z_next = batch.z, batch.a, batch.z_next
         if v["transition_model.direction"] == "backward":
             z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
-        model = build_model(v)
-        metrics = {"label_model": model.fit(z, a, z_next, seed=v["run.seed"])}
+        model, record = prefit["label"] if prefit is not None else _fit(v, z, a, z_next)
+        metrics = {"label_model": record}
         if split_path.exists():
             import json
             split = json.loads(split_path.read_text())
             train, val = set(split["train"]), set(split["validation"])
             tr = np.isin(batch.episode_id, list(train))
             va = np.isin(batch.episode_id, list(val))
-            evaluation = build_model(v)
-            evaluation.fit(z[tr], a[tr], z_next[tr], seed=v["run.seed"])
+            evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
+                          else _fit(v, z[tr], a[tr], z_next[tr])[0])
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
             metrics["held_out"]["note"] = "evaluation model fitted on the train split; the label model saw every episode"
         model.save(run.path(MODEL_CHECKPOINT))
