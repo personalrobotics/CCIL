@@ -243,6 +243,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     from ..training import vector_bc_v2
     from ..training.vector_bc import VectorBCPolicy
 
+    from ..runs.provenance import capture_code_state
+    capture_code_state()  # before any unit's work: what each record's check compares against (#127)
     root = Path(root).resolve()
     timing = {}
     t_phase = time.time()
@@ -451,8 +453,10 @@ def evaluate_deferred(root, study, phase: str, suite: Suite, *, gate: dict, smok
     Each ok deferred unit's policy is evaluated as run_phase would, into a write-once record under
     results/<phase>_returns that names the choice and the unit's tuning record by their SHA-256. Returns the
     number of records written. recheck is as for run_phase."""
+    from ..runs.provenance import capture_code_state
     from ..training.vector_bc import VectorBCPolicy
     from .records import CHOICE
+    capture_code_state()
     root = Path(root).resolve()
     if not (root / CHOICE).exists():
         raise SystemExit(f"{root / CHOICE} is missing: deferred returns are computed only after the choice is recorded")
