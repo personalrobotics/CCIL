@@ -134,7 +134,7 @@ def run_policy_harness(cfg, trained=None, unit=None) -> list[StageResult]:
                 raise ConfigError(["a trained policy from a group comes from trainer v2: set policy.trainer_version 2"])
             policy, record = trained
             from ..training import vector_bc_v2
-            want = vector_bc_v2.training_identity_v2(sup, settings_of(v), v["run.seed"], noise)["sha256"]
+            want = vector_bc_v2.training_identity_v2(sup, settings_of(v), v["run.seed"], noise, held)["sha256"]
             if record.get("training_identity_sha256") != want:
                 raise PolicyMismatch(f"the trained policy's training identity {record.get('training_identity_sha256')} "
                                      f"is not this unit's {want}")

@@ -286,11 +286,12 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     by_settings = {}
     for dest, us in fits.items():
         v = us[0].cfg.values
-        key = json.dumps([dict(offline.build_model(v).settings), v["compute.device"]], sort_keys=True, default=str)
+        key = json.dumps([dict(offline.build_model(v).settings), v["compute.device"], v["compute.deterministic"]],
+                         sort_keys=True, default=str)
         by_settings.setdefault(key, []).append(us)
     fit_groups = []
     for key, members in by_settings.items():
-        settings, dev = json.loads(key)
+        settings, dev, det = json.loads(key)
         per = 2 if any(us[0].prepared.out(layout.SPLIT).exists()  # a label and a separate evaluation model
                        and us[0].cfg.values["transition_model.fit_episodes"] == "all" for us in members) else 1
         for chunk in _chunks(members, max_group, per, overhead=4.0):
@@ -311,7 +312,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
                     owners.append((us, "evaluation"))
             tg = time.time()
             out = _split_on_oom(list(range(len(jobs))),
-                                lambda idx: fit_group([jobs[i] for i in idx], settings, device=dev), log)
+                                lambda idx: fit_group([jobs[i] for i in idx], settings, device=dev, deterministic=det), log)
             fit_groups.append({"fits": len(jobs), "seconds": round(time.time() - tg, 1)})
             prefit = {}
             for (us, role), res in zip(owners, out):
