@@ -6,7 +6,7 @@
 #     tools/m3_experiments/freeze_evidence.sh OUT cuda   # siddh; run the cpu host first or after, never mixed
 #
 # Each check writes OUT/<name>/report.json and OUT/<name>.log; OUT/status.txt lists every exit code. The CUDA-only
-# timing and gate parts run last, one at a time, so they see a quiet device. Afterwards each host audits the other's
+# timing parts run last, one at a time, so they see a quiet device. Afterwards each host audits the other's
 # certificate bundle:
 #
 #     uv run --group evidence python tools/m3_certificates/audit_bundle.py --bundle OTHER/m3_certificates/bundle \
