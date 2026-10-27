@@ -74,9 +74,21 @@ def jacobian_row_bytes(state_dim: int, action_dim: int, hidden_layers) -> int:
     return 4 * (state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
 
 
+class JacobianBudgetError(ValueError):
+    """compute.jacobian_memory_mb is smaller than one row of the Jacobian computation."""
+
+
 def jacobian_chunk_rows(state_dim: int, action_dim: int, hidden_layers, budget_bytes: int) -> int:
-    """Rows per vmap(jacrev) call that fit a device-memory budget, falling as the state dimension and width grow."""
-    return max(1, int(budget_bytes) // jacobian_row_bytes(state_dim, action_dim, hidden_layers))
+    """Rows per vmap(jacrev) call that fit a device-memory budget, falling as the state dimension and width grow.
+
+    The budget is a bound, so a budget smaller than one estimated row fails closed (JacobianBudgetError, naming
+    the minimum) rather than running a one-row chunk over it."""
+    row = jacobian_row_bytes(state_dim, action_dim, hidden_layers)
+    if row > int(budget_bytes):
+        raise JacobianBudgetError(f"one Jacobian row needs about {row / 2**20:.2f} MiB (D = {state_dim}, A = "
+                                  f"{action_dim}, hidden {list(hidden_layers)}), more than compute.jacobian_memory_mb "
+                                  f"= {int(budget_bytes) / 2**20:.2f} MiB; raise it to at least {-(-row // 2**20)}")
+    return int(budget_bytes) // row
 NORMALIZATION = ("s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale")
 
 

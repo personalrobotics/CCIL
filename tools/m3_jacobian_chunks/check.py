@@ -21,7 +21,8 @@ cuda (on the task's real labels: the ordinary pipeline at seed 501, as the #24 d
    rounding of a kink; this is measured, not assumed away.
 5. Certificates: labels.certify with disturbed_action_paper_proxy (selection quantile 0.3), at the default budget
    and unchunked: admission, selection and total_error_value must be identical for every row.
-6. Width: at D = 64, A = 7, [256, 256], a 256 MiB budget keeps the peak within the budget.
+6. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
+7. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
 """
 from __future__ import annotations
 
@@ -72,25 +73,39 @@ def cpu_part() -> dict:
                       "identical": bool(np.array_equal(chunked, full)), "balanced": bool(sizes_ok)})
     per_row = {D: mlp.jacobian_chunk_rows(D, 1, [256, 256], 1 << 30) for D in (3, 16, 64, 512)}
     falls = all(per_row[x] > per_row[y] for x, y in ((3, 16), (16, 64), (64, 512)))
-    return {"pass": all(c["identical"] and c["balanced"] for c in cases) and falls, "cases": cases,
-            "max_rows_per_chunk_at_1_GiB": per_row}
+    # A budget below one estimated row fails closed, naming the minimum, rather than running a one-row chunk over it.
+    m, z, a = _fixture(512, 7, 4, 3)
+    m.jacobian_memory_bytes = 1 * 2**20
+    try:
+        m.jacobian_za(z, a)
+        refusal = None
+    except mlp.JacobianBudgetError as e:
+        refusal = str(e)
+    row_mib = mlp.jacobian_row_bytes(512, 7, [256, 256]) / 2**20
+    return {"pass": all(c["identical"] and c["balanced"] for c in cases) and falls and refusal is not None,
+            "cases": cases, "max_rows_per_chunk_at_1_GiB": per_row,
+            "below_one_row": {"D": 512, "A": 7, "budget_mib": 1, "estimated_row_mib": row_mib, "refusal": refusal}}
 
 
 def width_part(device) -> dict:
-    """Peak device memory within a 256 MiB budget for a wider model (D = 64, A = 7)."""
+    """Peak device memory within a 256 MiB budget for wider models: D = 64 and D = 512 (A = 7, [256, 256])."""
     import torch
-    m, z, a = _fixture(64, 7, 20000, 11)
-    m.device = device
-    m.net.to(device)
-    m.jacobian_memory_bytes = 256 * 2**20
-    torch.cuda.synchronize()
-    torch.cuda.reset_peak_memory_stats()
-    base = torch.cuda.memory_allocated()
-    m.jacobian_za(z, a)
-    torch.cuda.synchronize()
-    peak = torch.cuda.max_memory_allocated() - base
-    return {"pass": bool(peak <= m.jacobian_memory_bytes and m.jacobian_chunking["chunks"] > 1),
-            "budget_bytes": m.jacobian_memory_bytes, "peak_bytes": int(peak), "chunking": m.jacobian_chunking}
+    rows = []
+    for D, n in ((64, 20000), (512, 2000)):
+        m, z, a = _fixture(D, 7, n, 11)
+        m.device = device
+        m.net.to(device)
+        m.jacobian_memory_bytes = 256 * 2**20
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+        base = torch.cuda.memory_allocated()
+        m.jacobian_za(z, a)
+        torch.cuda.synchronize()
+        peak = torch.cuda.max_memory_allocated() - base
+        rows.append({"D": D, "A": 7, "rows": n, "budget_bytes": m.jacobian_memory_bytes, "peak_bytes": int(peak),
+                     "chunking": m.jacobian_chunking,
+                     "ok": bool(peak <= m.jacobian_memory_bytes and m.jacobian_chunking["chunks"] > 1)})
+    return {"pass": all(r["ok"] for r in rows), "cases": rows}
 
 
 def cuda_part(out: Path, task: str, device: str) -> dict:

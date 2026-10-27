@@ -28,7 +28,8 @@ PARAMS = [
           "Legacy seeding set no determinism flags. On CUDA this needs CUBLAS_WORKSPACE_CONFIG=:4096:8.", "compute"),
     Param("compute.jacobian_memory_mb", "int", 2048,
           "Device-memory budget of one chunk of exact model Jacobians (labels and certificates); the rows per chunk "
-          "are derived from it, the state and action dimensions and the model width.",
+          "are derived from it, the state and action dimensions and the model width. A budget smaller than one row is "
+          "refused, naming the minimum.",
           "Bounds memory as rows and state dimension grow (#109, #110); legacy used finite differences.", "compute",
           units="MiB", low=1),
     # data ------------------------------------------------------------------

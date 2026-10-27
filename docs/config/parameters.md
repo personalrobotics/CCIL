@@ -22,7 +22,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 |---|---|---|---|---|---|---|---|---|
 | `compute.device` | choice | `"cuda"` | - | `cpu`, `cuda` | implemented | Device for model computation. | Legacy default (no_gpu false) ran on CUDA; cuda without CUDA fails, never falls back. | `no_gpu` |
 | `compute.deterministic` | bool | `false` | - | - | implemented | Request deterministic torch kernels while fitting and predicting. | Legacy seeding set no determinism flags. On CUDA this needs CUBLAS_WORKSPACE_CONFIG=:4096:8. | - |
-| `compute.jacobian_memory_mb` | int | `2048` | MiB | [1, inf] | implemented | Device-memory budget of one chunk of exact model Jacobians (labels and certificates); the rows per chunk are derived from it, the state and action dimensions and the model width. | Bounds memory as rows and state dimension grow (#109, #110); legacy used finite differences. | - |
+| `compute.jacobian_memory_mb` | int | `2048` | MiB | [1, inf] | implemented | Device-memory budget of one chunk of exact model Jacobians (labels and certificates); the rows per chunk are derived from it, the state and action dimensions and the model width. A budget smaller than one row is refused, naming the minimum. | Bounds memory as rows and state dimension grow (#109, #110); legacy used finite differences. | - |
 
 ## data
 
