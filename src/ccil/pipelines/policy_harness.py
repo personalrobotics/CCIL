@@ -112,13 +112,17 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
             noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
                             mask_probability=v["policy.noise_mask_probability"],
                             units="standardized observation units (after the observation scaler)")
+        held = None
+        if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations (#115)
+            held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
+                                     demonstration_weight=v["policy.demonstration_weight"])
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
         if trained is not None:
             if v["policy.trainer_version"] != "2":
                 raise ConfigError(["a trained policy from a group comes from trainer v2: set policy.trainer_version 2"])
             policy, record = trained
             from ..training import vector_bc_v2
-            want = vector_bc_v2.training_identity_v2(sup, settings_of(v), v["run.seed"], noise)["sha256"]
+            want = vector_bc_v2.training_identity_v2(sup, settings_of(v), v["run.seed"], noise, held)["sha256"]
             if record.get("training_identity_sha256") != want:
                 raise PolicyMismatch(f"the trained policy's training identity {record.get('training_identity_sha256')} "
                                      f"is not this unit's {want}")
@@ -130,10 +134,6 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
                 raise PolicyMismatch(f"the trained policy {problem}")
         elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
-            held = None
-            if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
-                held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
-                                         demonstration_weight=v["policy.demonstration_weight"])
             [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise, held)],
                                                           settings_of(v),
                                                           device=v["compute.device"],
