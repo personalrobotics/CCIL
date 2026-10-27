@@ -35,6 +35,127 @@
    "pass": true
   },
   {
+   "case": "robustness_producer_failure_raises_promptly",
+   "error": "the streaming producer failed: MemoryError: injected producer failure",
+   "pass": true,
+   "seconds": 0.49
+  },
+  {
+   "case": "robustness_identical_blocks_keep_their_source",
+   "pass": true,
+   "row_sources": {
+    "demonstration": 512,
+    "synthetic": 512
+   },
+   "rows_seen": {
+    "demonstration": 512,
+    "synthetic": 512
+   }
+  },
+  {
+   "buckets": [
+    1,
+    4
+   ],
+   "case": "robustness_execution_identity",
+   "pass": true
+  },
+  {
+   "case": "robustness_compile_failure_falls_back",
+   "engine": "eager (compilation failed on the first step: RuntimeError: injected compiler failure)",
+   "pass": true
+  },
+  {
+   "case": "robustness_precision_enforced_and_restored",
+   "pass": true,
+   "precision": {
+    "dtype": "float32",
+    "float32_matmul_precision": "highest",
+    "tf32_cudnn": false,
+    "tf32_matmul": false
+   }
+  },
+  {
+   "case": "recipe_adamw_cosine",
+   "max_relative_difference": 9.069370207726024e-06,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "case": "recipe_adamw_cosine_clip",
+   "max_relative_difference": 1.6800915545900352e-05,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "case": "recipe_adamw_cosine_ema",
+   "max_relative_difference": 5.888176929147448e-06,
+   "pass": true,
+   "steps": 12
+  },
+  {
+   "best_recorded": 0.02945246361196041,
+   "case": "recipe_validation_selection",
+   "epochs": 150,
+   "interior": true,
+   "last_epoch_loss": 0.16529910266399384,
+   "pass": true,
+   "returned_loss": 0.029452461749315262,
+   "selected": 3
+  },
+  {
+   "case": "recipe_validation_step_cadence",
+   "expected_steps": [
+    40,
+    80,
+    120,
+    160,
+    200,
+    240,
+    280,
+    300
+   ],
+   "models": [
+    {
+     "best_recorded": 0.04175125062465668,
+     "ok": true,
+     "returned_loss": 0.04175125062465668,
+     "selected_step": 40,
+     "steps": [
+      40,
+      80,
+      120,
+      160,
+      200,
+      240,
+      280,
+      300
+     ]
+    },
+    {
+     "best_recorded": 0.020841730758547783,
+     "ok": true,
+     "returned_loss": 0.020841728895902634,
+     "selected_step": 80,
+     "steps": [
+      40,
+      80,
+      120,
+      160,
+      200,
+      240,
+      280,
+      300
+     ]
+    }
+   ],
+   "pass": true
+  },
+  {
+   "case": "recipe_validation_requires_held_out_data",
+   "pass": true
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -51,7 +172,7 @@
   }
  ],
  "environment": {
-  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_commit": "f94035ea3c4c85c338642745f413d38b21ae327a",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
