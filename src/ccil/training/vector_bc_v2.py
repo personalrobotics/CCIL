@@ -377,7 +377,10 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         while (item := q.get()) is not None:
             s0, dev, ev, _keepalive = item
             if ev is not None:
-                torch.cuda.current_stream(device).wait_event(ev)
+                main = torch.cuda.current_stream(device)
+                main.wait_event(ev)
+                for v in dev.values():  # allocated on the side stream, used on this one: keep the allocator from
+                    v.record_stream(main)  # reusing the memory before this stream's kernels have read it
             yield s0, dev
         th.join()
 
