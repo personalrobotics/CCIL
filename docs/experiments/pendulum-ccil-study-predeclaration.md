@@ -523,8 +523,25 @@ above.
 
 **Version 6:** to be recorded by a pull request that changes nothing else,
 merged before the first version 6 tuning run. It names the frozen tooling
-and `ccil` commits in `tools/m3_experiments/freeze.json` and lists the §2 and
-§3 evidence, generated from one clean commit on each host.
+and `ccil` commits in `tools/m3_experiments/freeze.json`, and lists the §2
+and §3 evidence.
+- **One combined commit.** The evidence is generated once, on each host,
+  from one clean commit that combines every part of the stack. It includes
+  the certificate cross-host audits and the batched-fit equivalence gate.
+  Reports from separate branches do not count.
+- **The design.** The study's design is the runner plan
+  `tools/m3_experiments/pendulum_v6.yaml`: 120 tuning units and 600 study
+  units.
+- **The driver.** It is `tools/m3_experiments/run_study.py`, which runs the
+  steps in order behind the gate:
+  1. `tuning`, one process per GPU, split by seed;
+  2. `choose`, which verifies the tuning records and writes the choice once;
+  3. `returns`, the modern arms' deferred tuning returns, which name the
+     choice;
+  4. `study`;
+  5. `verify`.
+- **Smoke runs** of the same driver (`--smoke`) use seeds 9101–9103 at one
+  epoch. They precede the freeze and are never analyzed with real runs.
 
 **Version 4 (superseded; its runs are reported, not reused).**
 
