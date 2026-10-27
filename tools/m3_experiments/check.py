@@ -30,6 +30,8 @@
      reuses every stage, and the phase verifies again;
    - batched evaluation: each trained unit's policy rolled out alone (tools/vector_env rollout) gives the same
      saved rollout, bit for bit (every array), as its batched evaluation;
+   - two shards (alternate seeds) run concurrently as two processes on one root write every record exactly once,
+     and the phase verifies;
    - memory exhaustion (injected: any fit or training group of more than two models raises
      torch.cuda.OutOfMemoryError, and every training of one bc_frac10 unit does) splits groups down to the size
      that fits, records the always-failing unit as an infrastructure fault after its retry, and the phase
@@ -259,6 +261,17 @@ def _cli_reuses(root: Path, records: list, device: str) -> list:
     return out
 
 
+def _shard_main(root, device, i, n):
+    """One shard of the runner plan's study phase (a spawned process)."""
+    sys.path.insert(0, str(HERE))
+    from pendulum_suite import PendulumSuite
+
+    from ccil.experiments import runner
+    study = plan.from_dict(RUNNER_PLAN)
+    runner.run_phase(root, study, "study", PendulumSuite(root, study, smoke=True), gate=GATE_DEV, smoke=True,
+                     device=device, shard=(i, n), log=lambda m: None)
+
+
 def runner_check(out: Path, device: str) -> dict:
     import torch
 
@@ -371,7 +384,22 @@ def runner_check(out: Path, device: str) -> dict:
     faults = {k for k, v in status.items() if v != "ok"}
     ok_oom = (faults == {"continuous/bc_frac10/s9002"} and status["continuous/bc_frac10/s9002"] == "infrastructure_fault"
               and max(calls["fit"]) > 2 and max(calls["train"]) > 2)
-    res["checks"] = {"validation_loss_tuning": ok_tuning, "first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
+    # Two shards of the study phase at once, as two processes on one root.
+    import multiprocessing
+    root3 = out / "runner-sharded"
+    PendulumSuite(root3, study, smoke=True)  # converts the inputs once, before the shards start
+
+    ctx = multiprocessing.get_context("spawn")  # this process has already run torch: never fork it
+    procs = [ctx.Process(target=_shard_main, args=(str(root3), device, i, 2)) for i in range(2)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    recs4 = verify(root3, PendulumSuite(root3, study, smoke=True))
+    res["sharded"] = {"exit_codes": [p.exitcode for p in procs], "records": len(recs4),
+                      "status": sorted({r["status"] for r in recs4})}
+    ok_sharded = [p.exitcode for p in procs] == [0, 0] and len(recs4) == 20 and all(r["status"] == "ok" for r in recs4)
+    res["checks"] = {"sharded": ok_sharded, "validation_loss_tuning": ok_tuning, "first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
                      "batched_evaluation": ok_eval, "memory_exhaustion": ok_oom}
     return {"pass": all(res["checks"].values()), **res}
 

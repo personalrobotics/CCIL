@@ -133,8 +133,12 @@ def _chunks(xs: list, n: int) -> list:
 
 def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
               choice: dict | None = None, choice_sha256: str | None = None, max_group: int = 128,
-              log=print) -> dict:
+              shard: tuple[int, int] = (0, 1), log=print) -> dict:
     """Run every unit of phase that has no record yet; return a summary with stage timings.
+
+    shard (i, n) runs only the units of every n-th seed of the phase, starting at the i-th, so n processes (one
+    per device) run a phase together: a seed's units share their stage directories and stay in one shard, and
+    records are per unit.
 
     gate is the code-state gate the caller required (gate.require), recorded in every record; choice and its
     SHA-256 are required for a phase that runs a tuned arm at its chosen value.
@@ -154,8 +158,10 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     timing = {}
     t_phase = time.time()
     units = []
+    i_shard, n_shards = shard
+    seeds = list(study.phases[phase]["seeds"])
     for task, arm, seed, value in study.units(phase, choice):
-        if result_path(root, phase, task, arm, seed, value).exists():
+        if seeds.index(seed) % n_shards != i_shard or result_path(root, phase, task, arm, seed, value).exists():
             continue
         a = study.arms[arm]
         record = {"version": VERSION, "suite": f"{suite.name}/{suite.version}", "phase": phase, "task": task,
