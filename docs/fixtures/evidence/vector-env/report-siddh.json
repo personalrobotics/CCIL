@@ -1,0 +1,287 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "batched_seconds": 0.028,
+   "canonical_flips": 0,
+   "case": "transitions_pendulum_cont_100",
+   "flips": 0,
+   "max_abs_error": 1.7763568394002505e-15,
+   "pass": true,
+   "transitions": 49900
+  },
+  {
+   "batched_seconds": 0.159,
+   "canonical_flips": 650,
+   "case": "transitions_pendulum_disc_500",
+   "flips": 650,
+   "max_abs_error": 1.7763568394002505e-15,
+   "pass": true,
+   "transitions": 249500
+  },
+  {
+   "case": "one_step_equivalence",
+   "exactly_equal_fraction": 0.17266666666666666,
+   "max_abs_difference": 2.6645352591003757e-15,
+   "pass": true,
+   "samples": 3000
+  },
+  {
+   "case": "rollout_equivalence",
+   "pass": true,
+   "rollouts": [
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.153,
+     "canonical_seconds": 3.13,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 5.3179682879545e-14,
+     "noise": 0.0,
+     "policy": "zero",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.16,
+     "canonical_seconds": 3.15,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 6.608602554081244e-14,
+     "noise": 0.1,
+     "policy": "zero",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.146,
+     "canonical_seconds": 3.19,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 1.0186296250935811e-14,
+     "noise": 0.0,
+     "policy": "linear",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.155,
+     "canonical_seconds": 3.22,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 7.33441085642994e-15,
+     "noise": 0.1,
+     "policy": "linear",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.163,
+     "canonical_seconds": 3.19,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 7.616129948928574e-14,
+     "noise": 0.0,
+     "policy": "tanh_mlp",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.175,
+     "canonical_seconds": 3.19,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 5.46229728115577e-14,
+     "noise": 0.1,
+     "policy": "tanh_mlp",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.164,
+     "canonical_seconds": 3.39,
+     "flips": [
+      841,
+      841
+     ],
+     "max_state_difference": 3.0142555118573e-14,
+     "noise": 0.0,
+     "policy": "zero",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.168,
+     "canonical_seconds": 3.29,
+     "flips": [
+      817,
+      817
+     ],
+     "max_state_difference": 2.808864252301646e-14,
+     "noise": 0.1,
+     "policy": "zero",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.164,
+     "canonical_seconds": 3.3,
+     "flips": [
+      2320,
+      2320
+     ],
+     "max_state_difference": 8.23646706393788e-15,
+     "noise": 0.0,
+     "policy": "linear",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.168,
+     "canonical_seconds": 3.3,
+     "flips": [
+      1336,
+      1336
+     ],
+     "max_state_difference": 1.1018963519404679e-14,
+     "noise": 0.1,
+     "policy": "linear",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.169,
+     "canonical_seconds": 3.28,
+     "flips": [
+      1105,
+      1105
+     ],
+     "max_state_difference": 3.2307490016592055e-14,
+     "noise": 0.0,
+     "policy": "tanh_mlp",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.172,
+     "canonical_seconds": 3.27,
+     "flips": [
+      1086,
+      1086
+     ],
+     "max_state_difference": 2.4868995751603507e-14,
+     "noise": 0.1,
+     "policy": "tanh_mlp",
+     "task": "discontinuous"
+    }
+   ]
+  },
+  {
+   "audits": [
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-zero-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-zero-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-linear-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-linear-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-tanh_mlp-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-tanh_mlp-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-zero-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-zero-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-linear-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-linear-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-tanh_mlp-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-tanh_mlp-noise0.1.npz"
+    }
+   ],
+   "case": "audit_and_batched_replay",
+   "pass": true
+  },
+  {
+   "autoreset_mode": "AutoresetMode.DISABLED",
+   "case": "gymnasium_adapter",
+   "matches_batched_rollout": true,
+   "pass": true,
+   "reset_without_seed_refused": true,
+   "truncated_at_horizon": true
+  }
+ ],
+ "environment": {
+  "code_commit": "302d6c0a9987f58feac24d01daff8cad3ce67cc0",
+  "code_dirty": false,
+  "gymnasium": "1.4.0",
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "scipy": "1.16.3"
+ }
+}
