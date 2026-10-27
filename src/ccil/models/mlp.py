@@ -60,6 +60,7 @@ SETTINGS = ("hidden_layers", "activation", "lipschitz_type", "lipschitz_constrai
             "soft_sampling_eps", "soft_samples", "slack_weight", "learning_rate", "weight_decay", "epochs",
             "batch_size")
 PREDICT_CHUNK = 65536
+JACOBIAN_CHUNK = 65536  # rows per vmap(jacrev) call: bounds peak memory (about 1.2 GB for a [256, 256] model)
 NORMALIZATION = ("s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale")
 
 
@@ -267,13 +268,24 @@ class MLPTransitionModel:
         return torch.cat(out).cpu().numpy().astype(np.float64)
 
     def jacobian_za(self, z, a) -> np.ndarray:
-        """Exact df/d(z, a) in eval mode, (N, D, D + A)."""
+        """Exact df/d(z, a) in eval mode, (N, D, D + A).
+
+        Rows are processed in equal chunks of at most JACOBIAN_CHUNK, so peak device memory is bounded by the
+        chunk, not by N (#109); equal sizes avoid a tiny final chunk, whose different kernel could move a
+        pre-activation lying within rounding of a ReLU kink to the other side (the exact Jacobian of a ReLU
+        network is discontinuous there). The result is assembled on the host in float64.
+        """
         d = self.net.state_dim
+        z, a = np.asarray(z), np.asarray(a)
+        out = np.empty((len(z), d, d + a.shape[1]), np.float64)
+        jac_fn = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))
+        size = -(-len(z) // max(1, -(-len(z) // JACOBIAN_CHUNK))) if len(z) else 1  # ceil(N / ceil(N / chunk))
         with _determinism(self.deterministic), _eval_mode(self.net, self.lam):
-            x = torch.cat([torch.as_tensor(np.asarray(z), dtype=torch.float32, device=self.device),
-                           torch.as_tensor(np.asarray(a), dtype=torch.float32, device=self.device)], -1)
-            jac = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))(x)
-        return jac.detach().cpu().numpy().astype(np.float64)
+            for i in range(0, len(z), size):
+                x = torch.cat([torch.as_tensor(z[i:i + size], dtype=torch.float32, device=self.device),
+                               torch.as_tensor(a[i:i + size], dtype=torch.float32, device=self.device)], -1)
+                out[i:i + size] = jac_fn(x).detach().cpu().numpy()
+        return out
 
     def jacobian_z(self, z, a) -> np.ndarray:
         """Exact df/dz in eval mode, (N, D, D); used by Newton solves instead of float32 finite differences."""
