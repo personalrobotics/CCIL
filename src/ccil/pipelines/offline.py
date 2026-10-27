@@ -134,6 +134,11 @@ def preflight(cfg) -> None:
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import SUPPORTED
+        if (v["transition_model.lipschitz_type"] or "none") not in SUPPORTED:
+            errors.append(f"transition_model.trainer_version 2 fits lipschitz types {list(SUPPORTED)}; "
+                          f"{v['transition_model.lipschitz_type']} needs trainer_version 1")
     for check in (build_model, build_generator):
         try:
             if v["generation.method"] is not None:
@@ -149,7 +154,8 @@ def _fit(v, z, a, z_next):
     model = build_model(v)
     if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
         from ..models.mlp_batched import FitJob, fit_group
-        return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"])[0]
+        return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"],
+                         deterministic=v["compute.deterministic"])[0]
     return model, model.fit(z, a, z_next, seed=v["run.seed"])
 
 
@@ -179,6 +185,24 @@ def transition_data(v, inputs: dict, representation):
             np.isin(batch.episode_id, list(split["validation"])))
 
 
+class PrefitMismatch(RuntimeError):
+    """A model fitted elsewhere does not belong to this unit's inputs: a study-runner defect."""
+
+
+def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:
+    """Refuse prefit models whose fit identity is not this unit's (rows, split, direction, settings, seed)."""
+    from ..models.mlp_batched import fit_identity
+    settings = dict(build_model(v).settings)
+    expected = {"label": (z[tr], a[tr], z_next[tr]) if clean else (z, a, z_next)}
+    if tr is not None and not clean:
+        expected["evaluation"] = (z[tr], a[tr], z_next[tr])
+    for role, rows in expected.items():
+        got = (prefit.get(role) or (None, {}))[1].get("fit_identity_sha256")
+        want = fit_identity(*rows, settings, v["run.seed"])
+        if got != want:
+            raise PrefitMismatch(f"prefit {role} model has fit identity {got}, not this unit's {want}")
+
+
 def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
     """Fit the label model and score a model fitted on the train split on the held-out episodes (#13).
 
@@ -199,6 +223,7 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         z, a, z_next, tr, va = transition_data(v, inputs, representation)
         clean = v["transition_model.fit_episodes"] == "train"
         if prefit is not None:
+            _check_prefit(v, prefit, z, a, z_next, tr, clean)
             model, record = prefit["label"]
         elif clean:
             model, record = _fit(v, z[tr], a[tr], z_next[tr])

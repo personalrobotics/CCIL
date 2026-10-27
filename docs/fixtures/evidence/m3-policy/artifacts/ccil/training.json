@@ -5,7 +5,6 @@
   {
    "epoch": 0,
    "mean_loss": 0.2957204580307007,
-   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 50,
     "synthetic": 78
@@ -16,7 +15,6 @@
   {
    "epoch": 1,
    "mean_loss": 0.24249285459518433,
-   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 48,
     "synthetic": 80
@@ -27,7 +25,6 @@
   {
    "epoch": 2,
    "mean_loss": 0.2382991909980774,
-   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 50,
     "synthetic": 78
@@ -38,7 +35,6 @@
   {
    "epoch": 3,
    "mean_loss": 0.2299957424402237,
-   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 48,
     "synthetic": 80
@@ -52,7 +48,7 @@
   "bucket": 1,
   "data_mode": "resident",
   "engine": "eager",
-  "execution_sha256": "d17ba62cf7e4e05812fd690f44230f8c6a8bcc9e268b655672d76d8e40f16a77",
+  "execution_sha256": "6dd8690762ff4c2d7b3211ad6370c180dcdf780ad7cb9cc5198c4d63a2db501a",
   "position": 0
  },
  "group": {
@@ -65,18 +61,18 @@
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.024417877197265625,
-   0.009185075759887695,
-   0.009619951248168945,
-   0.008611917495727539
+   0.021907329559326172,
+   0.008610010147094727,
+   0.008572816848754883,
+   0.008224010467529297
   ],
-  "execution_sha256": "d17ba62cf7e4e05812fd690f44230f8c6a8bcc9e268b655672d76d8e40f16a77",
+  "execution_sha256": "6dd8690762ff4c2d7b3211ad6370c180dcdf780ad7cb9cc5198c4d63a2db501a",
   "members": [
    {
     "method": "ccil",
     "noise_bc": null,
     "seed": 20261023,
-    "supervision_sha256": "de3d3f838b9ae1f7d2071377472beb6e6d39213a5b4de63dbc0a65d8c994a758"
+    "supervision_sha256": "6b5fdca320298ee929a7104d7d48befa9e4be25ce09d4392f1995bae3bf6417f"
    }
   ],
   "padding": 0,
@@ -86,7 +82,7 @@
    "tf32_cudnn": false,
    "tf32_matmul": false
   },
-  "setup_seconds": 0.002933025360107422,
+  "setup_seconds": 0.0029802322387695312,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -104,8 +100,7 @@
   "table_bytes": 2431,
   "table_rows": 143,
   "torch": "2.14.1",
-  "train_seconds": 0.5941197872161865,
-  "validation": null
+  "train_seconds": 0.5333471298217773
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,
@@ -120,19 +115,6 @@
   "name": "adam",
   "weight_decay": 0.0
  },
- "recipe": {
-  "checkpoint_selection": "last",
-  "ema_decay": null,
-  "grad_clip_norm": null,
-  "lr_schedule": "constant",
-  "optimizer": "adam",
-  "step_budget": null,
-  "total_steps": 16,
-  "validation_interval_steps": null,
-  "warmup_steps": 0,
-  "weight_decay": 0.0,
-  "weights_returned": "last"
- },
  "row_sources": {
   "demonstration": 54,
   "synthetic": 89
@@ -144,27 +126,17 @@
   "action_scaler": "min_max",
   "balance_labels": null,
   "batch_size": 32,
-  "checkpoint_selection": "last",
-  "ema_decay": null,
   "epochs": 4,
-  "grad_clip_norm": null,
   "hidden_layers": [
    256,
    256
   ],
   "learning_rate": 0.001,
-  "lr_schedule": "constant",
-  "observation_scaler": "standard",
-  "optimizer": "adam",
-  "step_budget": null,
-  "validation_interval_steps": null,
-  "warmup_steps": 0,
-  "weight_decay": 0.0
+  "observation_scaler": "standard"
  },
  "steps_per_epoch": 4,
  "trainer": "vector_mlp",
  "trainer_version": "2",
- "training_identity_sha256": "1e21c3e2d831e84608fff18bd319f3187a1a878439a387696e1e4630ac22b77b",
- "validation": null,
+ "training_identity_sha256": "9188d0b94e780a05a56966f9beb6aab4ed13d1c9f8e800295f1fa2caa8f8e2af",
  "version": "1"
 }

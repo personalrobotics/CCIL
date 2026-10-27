@@ -295,6 +295,14 @@ class _Streams:
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
 
 
+def parameters_sha256(policy) -> str:
+    """SHA-256 of a policy's returned network parameters, binding a training record to the weights it describes."""
+    h = hashlib.sha256()
+    for name, value in sorted(policy.net.state_dict().items()):
+        h.update(name.encode() + value.detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
 def training_identity_v2(supervision, settings: dict, seed: int, noise, validation=None) -> dict:
     """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run, and the
     held-out validation supervision that selected the checkpoint (#115), on which the returned policy depends."""
@@ -394,10 +402,16 @@ CUDA_GRAPHS = COMPILE_MODE in ("reduce-overhead", "max-autotune")
 
 
 def _compiled(fn):
-    """fn compiled once per process with COMPILE_MODE; torch.compile then specializes per shape bucket."""
-    if fn.__name__ not in _COMPILED:
-        _COMPILED[fn.__name__] = torch.compile(fn, mode=COMPILE_MODE)
-    return _COMPILED[fn.__name__]
+    """fn compiled once per process with COMPILE_MODE; torch.compile then specializes per shape bucket.
+
+    Keyed by module and qualified name: the policy trainer and the batched fits (models/mlp_batched.py) both
+    have a _step, and one process (a study runner) compiles both. dynamic=False specializes every setting, so a
+    recompile never turns a float hyperparameter into a symbolic one (Inductor refused one, "x must be Tensor or
+    scalar, got SymFloat", for the slack loss after a recompile)."""
+    key = f"{fn.__module__}.{fn.__qualname__}"
+    if key not in _COMPILED:
+        _COMPILED[key] = torch.compile(fn, mode=COMPILE_MODE, dynamic=False)
+    return _COMPILED[key]
 
 
 class _Engine:
@@ -821,7 +835,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
         ident = training_identity_v2(job.supervision, settings, job.seed, job.noise, job.validation)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
-                  "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
+                  "training_identity_sha256": ident["sha256"], "parameters_sha256": parameters_sha256(policy),
+                  "seed": int(job.seed),
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
                                 "engine": step_fn.state, "data_mode": data_mode},
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
