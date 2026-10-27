@@ -60,6 +60,37 @@ SETTINGS = ("hidden_layers", "activation", "lipschitz_type", "lipschitz_constrai
             "soft_sampling_eps", "soft_samples", "slack_weight", "learning_rate", "weight_decay", "epochs",
             "batch_size")
 PREDICT_CHUNK = 65536
+JACOBIAN_MEMORY_BYTES = 2048 * 2**20  # default device-memory budget of one Jacobian chunk (compute.jacobian_memory_mb)
+
+
+def jacobian_row_bytes(state_dim: int, action_dim: int, hidden_layers) -> int:
+    """Estimated device bytes of one row of a vmap(jacrev) chunk.
+
+    A row costs the activations reverse mode keeps for each of its D output directions, about 2 D sum(hidden)
+    floats (measured on Pendulum's [256, 256] model, D = 3: 0.76 GB for 65,536 rows), and its float32 Jacobian,
+    D (D + A) values, held about three times over at large D (the D x D cotangent basis, the result and its copy;
+    measured at D = 512, A = 7). The estimate allows twice the activations and three Jacobians, plus one forward
+    pass.
+    """
+    h = sum(int(x) for x in hidden_layers)
+    return 4 * (3 * state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
+
+
+class JacobianBudgetError(ValueError):
+    """compute.jacobian_memory_mb is smaller than one row of the Jacobian computation."""
+
+
+def jacobian_chunk_rows(state_dim: int, action_dim: int, hidden_layers, budget_bytes: int) -> int:
+    """Rows per vmap(jacrev) call that fit a device-memory budget, falling as the state dimension and width grow.
+
+    The budget is a bound, so a budget smaller than one estimated row fails closed (JacobianBudgetError, naming
+    the minimum) rather than running a one-row chunk over it."""
+    row = jacobian_row_bytes(state_dim, action_dim, hidden_layers)
+    if row > int(budget_bytes):
+        raise JacobianBudgetError(f"one Jacobian row needs about {row / 2**20:.2f} MiB (D = {state_dim}, A = "
+                                  f"{action_dim}, hidden {list(hidden_layers)}), more than compute.jacobian_memory_mb "
+                                  f"= {int(budget_bytes) / 2**20:.2f} MiB; raise it to at least {-(-row // 2**20)}")
+    return int(budget_bytes) // row
 NORMALIZATION = ("s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale")
 
 
@@ -185,6 +216,8 @@ class MLPTransitionModel:
                          "weight_decay": weight_decay, "epochs": int(epochs), "batch_size": int(batch_size)}
         self.device = _check_device(device)
         self.deterministic = bool(deterministic)
+        self.jacobian_memory_bytes = JACOBIAN_MEMORY_BYTES
+        self.jacobian_chunking = None  # the last jacobian_za call's chunking, for records
         self.net = self.lam = None
 
     @classmethod
@@ -267,13 +300,29 @@ class MLPTransitionModel:
         return torch.cat(out).cpu().numpy().astype(np.float64)
 
     def jacobian_za(self, z, a) -> np.ndarray:
-        """Exact df/d(z, a) in eval mode, (N, D, D + A)."""
+        """Exact df/d(z, a) in eval mode, (N, D, D + A).
+
+        Rows are processed in balanced chunks of at most jacobian_chunk_rows(D, A, hidden, jacobian_memory_bytes),
+        so peak device memory is bounded by the budget, not by N or D (#109); balanced sizes avoid a tiny final
+        chunk, whose different kernel could move a pre-activation lying within rounding of a ReLU kink to the other
+        side (the exact Jacobian of a ReLU network is discontinuous there). The chunking is kept in
+        jacobian_chunking for records. The result is assembled on the host in float64.
+        """
         d = self.net.state_dim
+        z, a = np.asarray(z), np.asarray(a)
+        out = np.empty((len(z), d, d + a.shape[1]), np.float64)
+        jac_fn = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))
+        cap = jacobian_chunk_rows(d, a.shape[1], self.settings["hidden_layers"], self.jacobian_memory_bytes)
+        chunks = max(1, -(-len(z) // cap))
+        size = -(-len(z) // chunks) if len(z) else 1  # ceil(N / ceil(N / cap)): balanced chunks
+        self.jacobian_chunking = {"budget_bytes": int(self.jacobian_memory_bytes), "max_rows_per_chunk": cap,
+                                  "rows": int(len(z)), "chunks": chunks if len(z) else 0, "rows_per_chunk": size}
         with _determinism(self.deterministic), _eval_mode(self.net, self.lam):
-            x = torch.cat([torch.as_tensor(np.asarray(z), dtype=torch.float32, device=self.device),
-                           torch.as_tensor(np.asarray(a), dtype=torch.float32, device=self.device)], -1)
-            jac = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))(x)
-        return jac.detach().cpu().numpy().astype(np.float64)
+            for i in range(0, len(z), size):
+                x = torch.cat([torch.as_tensor(z[i:i + size], dtype=torch.float32, device=self.device),
+                               torch.as_tensor(a[i:i + size], dtype=torch.float32, device=self.device)], -1)
+                out[i:i + size] = jac_fn(x).detach().cpu().numpy()
+        return out
 
     def jacobian_z(self, z, a) -> np.ndarray:
         """Exact df/dz in eval mode, (N, D, D); used by Newton solves instead of float32 finite differences."""
