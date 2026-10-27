@@ -72,7 +72,7 @@ class PendulumSuite:
     def unit_report(self, task, arm, seed, cfg, stages):
         if cfg["policy.method"] != "ccil":
             return {}
-        return {"label_accuracy": s24._label_stats(stages["labels.generate"] / "labels" / "candidates.npz", task, seed)}
+        return {"label_accuracy": label_stats(stages["labels.generate"] / "labels" / "candidates.npz", task, seed)}
 
     def versions(self) -> dict:
         import scipy
@@ -97,6 +97,36 @@ class PendulumSuite:
             _, digest = s24.subset(self.root, record["task"], record["seed"], frac)
             return {**self.inputs(record["task"]), "data_sha256": digest}
         return self.inputs(record["task"])
+
+
+def label_stats(cands_path, task, seed) -> dict:
+    """The #24 label accuracy (tools/m3_pendulum/study.py _label_stats), with the true one-step error of the
+    sampled labels computed by one batched step of the evaluation integrator (tools/vector_env) rather than one
+    scipy call per label. The two integrators agree to a few ulps; the same rows are sampled."""
+    from ccil.schema.io import read_candidates
+    c = read_candidates(cands_path)
+    acc = np.asarray(c.accepted, bool)
+    q = (0.05, 0.25, 0.5, 0.75, 0.95)
+    out = {"candidates": int(len(acc)), "accepted": int(acc.sum()), "acceptance_rate": float(acc.mean()),
+           "rejections_by_reason": {code: int(np.asarray(c.reasons)[:, i].sum()) for i, code in enumerate(c.reason_codes)}}
+    for key, label in (("generator.state_displacement_norm", "state_displacement"),
+                       ("generator.action_noise_norm", "action_displacement")):
+        if key in c.measurements:
+            v = np.asarray(c.measurements[key], np.float64)[acc]
+            out[label] = {"quantiles": dict(zip(map(str, q), np.quantile(v, q).tolist())) if v.size else None}
+    rows = np.flatnonzero(acc)
+    if rows.size:
+        rng = np.random.default_rng(np.random.SeedSequence([seed, 10]))
+        rows = np.sort(rng.choice(rows, size=min(s24.LABEL_SAMPLE, rows.size), replace=False))
+        z, a, y = c.observations["state"][rows], c.actions[rows], c.target_observations["state"][rows]
+        nxt, _ = vector.step(np.asarray(z, np.float64), np.asarray(a[:, 0], np.float64), canonical.TASKS[task])
+        err = np.linalg.norm(nxt - y, axis=1)
+        out["true_label_error"] = {"sample": int(len(rows)), "sample_rule": "SeedSequence([seed, 10]) choice of accepted rows",
+                                   "mean": float(err.mean()), "max": float(err.max()),
+                                   "quantiles": dict(zip(map(str, q), np.quantile(err, q).tolist())),
+                                   "definition": "||env.step(z_G, a_G) - y||_2 in raw state units, one step "
+                                                 "(the batched evaluation integrator)"}
+    return out
 
 
 def _zero(obs):
