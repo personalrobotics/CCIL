@@ -27,7 +27,9 @@
 6. lipschitz_pendulum (CUDA host; reported, no decision; no policy is trained): continuous Pendulum at the paper's
    settings (soft_sampling, constraint 2, eps 3e-4), seeds 401-405, fitted as one batched group under each
    coordinate system: per-epoch penalty, the share of training samples whose ratio exceeds the constraint at the
-   final weights, and the held-out one-step error.
+   final weights, and the held-out one-step error. At the raw fits' weights it also evaluates legacy's term
+   (correct_il soft_sampling_lipschitz_loss: relu(||Y_hat - predict(s + eps n_s, a + eps n_a)|| - L ||n||), with
+   Y_hat the normalized residual and predict the next state s + f), to show what legacy's ablation removed.
 4. clean_holdout (any host): on the first 20 continuous Pendulum episodes (labels_per_transition 2, 2 dynamics
    epochs), the label pipeline runs on the data and on a copy whose held-out episodes (the data.prepare split
    at seed 501) are perturbed. With transition_model.fit_episodes train, the label model and every label from a
@@ -386,7 +388,18 @@ def lipschitz_pendulum(out: Path, device: str) -> dict:
                 r = mlp_mod.lipschitz_ratio(s_, a_, m.net.predict, st["soft_samples"], st["soft_sampling_eps"],
                                             noise=(nz[:, :z.shape[1]], nz[:, z.shape[1]:]), coordinates=coords, net=m.net)
             pen = rec["epoch_losses"]["lipschitz_penalty"]
-            rows.append({"seed": seed, "share_above_constraint": float((r > st["lipschitz_constraint"]).float().mean()),
+            legacy = None
+            if coords == "raw":
+                with torch.no_grad():
+                    n_, eps_ = st["soft_samples"], st["soft_sampling_eps"]
+                    ns_, na_ = nz[:, :z.shape[1]], nz[:, z.shape[1]:]
+                    S_, A_ = s_.repeat_interleave(n_, 0), a_.repeat_interleave(n_, 0)
+                    y_hat = m.net(s_, a_).repeat_interleave(n_, 0)          # legacy Y_hat: the normalized residual
+                    nxt = (S_ + eps_ * ns_) + m.net.predict(S_ + eps_ * ns_, A_ + eps_ * na_)  # legacy predict_fn
+                    hinge = torch.relu(torch.linalg.norm(y_hat - nxt, dim=-1)
+                                       - st["lipschitz_constraint"] * torch.linalg.norm(torch.cat([ns_, na_], -1), dim=-1))
+                legacy = {"active_share": float((hinge > 0).float().mean()), "mean_hinge": float(hinge.mean())}
+            rows.append({"legacy_term_at_these_weights": legacy, "seed": seed, "share_above_constraint": float((r > st["lipschitz_constraint"]).float().mean()),
                          "ratio_quantiles": {q: float(r.quantile(q)) for q in (0.5, 0.99)},
                          "ratio_max": float(r.max()), "epochs_with_penalty": int(sum(p > 0 for p in pen)),
                          "penalty_last_epoch": pen[-1],
