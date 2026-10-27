@@ -49,6 +49,18 @@ def harness_problems(v) -> list[str]:
     problems = [f"{k} is required by ccil policy train" for k in ("policy.batch_size", "policy.epochs") if v[k] is None]
     if v["representation.kind"] != "identity":
         problems.append("the vector-policy harness trains on representation.kind=identity")
+    if v["policy.checkpoint_selection"] == "validation" and not (v["policy.exclude_validation_episodes"]
+                                                                and v["data.validation_fraction"]):
+        problems.append("policy.checkpoint_selection validation needs held-out validation episodes: "
+                        "policy.exclude_validation_episodes true and data.validation_fraction > 0")
+    recipe_set = [k for k in ("optimizer", "weight_decay", "lr_schedule", "warmup_steps", "step_budget",
+                              "grad_clip_norm", "ema_decay", "checkpoint_selection", "validation_interval_steps")
+                  if v[f"policy.{k}"] != {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant",
+                                          "warmup_steps": 0, "checkpoint_selection": "last"}.get(k)]
+    if v["policy.warmup_steps"] and v["policy.lr_schedule"] == "constant":
+        problems.append("policy.warmup_steps applies to lr_schedule cosine; a constant schedule has no warm-up")
+    if recipe_set and v["policy.trainer_version"] != "2":
+        problems.append(f"{['policy.' + k for k in recipe_set]} need policy.trainer_version 2 (#115)")
     if v["certificate.profile"] is not None and v["policy.method"] != "ccil":
         problems.append(f"certificate.profile certifies labels; policy.method {v['policy.method']} trains on "
                         "demonstrations only")
@@ -59,7 +71,10 @@ def settings_of(v) -> dict:
     return {"hidden_layers": list(v["policy.hidden_layers"]), "learning_rate": v["policy.learning_rate"],
             "batch_size": v["policy.batch_size"], "epochs": v["policy.epochs"],
             "observation_scaler": v["policy.observation_scaler"], "action_scaler": v["policy.action_scaler"],
-            "balance_labels": v["generation.labels_per_transition"] if v["policy.balance_noisy_labels"] else None}
+            "balance_labels": v["generation.labels_per_transition"] if v["policy.balance_noisy_labels"] else None,
+            **{k: v[f"policy.{k}"] for k in ("optimizer", "weight_decay", "lr_schedule", "warmup_steps", "step_budget",
+                                             "grad_clip_norm", "ema_decay", "checkpoint_selection",
+                                             "validation_interval_steps")}}
 
 
 def run_policy_harness(cfg, trained=None) -> list[StageResult]:
@@ -115,7 +130,12 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
                 raise PolicyMismatch(f"the trained policy {problem}")
         elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
-            [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise)], settings_of(v),
+            held = None
+            if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
+                held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
+                                         demonstration_weight=v["policy.demonstration_weight"])
+            [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise, held)],
+                                                          settings_of(v),
                                                           device=v["compute.device"],
                                                           deterministic=v["compute.deterministic"])
         else:

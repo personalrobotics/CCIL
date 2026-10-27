@@ -690,6 +690,7 @@ class Sources:
     extra: dict = field(default_factory=dict)        # e.g. {"representation": checkpoint} for a learned one
     references: dict = field(default_factory=dict)   # name -> path, for bound providers
     device: str = "cpu"
+    jacobian_memory_bytes: int | None = None         # the model's Jacobian chunk budget; None keeps its default
 
     def paths(self) -> dict:
         return {"candidates": Path(self.candidates), "dataset": Path(self.dataset),
@@ -847,6 +848,14 @@ def _admission(mode, threshold) -> dict:
     return {"mode": mode, "threshold": None if threshold is None else float(threshold)}
 
 
+def _load_model(sources: Sources):
+    """The transition model, with the Jacobian chunk budget the sources carry."""
+    model = load_transition_model(sources.transition_model, device=sources.device)
+    if sources.jacobian_memory_bytes is not None and hasattr(model, "jacobian_memory_bytes"):
+        model.jacobian_memory_bytes = int(sources.jacobian_memory_bytes)
+    return model
+
+
 def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", threshold: float | None = None,
             selection_quantile: float | None = None, state_scale=None, action_scale=None,
             selection_population: str = "admitted") -> CertificateSet:
@@ -864,7 +873,7 @@ def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", 
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
     check_applies(profile, candidates)
-    model = load_transition_model(sources.transition_model, device=sources.device)
+    model = _load_model(sources)
     rep = sources.representation
     probe = transitions(dataset, rep)
     ctx = Context(candidates, dataset, rep, model, _scales(state_scale, probe.z.shape[1], "state_scale"),
@@ -998,7 +1007,7 @@ def audit_sources(cert: CertificateSet, sources: Sources) -> list[str]:
         return problems  # recomputing from other artifacts would audit something else
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
-    model = load_transition_model(sources.transition_model, device=sources.device)
+    model = _load_model(sources)
     rep = sources.representation
     if _components(rep, model) != cert.components:
         return [f"components {_components(rep, model)} != recorded {cert.components}"]
