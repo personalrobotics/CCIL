@@ -19,6 +19,9 @@
    Pendulum hooks accepts the clean root with the same recomputed R as the #24 verify_phase, recomputes the
    same tuning choice, and refuses exactly when the #24 verifier refuses: an edited study-record R and an extra
    study unit (each restored afterwards).
+6. analysis_v6 (with --v6-smoke-root, a root of `run_study.py ... --smoke`): tools/m3_experiments/analyze_v6.py
+   accepts the clean root, and refuses (each change restored afterwards) an edited tuning choice, a removed
+   deferred return, and an edited study record's R.
 5. runner (with --runner): ccil.experiments.runner on a small smoke plan (both tasks; bc, ccil, noise_bc, bc_frac10
    and zero; two seeds) with the Pendulum suite:
    - every record verifies (verify_phase, every rollout replayed through the integrator that produced it);
@@ -428,12 +431,57 @@ def runner_check(out: Path, device: str) -> dict:
     return {"pass": all(res["checks"].values()), **res}
 
 
+def analysis_v6_check(root: Path) -> dict:
+    import shutil
+
+    sys.path.insert(0, str(HERE))
+    import analyze_v6
+    from run_study import _study
+
+    from ccil.experiments import records
+    study = _study(HERE / "pendulum_v6.yaml", smoke=True)
+
+    def outcome():
+        try:
+            analyze_v6.load(root, study, True, 8)
+            return "accepted"
+        except (SystemExit, records.RecordsRefused) as e:
+            return f"refused: {str(e)[:160]}"
+    res = {"clean": outcome()}
+    choice = root / records.CHOICE
+    deferred = sorted((root / "results" / "tuning_returns").rglob("s*.json"))[0]
+    study_rec = sorted((root / "results" / "study").rglob("s*.json"))[0]
+    edits = {
+        "edited_choice": (choice, lambda d: {**d, "choice": {t: {a: {**c, "value": c["value"] * 10} for a, c in v.items()}
+                                                             for t, v in d["choice"].items()}}),
+        "removed_deferred_return": (deferred, None),
+        "edited_study_R": (study_rec, lambda d: {**d, "evaluations": {n: {**e, "R": e["R"] + 1.0}
+                                                                       for n, e in d["evaluations"].items()}}),
+    }
+    for name, (path, change) in edits.items():
+        backup = path.with_name(path.name + ".bak")
+        shutil.copy2(path, backup)
+        try:
+            if change is None:
+                path.unlink()
+            else:
+                path.write_text(json.dumps(change(json.loads(path.read_text())), indent=1))
+            res[name] = outcome()
+        finally:
+            shutil.move(backup, path)
+    res["clean_after_restore"] = outcome()
+    ok = (res["clean"] == res["clean_after_restore"] == "accepted"
+          and all(res[k].startswith("refused") for k in edits))
+    return {"pass": ok, **res}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--smoke-root", type=Path, help="a #24 check_study smoke root, for the records case")
     ap.add_argument("--runner", action="store_true", help="run the runner case")
     ap.add_argument("--device", default="cpu")
+    ap.add_argument("--v6-smoke-root", type=Path, help="a run_study.py --smoke root, for the analysis_v6 case")
     args = ap.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -451,6 +499,9 @@ def main():
     if args.smoke_root:
         r = records_match_24(args.smoke_root.resolve())
         record("records_match_24", r.pop("pass"), **r)
+    if args.v6_smoke_root:
+        r = analysis_v6_check(args.v6_smoke_root.resolve())
+        record("analysis_v6", r.pop("pass"), **r)
     if args.runner:
         r = runner_check(out, args.device)
         record("runner", r.pop("pass"), **r)
