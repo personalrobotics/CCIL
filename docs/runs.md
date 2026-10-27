@@ -28,11 +28,41 @@ A workflow writes only the components it produces.
 | `inputs` | External inputs (datasets, checkpoints): path and SHA-256. |
 | `seeds` | Every `*.seed` value from the configuration. |
 | `config` | Pointer to `config.json` and its `config_hash`. |
-| `code` | The ccil version, plus the git commit and dirty flag when the source is a checkout (otherwise `null`). |
+| `code` | The ccil version, plus the git commit, dirty flag and a hash of `git status` when the source is a checkout (otherwise `null`). Captured once per process. |
 | `environment` | Python, platform, and numpy/pyyaml/torch versions. Devices are listed only when the run itself imported torch. |
 
 The manifest has no timestamps, so identical inputs reproduce a run directory
 byte for byte on the same environment.
+
+## Code state and content hashes
+
+A process captures its code state once, at the first manifest or stage
+identity it writes: the `code` fields above, and the hash of every ccil
+source file that decides stage reuse. The state is then checked again when
+work is finalized:
+- **Before every commit,** `RunWriter` rehashes the ccil source. If it changed,
+  the run is not committed.
+- **When a command ends,** the CLI rechecks the git state as well.
+
+On any difference, the command exits 3 and its unit is not finalized. An
+already-dirty tree is covered too: the source hash sees an edit that the dirty
+flag cannot.
+
+Each hash of a pipeline-owned artifact is computed once per process. Hashes
+are cached only for files that `RunWriter` committed, or that matched a
+complete run's manifest when it was validated. A cached hash is used only
+while the file's resolved path, device, inode, size and nanosecond mtime are
+unchanged. User inputs, such as datasets and checkpoints passed in by path,
+are hashed in full every time.
+
+The cache's threat model:
+- **Covered:** an atomic replacement, which changes the inode, and an in-place
+  edit that changes the mtime. Both are rehashed.
+- **Not covered:** rewriting a pipeline-owned artifact in place while keeping
+  its size, inode and nanosecond mtime. These artifacts are write-once and are
+  only ever replaced atomically.
+- **Strict mode:** `CCIL_PROVENANCE_STRICT=1` turns the cache off. Use it for
+  adversarial or archival verification. It produces the same records.
 
 ## Atomic writes
 
@@ -104,3 +134,31 @@ has 24 cases:
   - a symlinked file or directory that points outside the run;
   - mistyped `files` mappings and entries, which give a diagnostic rather than a
     traceback.
+
+```bash
+uv run --group evidence python tools/m3_provenance/check.py --out <new-dir>
+```
+
+[`fixtures/evidence/m3-provenance/report.json`](fixtures/evidence/m3-provenance/report.json)
+covers the code state and the hash cache (#127). Run it from a clean commit,
+because it clones HEAD.
+
+- **Code state:**
+  - a ccil source edit between two stages exits 3 and commits no later stage,
+    both in a git clone and in a non-git copy;
+  - an edit to a tracked file outside the source exits 3 when the command
+    ends;
+  - an unedited clone exits 0.
+- **Cache use:** an unchanged rerun in one process reuses every stage. It
+  hashes only the user's dataset in full; every other hash comes from the
+  cache.
+- **Rehashing:**
+  - an atomically replaced artifact is rehashed, even at the same size and
+    mtime;
+  - an in-place edit that changes the mtime is rehashed;
+  - an in-place edit that keeps its metadata is not rehashed, which is the
+    documented limit, but strict mode sees it.
+- **User inputs:** a same-size rewrite of the user's dataset with its mtime
+  restored is detected, and `data.prepare` writes a new run.
+- **Strict mode:** cached and strict runs write byte-identical run
+  directories, and strict mode never uses the cache.

@@ -28,7 +28,7 @@ import sys
 from pathlib import Path, PurePosixPath
 
 from .layout import CONFIG, LOG, MANIFEST, MANIFEST_SCHEMA, MANIFEST_VERSION, METRICS, METRICS_SCHEMA, STAGING_MARKER
-from .provenance import code, component_schema, environment, sha256
+from .provenance import code, component_schema, environment, register_artifact, sha256, verify_code_state
 from .validate import validate_run
 
 
@@ -155,10 +155,12 @@ class RunWriter:
             shutil.rmtree(self.staging, ignore_errors=True)
             return False
         try:
-            dump_json(self._manifest(), self.staging / MANIFEST)
+            manifest = self._manifest()
+            dump_json(manifest, self.staging / MANIFEST)
             status, problems = validate_run(self.staging, staging=True)
             if status != "complete":
                 raise RunError(f"staged run failed validation ({status}): {problems}")
+            verify_code_state(source_only=True)  # never commit an output the edited source may have computed (#127)
             if not self.dest.exists():
                 os.replace(self.staging, self.dest)
             elif not _exchange(self.staging, self.dest):
@@ -169,6 +171,8 @@ class RunWriter:
         # After an exchange the staging name holds the old run.
         shutil.rmtree(self.staging, ignore_errors=True)
         self.run_dir = self.dest
+        for rel, info in manifest["files"].items():  # writer-owned artifacts: a rename keeps inode and mtime (#127)
+            register_artifact(self.dest / rel, info["sha256"])
         return False
 
     def _replace_by_renames(self) -> None:

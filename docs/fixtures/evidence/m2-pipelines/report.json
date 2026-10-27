@@ -30,14 +30,14 @@
     }
    },
    "rerun_output": [
-    "data.prepare       reused runs/data-prepare-9f154423e1a9",
-    "transition.fit     reused runs/transition-fit-7dc5ab3d496e",
-    "labels.generate    reused runs/labels-generate-04a1e9d70e1b"
+    "data.prepare       reused runs/data-prepare-4857721949d8",
+    "transition.fit     reused runs/transition-fit-63d2333014c8",
+    "labels.generate    reused runs/labels-generate-4d3d7685203b"
    ],
    "stages": {
-    "data-prepare-9f154423e1a9": "complete",
-    "labels-generate-04a1e9d70e1b": "complete",
-    "transition-fit-7dc5ab3d496e": "complete"
+    "data-prepare-4857721949d8": "complete",
+    "labels-generate-4d3d7685203b": "complete",
+    "transition-fit-63d2333014c8": "complete"
    },
    "stderr": ""
   },
@@ -68,8 +68,8 @@
   {
    "case": "stage_identity_recorded_and_rederives_run_id",
    "components": {
-    "data-prepare-9f154423e1a9": {},
-    "labels-generate-04a1e9d70e1b": {
+    "data-prepare-4857721949d8": {},
+    "labels-generate-4d3d7685203b": {
      "generator": {
       "name": "backward_euler",
       "version": "1"
@@ -87,7 +87,7 @@
       "version": "1"
      }
     },
-    "transition-fit-7dc5ab3d496e": {
+    "transition-fit-63d2333014c8": {
      "representation": {
       "kind": "identity",
       "version": "1"
@@ -105,16 +105,16 @@
      "pyyaml": "6.0.3",
      "torch": "2.14.1"
     },
-    "source_sha256": "d07f748a2b6425d1b512b960aa6e94403a4bdf5f06c5b927780f1898d2a8005d"
+    "source_sha256": "8b9f0f17690f7adf1ed9ac8b6fa7dfac11de46f1c49c533cc6896b6f1217f8be"
    },
    "pass": true
   },
   {
    "case": "changed_implementation_writes_distinct_runs",
    "new_runs": [
-    "data-prepare-630327b14c9d",
-    "labels-generate-4a661da70327",
-    "transition-fit-38fb72dad0bd"
+    "data-prepare-d3d38ba33ff6",
+    "labels-generate-1a8c68014dcb",
+    "transition-fit-251eb0943865"
    ],
    "pass": true,
    "stage_status": {
@@ -127,8 +127,8 @@
   {
    "case": "component_version_change_writes_distinct_runs",
    "new_runs": [
-    "labels-generate-0e581cea8788",
-    "transition-fit-cb90681ed1f9"
+    "labels-generate-36387583e0b9",
+    "transition-fit-b6f0f6099c52"
    ],
    "pass": true,
    "stage_status": {
@@ -172,12 +172,12 @@
    "pass": true,
    "same_manifest_vocabulary": true,
    "stages": {
-    "data-prepare-22e71bc4c184": "complete",
-    "labels-generate-6b97c0eceffb": "complete",
-    "policy-evaluate-17e0772a3c8f": "complete",
-    "policy-train-c40830fbbec3": "complete",
-    "representation-fit-ae086142cad9": "complete",
-    "transition-fit-a626b2afb511": "complete"
+    "data-prepare-c0dd1319e88b": "complete",
+    "labels-generate-2589d2b55673": "complete",
+    "policy-evaluate-4b06a015049c": "complete",
+    "policy-train-c8ace78eb38c": "complete",
+    "representation-fit-af81e76fae04": "complete",
+    "transition-fit-b66d0c57860f": "complete"
    }
   },
   {
@@ -238,10 +238,10 @@
     ]
    ],
    "stages_after_failure": {
-    "data-prepare-22e71bc4c184": "complete",
-    "labels-generate-6b97c0eceffb": "complete",
-    "representation-fit-ae086142cad9": "complete",
-    "transition-fit-a626b2afb511": "complete"
+    "data-prepare-c0dd1319e88b": "complete",
+    "labels-generate-2589d2b55673": "complete",
+    "representation-fit-af81e76fae04": "complete",
+    "transition-fit-b66d0c57860f": "complete"
    },
    "staging_left": []
   },
@@ -277,7 +277,7 @@
    ],
    "resume_error": null,
    "runs_after_failure": {
-    "policy-train-27a16c291da5": "complete"
+    "policy-train-e98990f5b73e": "complete"
    }
   },
   {
@@ -293,14 +293,14 @@
   {
    "case": "help_states_inputs_outputs_dependencies_exit_codes",
    "help": {
-    "labels generate": "usage: ccil labels generate [-h] [--recipe RECIPE] [--config CONFIG]\n                            [--set KEY=VALUE]\n\nRun offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n",
-    "pipeline integrated": "usage: ccil pipeline integrated [-h] [--recipe RECIPE] [--config CONFIG]\n                                [--set KEY=VALUE]\n\nRun the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n"
+    "labels generate": "usage: ccil labels generate [-h] [--recipe RECIPE] [--config CONFIG]\n                            [--set KEY=VALUE]\n\nRun offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n",
+    "pipeline integrated": "usage: ccil pipeline integrated [-h] [--recipe RECIPE] [--config CONFIG]\n                                [--set KEY=VALUE]\n\nRun the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n"
    },
    "pass": true
   }
  ],
  "environment": {
-  "code_commit": "10d700daf669b2e16f5f0aa35b29b2552837e967",
+  "code_commit": "e9cce8c3618f93eacb3afa1ab563358a17bee775",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
