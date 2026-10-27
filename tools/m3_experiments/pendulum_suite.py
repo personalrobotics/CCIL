@@ -48,8 +48,13 @@ class PendulumSuite:
             sets += ["transition_model.epochs=1", "policy.epochs=1"]
         cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task], sets=sets)
         if self.smoke and cfg["policy.balance_noisy_labels"] and cfg["policy.method"] == "ccil":
+            sets = [*sets, f"policy.epochs={cfg['generation.labels_per_transition']}"]
+            cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task], sets=sets)
+        if self.smoke and cfg["policy.step_budget"]:  # a budgeted recipe, scaled down with its warm-up and cadence
             cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task],
-                          sets=[*sets, f"policy.epochs={cfg['generation.labels_per_transition']}"])
+                          sets=[*sets, "policy.step_budget=200", "policy.warmup_steps=20",
+                                *(["policy.validation_interval_steps=50"] if cfg["policy.validation_interval_steps"]
+                                  else [])])
         return cfg, inputs
 
     def evaluate(self, phase, task, items):
