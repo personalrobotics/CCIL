@@ -227,7 +227,7 @@ and it is the gate's only rerun.
     `none`;
   - no exclusions: every seed is used.
 - **Code.** The gate runs from the clean commit
-  `b2cbf71b88f7d1bce0d00a5ed6e8bd2e862ac39c`, with
+  `b2cbf7136b6f54b0034e2b338342605fc9a15711`, with
   `tools/m3_fit_v2/check.py --parts confirmatory`. Its `src`,
   `pyproject.toml` and `uv.lock` are identical to the first gate's commit.
 - **Seeds.** Fresh seeds 641–780: 140 per configuration, the same range for
