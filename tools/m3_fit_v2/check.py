@@ -15,6 +15,11 @@
    different shuffles and perturbation draws, so this measures how much the engine changes the fitted
    model, against the seed-to-seed spread).
 3. timing (CUDA host): wall time of one per-fit fit, and of 20 seeds as one batched group, per task.
+4. clean_holdout (any host): on the first 20 continuous Pendulum episodes (labels_per_transition 2, 2 dynamics
+   epochs), the label pipeline runs on the data and on a copy whose held-out episodes (the data.prepare split
+   at seed 501) are perturbed. With transition_model.fit_episodes train, the label model and every label from a
+   training episode are identical between the two (held-out episodes influence no label); with all, they
+   differ (the check can see the leak it rules out).
 """
 from __future__ import annotations
 
@@ -152,6 +157,63 @@ def timing(out: Path, device: str):
     return {"pass": all(r["engine"].startswith("compiled") for r in rows), "measurements": rows}
 
 
+def clean_holdout(out: Path, device: str) -> dict:
+    import dataclasses
+
+    import study
+
+    from ccil.config import resolve
+    from ccil.pipelines import offline
+    from ccil.schema import read_candidates, read_trajectories, write_trajectories
+    from ccil.schema.trajectories import TrajectoryDataset
+    root = out / "holdout"
+    study.prepare(root)
+    full = read_trajectories(root / "inputs" / "data" / f"{study.DATASETS['continuous']}.npz")
+    small = TrajectoryDataset(full.episodes[:20], full.meta)
+    paths = {"original": root / "original.npz", "perturbed": root / "perturbed.npz"}
+    write_trajectories(small, paths["original"])
+    os.chdir(root / "inputs")
+    config = str(root / "inputs" / "config" / study.CONFIGS["continuous"])
+
+    def run(which, fit_episodes):
+        cfg = resolve(config=config, sets=[f"run.seed={DATA_SEED}", f"compute.device={device}",
+                                           f"data.path={paths[which]}", f"run.output_dir={root / which / fit_episodes}",
+                                           "transition_model.epochs=2", "generation.labels_per_transition=2",
+                                           f"transition_model.fit_episodes={fit_episodes}"])
+        prepared, fitted, labeled = offline.generate_offline(cfg)[:3]
+        split = json.loads(prepared.out("data/split.json").read_text())
+        with np.load(fitted.out(offline.MODEL_CHECKPOINT), allow_pickle=False) as z:
+            params = {k: z[k] for k in z.files if k.startswith(("dynamics/", "lambda/"))}
+        return split, params, read_candidates(labeled.out("labels/candidates.npz"))
+    split, _, _ = run("original", "train")
+    held = set(split["validation"])
+    r = np.random.default_rng(0)
+    eps = [dataclasses.replace(ep, observations={k: (x * 1.05 + 0.01 * r.standard_normal(x.shape)).astype(x.dtype)
+                                                for k, x in ep.observations.items()})
+           if ep.episode_id in held else ep for ep in small.episodes]
+    write_trajectories(TrajectoryDataset(eps, small.meta), paths["perturbed"])
+    out_ = {}
+    for fit_episodes in ("train", "all"):
+        s0, p0, c0 = run("original", fit_episodes)
+        s1, p1, c1 = run("perturbed", fit_episodes)
+        tr0 = ~np.isin(c0.source_episode_id, list(held))
+        tr1 = ~np.isin(c1.source_episode_id, list(held))
+        same_rows = np.array_equal(c0.source_episode_id[tr0], c1.source_episode_id[tr1]) and \
+            np.array_equal(c0.source_frame[tr0], c1.source_frame[tr1])
+        labels_equal = same_rows and all(np.array_equal(a_, b_) for a_, b_ in (
+            (c0.actions[tr0], c1.actions[tr1]), (c0.accepted[tr0], c1.accepted[tr1]),
+            (c0.observations["state"][tr0], c1.observations["state"][tr1]),
+            (c0.target_observations["state"][tr0], c1.target_observations["state"][tr1])))
+        out_[fit_episodes] = {"split_unchanged": s0 == s1, "held_out_episodes": sorted(held),
+                              "label_model_equal": all(np.array_equal(p0[k], p1[k]) for k in p0) and set(p0) == set(p1),
+                              "training_episode_labels_equal": bool(labels_equal),
+                              "training_episode_labels": int(tr0.sum())}
+    t, a_ = out_["train"], out_["all"]
+    ok = (t["split_unchanged"] and t["label_model_equal"] and t["training_episode_labels_equal"]
+          and not a_["label_model_equal"] and not a_["training_episode_labels_equal"])
+    return {"pass": ok, **out_}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
@@ -160,7 +222,7 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = ["correctness", "pendulum", "timing"] if a.parts == "all" else a.parts.split(",")
+    parts = ["correctness", "clean_holdout", "pendulum", "timing"] if a.parts == "all" else a.parts.split(",")
     cases = []
 
     def record(name, ok, **detail):
@@ -169,6 +231,9 @@ def main():
     if "correctness" in parts:
         for name, r in correctness(a.device).items():
             record(f"correctness_{name}", r.pop("pass"), **r)
+    if "clean_holdout" in parts:
+        r = clean_holdout(out, a.device)
+        record("clean_holdout", r.pop("pass"), **r)
     if "pendulum" in parts:
         r = pendulum(out, a.device)
         record("pendulum_held_out_error", r.pop("pass"), **r)

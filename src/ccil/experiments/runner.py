@@ -291,7 +291,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     fit_groups = []
     for key, members in by_settings.items():
         settings, dev = json.loads(key)
-        per = 2 if any(us[0].prepared.out(layout.SPLIT).exists() for us in members) else 1  # label + evaluation
+        per = 2 if any(us[0].prepared.out(layout.SPLIT).exists()  # a label and a separate evaluation model
+                       and us[0].cfg.values["transition_model.fit_episodes"] == "all" for us in members) else 1
         for chunk in _chunks(members, max_group, per, overhead=4.0):
             jobs, owners = [], []
             for us in chunk:
@@ -299,6 +300,10 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
                 v = u.cfg.values
                 z, a, zn, tr, _ = offline.transition_data(v, offline.transition_inputs(u.prepared),
                                                           IdentityRepresentation(v["representation.modality"]))
+                if v["transition_model.fit_episodes"] == "train":  # the label model is the train-split fit
+                    jobs.append(FitJob(z[tr], a[tr], zn[tr], v["run.seed"]))
+                    owners.append((us, "label"))
+                    continue
                 jobs.append(FitJob(z, a, zn, v["run.seed"]))
                 owners.append((us, "label"))
                 if tr is not None:
