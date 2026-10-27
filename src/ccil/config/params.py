@@ -194,6 +194,10 @@ PARAMS = [
     Param("policy.observation_scaler", "choice", "standard", "Observation normalization during policy training.",
           "Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std.",
           "policy", choices=("standard", "none")),
+    Param("policy.trainer_version", "choice", "2", "Experimental vector-policy trainer version (#108).",
+          "2 trains groups of policies as one batched, compiled program on the device (vector_bc_v2.py); 1 is the "
+          "original per-step loop (vector_bc.py), kept for comparison. Same protocol, not bit-compatible.",
+          "policy", choices=("1", "2")),
     Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
           "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
     Param("policy.exclude_validation_episodes", "bool", True,

@@ -1,11 +1,10 @@
 {
  "balance_labels": null,
- "deterministic": false,
  "device": "cpu",
  "epochs": [
   {
    "epoch": 0,
-   "mean_loss": 0.40763577818870544,
+   "mean_loss": 0.4611005187034607,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -15,7 +14,7 @@
   },
   {
    "epoch": 1,
-   "mean_loss": 0.3947189152240753,
+   "mean_loss": 0.3793286681175232,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -25,7 +24,7 @@
   },
   {
    "epoch": 2,
-   "mean_loss": 0.3497832417488098,
+   "mean_loss": 0.3853030204772949,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -35,7 +34,7 @@
   },
   {
    "epoch": 3,
-   "mean_loss": 0.2154654711484909,
+   "mean_loss": 0.3361170291900635,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -45,6 +44,34 @@
   }
  ],
  "epochs_run": 4,
+ "group": {
+  "chunk_steps": 256,
+  "data_mode": "resident",
+  "deterministic": false,
+  "device": "cpu",
+  "engine": "eager",
+  "epoch_seconds": [
+   0.01614689826965332,
+   0.003437042236328125,
+   0.0035219192504882812,
+   0.003175973892211914
+  ],
+  "setup_seconds": 0.0030851364135742188,
+  "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
+  "size": 1,
+  "table_blocks": [
+   {
+    "part": "demonstration",
+    "rows": 54,
+    "start": 0
+   }
+  ],
+  "table_bytes": 864,
+  "table_rows": 54,
+  "tf32_matmul": false,
+  "torch": "2.14.1",
+  "train_seconds": 0.5640478134155273
+ },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,
  "optimizer": {
@@ -53,6 +80,7 @@
    0.999
   ],
   "eps": 1e-08,
+  "implementation": "functional, per-model masked",
   "learning_rate": 0.001,
   "name": "adam",
   "weight_decay": 0.0
@@ -78,6 +106,7 @@
  },
  "steps_per_epoch": 1,
  "trainer": "vector_mlp",
- "training_identity_sha256": "496dcb0553bdb892eef00522a02148e3cdfb76ea170068ab344bace769d3c3db",
+ "trainer_version": "2",
+ "training_identity_sha256": "98388243324d9399bb599bc620f0270a1e9a60b4483b28ee8e412c535acbb9f5",
  "version": "1"
 }
