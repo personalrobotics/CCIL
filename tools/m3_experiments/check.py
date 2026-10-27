@@ -15,6 +15,10 @@
 3. plan: tools/m3_experiments/pendulum_v4.yaml (the #24 v4 design as a plan) expands to exactly the #24
    drivers' units for tuning and for the study (with a tuning choice), in the same order, including every
    arm's settings, noise levels and data fractions; malformed specs are refused with every problem listed.
+4. records (with --smoke-root, a #24 check_study smoke root): ccil.experiments.records.verify_phase with the
+   Pendulum hooks accepts the clean root with the same recomputed R as the #24 verify_phase, recomputes the
+   same tuning choice, and refuses exactly when the #24 verifier refuses: an edited study-record R and an extra
+   study unit (each restored afterwards).
 """
 import argparse
 import json
@@ -141,10 +145,66 @@ def plan_matches_24(out: Path) -> dict:
             "refusals": refusals}
 
 
+def records_match_24(root: Path) -> dict:
+    import audit as a24
+    import study as s24
+
+    from ccil.experiments import records
+    spec = plan.load(HERE / "pendulum_v4.yaml")
+    smoke = plan.Study(spec.name, spec.version, spec.tasks,
+                       {"tuning": {**spec.phases["tuning"], "seeds": s24.SMOKE_TUNING_SEEDS},
+                        "study": {**spec.phases["study"], "seeds": s24.SMOKE_STUDY_SEEDS}}, spec.arms, spec.tuning)
+    inputs = s24.prepare(root)
+
+    def expected_inputs(r):  # the Pendulum suite's hook: the converted inputs, or the rebuilt subset
+        want = dict(inputs[r["task"]])
+        if spec.arms[r["arm"]].data_fraction:
+            want["data"] = s24.subset(root, r["task"], r["seed"], spec.arms[r["arm"]].data_fraction)[1]
+        return {"config_sha256": want["config"], "data_sha256": want["data"]}
+    choice = json.loads((root / "tuning-choice.json").read_text())
+
+    def both(phase):
+        out = {}
+        for name, fn in (("p24", lambda: s24.verify_phase(root, phase, True)),
+                         ("experiments", lambda: records.verify_phase(root, smoke, phase, smoke=True, audit=a24.audit,
+                                                                      expected_inputs=expected_inputs, choice=choice))):
+            try:
+                out[name] = {(r["task"], r["arm"], r["seed"], r["value"]): r["verified"] for r in fn()}
+            except SystemExit:
+                out[name] = "refused"
+        return out
+    clean = {ph: both(ph) for ph in ("tuning", "study")}
+    same_clean = all(v["p24"] == v["experiments"] and v["p24"] != "refused" for v in clean.values())
+    tuning = s24.verify_phase(root, "tuning", True)
+    same_choice = all(json.loads(json.dumps(records.compute_choice(smoke, tuning)[t])) ==
+                      json.loads(json.dumps(s24.compute_choice(tuning, True)[t])) for t in spec.tasks)
+    rec = next((root / "results" / "study" / "continuous" / "bc").glob("s*.json"))
+    tampered = {}
+    data = rec.read_bytes()
+    obj = json.loads(data)
+    obj["evaluations"]["0.0"]["R"] += 1.0
+    rec.write_text(json.dumps(obj))
+    tampered["edited_R"] = both("study")
+    rec.write_bytes(data)
+    extra = rec.with_name("s9999.json")
+    obj = json.loads(data)
+    obj["seed"] = 9999
+    extra.write_text(json.dumps(obj))
+    tampered["extra_unit"] = both("study")
+    extra.unlink()
+    refusals = {k: (v["p24"] == "refused", v["experiments"] == "refused") for k, v in tampered.items()}
+    return {"pass": same_clean and same_choice and all(a and b for a, b in refusals.values()),
+            "clean_root_same": same_clean, "choice_same": same_choice, "refusals": refusals,
+            "verified_records": {ph: len(v["experiments"]) if v["experiments"] != "refused" else 0
+                                 for ph, v in clean.items()}}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
-    out = ap.parse_args().out.resolve()
+    ap.add_argument("--smoke-root", type=Path, help="a #24 check_study smoke root, for the records case")
+    args = ap.parse_args()
+    out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = []
 
@@ -157,6 +217,9 @@ def main():
     record("gate_matches_24", r.pop("pass"), **r)
     r = plan_matches_24(out)
     record("plan_matches_24", r.pop("pass"), **r)
+    if args.smoke_root:
+        r = records_match_24(args.smoke_root.resolve())
+        record("records_match_24", r.pop("pass"), **r)
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
               "environment": {"code_commit": git("rev-parse", "HEAD"),
