@@ -254,20 +254,25 @@ scalers. Dynamics models fit with `transition_model.trainer_version 2`. Balancin
 CCIL arms; BC and NoiseBC never balance
 (`policy.balance_noisy_labels false`).
 
-**The modern recipe** (#115), for BC-modern and CCIL-modern only:
+**The modern recipe** (#115), for BC-modern and CCIL-modern only. Each value
+is a fixed design choice, with the reason for it; only the learning rate is
+tuned (§6).
 
-| Setting | Value |
-|---|---|
-| Optimizer | AdamW (`policy.optimizer adamw`), weight decay 1e-4 |
-| Learning rate | chosen as in §6, with a cosine schedule after 1,000 linear warmup steps |
-| Length | 50,000 optimizer steps per model (`policy.step_budget`), the same for both arms; epochs are cut at the budget |
-| Gradient clipping | global norm 1.0 |
-| Weight averaging | EMA with decay 0.999 |
-| Checkpoint | the epoch with the lowest loss on the held-out validation episodes' demonstrations (`policy.checkpoint_selection validation`) |
-| Data | `policy.exclude_validation_episodes true`: 20% of episodes (the data split, `data.validation_fraction 0.2`) are held out from policy training and used only for checkpoint selection and tuning. The dynamics model and the labels are CCIL's, so the dynamics model has seen the held-out episodes. |
+| Setting | Value | Reason |
+|---|---|---|
+| Optimizer | AdamW (`policy.optimizer adamw`), β = (0.9, 0.999), ε = 1e-8, decoupled weight decay 1e-4 | The standard optimizer for this model class; light decay regularizes long training without becoming a second tuned axis |
+| Learning rate | peak chosen as in §6; linear warm-up from peak/1,000 at step 1 to the peak at step 1,000 (`policy.warmup_steps 1000`), then cosine decay to 0 at step 50,000 (`policy.lr_schedule cosine`) | Warm-up stabilizes the first steps of AdamW; the cosine endpoint makes the last steps small, which the checkpoint rule then benefits from |
+| Length | 50,000 optimizer steps per model (`policy.step_budget 50000`), the same for both arms; epochs are cut at the budget | Equal compute: CCIL has about 20 times BC's rows, so equal epochs would give it far more steps |
+| Gradient clipping | global norm 1.0 per model (`policy.grad_clip_norm 1.0`) | Guards against rare large gradients from noisy labels; inactive in ordinary steps |
+| Weight averaging | EMA of the weights, decay 0.999 (`policy.ema_decay 0.999`); the EMA weights are the policy, and they are what validation judges and returns | Averaging over about the last 1,000 steps smooths the late iterates |
+| Checkpoint | the EMA weights with the lowest validation loss, judged every 2,000 optimizer steps and at step 50,000 (`policy.checkpoint_selection validation`, `policy.validation_interval_steps 2000`): 25 selection points for both arms | A shared step cadence gives both arms the same selection opportunities; an epoch cadence would give BC about 20 times more |
+| Validation loss | Σ w·mean_j(π(s) − a)_j² / Σ w over the held-out episodes' demonstrations, in the scaled action space: the training loss on held-out data | The quantity training minimizes, on data training never sees |
+| Held-out data | 20% of episodes (the data split, `data.validation_fraction 0.2`, at the unit's seed) are held out of policy training (`policy.exclude_validation_episodes true`) | A clean holdout: see below |
+| Dynamics model | CCIL-modern's label model is fitted on the training episodes only (`transition_model.fit_episodes train`); its labels and acceptance are otherwise CCIL's | Held-out episodes then influence no training label, so CCIL-modern and BC-modern see the same data |
 
-Everything else (architecture, batch, scalers, balancing) is the
-corresponding paper-settings arm's.
+The held-out episodes are used only to select checkpoints and, through their
+losses, to tune the learning rate. Everything else (architecture, batch,
+scalers, balancing) is the corresponding paper-settings arm's.
 
 **Asymmetry, stated.** In the primary comparison, BC and CCIL use the paper's
 settings, while NoiseBC receives a scale search (§6), so any bias this
@@ -293,9 +298,14 @@ and searching it would give CCIL-tuned a larger budget than NoiseBC.
 For each arm and task:
 - **Selection:** for NoiseBC and CCIL-tuned, the value with the highest mean
   noise-free return over seeds 1–3. For BC-modern and CCIL-modern, the value
-  with the lowest mean selected-checkpoint validation loss over seeds 1–3;
-  their returns on the tuning seeds are recorded but never used. Ties go to
-  the smaller value.
+  with the lowest mean selected-checkpoint validation loss over seeds 1–3.
+  Ties go to the smaller value.
+- **Order, for the modern arms.** Their tuning runs compute no return. The
+  choice is computed from validation losses and written once to the run
+  record (`tuning-choice.json`). Only then are their tuning-seed returns
+  computed, into separate records that name the choice and the tuning record
+  by SHA-256. The analysis refuses returns that do not, so no return can have
+  informed the choice. The returns are reported afterwards.
 - **Failed tuning runs.** A value with any failed tuning run is ineligible.
   If every value is ineligible, the arm uses the paper's value, and this is
   recorded.
