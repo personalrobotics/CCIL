@@ -123,14 +123,27 @@ def newton_preimage(model, target, a, init, max_iterations, tolerance, out_dtype
 
 
 def _solve_rows(J, r):
-    """Solve J[i] s[i] = r[i]; rows with a singular or non-finite system get ok=False."""
+    """Solve J[i] s[i] = r[i]; rows with a singular or non-finite system get ok=False.
+
+    Stacked LAPACK calls (the same gesv per system as a per-row call). A singular system makes numpy refuse its
+    whole stack, so a refused stack is bisected until the singular rows are isolated: k singular rows cost
+    O(k log N) stacked calls, and every other row gets the same step as a per-row solve.
+    """
     ok = np.isfinite(J).all(axis=(1, 2)) & np.isfinite(r).all(axis=1)
     step = np.zeros_like(r)
-    for i in np.flatnonzero(ok):
+
+    def solve(idx):
         try:
-            step[i] = np.linalg.solve(J[i], r[i])
+            step[idx] = np.linalg.solve(J[idx], r[idx][..., None])[..., 0]
         except np.linalg.LinAlgError:
-            ok[i] = False
+            if len(idx) == 1:
+                ok[idx[0]] = False
+            else:
+                solve(idx[:len(idx) // 2])
+                solve(idx[len(idx) // 2:])
+    idx = np.flatnonzero(ok)
+    if len(idx):
+        solve(idx)
     return step, ok & np.isfinite(step).all(axis=1)
 
 
