@@ -34,7 +34,8 @@ docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
 - the sampled penalties' coordinates are explicit (#125,
   transition_model.lipschitz_coordinates): raw, as above, or model_normalized,
   which perturbs the model's normalized inputs and compares its normalized
-  residuals (a dimensionless ratio, invariant to units and timestep). The
+  residuals (a dimensionless ratio, invariant up to the normalization's 1e-8
+  and ReLU kinks under a consistent per-coordinate rescaling). The
   penalty is a training regularizer: lipschitz_constraint is never a certified
   bound, and certificates recompute bounds from the weights.
 """
@@ -263,7 +264,8 @@ class MLPTransitionModel:
 
     def __init__(self, hidden_layers, epochs, batch_size, activation="relu", lipschitz_type=None,
                  lipschitz_constraint=None, soft_penalty_weight=None, soft_sampling_eps=0.0003, soft_samples=5,
-                 slack_weight=1.0, learning_rate=0.001, weight_decay=1e-05, lipschitz_coordinates="raw", device="cpu",
+                 slack_weight=1.0, learning_rate=0.001, weight_decay=1e-05, lipschitz_coordinates="model_normalized",
+                 device="cpu",
                  deterministic=False):
         lipschitz_type = lipschitz_type or "none"
         if lipschitz_type not in LIPSCHITZ_TYPES:
@@ -444,14 +446,18 @@ class MLPTransitionModel:
             arrays.update({f"lambda/{k}": v.detach().cpu().numpy() for k, v in self.lam.state_dict().items()})
         meta = {"component": "transition_model", "kind": self.kind, "version": self.version,
                 "state_dim": self.net.state_dim, "act_dim": self.net.act_dim, "settings": self.settings,
-                "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM}
+                "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM,
+                **lipschitz_record(self.settings, self.net)}  # the coordinates' descriptor (#125)
         _atomic_savez(path, {**arrays, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
     def load(cls, path, device: str = "cpu") -> "MLPTransitionModel":
         meta = checkpoint_meta(path, "transition_model")
         check_identity(path, meta, cls)
-        model = cls(**meta["settings"], device=device)
+        settings = dict(meta["settings"])
+        if "lipschitz_coordinates" not in settings:  # written before #125: its penalty was in raw coordinates
+            settings["lipschitz_coordinates"] = "raw"
+        model = cls(**settings, device=device)
         with torch.random.fork_rng(devices=[]):  # construction draws throwaway init values
             model._build(meta["state_dim"], meta["act_dim"])
         with np.load(path, allow_pickle=False) as z:
@@ -465,6 +471,11 @@ class MLPTransitionModel:
         for net in (model.net, model.lam):
             if net is not None:
                 net.train(meta["training"])
+        recorded = meta.get("lipschitz")
+        if recorded is not None:  # the descriptor must describe these weights' normalization and settings
+            current = lipschitz_record(model.settings, model.net).get("lipschitz")
+            if current != recorded:
+                raise ValueError(f"{path}: its Lipschitz descriptor {recorded} does not match the checkpoint {current}")
         return model
 
 

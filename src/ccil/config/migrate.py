@@ -1,15 +1,22 @@
 """Versioned configuration migration.
 
-Version 1 files declare `config_version: 1`. A file without it is read as
+Current files declare `config_version: 2`. A file without a version is read as
 version 0, the legacy correct_il YAML, and migrated: renamed keys move to their
 canonical key; keys that never affected behavior are dropped with a note; keys
 that did affect behavior but have no supported home yet fail with guidance.
+
+Version 1 files are read with the meaning they had: version 2 (#125) changed
+the default of transition_model.lipschitz_coordinates to model_normalized, so
+a version 0 or 1 file that does not set it resolves to raw, with a note.
 """
 from __future__ import annotations
 
 from .params import REGISTRY
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
+# Defaults that changed with a version: an older file that does not set the key keeps the older meaning.
+CHANGED_DEFAULTS = {2: {"transition_model.lipschitz_coordinates": ("raw", "#125: version 2's default is "
+                                                                          "model_normalized")}}
 
 # Legacy keys dropped because they never affected behavior.
 DROPPED = {
@@ -117,8 +124,15 @@ def _read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
     version = raw.get("config_version", 0)
     if version == 0:
         values, notes, errors = migrate_v0(raw)
-        return values, ["read as legacy correct_il configuration (config_version 0)"] + notes, errors
-    if version != CONFIG_VERSION:
-        return {}, [], [f"config_version {version!r} is not supported (this version reads 0 and {CONFIG_VERSION})"]
-    flat = flatten({k: v for k, v in raw.items() if k != "config_version"})
-    return flat, [], []
+        notes = ["read as legacy correct_il configuration (config_version 0)"] + notes
+    elif version in range(1, CONFIG_VERSION + 1):
+        values, notes, errors = flatten({k: v for k, v in raw.items() if k != "config_version"}), [], []
+    else:
+        return {}, [], [f"config_version {version!r} is not supported (this version reads 0 to {CONFIG_VERSION})"]
+    for changed, keys in CHANGED_DEFAULTS.items():
+        if version < changed:
+            for key, (old, why) in keys.items():
+                if key not in values:
+                    values[key] = old
+                    notes.append(f"{key} = {old!r}: the meaning of config_version {version} ({why})")
+    return values, notes, errors
