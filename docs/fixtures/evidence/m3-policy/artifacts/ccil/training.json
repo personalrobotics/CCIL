@@ -5,6 +5,7 @@
   {
    "epoch": 0,
    "mean_loss": 0.2957204580307007,
+   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 50,
     "synthetic": 78
@@ -15,6 +16,7 @@
   {
    "epoch": 1,
    "mean_loss": 0.24249285459518433,
+   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 48,
     "synthetic": 80
@@ -25,6 +27,7 @@
   {
    "epoch": 2,
    "mean_loss": 0.2382991909980774,
+   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 50,
     "synthetic": 78
@@ -35,6 +38,7 @@
   {
    "epoch": 3,
    "mean_loss": 0.2299957424402237,
+   "optimizer_steps": 4,
    "rows_seen": {
     "demonstration": 48,
     "synthetic": 80
@@ -44,19 +48,45 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "5d37429d771e243ef02f48e6541feb46308e79fe632c26cdeecd8ba6e4c4375a",
+  "position": 0
+ },
  "group": {
+  "batch_size": 32,
+  "bucket": 1,
   "chunk_steps": 256,
+  "compile_mode": null,
   "data_mode": "resident",
   "deterministic": false,
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.02188420295715332,
-   0.00868988037109375,
-   0.007730960845947266,
-   0.009335994720458984
+   0.029538869857788086,
+   0.011399984359741211,
+   0.011609077453613281,
+   0.012682676315307617
   ],
-  "setup_seconds": 0.0025360584259033203,
+  "execution_sha256": "5d37429d771e243ef02f48e6541feb46308e79fe632c26cdeecd8ba6e4c4375a",
+  "members": [
+   {
+    "method": "ccil",
+    "noise_bc": null,
+    "seed": 20261023,
+    "supervision_sha256": "f650b6b8b7a9923b751d8e3c3beb1d30b99ce38b441e980617e5c02d6dccb2be"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.0031957626342773438,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -71,11 +101,11 @@
     "start": 54
    }
   ],
-  "table_bytes": 2288,
+  "table_bytes": 2431,
   "table_rows": 143,
-  "tf32_matmul": false,
   "torch": "2.14.1",
-  "train_seconds": 0.5195870399475098
+  "train_seconds": 0.648259162902832,
+  "validation": null
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,
@@ -90,6 +120,19 @@
   "name": "adam",
   "weight_decay": 0.0
  },
+ "recipe": {
+  "checkpoint_selection": "last",
+  "ema_decay": null,
+  "grad_clip_norm": null,
+  "lr_schedule": "constant",
+  "optimizer": "adam",
+  "step_budget": null,
+  "total_steps": 16,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0,
+  "weights_returned": "last"
+ },
  "row_sources": {
   "demonstration": 54,
   "synthetic": 89
@@ -101,17 +144,27 @@
   "action_scaler": "min_max",
   "balance_labels": null,
   "batch_size": 32,
+  "checkpoint_selection": "last",
+  "ema_decay": null,
   "epochs": 4,
+  "grad_clip_norm": null,
   "hidden_layers": [
    256,
    256
   ],
   "learning_rate": 0.001,
-  "observation_scaler": "standard"
+  "lr_schedule": "constant",
+  "observation_scaler": "standard",
+  "optimizer": "adam",
+  "step_budget": null,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0
  },
  "steps_per_epoch": 4,
  "trainer": "vector_mlp",
  "trainer_version": "2",
- "training_identity_sha256": "7e6bc54a6ad1f90c24205b98db6894e85d72a47fc19b1991416d532008962649",
+ "training_identity_sha256": "998a3e394960b877893ead894b3bcf6e1c667b379831f84502574d6b311c89a6",
+ "validation": null,
  "version": "1"
 }

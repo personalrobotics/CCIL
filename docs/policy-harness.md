@@ -211,6 +211,61 @@ the scaling report below):
   1.0 ms per step at 64 models, and 3.4 against 1.2 ms per step with 1.8 GB
   more memory at D = 512, because each replay copies the resident table.
 
+### The training recipe (#115)
+
+Trainer v2 also offers a modern recipe for larger datasets. Every key
+defaults to v1's protocol, so the paper's settings are unchanged unless a key
+is set.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `policy.optimizer` | `adam` | `adamw` for decoupled weight decay |
+| `policy.weight_decay` | 0 | AdamW weight decay; nonzero needs `adamw` |
+| `policy.lr_schedule` | `constant` | `cosine`: linear warm-up, then cosine decay to 0 at the last step |
+| `policy.warmup_steps` | 0 | Warm-up steps of the cosine schedule; refused with `constant` |
+| `policy.step_budget` | null | Optimizer steps per model, replacing epochs; the last epoch is cut at the budget |
+| `policy.grad_clip_norm` | null | Global gradient-norm clipping, per model |
+| `policy.ema_decay` | null | An exponential moving average of the weights, which then becomes the policy |
+| `policy.checkpoint_selection` | `last` | `validation`: keep the weights with the lowest weighted loss on the split's validation-episode demonstrations |
+| `policy.validation_interval_steps` | null | With `validation`: validate every this many optimizer steps and at the last step; null validates once per epoch |
+
+**Validation selection.**
+- **Data:** it uses only held-out demonstrations, never evaluation data or
+  generated labels.
+- **Requirements:** `policy.exclude_validation_episodes true` and a
+  validation fraction.
+- **Loss:** the training loss, Σ w·mean((π(s) − a)²) / Σ w in the scaled
+  action space, on the weights that would be returned: the EMA weights when
+  EMA is on, which are then the policy.
+- **Cadence:** once per epoch, or every `policy.validation_interval_steps`
+  optimizer steps and at each model's last step. Steps are counted as v1
+  counts them (epoch × steps per epoch + step), so arms of different dataset
+  sizes get the same selection points under a shared step budget.
+- **Records:** every validation (step, epoch, loss), the selected one, and
+  its step and loss go in the training record.
+- **Memory:** identical held-out sets (the arms of one seed) are stored once
+  in a host table. The loss reads each model's set in chunks of at most
+  `stream_chunk_bytes`, so device memory does not grow with the number or
+  size of the validation sets.
+- **Identity:** the training identity includes the held-out rows' content
+  (`validation_sha256`), since the returned policy depends on them.
+- **Refused at ingress:**
+  - a held-out set with zero total weight;
+  - a cosine warm-up that is not shorter than the model's optimizer steps.
+  - a warm-up with the constant schedule, which has none.
+
+**Step budget.** Each epoch runs only as many steps as its longest remaining
+budget, so a budget bounds the work whatever the dataset size. Each epoch's
+record gives the steps run, the optimizer updates and the rows seen,
+including a last epoch cut short by the budget.
+
+**Schedule details.** The cosine schedule warms up linearly from lr/W at the
+first step to lr at step W (W = `policy.warmup_steps`), then decays to 0 at
+the model's last step. AdamW uses β = (0.9, 0.999) and ε = 1e-8, as
+`torch.optim.AdamW`.
+
+**Trainer v1** refuses every recipe key.
+
 ## Checkpoint and records
 
 Checkpoints contain no executable serialization. `meta.checkpoint_kind` says

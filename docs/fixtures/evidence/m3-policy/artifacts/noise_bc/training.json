@@ -5,6 +5,7 @@
   {
    "epoch": 0,
    "mean_loss": 0.4613049030303955,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -14,7 +15,8 @@
   },
   {
    "epoch": 1,
-   "mean_loss": 0.3778305649757385,
+   "mean_loss": 0.3778305947780609,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -25,6 +27,7 @@
   {
    "epoch": 2,
    "mean_loss": 0.3863399028778076,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -35,6 +38,7 @@
   {
    "epoch": 3,
    "mean_loss": 0.34039896726608276,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -44,19 +48,57 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "position": 0
+ },
  "group": {
+  "batch_size": 32,
+  "bucket": 1,
   "chunk_steps": 256,
+  "compile_mode": null,
   "data_mode": "resident",
   "deterministic": false,
   "device": "cpu",
   "engine": "eager",
   "epoch_seconds": [
-   0.014820098876953125,
-   0.0030481815338134766,
-   0.002802133560180664,
-   0.0028629302978515625
+   0.021271944046020508,
+   0.006289958953857422,
+   0.005558013916015625,
+   0.003194093704223633
   ],
-  "setup_seconds": 0.002907991409301758,
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "members": [
+   {
+    "method": "noise_bc",
+    "noise_bc": {
+     "component": "noise_bc",
+     "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+     "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+     "mask_probability": 0.5,
+     "mode": "symmetric_uniform_half_batch",
+     "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+     "scale": 0.1,
+     "seed": 20261023,
+     "truncation": "none (bounded by construction)",
+     "units": "standardized observation units (after the observation scaler)",
+     "version": "1"
+    },
+    "seed": 20261023,
+    "supervision_sha256": "a729f4a2dd2952f5abb79976c8089fadc7d240adfc648ed0e64259bb36299790"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.0037178993225097656,
   "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
   "size": 1,
   "table_blocks": [
@@ -66,11 +108,11 @@
     "start": 0
    }
   ],
-  "table_bytes": 1728,
+  "table_bytes": 1782,
   "table_rows": 54,
-  "tf32_matmul": false,
   "torch": "2.14.1",
-  "train_seconds": 0.47563695907592773
+  "train_seconds": 0.6168980598449707,
+  "validation": null
  },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": {
@@ -97,6 +139,19 @@
   "name": "adam",
   "weight_decay": 0.0
  },
+ "recipe": {
+  "checkpoint_selection": "last",
+  "ema_decay": null,
+  "grad_clip_norm": null,
+  "lr_schedule": "constant",
+  "optimizer": "adam",
+  "step_budget": null,
+  "total_steps": 4,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0,
+  "weights_returned": "last"
+ },
  "row_sources": {
   "demonstration": 54,
   "synthetic": 0
@@ -108,17 +163,27 @@
   "action_scaler": "min_max",
   "balance_labels": null,
   "batch_size": 32,
+  "checkpoint_selection": "last",
+  "ema_decay": null,
   "epochs": 4,
+  "grad_clip_norm": null,
   "hidden_layers": [
    256,
    256
   ],
   "learning_rate": 0.001,
-  "observation_scaler": "standard"
+  "lr_schedule": "constant",
+  "observation_scaler": "standard",
+  "optimizer": "adam",
+  "step_budget": null,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0
  },
  "steps_per_epoch": 1,
  "trainer": "vector_mlp",
  "trainer_version": "2",
- "training_identity_sha256": "8d36d9763d903286bf45f46dc2b938e730dc1353db316677bc53ed9caa600b25",
+ "training_identity_sha256": "53a8190e24f2e33066e16a1e23b5ea54e79166ab99dd03629e5c8495866cfa91",
+ "validation": null,
  "version": "1"
 }

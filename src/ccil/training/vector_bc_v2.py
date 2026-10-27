@@ -149,6 +149,7 @@ class Job:
     supervision: object
     seed: int
     noise: object = None
+    validation: object = None  # held-out supervision, for checkpoint_selection "validation"
 
 
 def _bytes_of(a: np.ndarray) -> bytes:
@@ -294,10 +295,16 @@ class _Streams:
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
 
 
-def training_identity_v2(supervision, settings: dict, seed: int, noise) -> dict:
-    """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run."""
+def training_identity_v2(supervision, settings: dict, seed: int, noise, validation=None) -> dict:
+    """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run, and the
+    held-out validation supervision that selected the checkpoint (#115), on which the returned policy depends."""
     ident = {k: v for k, v in training_identity(supervision, settings, seed, noise).items() if k != "sha256"}
     ident["trainer_version"] = TRAINER_VERSION
+    if validation is not None:  # by content: the rows that judge the checkpoints, not only their provenance
+        o, act, w = validation.arrays()
+        ident["validation_sha256"] = _block_key(o, act, w, np.asarray(validation.episode_id).astype(str),
+                                                np.asarray(validation.frame))
+        ident["validation_inputs"] = validation.manifest()["inputs"]
     return {**ident, "sha256": hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()}
 
 
@@ -309,9 +316,25 @@ def _mlp(p: dict, x: torch.Tensor, layers: int) -> torch.Tensor:
     return x
 
 
-def _step(params, m1, m2, t, x, y, w, words, active, gstep, c, layers: int, noisy: bool, scale_obs: bool,
-          scale_act: bool, lr: float):
-    """One masked Adam step for all models on a gathered minibatch (M, B, ·). c holds the per-model constants."""
+def _lr_at(t: torch.Tensor, lr: float, r: dict, total: torch.Tensor) -> torch.Tensor:
+    """The learning rate at each model's step count t (after this step): constant, or linear warm-up to lr then
+    cosine decay to 0 at the model's total steps."""
+    if r["lr_schedule"] == "constant":
+        return torch.full_like(t, lr)
+    warm = float(max(1, int(r["warmup_steps"])))
+    progress = ((t - warm) / (total - warm).clamp_min(1.0)).clamp(0.0, 1.0)
+    return lr * torch.where(t <= warm, t / warm, 0.5 * (1.0 + torch.cos(np.pi * progress)))
+
+
+def _step(params, m1, m2, t, ema, x, y, w, words, active, gstep, c, layers: int, noisy: bool, scale_obs: bool,
+          scale_act: bool, lr: float, recipe: tuple):
+    """One masked optimizer step for all models on a gathered minibatch (M, B, ·). c holds the per-model constants.
+
+    recipe (a sorted tuple of items, so it is a compile-time constant) selects the optimizer (adam: v1's, with
+    L2 weight decay 0; adamw: decoupled weight decay), the learning-rate schedule, global-norm gradient clipping
+    per model, and an EMA of the weights; the defaults are v1's protocol.
+    """
+    r = dict(recipe)
     M = active.shape[0]
     if scale_obs:
         x = (x - c["obs_mean"][:, None]) / (c["obs_std"][:, None] + OBS_EPS)
@@ -329,26 +352,36 @@ def _step(params, m1, m2, t, x, y, w, words, active, gstep, c, layers: int, nois
     g = vmap(grad(loss_one))(params, x, y, w)
     loss = vmap(loss_one)(params, x, y, w)
     upd = active & (w.sum(dim=1) > 0)  # zero-weight minibatches take no step, as in v1
+    if r["grad_clip_norm"]:  # global norm over each model's parameters
+        norm = torch.sqrt(sum((g[k] ** 2).reshape(M, -1).sum(dim=1) for k in g))
+        coef = (r["grad_clip_norm"] / (norm + 1e-6)).clamp(max=1.0)
+        g = {k: v * coef.view((M,) + (1,) * (v.dim() - 1)) for k, v in g.items()}
     b1, b2 = ADAM["betas"]
     t = t + upd.to(t.dtype)
     bc1, bc2 = 1 - b1 ** t, 1 - b2 ** t
-    new_p, new_m1, new_m2 = {}, {}, {}
+    lr_t = _lr_at(t, lr, r, c["total_steps"])
+    new_p, new_m1, new_m2, new_ema = {}, {}, {}, ({} if ema is not None else None)
     for k in params:
         shape = (M,) + (1,) * (params[k].dim() - 1)
         u_ = upd.view(shape)
+        p = params[k]
+        if r["optimizer"] == "adamw" and r["weight_decay"]:  # decoupled: p <- p (1 - lr wd), then the Adam step
+            p = p * (1 - lr_t * r["weight_decay"]).view(shape)
         mk = torch.where(u_, m1[k] * b1 + g[k] * (1 - b1), m1[k])
         vk = torch.where(u_, m2[k] * b2 + g[k] * g[k] * (1 - b2), m2[k])
         denom = (vk.sqrt() / bc2.clamp_min(1e-30).sqrt().view(shape)) + ADAM["eps"]
-        stepped = params[k] - (lr / bc1.clamp_min(1e-30)).view(shape) * mk / denom
+        stepped = p - (lr_t / bc1.clamp_min(1e-30)).view(shape) * mk / denom
         new_p[k], new_m1[k], new_m2[k] = torch.where(u_, stepped, params[k]), mk, vk
-    return new_p, new_m1, new_m2, t, torch.where(upd, loss, 0.0), upd
+        if ema is not None:
+            new_ema[k] = torch.where(u_, ema[k] * r["ema_decay"] + new_p[k] * (1 - r["ema_decay"]), ema[k])
+    return new_p, new_m1, new_m2, t, new_ema, torch.where(upd, loss, 0.0), upd
 
 
-def _step_resident(params, m1, m2, t, X, Y, W, WORDS, idx, active, gstep, c, layers: int, noisy: bool,
-                   scale_obs: bool, scale_act: bool, lr: float):
+def _step_resident(params, m1, m2, t, ema, X, Y, W, WORDS, idx, active, gstep, c, layers: int, noisy: bool,
+                   scale_obs: bool, scale_act: bool, lr: float, recipe: tuple):
     """_step with the minibatch gathered from the device-resident table inside the step (no chunk of rows)."""
-    return _step(params, m1, m2, t, X[idx], Y[idx], W[idx], WORDS[idx] if noisy else None, active, gstep, c,
-                 layers, noisy, scale_obs, scale_act, lr)
+    return _step(params, m1, m2, t, ema, X[idx], Y[idx], W[idx], WORDS[idx] if noisy else None, active, gstep, c,
+                 layers, noisy, scale_obs, scale_act, lr, recipe)
 
 
 _COMPILED: dict = {}
@@ -416,7 +449,58 @@ class _Precision:
 
 def _own(out):
     """Clone a compiled step's outputs: a CUDA-graph replay overwrites its previous outputs."""
-    return tuple(v.clone() if isinstance(v, torch.Tensor) else {k: x.clone() for k, x in v.items()} for v in out)
+    return tuple(v.clone() if isinstance(v, torch.Tensor) else None if v is None else {k: x.clone() for k, x in v.items()}
+                 for v in out)  # None: no EMA
+
+
+def _validation_rows(padded, D, A, chunk_bytes: int):
+    """The models' held-out rows as one deduplicated host table and per-model segments.
+
+    Identical validation sets (for example the arms of one seed) are stored once. Each model's set is a segment
+    (start, n) of the table, and the loss reads it in chunks of at most `rows` rows per model, so device memory
+    is bounded by chunk_bytes whatever the number and size of the validation sets. A set with zero total weight
+    is refused: it cannot select a checkpoint.
+    """
+    blocks, segments, parts = {}, [], []
+    for job in padded:
+        o, a, w = job.validation.arrays()
+        if not np.isfinite(w).all() or float(np.sum(w)) <= 0:
+            raise TrainingError(f"job (seed {job.seed}): the validation supervision has zero total weight")
+        key = _block_key(o, a, w)
+        if key not in blocks:
+            blocks[key] = (sum(len(p[2]) for p in parts), len(w))
+            parts.append((np.asarray(o, np.float32), np.asarray(a, np.float32), np.asarray(w, np.float32)))
+        segments.append(blocks[key])
+    table = {k: torch.as_tensor(np.concatenate([p[i] for p in parts])) for i, k in enumerate(("x", "y", "w"))}
+    rows = max(1, int(chunk_bytes) // (len(padded) * 4 * (D + A + 1)))
+    return {**table, "segments": segments, "n": [n for _, n in segments], "rows": rows, "blocks": len(parts)}
+
+
+def _validation_loss(params, v, c, layers, scale_obs, scale_act, device):
+    """The weighted training loss of every model on its held-out rows (M,).
+
+    Chunk j gathers rows [j * rows, (j + 1) * rows) of each model's segment from the host table (padding rows
+    carry zero weight), so at most M * rows rows are on the device at once."""
+    M, rows = len(v["segments"]), v["rows"]
+    start = torch.tensor([st for st, _ in v["segments"]])
+    n = torch.tensor(v["n"])
+    num = torch.zeros(M, device=device, dtype=torch.float64)
+    den = torch.zeros_like(num)
+    with torch.no_grad():
+        for j in range(0, int(n.max()), rows):
+            pos = j + torch.arange(rows)
+            valid = pos[None, :] < n[:, None]                            # (M, rows)
+            idx = torch.where(valid, start[:, None] + pos[None, :], 0)
+            x, y = v["x"][idx].to(device), v["y"][idx].to(device)
+            w = torch.where(valid, v["w"][idx], 0.0).to(device)
+            if scale_obs:
+                x = (x - c["obs_mean"][:, None]) / (c["obs_std"][:, None] + OBS_EPS)
+            if scale_act:
+                y = ((y - c["act_min"][:, None]) / (c["act_max"][:, None] - c["act_min"][:, None] + ACT_EPS)) * 2.0 - 1.0
+            per = ((vmap(lambda p, x_: _mlp(p, x_, layers))(params, x) - y) ** 2).mean(dim=2)
+            num += (w * per).sum(dim=1).double()
+            den += w.sum(dim=1).double()
+    return (num / den).float()
 
 
 def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
@@ -428,6 +512,33 @@ def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
         except queue.Full:
             continue
     return False
+
+
+RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant", "warmup_steps": 0,
+                   "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
+                   "validation_interval_steps": None}
+
+
+def recipe_of(settings: dict) -> dict:
+    """The training recipe (#115) in settings, with v1's protocol as the default; refuses inconsistent recipes."""
+    r = {k: settings.get(k, v) for k, v in RECIPE_DEFAULTS.items()}
+    r = {k: (RECIPE_DEFAULTS[k] if v is None and RECIPE_DEFAULTS[k] is not None else v) for k, v in r.items()}
+    if r["optimizer"] not in ("adam", "adamw"):
+        raise TrainingError(f"optimizer {r['optimizer']!r} is not adam or adamw")
+    if r["optimizer"] == "adam" and r["weight_decay"]:
+        raise TrainingError("weight decay with adam would be L2 in the gradient, not the declared protocol; use adamw")
+    if r["lr_schedule"] not in ("constant", "cosine"):
+        raise TrainingError(f"lr_schedule {r['lr_schedule']!r} is not constant or cosine")
+    if r["lr_schedule"] == "constant" and int(r["warmup_steps"] or 0) > 0:
+        raise TrainingError("warmup_steps applies to the cosine schedule; a constant schedule has no warm-up")
+    if r["checkpoint_selection"] not in ("last", "validation"):
+        raise TrainingError(f"checkpoint_selection {r['checkpoint_selection']!r} is not last or validation")
+    if r["ema_decay"] is not None and not 0 < float(r["ema_decay"]) < 1:
+        raise TrainingError("ema_decay must be in (0, 1)")
+    if r["validation_interval_steps"] is not None and (r["checkpoint_selection"] != "validation"
+                                                       or int(r["validation_interval_steps"]) < 1):
+        raise TrainingError("validation_interval_steps is a positive step count, for checkpoint_selection validation")
+    return r
 
 
 def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile: bool | None = None,
@@ -460,6 +571,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         if balance and method != "ccil":
             raise TrainingError("balance_labels repeats demonstrations against labels; it applies to ccil only")
     bs = int(settings["batch_size"])
+    recipe = recipe_of(settings)
+    if recipe["checkpoint_selection"] == "validation" and any(j.validation is None for j in jobs):
+        raise TrainingError("checkpoint_selection validation needs every job's held-out validation supervision")
     t_setup = time.time()
 
     n_real = len(jobs)
@@ -482,9 +596,16 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         chunk_steps = max(1, min(chunk_steps, stream_chunk_bytes // (M * bs * row_bytes)))
     streams = _Streams(segments, [j.seed for j in padded], bs, device)  # index math needs only the segments
     steps = streams.steps.tolist()
-    for job, e, n in zip(jobs, epochs, steps):
+    budget = recipe["step_budget"]
+    if budget:  # a step budget replaces epochs: as many epochs as it takes, the last one cut at the budget
+        epochs = [-(-int(budget) // n) for n in steps]
+    total_steps = [int(budget) if budget else e * n for e, n in zip(epochs, steps)]
+    for job, e, n, total in zip(jobs, epochs, steps, total_steps):
         if e < 1 or n < 1:
             raise TrainingError(f"job (seed {job.seed}): {n} minibatches and {e} epochs leave no optimizer step")
+        if recipe["lr_schedule"] == "cosine" and int(recipe["warmup_steps"]) >= total:
+            raise TrainingError(f"job (seed {job.seed}): warmup_steps {recipe['warmup_steps']} is not shorter than its "
+                                f"{total} optimizer steps, so the cosine decay never starts")
 
     # Policies: v1's initialization per seed, v1's scalers (once per distinct row set), then stacked.
     policies, scaler_cache = [], {}
@@ -506,7 +627,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         return torch.tensor(np.stack([getattr(p, name) if getattr(p, name) is not None else default for p in policies]),
                             dtype=torch.float32, device=device)
     c = {"obs_mean": stat("obs_mean", np.zeros(D)), "obs_std": stat("obs_std", np.ones(D) - OBS_EPS),
-         "act_min": stat("act_min", -np.ones(A)), "act_max": stat("act_max", np.ones(A))}
+         "act_min": stat("act_min", -np.ones(A)), "act_max": stat("act_max", np.ones(A)),
+         "total_steps": torch.tensor(total_steps, dtype=torch.float32, device=device)}
     scale_obs, scale_act = settings["observation_scaler"] != "none", settings["action_scaler"] != "none"
     host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"]),
             "syn": torch.as_tensor(table["synthetic"])}
@@ -526,12 +648,23 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     elif device.type == "cuda":
         host = {k: v.pin_memory() for k, v in host.items()}
     lr = float(settings["learning_rate"])
-    statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr}
+    recipe_key = tuple(sorted((k, v) for k, v in recipe.items() if k not in ("step_budget", "checkpoint_selection")))
+    statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr,
+               "recipe": recipe_key}
+    validation = (_validation_rows(padded, D, A, stream_chunk_bytes) if recipe["checkpoint_selection"] == "validation"
+                  else None)
     step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile)
 
+    def epoch_steps(epoch: int, i: int) -> int:
+        """Model i's optimizer steps in this epoch: a full epoch, or what remains of its budget."""
+        return max(0, min(steps[i], total_steps[i] - epoch * steps[i])) if epoch < epochs[i] else 0
+
     def chunks(epoch):
-        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch."""
-        max_steps = max(n for n, e in zip(steps, epochs) if epoch < e)
+        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch.
+
+        The epoch runs only as many steps as its longest remaining budget, so a step budget bounds the work
+        whatever the dataset size."""
+        max_steps = max(epoch_steps(epoch, i) for i in range(M))
         bounds = [(s0, min(chunk_steps, max_steps - s0)) for s0 in range(0, max_steps, chunk_steps)]
         if data_mode == "resident":
             for s0, n in bounds:
@@ -589,8 +722,28 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
 
     m1 = {k: torch.zeros_like(v) for k, v in params.items()}
     m2 = {k: torch.zeros_like(v) for k, v in params.items()}
+    ema = {k: v.clone() for k, v in params.items()} if recipe["ema_decay"] is not None else None
+    best, best_loss, best_at, val_history = None, None, [None] * M, [[] for _ in jobs]
+    interval = recipe["validation_interval_steps"]
+
+    def select(due: list, epoch: int, at: list):
+        """Validate the models in due (host booleans) and keep each one's best weights so far: the EMA weights
+        when EMA is on (they are the policy), else the parameters."""
+        nonlocal best, best_loss
+        weights = ema if ema is not None else params
+        vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act, device)
+        due_t = torch.tensor(due + [False] * (M - len(due)), device=device)
+        better = due_t & (vl < best_loss) if best_loss is not None else due_t.clone()
+        best = ({k: v.clone() for k, v in weights.items()} if best is None else
+                {k: torch.where(better.view((M,) + (1,) * (v.dim() - 1)), weights[k], v) for k, v in best.items()})
+        best_loss = torch.where(better, vl, best_loss) if best_loss is not None else torch.where(due_t, vl, float("inf"))
+        for i, (bt, v) in enumerate(zip(better.tolist(), vl.tolist())):
+            if i < n_real and due[i]:
+                val_history[i].append({"step": at[i], "epoch": epoch, "loss": v})
+                best_at[i] = len(val_history[i]) - 1 if bt else best_at[i]
     t = torch.zeros(M, device=device)
     S_dev = torch.tensor(steps, device=device)
+    budget_dev = torch.tensor(total_steps, device=device)
     epochs_dev = torch.tensor(epochs, device=device)
     epoch_records, epoch_seconds = [[] for _ in jobs], []
     t_train = time.time()
@@ -607,30 +760,40 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                 for s0, idx, rows in chunks(epoch):
                     for j in range(idx.shape[1]):
                         b = s0 + j
-                        active = live & (b < S_dev)
                         gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
+                        active = live & (b < S_dev) & (gstep[:, 0] < budget_dev)
                         if rows is None:
-                            out = step_fn(params, m1, m2, t, dev["x"], dev["y"], dev["w"], dev["words"], idx[:, j],
-                                          active, gstep, c, **statics)
+                            out = step_fn(params, m1, m2, t, ema, dev["x"], dev["y"], dev["w"], dev["words"],
+                                          idx[:, j], active, gstep, c, **statics)
                             syn_j = dev["syn"][idx[:, j]]
                         else:
-                            out = step_fn(params, m1, m2, t, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
+                            out = step_fn(params, m1, m2, t, ema, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
                                           rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
                             syn_j = rows["syn"][:, j]
-                        params, m1, m2, t, loss, upd = (_own(out) if CUDA_GRAPHS and step_fn.state.startswith("compiled")
-                                                        else out)
+                        params, m1, m2, t, ema, loss, upd = (_own(out) if CUDA_GRAPHS and step_fn.state.startswith("compiled")
+                                                             else out)
                         loss_sum += loss
                         n_steps += upd.to(n_steps.dtype)
                         seen_syn += torch.where(active, syn_j.sum(dim=1).to(seen_syn.dtype), 0.0)
+                        if validation is not None and interval:  # a fixed step cadence, plus each model's last step
+                            at = [epoch * steps[i] + b + 1 for i in range(n_real)]
+                            due = [epoch < epochs[i] and b < steps[i] and at[i] <= total_steps[i]
+                                   and (at[i] % int(interval) == 0 or at[i] == total_steps[i]) for i in range(n_real)]
+                            if any(due):
+                                select(due, epoch, at)
                 ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
+                if validation is not None and not interval:  # once per epoch, after its last step
+                    select([epoch < epochs[i] for i in range(n_real)], epoch,
+                           [min(total_steps[i], (epoch + 1) * steps[i]) for i in range(n_real)])
                 epoch_seconds.append(time.time() - t_epoch)
                 for i in range(n_real):
                     if epoch < epochs[i]:
-                        epoch_records[i].append({"epoch": epoch, "steps": steps[i],
+                        k = epoch_steps(epoch, i)
+                        epoch_records[i].append({"epoch": epoch, "steps": k, "optimizer_steps": int(ns[i]),
                                                  "mean_loss": ls[i] / ns[i] if ns[i] else None,
-                                                 "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]),
+                                                 "rows_seen": {"demonstration": int(k * bs - sy[i]),
                                                                "synthetic": int(sy[i])},
-                                                 "zero_weight_steps": int(steps[i] - ns[i])})
+                                                 "zero_weight_steps": int(k - ns[i])})
     finally:
         torch.use_deterministic_algorithms(previous)
     if device.type == "cuda":
@@ -649,13 +812,16 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
              "table_blocks": table["blocks"],
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
-             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds}
+             "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train, "epoch_seconds": epoch_seconds,
+             "validation": None if validation is None else {"distinct_sets": validation["blocks"],
+                                                             "rows_per_chunk": validation["rows"]}}
+    final = best if best is not None else (ema if ema is not None else params)
     out = []
     for i, (job, policy) in enumerate(zip(jobs, policies)):
-        policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in params.items()})
+        policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in final.items()})
         policy.net.eval()
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
-        ident = training_identity_v2(job.supervision, settings, job.seed, job.noise)
+        ident = training_identity_v2(job.supervision, settings, job.seed, job.noise, job.validation)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
                   "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
@@ -667,8 +833,20 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                   "row_sources": {"demonstration": int(n_demo), "synthetic": int(streams.n[i]) - int(n_demo)},
                   "epochs": epoch_records[i], "group": group,
                   "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
-                  "optimizer": {"name": "adam", "learning_rate": lr, "betas": list(ADAM["betas"]), "eps": ADAM["eps"],
-                                "weight_decay": ADAM["weight_decay"], "implementation": "functional, per-model masked"},
+                  "optimizer": {"name": recipe["optimizer"], "learning_rate": lr, "betas": list(ADAM["betas"]),
+                                "eps": ADAM["eps"], "weight_decay": recipe["weight_decay"],
+                                "implementation": "functional, per-model masked"},
+                  "recipe": {**recipe, "total_steps": total_steps[i],
+                             "weights_returned": ("best validation checkpoint" if best is not None else
+                                                  "EMA" if ema is not None else "last")},
+                  "validation": None if validation is None else {
+                      "cadence": f"every {interval} steps and the last" if interval else "every epoch",
+                      "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i over the held-out demonstrations, "
+                              "scaled action space, of the weights returned (EMA when on)",
+                      "evaluations": val_history[i], "selected": best_at[i],
+                      "selected_step": None if best_at[i] is None else val_history[i][best_at[i]]["step"],
+                      "selected_loss": None if best_at[i] is None else val_history[i][best_at[i]]["loss"],
+                      "rows": int(validation["n"][i])},
                   "noise_bc": None if job.noise is None else job.noise.descriptor()}
         out.append((policy, json.loads(json.dumps(record, default=str))))
     return out
