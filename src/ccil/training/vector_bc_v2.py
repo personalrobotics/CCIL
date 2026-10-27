@@ -20,8 +20,9 @@ Two data modes, the same batches. The index function is ordinary torch code
 that runs identically on the GPU and on the CPU:
 - resident: the table lives on the device and minibatches are device gathers;
 - streaming: the table stays in pinned host memory; a producer thread computes
-  each chunk's indices on the CPU, gathers the rows, and copies them to the
-  device on a side stream while the previous chunk trains (double-buffered).
+  each chunk's indices on the device (they need only the segments), gathers
+  the rows on the host, and copies them to the device on a side stream while
+  the previous chunk trains (double-buffered).
   Device memory is independent of the table size.
 The mode is chosen from the table size and a memory budget, or forced, and is
 recorded; both modes give the same rows in the same order.
@@ -258,7 +259,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     if data_mode == "auto":
         free = torch.cuda.mem_get_info(device)[0] if device.type == "cuda" else table_bytes * 4
         data_mode = "resident" if table_bytes <= memory_budget_fraction * free else "streaming"
-    streams = _Streams(segments, [j.seed for j in jobs], bs, device if data_mode == "resident" else torch.device("cpu"))
+    streams = _Streams(segments, [j.seed for j in jobs], bs, device)  # index math needs only the segments, never the table
     steps = streams.steps.tolist()
     for job, e, s in zip(jobs, epochs, steps):
         if e < 1 or s < 1:
@@ -358,15 +359,17 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
 
         def produce():
             for s0, n in bounds:
-                cpu = gather(host, streams.chunk(epoch, s0, n))
-                if side is not None:
-                    cpu = {k: v.pin_memory() for k, v in cpu.items()}
+                if side is not None:  # indices on the device (the same code as resident mode), rows from the host
+                    with torch.cuda.stream(side):
+                        idx = streams.chunk(epoch, s0, n).cpu()
+                    cpu = {k: v.pin_memory() for k, v in gather(host, idx).items()}
                     with torch.cuda.stream(side):
                         dev = {k: v.to(device, non_blocking=True) for k, v in cpu.items()}
                     ev = torch.cuda.Event()
                     ev.record(side)
                     q.put((s0, dev, ev, cpu))
                 else:
+                    cpu = gather(host, streams.chunk(epoch, s0, n))
                     q.put((s0, cpu, None, cpu))
             q.put(None)
         th = threading.Thread(target=produce, daemon=True)
