@@ -35,6 +35,47 @@
    "pass": true
   },
   {
+   "case": "robustness_producer_failure_raises_promptly",
+   "error": "the streaming producer failed: MemoryError: injected producer failure",
+   "pass": true,
+   "seconds": 0.0
+  },
+  {
+   "case": "robustness_identical_blocks_keep_their_source",
+   "pass": true,
+   "row_sources": {
+    "demonstration": 512,
+    "synthetic": 512
+   },
+   "rows_seen": {
+    "demonstration": 512,
+    "synthetic": 512
+   }
+  },
+  {
+   "buckets": [
+    1,
+    4
+   ],
+   "case": "robustness_execution_identity",
+   "pass": true
+  },
+  {
+   "case": "robustness_compile_failure_falls_back",
+   "engine": "eager (compilation failed on the first step: RuntimeError: injected compiler failure)",
+   "pass": true
+  },
+  {
+   "case": "robustness_precision_enforced_and_restored",
+   "pass": true,
+   "precision": {
+    "dtype": "float32",
+    "float32_matmul_precision": "highest",
+    "tf32_cudnn": false,
+    "tf32_matmul": false
+   }
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -51,7 +92,7 @@
   }
  ],
  "environment": {
-  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_commit": "d7257e089892ded971be9d4f9a3dc63fcd2475b0",
   "code_dirty": false,
   "device": "cpu",
   "gpu": null,

@@ -35,6 +35,47 @@
    "pass": true
   },
   {
+   "case": "robustness_producer_failure_raises_promptly",
+   "error": "the streaming producer failed: MemoryError: injected producer failure",
+   "pass": true,
+   "seconds": 0.51
+  },
+  {
+   "case": "robustness_identical_blocks_keep_their_source",
+   "pass": true,
+   "row_sources": {
+    "demonstration": 512,
+    "synthetic": 512
+   },
+   "rows_seen": {
+    "demonstration": 512,
+    "synthetic": 512
+   }
+  },
+  {
+   "buckets": [
+    1,
+    4
+   ],
+   "case": "robustness_execution_identity",
+   "pass": true
+  },
+  {
+   "case": "robustness_compile_failure_falls_back",
+   "engine": "eager (compilation failed on the first step: RuntimeError: injected compiler failure)",
+   "pass": true
+  },
+  {
+   "case": "robustness_precision_enforced_and_restored",
+   "pass": true,
+   "precision": {
+    "dtype": "float32",
+    "float32_matmul_precision": "highest",
+    "tf32_cudnn": false,
+    "tf32_matmul": false
+   }
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
@@ -48,10 +89,83 @@
    },
    "device": "cuda",
    "pass": true
+  },
+  {
+   "arms": [
+    "bc",
+    "ccil"
+   ],
+   "case": "no_detected_difference_v1_v2",
+   "criterion": "95% union interval (BCa with t) of mean(R_v2 - R_v1) contains 0",
+   "label_seed": 501,
+   "pass": true,
+   "per_seed": "<out>/equivalence.json",
+   "results": {
+    "continuous/bc": {
+     "contains_zero": true,
+     "interval": [
+      -127.7205895498136,
+      103.33059988992137
+     ],
+     "mean_R_v1": -3231.868255491,
+     "mean_R_v2": -3244.0632503209463,
+     "mean_difference": -12.194994829946108,
+     "width": 231.05118943973497,
+     "within_margin": null
+    },
+    "continuous/ccil": {
+     "contains_zero": true,
+     "interval": [
+      -202.95364415959318,
+      516.0121907251009
+     ],
+     "mean_R_v1": -2682.6098622337777,
+     "mean_R_v2": -2526.0805889510234,
+     "mean_difference": 156.52927328275388,
+     "width": 718.9658348846941,
+     "within_margin": null
+    },
+    "discontinuous/bc": {
+     "contains_zero": true,
+     "interval": [
+      -136.86126668039088,
+      400.5384429496738
+     ],
+     "mean_R_v1": -3133.0028329919323,
+     "mean_R_v2": -3002.2406307352476,
+     "mean_difference": 130.7622022566852,
+     "width": 537.3997096300648,
+     "within_margin": null
+    },
+    "discontinuous/ccil": {
+     "contains_zero": true,
+     "interval": [
+      -424.9725817796226,
+      573.6796837964334
+     ],
+     "mean_R_v1": -2944.289516853066,
+     "mean_R_v2": -2869.93596584466,
+     "mean_difference": 74.35355100840543,
+     "width": 998.652265576056,
+     "within_margin": null
+    }
+   },
+   "seeds": [
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210
+   ]
   }
  ],
  "environment": {
-  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_commit": "d7257e089892ded971be9d4f9a3dc63fcd2475b0",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
