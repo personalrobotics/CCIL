@@ -163,18 +163,34 @@ class PrefitMismatch(RuntimeError):
     """A model fitted elsewhere does not belong to this unit's inputs: a study-runner defect."""
 
 
+def requested_execution_problem(record: dict, v) -> str | None:
+    """Why a group's record was not run as this unit requests (device type, determinism), or None."""
+    import torch
+    group = record.get("group") or {}
+    want = (torch.device(v["compute.device"]).type, bool(v["compute.deterministic"]))
+    got = (torch.device(group["device"]).type if group.get("device") else None, group.get("deterministic"))
+    return None if got == want else f"was run with (device, deterministic) {got}, not the unit's {want}"
+
+
 def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:
-    """Refuse prefit models whose fit identity is not this unit's (rows, split, direction, settings, seed)."""
-    from ..models.mlp_batched import fit_identity
+    """Refuse prefit models whose fit identity is not this unit's (rows, split, direction, settings, seed), whose
+    weights are not the ones their record describes, or that ran differently from the unit's request."""
+    from ..models.mlp_batched import fit_identity, model_sha256
     settings = dict(build_model(v).settings)
     expected = {"label": (z[tr], a[tr], z_next[tr]) if clean else (z, a, z_next)}
     if tr is not None and not clean:
         expected["evaluation"] = (z[tr], a[tr], z_next[tr])
     for role, rows in expected.items():
-        got = (prefit.get(role) or (None, {}))[1].get("fit_identity_sha256")
+        model, record = prefit.get(role) or (None, {})
+        got = record.get("fit_identity_sha256")
         want = fit_identity(*rows, settings, v["run.seed"])
         if got != want:
             raise PrefitMismatch(f"prefit {role} model has fit identity {got}, not this unit's {want}")
+        if model is None or record.get("model_sha256") != model_sha256(model):
+            raise PrefitMismatch(f"prefit {role} model is not the model its record describes")
+        problem = requested_execution_problem(record, v)
+        if problem:
+            raise PrefitMismatch(f"prefit {role} model {problem}")
 
 
 def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:

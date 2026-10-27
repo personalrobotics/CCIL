@@ -12,8 +12,9 @@
    regularizers it does not support, and so does preflight for trainer_version 2; compute.deterministic is
    honored, recorded and restored.
 1b. stage_hooks (any host): fit_transition_stage(prefit=...) and run_policy_harness(trained=...) accept a
-   group's result for its own unit and refuse another unit's (a swapped fit, a swapped policy) and a policy
-   whose weights are not its record's.
+   group's result for its own unit and refuse another unit's (a swapped fit, a swapped policy), a model or
+   policy whose weights are not its record's, and a result run differently from the unit's request (a unit
+   asking for compute.deterministic given non-deterministic fits and policy).
 2. pendulum (CUDA host; declared before running): on each task's training transitions (the ordinary
    pipeline's data.prepare at seed 501), with the task's paper settings (continuous soft_sampling,
    discontinuous slack) and with lipschitz_type none, fit seeds 401-405 per-fit (MLPTransitionModel.fit)
@@ -180,8 +181,9 @@ def stage_hooks(out: Path) -> dict:
     os.chdir(root / "inputs")
     config = str(root / "inputs" / "config" / study.CONFIGS["continuous"])
 
-    def cfg(seed):
+    def cfg(seed, deterministic=False):
         return resolve(config=config, sets=[f"run.seed={seed}", "compute.device=cpu", f"data.path={data}",
+                                            f"compute.deterministic={str(deterministic).lower()}",
                                             f"run.output_dir={root / 'stages'}", "transition_model.epochs=1",
                                             "transition_model.trainer_version=2", "policy.trainer_version=2",
                                             "policy.method=bc", "policy.epochs=1",
@@ -199,11 +201,21 @@ def stage_hooks(out: Path) -> dict:
                          device="cpu", compile=False)
         fits[c["run.seed"]] = {"label": out_[0], "evaluation": out_[1]}
     res = {}
-    try:
-        offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[2])
-        res["swapped_fit_refused"] = False
-    except Exception as e:  # noqa: BLE001 - the stage wraps the refusal
-        res["swapped_fit_refused"] = "PrefitMismatch" in repr(e) or "fit identity" in str(e)
+
+    def refused(call, needle):
+        try:
+            call()
+            return False
+        except Exception as e:  # noqa: BLE001 - the stage wraps the refusal
+            return needle in repr(e)
+    wrong_model = {role: (fits[2][role][0], fits[1][role][1]) for role in fits[1]}  # seed 2's models, seed 1's records
+    c1_det = cfg(1, deterministic=True)  # the same unit, asking for deterministic kernels the fits did not use
+    res["swapped_fit_refused"] = refused(lambda: offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[2]),
+                                         "fit identity")
+    res["wrong_model_right_record_refused"] = refused(
+        lambda: offline.fit_transition_stage(c1, prepared[1], rep, prefit=wrong_model), "not the model its record")
+    res["wrong_execution_right_record_refused"] = refused(
+        lambda: offline.fit_transition_stage(c1_det, prepare_stage(c1_det), rep, prefit=fits[1]), "deterministic")
     offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[1])
     res["own_fit_accepted"] = True
     offline.generate_offline(c1)
@@ -211,13 +223,11 @@ def stage_hooks(out: Path) -> dict:
                             demonstration_weight=c1["policy.demonstration_weight"])
     [own, other] = v2.train_group([v2.Job(sup, 1), v2.Job(sup, 2)], policy_harness.settings_of(c1.values),
                                   device="cpu", compile=False)
-    for name, trained in (("swapped_policy_refused", other),
-                          ("tampered_weights_refused", (other[0], {**own[1]}))):
-        try:
-            policy_harness.run_policy_harness(c1, trained=trained)
-            res[name] = False
-        except Exception as e:  # noqa: BLE001 - the stage wraps the refusal
-            res[name] = "PolicyMismatch" in repr(e) or "not this unit" in str(e) or "not the ones" in str(e)
+    for name, trained, needle in (("swapped_policy_refused", other, "not this unit"),
+                                  ("tampered_weights_refused", (other[0], {**own[1]}), "not the ones")):
+        res[name] = refused(lambda t=trained: policy_harness.run_policy_harness(c1, trained=t), needle)
+    res["policy_wrong_execution_refused"] = refused(lambda: policy_harness.run_policy_harness(c1_det, trained=own),
+                                                    "deterministic")
     policy_harness.run_policy_harness(c1, trained=own)
     res["own_policy_accepted"] = True
     return {"pass": all(res.values()), **res}
