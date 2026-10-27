@@ -197,6 +197,33 @@ below):
   bandwidth: 2.6 ms per step at D = 512, against 0.52 ms resident. Resident
   mode is chosen whenever the table fits the memory budget.
 
+### The training recipe (#115)
+
+Trainer v2 also offers a modern recipe for larger datasets. Every key
+defaults to v1's protocol, so the paper's settings are unchanged unless a key
+is set.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `policy.optimizer` | `adam` | `adamw` for decoupled weight decay |
+| `policy.weight_decay` | 0 | AdamW weight decay; nonzero needs `adamw` |
+| `policy.lr_schedule` | `constant` | `cosine`: linear warm-up, then cosine decay to 0 at the last step |
+| `policy.warmup_steps` | 0 | Warm-up steps of the cosine schedule |
+| `policy.step_budget` | null | Optimizer steps per model, replacing epochs; the last epoch is cut at the budget |
+| `policy.grad_clip_norm` | null | Global gradient-norm clipping, per model |
+| `policy.ema_decay` | null | An exponential moving average of the weights, which then becomes the policy |
+| `policy.checkpoint_selection` | `last` | `validation`: keep the epoch with the lowest weighted loss on the split's validation-episode demonstrations |
+
+**Validation selection.**
+- **Data:** it uses only held-out demonstrations, never evaluation data or
+  generated labels.
+- **Requirements:** `policy.exclude_validation_episodes true` and a
+  validation fraction.
+- **Records:** the per-epoch validation losses and the selected epoch go in
+  the training record.
+
+**Trainer v1** refuses every recipe key.
+
 ## Checkpoint and records
 
 Checkpoints contain no executable serialization. `meta.checkpoint_kind` says
