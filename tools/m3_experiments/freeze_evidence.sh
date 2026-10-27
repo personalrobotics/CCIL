@@ -31,8 +31,8 @@ run() {  # run NAME [uv options] -- TOOL [tool options]
     echo "$name EXIT=$?" >> "$OUT/status.txt"
 }
 
-# Foundations (M2) and conversion.
-for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m2_packaging dependency_gate invariants \
+# Foundations (M2), provenance (#127) and conversion.
+for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate invariants \
          legacy_serialization legacy_conversion dynamics_checkpoint validation_split; do
     run "$t" -- "$t"
 done
