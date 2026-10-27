@@ -103,10 +103,10 @@ def integrate(y0: np.ndarray, a: np.ndarray, t_bound: float = DT) -> np.ndarray:
             scale = ATOL + np.maximum(np.abs(yy), np.abs(y_new)) * RTOL
             err = _norm(np.einsum("s,snd->nd", E, k) * h[:, None] / scale)
             ok = err < 1
-            with np.errstate(divide="ignore"):
+            with np.errstate(divide="ignore"):  # err == 0 gives inf, used by neither: grow takes MAX_FACTOR there and
                 grow = np.where(err == 0, MAX_FACTOR, np.minimum(MAX_FACTOR, SAFETY * err ** exponent))
+                shrink = np.maximum(MIN_FACTOR, SAFETY * err ** exponent)  # shrink applies only where err >= 1
             grow = np.where(rejected[trial], np.minimum(1, grow), grow)
-            shrink = np.maximum(MIN_FACTOR, SAFETY * err ** exponent)
             ha[trial] = np.abs(h) * np.where(ok, grow, shrink)
             acc = trial[ok]
             out_y[acc], out_f[acc], out_t[acc], out_h[acc] = y_new[ok], f_new[ok], t_new[ok], h[ok]
