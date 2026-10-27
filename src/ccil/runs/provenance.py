@@ -118,6 +118,14 @@ def implementation() -> dict:
     return json.loads(json.dumps(_IMPLEMENTATION))
 
 
+def capture_code_state() -> None:
+    """Capture the code state and the source hash now, if not yet captured: before any work they must cover.
+
+    RunWriter calls it on entry, so the check before its commit always has a state to compare against."""
+    code()
+    implementation()
+
+
 def verify_code_state(source_only: bool = False) -> None:
     """Raise CodeStateChanged unless the code state and ccil source equal those captured at the process's start.
 

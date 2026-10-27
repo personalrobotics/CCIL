@@ -36,10 +36,11 @@ byte for byte on the same environment.
 
 ## Code state and content hashes
 
-A process captures its code state once, at the first manifest or stage
-identity it writes: the `code` fields above, and the hash of every ccil
-source file that decides stage reuse. The state is then checked again when
-work is finalized:
+A process captures its code state once, before the work it covers: the
+`code` fields above, and the hash of every ccil source file that decides
+stage reuse. The CLI captures the git state when a command starts, and
+`RunWriter` captures both when it is entered, so a direct writer workflow is
+covered too. The state is then checked again when work is finalized:
 - **Before every commit,** `RunWriter` rehashes the ccil source. If it changed,
   the run is not committed.
 - **When a command ends,** the CLI rechecks the git state as well.
@@ -148,7 +149,9 @@ because it clones HEAD.
     both in a git clone and in a non-git copy;
   - an edit to a tracked file outside the source exits 3 when the command
     ends;
-  - an unedited clone exits 0.
+  - an unedited clone exits 0;
+  - a direct `RunWriter`, with no stage identity, captures the code state on
+    entry and refuses to commit after a source edit in its body.
 - **Cache use:** an unchanged rerun in one process reuses every stage. It
   hashes only the user's dataset in full; every other hash comes from the
   cache.
