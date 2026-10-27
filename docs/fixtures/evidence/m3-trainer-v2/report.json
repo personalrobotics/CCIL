@@ -1,0 +1,63 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "correctness_one_step_matches_adam",
+   "max_relative_difference": 1.2291125131014269e-06,
+   "pass": true
+  },
+  {
+   "case": "correctness_zero_weight_model_unchanged",
+   "pass": true,
+   "zero_weight_steps": 4
+  },
+  {
+   "case": "correctness_noise_draws_bit_identical",
+   "pass": true,
+   "trials": 20
+  },
+  {
+   "case": "correctness_index_streams",
+   "cases": {
+    "balance4-epoch0-model0": true,
+    "balance4-epoch0-model1": true,
+    "balance4-epoch0-model2": true,
+    "balance4-epoch1-model0": true,
+    "balance4-epoch1-model1": true,
+    "balance4-epoch1-model2": true,
+    "balanceNone-epoch0-model0": true,
+    "balanceNone-epoch0-model1": true,
+    "balanceNone-epoch0-model2": true,
+    "balanceNone-epoch1-model0": true,
+    "balanceNone-epoch1-model1": true,
+    "balanceNone-epoch1-model2": true
+   },
+   "pass": true
+  },
+  {
+   "case": "modes_and_determinism",
+   "cases": {
+    "ccil": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    },
+    "noise_bc": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    }
+   },
+   "device": "cpu",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_dirty": false,
+  "device": "cpu",
+  "gpu": null,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.14.1"
+ }
+}

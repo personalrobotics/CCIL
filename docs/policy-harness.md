@@ -62,7 +62,7 @@ Per minibatch, in scaled action space:
 - A minibatch whose weights sum to 0 takes no optimizer step. It is still
   counted as a step, and recorded as `zero_weight_steps`.
 
-## Randomness, determinism and resume
+## Randomness, determinism and resume (trainer v1)
 
 **RNG streams.**
 
@@ -95,6 +95,85 @@ save a **resumable** checkpoint at an epoch boundary, with
 - **Exactness.** On CPU the resumed run is byte-identical to an
   uninterrupted one. On CUDA this is not claimed: the evidence reports the
   measured difference.
+
+## Trainer v2 (the default, #108)
+
+`policy.trainer_version` selects the trainer. `2`, the default, is
+[`vector_bc_v2.py`](../src/ccil/training/vector_bc_v2.py). `1` is the original
+per-step loop described above, kept for comparison. Both train the same
+`VectorBCPolicy` under the same protocol: architecture, initialization,
+scalers, loss, Adam settings, batch size, epochs and balancing.
+
+v2 is **not bit-compatible** with v1. Its shuffle and its arithmetic order
+differ, so it is validated by engine-correctness checks and statistical
+equivalence (below), not by parameter agreement.
+
+**One batched program for a group of models.** `vector_bc_v2.train_group`
+trains M jobs (supervision, seed and, for NoiseBC, a perturbation) together.
+`ccil policy train` runs a group of one; batched groups come through #112.
+
+**Data:**
+- **Shared rows.** Rows are stored once in a shared table, and blocks are
+  deduplicated by content, so seeds that share demonstrations hold them once.
+- **No per-model arrays.** A model's training rows are a few segments of
+  the table, and balancing repeats a segment.
+- **Shuffle.** Minibatches come from a counter-based permutation: a keyed
+  6-round Feistel network with cycle-walking, keyed by (seed, epoch).
+- **Memory.** Working memory is O(M · chunk · B) indices plus O(M · P)
+  parameters, besides the table.
+
+**Modes** (`data_mode`, recorded):
+- **Resident:** the table is on the device, and each step gathers its rows
+  inside the step.
+- **Streaming:** the table stays in pinned host memory. Indices are computed
+  on the device, rows are gathered on the host, and chunks bounded by a byte
+  budget are copied on a side stream, double-buffered. Device memory does not
+  grow with the table or the row width.
+
+Both modes give bit-identical parameters.
+
+**Step.**
+- **Batching:** `torch.func` vmap over the stacked parameters.
+- **Optimizer:** a functional Adam in `torch.optim.Adam`'s update order, with
+  per-model masks. Models past their last step, and zero-weight minibatches,
+  take no step.
+- **Compilation:** `torch.compile` once per process on CUDA, so groups of the
+  same shapes reuse the compiled step.
+- **NoiseBC:** the #22 counter draws are computed on the device, bit-identical
+  to the host draws.
+- **Synchronization:** the host synchronizes once per chunk and once per
+  epoch, never per step.
+
+**Not in v2:**
+- **Resume.** A group trains in seconds to minutes.
+- **The per-step SHA-256 NoiseBC trace.** The draws themselves are
+  reproducible from their keys.
+
+**Records.** The training record and the checkpoint carry `trainer_version`,
+and the training identity includes it. The record's `group` field holds:
+- the group size and table blocks;
+- the data mode and chunk size;
+- the engine (compiled or eager), the device and the TF32 setting;
+- the shuffle rule;
+- the setup, training and per-epoch times.
+
+**Measured on siddh** (RTX PRO 6000 Blackwell, compiled; the scaling report
+below):
+- **Steady time per step** is flat at 0.32–0.36 ms from 10⁵ to 10⁸ rows.
+  Groups of 1 to 16 models take the same time per step, so per-model cost
+  falls linearly; 64 models take 0.98 ms per step.
+- **For comparison,** v1 takes about 1.7 ms per step for one model (phase 0,
+  #114).
+- **Peak device memory:**
+  - streaming stays at about 0.2 GB from 10⁷ to 10⁸ rows;
+  - 16 models at a 512-dimensional observation use 2.1 GB resident, of
+    which the table is 1.9 GB.
+- **One-time costs:** compiling takes a few seconds per new shape, and a
+  repeated group of the same shapes reuses it. Host setup at 10⁸ rows is
+  23 s.
+- **Limitation.** Streaming wide observations is bound by host memory
+  bandwidth: 2.6 ms per step at D = 512, against 0.52 ms resident. Resident
+  mode is chosen whenever the table fits the memory budget.
 
 ## Checkpoint and records
 
@@ -132,6 +211,7 @@ Simulator evaluation belongs to #24 and M7, through
 | Key | Default | Units / domain | Source of value | Ownership |
 |---|---|---|---|---|
 | `policy.method` | `ccil` | `bc`, `noise_bc`, `ccil` | Legacy `policy.naive` + `policy.noise_bc` | #89 |
+| `policy.trainer_version` | `2` | `1`, `2` | v2 (#108); v1 is the original loop | #108 |
 | `policy.hidden_layers` | [256, 256] | widths ≥ 1 | d3rlpy `VectorEncoderFactory` default | #89 (experimental) |
 | `policy.learning_rate` | 0.001 | > 0 | Legacy `policy.lr`, the same in every config | #89 |
 | `policy.batch_size` | (required) | ≥ 1 | Legacy `policy.batch_size`, per suite | #89 / #24 |
@@ -176,3 +256,32 @@ The report shows:
 - **Packaging.**
   - Checkpoints contain no pickle.
   - `ccil labels generate` runs without torch.
+
+### Trainer v2
+
+```bash
+uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \
+    python tools/m3_trainer_v2/check.py --out <new-dir> --device cuda --parts correctness,modes,equivalence,scaling
+```
+
+The reports are in [`fixtures/evidence/m3-trainer-v2/`](fixtures/evidence/m3-trainer-v2/).
+
+- **Engine correctness:**
+  - one full-batch step equals a `torch.optim.Adam` step of v1's model on
+    v1's loss;
+  - a zero-weight model is left exactly unchanged inside a training group;
+  - NoiseBC draws are bit-identical to the host's;
+  - each epoch visits every training row once (less the dropped
+    remainder), and balancing matches v1.
+- **Modes and determinism:** resident equals streaming, and reruns are
+  identical, on CPU and CUDA.
+- **Equivalence with v1 on Pendulum:** 10 training seeds, on BC and CCIL.
+  - The rule was declared before running: each 95% union interval of
+    mean(R_v2 − R_v1) must contain 0.
+  - The CCIL intervals are wide, so this shows no detectable difference
+    rather than tight agreement.
+  - A tighter 40-seed margin test (`--parts equivalence_margin`) is
+    declared in the tool and was not run; #108 records why.
+- **Scaling:** steady-state time per step, one-time compile cost, setup and
+  peak memory, as models, rows, observation dimension and width grow.
+

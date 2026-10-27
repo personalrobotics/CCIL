@@ -1,0 +1,63 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "correctness_one_step_matches_adam",
+   "max_relative_difference": 1.1413188758524484e-06,
+   "pass": true
+  },
+  {
+   "case": "correctness_zero_weight_model_unchanged",
+   "pass": true,
+   "zero_weight_steps": 4
+  },
+  {
+   "case": "correctness_noise_draws_bit_identical",
+   "pass": true,
+   "trials": 20
+  },
+  {
+   "case": "correctness_index_streams",
+   "cases": {
+    "balance4-epoch0-model0": true,
+    "balance4-epoch0-model1": true,
+    "balance4-epoch0-model2": true,
+    "balance4-epoch1-model0": true,
+    "balance4-epoch1-model1": true,
+    "balance4-epoch1-model2": true,
+    "balanceNone-epoch0-model0": true,
+    "balanceNone-epoch0-model1": true,
+    "balanceNone-epoch0-model2": true,
+    "balanceNone-epoch1-model0": true,
+    "balanceNone-epoch1-model1": true,
+    "balanceNone-epoch1-model2": true
+   },
+   "pass": true
+  },
+  {
+   "case": "modes_and_determinism",
+   "cases": {
+    "ccil": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    },
+    "noise_bc": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    }
+   },
+   "device": "cuda",
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "e8d476f27161f60a5b1fa7075af30141a2373e82",
+  "code_dirty": false,
+  "device": "cuda",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.14.1+cu130"
+ }
+}
