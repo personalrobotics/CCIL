@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from .layout import CANDIDATES, MANIFEST, MANIFEST_SCHEMA, MANIFEST_VERSION, READABLE, STAGING_MARKER
-from .provenance import component_schema, sha256
+from .provenance import component_schema, register_artifact, sha256
 
 ORDER = ("incompatible", "corrupt", "incomplete")
 
@@ -92,6 +92,8 @@ def validate_run(path, staging: bool = False) -> tuple[str, list[dict]]:
         if p.stat().st_size != info.get("size") or sha256(p) != info.get("sha256"):
             bad("corrupt", f"{rel} does not match its recorded size and SHA-256")
             continue
+        if not staging:  # a writer-owned artifact, matched to its run's manifest (#127)
+            register_artifact(p, info["sha256"])
         schema, version = component_schema(p)
         if schema != info.get("schema") or (schema is not None and version != info.get("version")):
             bad("corrupt", f"{rel} declares {schema!r} {version!r} but the manifest records "

@@ -234,7 +234,15 @@ def main(argv=None) -> int:
     rval.add_argument("run_dir")
     rval.set_defaults(fn=_run_validate)
     args = ap.parse_args(argv)
-    return args.fn(args)
+    from .runs.provenance import CodeStateChanged, verify_code_state
+    try:
+        rc = args.fn(args)
+        if rc == 0:  # a command is a unit: never finalize one that saw its code change (#127)
+            verify_code_state()
+    except CodeStateChanged as e:
+        print(f"{e}; this command's outputs are not a consistent unit", file=sys.stderr)
+        return 3
+    return rc
 
 
 if __name__ == "__main__":

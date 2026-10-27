@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..runs import RunError, RunWriter, layout, validate_run
-from ..runs.provenance import ImplementationUnknown, implementation, sha256
+from ..runs.provenance import CodeStateChanged, ImplementationUnknown, implementation, sha256
 from ..runs.writer import dump_json
 from ..runs.writer import recover
 
@@ -113,7 +113,7 @@ def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = Non
                 run.add_input(name, path)
             dump_json({**identity, "run_id": run_id}, run.path(layout.STAGE))
             body(run)
-    except StageError:
+    except (StageError, CodeStateChanged):  # a code change is not a stage failure: the whole unit fails (#127)
         raise
     except Exception as e:  # the writer has already removed the staging directory
         raise StageError(stage, e) from e
