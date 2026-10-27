@@ -154,8 +154,10 @@ Both modes give bit-identical parameters.
 - **Optimizer:** a functional Adam in `torch.optim.Adam`'s update order, with
   per-model masks. Models past their last step, and zero-weight minibatches,
   take no step.
-- **Compilation:** `torch.compile(mode="reduce-overhead")` (CUDA graphs) once
-  per process on CUDA, so groups of the same shapes reuse the compiled step.
+- **Compilation:** `torch.compile` (default mode) once per process on CUDA,
+  so groups of the same shapes reuse the compiled step. CUDA graphs
+  (`reduce-overhead`) were measured slower: each replay copies the resident
+  table into the graph's buffers.
   - Compilation is lazy, so the first compiled step is guarded. A compiler
     failure there falls back to eager for the whole run, with nothing
     updated, and the outcome is recorded as the engine.
