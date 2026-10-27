@@ -215,13 +215,22 @@ class _Streams:
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
 
 
+def training_identity_v2(supervision, settings: dict, seed: int, noise) -> dict:
+    """v1's training identity with the trainer version, so a v2 run is never mistaken for a v1 run."""
+    ident = {k: v for k, v in training_identity(supervision, settings, seed, noise).items() if k != "sha256"}
+    ident["trainer_version"] = TRAINER_VERSION
+    return {**ident, "sha256": hashlib.sha256(json.dumps(ident, sort_keys=True).encode()).hexdigest()}
+
+
 def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile: bool | None = None,
-                data_mode: str = "auto", memory_budget_fraction: float = 0.5, chunk_steps: int = CHUNK_STEPS):
+                data_mode: str = "auto", memory_budget_fraction: float = 0.5, chunk_steps: int = CHUNK_STEPS,
+                deterministic: bool = False):
     """Train every job's policy together; return [(policy, record)] in job order.
 
     settings are v1's (hidden_layers, learning_rate, batch_size, epochs, observation_scaler, action_scaler,
     balance_labels) and are shared by the group. compile defaults to True on CUDA and False elsewhere.
     data_mode: "auto" (resident when the table fits the budget, else streaming), "resident" or "streaming".
+    deterministic: torch.use_deterministic_algorithms during training (recorded).
     """
     if not jobs:
         raise TrainingError("a group needs at least one job")
@@ -376,36 +385,42 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     epochs_dev = torch.tensor(epochs, device=device)
     epoch_records = [[] for _ in jobs]
     t_train = time.time()
-    for epoch in range(max(epochs)):
-        live = epoch < epochs_dev
-        loss_sum = torch.zeros(M, device=device)
-        n_steps = torch.zeros(M, device=device)
-        seen_syn = torch.zeros(M, device=device)
-        for s0, batch in chunks(epoch):
-            n = batch["x"].shape[1]
-            for j in range(n):
-                b = s0 + j
-                active = live & (b < S_dev)
-                gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
-                params, m1, m2, t, loss, upd = step(params, m1, m2, t, batch["x"][:, j], batch["y"][:, j],
-                                                    batch["w"][:, j], batch["words"][:, j] if noisy else None,
-                                                    active, gstep)
-                loss_sum += loss
-                n_steps += upd.to(n_steps.dtype)
-                seen_syn += torch.where(active, batch["syn"][:, j].sum(dim=1).to(seen_syn.dtype), 0.0)
-        ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
-        for i in range(M):
-            if epoch < epochs[i]:
-                epoch_records[i].append({"epoch": epoch, "steps": steps[i],
-                                         "mean_loss": ls[i] / ns[i] if ns[i] else None,
-                                         "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]), "synthetic": int(sy[i])},
-                                         "zero_weight_steps": int(steps[i] - ns[i])})
+    previous = torch.are_deterministic_algorithms_enabled()
+    torch.use_deterministic_algorithms(bool(deterministic) or previous)
+    try:
+        for epoch in range(max(epochs)):
+            live = epoch < epochs_dev
+            loss_sum = torch.zeros(M, device=device)
+            n_steps = torch.zeros(M, device=device)
+            seen_syn = torch.zeros(M, device=device)
+            for s0, batch in chunks(epoch):
+                for j in range(batch["x"].shape[1]):
+                    b = s0 + j
+                    active = live & (b < S_dev)
+                    gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
+                    params, m1, m2, t, loss, upd = step(params, m1, m2, t, batch["x"][:, j], batch["y"][:, j],
+                                                        batch["w"][:, j], batch["words"][:, j] if noisy else None,
+                                                        active, gstep)
+                    loss_sum += loss
+                    n_steps += upd.to(n_steps.dtype)
+                    seen_syn += torch.where(active, batch["syn"][:, j].sum(dim=1).to(seen_syn.dtype), 0.0)
+            ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
+            for i in range(M):
+                if epoch < epochs[i]:
+                    epoch_records[i].append({"epoch": epoch, "steps": steps[i],
+                                             "mean_loss": ls[i] / ns[i] if ns[i] else None,
+                                             "rows_seen": {"demonstration": int(steps[i] * bs - sy[i]),
+                                                           "synthetic": int(sy[i])},
+                                             "zero_weight_steps": int(steps[i] - ns[i])})
+    finally:
+        torch.use_deterministic_algorithms(previous)
     if device.type == "cuda":
         torch.cuda.synchronize(device)
     t_done = time.time()
 
     group = {"size": M, "table_rows": R, "table_bytes": table_bytes, "table_blocks": table["blocks"],
              "data_mode": data_mode, "chunk_steps": chunk_steps, "engine": engine, "device": str(device),
+             "deterministic": bool(deterministic),
              "torch": torch.__version__, "tf32_matmul": bool(torch.backends.cuda.matmul.allow_tf32),
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
@@ -416,7 +431,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in params.items()})
         policy.net.eval()
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
-        ident = training_identity(job.supervision, settings, job.seed, job.noise)
+        ident = training_identity_v2(job.supervision, settings, job.seed, job.noise)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
                   "training_identity_sha256": ident["sha256"], "seed": int(job.seed),
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},

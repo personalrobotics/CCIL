@@ -90,10 +90,17 @@ def run_policy_harness(cfg) -> list[StageResult]:
                             mask_probability=v["policy.noise_mask_probability"],
                             units="standardized observation units (after the observation scaler)")
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
-        policy, record = vector_bc.train_vector_bc(sup, settings_of(v), seed=v["run.seed"], device=v["compute.device"],
-                                                   deterministic=v["compute.deterministic"], noise=noise)
+        if v["policy.trainer_version"] == "2":
+            from ..training import vector_bc_v2
+            [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise)], settings_of(v),
+                                                          device=v["compute.device"],
+                                                          deterministic=v["compute.deterministic"])
+        else:
+            policy, record = vector_bc.train_vector_bc(sup, settings_of(v), seed=v["run.seed"], device=v["compute.device"],
+                                                       deterministic=v["compute.deterministic"], noise=noise)
         policy.save(run.path(POLICY_CHECKPOINT), None, record["epochs_run"],
                     {"supervision": sup.manifest()["inputs"], "seed": v["run.seed"], "method": v["policy.method"],
+                     "trainer_version": record.get("trainer_version", "1"),
                      "training_identity_sha256": record["training_identity_sha256"]})
         run.metrics({"experimental": True, "supervision": sup.manifest(), "training": record})
         run.log(f"trained {record['trainer']} ({v['policy.method']}) on {record['rows']} rows for "
