@@ -388,7 +388,9 @@ def recipe(device) -> dict:
                                                                       "warmup_steps": 50, "step_budget": 50,
                                                                       "batch_size": 32}),
              "zero_weight_validation": ([v2.Job(train, 5, validation=_zero_weight(held))],
-                                        {**SETTINGS, "batch_size": 32, "checkpoint_selection": "validation"})}
+                                        {**SETTINGS, "batch_size": 32, "checkpoint_selection": "validation"}),
+             "warmup_with_constant_schedule": ([v2.Job(train, 5)], {**SETTINGS, "lr_schedule": "constant",
+                                                                    "warmup_steps": 10, "batch_size": 32})}
     for name, (jobs_, st_) in cases.items():
         try:
             v2.train_group(jobs_, st_, device=device, compile=False)

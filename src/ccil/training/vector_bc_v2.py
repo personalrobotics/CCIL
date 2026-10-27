@@ -529,6 +529,8 @@ def recipe_of(settings: dict) -> dict:
         raise TrainingError("weight decay with adam would be L2 in the gradient, not the declared protocol; use adamw")
     if r["lr_schedule"] not in ("constant", "cosine"):
         raise TrainingError(f"lr_schedule {r['lr_schedule']!r} is not constant or cosine")
+    if r["lr_schedule"] == "constant" and int(r["warmup_steps"] or 0) > 0:
+        raise TrainingError("warmup_steps applies to the cosine schedule; a constant schedule has no warm-up")
     if r["checkpoint_selection"] not in ("last", "validation"):
         raise TrainingError(f"checkpoint_selection {r['checkpoint_selection']!r} is not last or validation")
     if r["ema_decay"] is not None and not 0 < float(r["ema_decay"]) < 1:
@@ -835,7 +837,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                                 "eps": ADAM["eps"], "weight_decay": recipe["weight_decay"],
                                 "implementation": "functional, per-model masked"},
                   "recipe": {**recipe, "total_steps": total_steps[i],
-                             "weights_returned": ("best validation epoch" if best is not None else
+                             "weights_returned": ("best validation checkpoint" if best is not None else
                                                   "EMA" if ema is not None else "last")},
                   "validation": None if validation is None else {
                       "cadence": f"every {interval} steps and the last" if interval else "every epoch",

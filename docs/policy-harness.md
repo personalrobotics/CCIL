@@ -210,7 +210,7 @@ is set.
 | `policy.optimizer` | `adam` | `adamw` for decoupled weight decay |
 | `policy.weight_decay` | 0 | AdamW weight decay; nonzero needs `adamw` |
 | `policy.lr_schedule` | `constant` | `cosine`: linear warm-up, then cosine decay to 0 at the last step |
-| `policy.warmup_steps` | 0 | Warm-up steps of the cosine schedule |
+| `policy.warmup_steps` | 0 | Warm-up steps of the cosine schedule; refused with `constant` |
 | `policy.step_budget` | null | Optimizer steps per model, replacing epochs; the last epoch is cut at the budget |
 | `policy.grad_clip_norm` | null | Global gradient-norm clipping, per model |
 | `policy.ema_decay` | null | An exponential moving average of the weights, which then becomes the policy |
@@ -240,6 +240,7 @@ is set.
 - **Refused at ingress:**
   - a held-out set with zero total weight;
   - a cosine warm-up that is not shorter than the model's optimizer steps.
+  - a warm-up with the constant schedule, which has none.
 
 **Step budget.** Each epoch runs only as many steps as its longest remaining
 budget, so a budget bounds the work whatever the dataset size. Each epoch's
