@@ -57,6 +57,8 @@ def harness_problems(v) -> list[str]:
                               "grad_clip_norm", "ema_decay", "checkpoint_selection", "validation_interval_steps")
                   if v[f"policy.{k}"] != {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant",
                                           "warmup_steps": 0, "checkpoint_selection": "last"}.get(k)]
+    if v["policy.warmup_steps"] and v["policy.lr_schedule"] == "constant":
+        problems.append("policy.warmup_steps applies to lr_schedule cosine; a constant schedule has no warm-up")
     if recipe_set and v["policy.trainer_version"] != "2":
         problems.append(f"{['policy.' + k for k in recipe_set]} need policy.trainer_version 2 (#115)")
     if v["certificate.profile"] is not None and v["policy.method"] != "ccil":
