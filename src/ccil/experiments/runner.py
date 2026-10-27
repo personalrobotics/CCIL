@@ -149,9 +149,76 @@ def _chunks(xs: list, cap: int, per: int = 1, overhead: float = 0.0) -> list:
     return out
 
 
+def _stage_key(cfg, stages: tuple) -> str:
+    """The configuration the given stages consume (their inputs follow from it): equal keys share those stages."""
+    from ..pipelines.stages import STAGE_KEYS
+    prefixes = {p for st in stages for p in STAGE_KEYS[st]}
+    return json.dumps({k: v for k, v in cfg.values.items()
+                       if any(k == p or (p.endswith(".") and k.startswith(p)) for p in prefixes)},
+                      sort_keys=True, default=str)
+
+
+def _labels_one(cfg, attempt: int):
+    """generate_offline for one unit (a worker process): None, or (failure record, out of memory)."""
+    from ..config import ConfigError
+    from ..pipelines import offline
+    from ..pipelines.stages import StageError
+    try:
+        offline.generate_offline(cfg)
+        return None
+    except StageError as e:
+        if isinstance(e.error, ConfigError):
+            raise
+        return {"stage": e.stage, "error": str(e)[-2000:], "attempt": attempt}, _oom(e)
+
+
+def _labels(units: list, workers: int, log) -> None:
+    """The label stages of every unit, in worker processes, in waves so that no two processes write one stage.
+
+    Each wave runs at most one unit per distinct stage at its level (transition.fit, labels.generate,
+    labels.certify, on the stages earlier waves completed); the last wave only reuses. A stage failure is the unit's algorithmic failure; a unit out of memory (possibly from
+    sharing the device with other workers) is retried alone, and a second exhaustion is an infrastructure fault.
+    """
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+    levels = [("data.prepare", "transition.fit"), ("data.prepare", "transition.fit", "labels.generate"),
+              ("data.prepare", "transition.fit", "labels.generate", "labels.certify")]
+    waves, seen = [[] for _ in range(len(levels) + 1)], [set() for _ in levels]
+    for u in units:  # a unit goes to the first level whose stages it does not share with an earlier unit
+        keys = [_stage_key(u.cfg, lv) for lv in levels]
+        w = next((i for i, k in enumerate(keys) if k not in seen[i]), len(levels))
+        for i in range(w, len(levels)):
+            seen[i].add(keys[i])
+        waves[w].append(u)
+    retry = []
+
+    def settle(u, res):
+        if res is None:
+            return
+        failure, oom = res
+        u.record.setdefault("failures", []).append(failure)
+        if oom:
+            retry.append(u)
+        else:
+            u.status = "algorithmic_failure"
+    ctx = multiprocessing.get_context("spawn")  # the parent has run torch: never fork it
+    with ProcessPoolExecutor(max(1, workers), mp_context=ctx) as pool:
+        for wave in waves:
+            for u, res in zip(wave, pool.map(_labels_one, [u.cfg for u in wave], [1] * len(wave))):
+                settle(u, res)
+    for u in retry:  # alone, in this process
+        _free()
+        u.record["attempt"] = 2
+        res = _labels_one(u.cfg, 2)
+        if res is not None:
+            u.record["failures"].append(res[0])
+            u.status = "infrastructure_fault" if res[1] else "algorithmic_failure"
+    log(f"  labels: waves of {[len(w) for w in waves]} units, {workers} workers, {len(retry)} retried alone")
+
+
 def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
               choice: dict | None = None, choice_sha256: str | None = None, max_group: int = 128,
-              shard: tuple[int, int] = (0, 1), log=print) -> dict:
+              shard: tuple[int, int] = (0, 1), workers: int = 8, log=print) -> dict:
     """Run every unit of phase that has no record yet; return a summary with stage timings.
 
     shard (i, n) runs only the units of every n-th seed of the phase, starting at the i-th, so n processes (one
@@ -160,15 +227,16 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
 
     gate is the code-state gate the caller required (gate.require), recorded in every record; choice and its
     SHA-256 are required for a phase that runs a tuned arm at its chosen value.
+    workers is the number of processes that generate labels at once. They are spawned, so a driver script that
+    calls run_phase must guard its entry point with `if __name__ == "__main__":`.
     """
-    from ..config import ConfigError
     from ..core import IdentityRepresentation
     from ..data.prepare import prepare_stage
     from ..models.mlp_batched import FitJob, fit_group
     from ..pipelines import offline
     from ..pipelines.policy_harness import (POLICY_CHECKPOINT, VectorMLP, run_policy_harness, settings_of,
                                             unit_supervision)
-    from ..pipelines.stages import StageError, completed_stage, stage_dest
+    from ..pipelines.stages import completed_stage, stage_dest
     from ..runs import layout
     from ..training import vector_bc_v2
     from ..training.vector_bc import VectorBCPolicy
@@ -256,26 +324,9 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     log(f"  fits: {len(fits)} distinct for {sum(len(us) for us in fits.values())} units, {len(fit_groups)} groups, "
         f"{timing['prepare_and_fit_seconds']}s")
 
-    # 2. labels per unit -----------------------------------------------------------------------------------------
+    # 2. labels, several units at once in worker processes ---------------------------------------------------
     t0 = time.time()
-    for u in trained:
-        for attempt in (1, 2):
-            try:
-                offline.generate_offline(u.cfg)
-                break
-            except ConfigError:
-                raise
-            except StageError as e:
-                if isinstance(e.error, ConfigError):
-                    raise
-                u.record["attempt"] = attempt
-                u.record.setdefault("failures", []).append({"stage": e.stage, "error": str(e)[-2000:]})
-                if not _oom(e):
-                    u.status = "algorithmic_failure"
-                    break
-                _free()
-                if attempt == 2:
-                    u.status = "infrastructure_fault"
+    _labels(trained, workers, log)
     timing["labels_seconds"] = round(time.time() - t0, 1)
     log(f"  labels: {timing['labels_seconds']}s")
 
