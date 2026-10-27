@@ -33,7 +33,8 @@ from torch.func import grad, stack_module_state, vmap
 
 from torch.utils._pytree import tree_map
 
-from ..training.vector_bc_v2 import _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64, _Streams
+from ..training.vector_bc_v2 import (CUDA_GRAPHS, _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64,
+                                     _Streams)
 from .mlp import DynamicsNet, MLPTransitionModel, one_step_metrics
 
 SUPPORTED = ("none", "slack", "soft_sampling", "soft_sampling_slack")
@@ -236,7 +237,8 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
                     out = engine(trainable, m1, m2, t, buffers, Z[rows], Aa[rows], ZN[rows], noise_seed, gstep,
                                  active, k)
                     trainable, m1, m2, t, loss, terms = (tree_map(lambda v: v.clone(), out)  # a CUDA-graph replay
-                                                         if engine.state.startswith("compiled") else out)  # reuses its outputs
+                                                         if CUDA_GRAPHS and engine.state.startswith("compiled")
+                                                         else out)  # reuses its outputs
                     for name, v in {"loss": loss, **terms}.items():
                         totals[name] = totals.get(name, 0.0) + torch.where(active, v, 0.0)
             means = {name: (v / S_dev).tolist() for name, v in totals.items()}  # one host read per epoch
