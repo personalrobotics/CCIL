@@ -72,6 +72,14 @@ More scheduling details:
   per GPU, run a phase together.
 - **Resume.** Records are written per chunk, and completed stages are
   reused, so a stopped phase resumes without recomputing.
+- **Code state.** Before a chunk's records are written, the runner checks two
+  things, and writes no record if either check fails:
+  - the process's code state still equals what it captured at start
+    (`provenance.verify_code_state`, docs/runs.md);
+  - the caller's `recheck` passes. The Pendulum driver passes its gate again,
+    at the same HEAD.
+
+  A phase stopped this way resumes from a clean tree.
 
 Driver scripts must guard their entry point (`if __name__ == "__main__":`):
 label workers are spawned processes and re-import it.
@@ -121,7 +129,8 @@ The check covers:
 - **The runner:**
   - a smoke phase verifies;
   - the CLI reuses every stage the runner wrote;
-  - resume;
+  - resume, after a code change and a failed gate each refused to write a
+    record;
   - batched evaluation is bit-identical to solo evaluation;
   - a validation-tuned arm chooses with no return until the choice is
     recorded;

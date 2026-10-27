@@ -350,12 +350,34 @@ def runner_check(out: Path, device: str) -> dict:
                records.result_path(root, "study", "continuous", "zero", 9002)]
     for p in removed:
         p.unlink()
+    # Fail-closed finalization (#127): a code change, or a gate that no longer holds, writes no record.
+    from ccil.experiments.gate import GateRefused
+    from ccil.runs import provenance
+    real_impl = provenance._implementation
+    refusals = {}
+    for name, recheck in (("source_changed", None), ("gate_changed", "refuse")):
+        def moved():
+            raise GateRefused("code-state gate refused: injected")
+        if name == "source_changed":
+            provenance._implementation = lambda: {**real_impl(), "source_sha256": "edited"}
+        try:
+            runner.run_phase(root, study, "study", suite, gate=GATE_DEV, smoke=True, device=device,
+                             recheck=moved if recheck else None, log=lambda m: None)
+            refusals[name] = "finalized"
+        except (provenance.CodeStateChanged, GateRefused) as e:
+            refusals[name] = type(e).__name__
+        finally:
+            provenance._implementation = real_impl
+        refusals[f"{name}_records_written"] = sum(p.exists() for p in removed)
     resumed = runner.run_phase(root, study, "study", suite, gate=GATE_DEV, smoke=True, device=device, log=lambda m: None)
     recs2 = verify(root, suite)
     res["resume"] = {"second_run_units": again["units"], "after_removal_units": resumed["units"],
-                     "train_groups": resumed["timing"]["train_groups"], "fit_groups": resumed["timing"]["fit_groups"]}
+                     "train_groups": resumed["timing"]["train_groups"], "fit_groups": resumed["timing"]["fit_groups"],
+                     "refused_finalization": refusals}
     ok_resume = (again["units"] == 0 and resumed["units"] == 2 and not resumed["timing"]["train_groups"]
-                 and not resumed["timing"]["fit_groups"] and all(p.exists() for p in removed) and len(recs2) == 20)
+                 and not resumed["timing"]["fit_groups"] and all(p.exists() for p in removed) and len(recs2) == 20
+                 and refusals == {"source_changed": "CodeStateChanged", "source_changed_records_written": 0,
+                                  "gate_changed": "GateRefused", "gate_changed_records_written": 0})
 
     diffs = []
     for r in recs2:

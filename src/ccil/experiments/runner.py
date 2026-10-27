@@ -218,7 +218,7 @@ def _labels(units: list, workers: int, log) -> None:
 
 def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
               choice: dict | None = None, choice_sha256: str | None = None, max_group: int = 128,
-              shard: tuple[int, int] = (0, 1), workers: int = 8, log=print) -> dict:
+              shard: tuple[int, int] = (0, 1), workers: int = 8, recheck=None, log=print) -> dict:
     """Run every unit of phase that has no record yet; return a summary with stage timings.
 
     shard (i, n) runs only the units of every n-th seed of the phase, starting at the i-th, so n processes (one
@@ -227,6 +227,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
 
     gate is the code-state gate the caller required (gate.require), recorded in every record; choice and its
     SHA-256 are required for a phase that runs a tuned arm at its chosen value.
+    recheck, when given, is called before records are written (the caller's gate, again); with the process's
+    captured code state (provenance.verify_code_state) it fails closed: no record is written once either differs.
     workers is the number of processes that generate labels at once. They are spawned, so a driver script that
     calls run_phase must guard its entry point with `if __name__ == "__main__":`.
     """
@@ -381,11 +383,11 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
                 u.stages = {r.stage: r.run_dir for r in run_policy_harness(u.cfg, trained=res, unit=sups[id(u)])}
             sups = todo = out = trained_by = None
             _free()
-            _finish(root, phase, chunk, suite, study, POLICY_CHECKPOINT, VectorBCPolicy, device, log)
+            _finish(root, phase, chunk, suite, study, POLICY_CHECKPOINT, VectorBCPolicy, device, recheck, log)
     for u in single:
         u.stages = {r.stage: r.run_dir for r in run_policy_harness(u.cfg)}
     _finish(root, phase, [u for u in units if not u.recorded], suite, study, POLICY_CHECKPOINT,
-            VectorBCPolicy, device, log)
+            VectorBCPolicy, device, recheck, log)
     timing["policies_and_evaluation_seconds"] = round(time.time() - t0, 1)
     timing["train_groups"] = train_groups
     timing["phase_seconds"] = round(time.time() - t_phase, 1)
@@ -393,7 +395,16 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     return {"units": len(units), "timing": timing}
 
 
-def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, device, log):
+def _code_unchanged(recheck) -> None:
+    """Fail closed before any record is finalized: the code state captured at the process's start, then the
+    caller's gate (#127). Raises, so a unit computed while the code changed is never recorded."""
+    from ..runs.provenance import verify_code_state
+    verify_code_state()
+    if recheck is not None:
+        recheck()
+
+
+def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, device, recheck, log):
     """Evaluate units in the simulator and write their records (failed units are recorded without evaluation)."""
     by_task = {}
     deferred = study.deferred(phase)
@@ -425,6 +436,7 @@ def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, dev
                 u.status, u.record["failure"] = "algorithmic_failure", "non-finite return"
             else:
                 u.status = "ok"
+    _code_unchanged(recheck)
     for u in units:
         u.record["status"] = u.status
         u.record["finished"] = _now()
@@ -433,12 +445,12 @@ def _finish(root, phase, units, suite, study, policy_checkpoint, policy_cls, dev
 
 
 def evaluate_deferred(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool, device: str = "cuda",
-                      log=print) -> int:
+                      recheck=None, log=print) -> int:
     """The returns a tuning phase deferred, computed only once the choice is recorded (records.record_choice).
 
     Each ok deferred unit's policy is evaluated as run_phase would, into a write-once record under
     results/<phase>_returns that names the choice and the unit's tuning record by their SHA-256. Returns the
-    number of records written."""
+    number of records written. recheck is as for run_phase."""
     from ..training.vector_bc import VectorBCPolicy
     from .records import CHOICE
     root = Path(root).resolve()
@@ -462,6 +474,7 @@ def evaluate_deferred(root, study, phase: str, suite: Suite, *, gate: dict, smok
             items.append(((task, r["arm"], r["seed"], r["value"]), net.predict, r["seed"],
                           study.arms[r["arm"]].noise_levels))
         evaluations = suite.evaluate(f"{phase}_returns", task, items)
+        _code_unchanged(recheck)
         for p, r in rs:
             ev = evaluations[(task, r["arm"], r["seed"], r["value"])]
             if not all(e["audit_ok"] for e in ev.values()):

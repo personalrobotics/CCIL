@@ -75,8 +75,14 @@ def main() -> int:
     from pendulum_suite import PendulumSuite
     root = a.root.resolve()
     study = _study(a.plan, a.smoke)
-    state = gate.require(REPO, _freeze(a.smoke), real=not a.smoke)
+    freeze = _freeze(a.smoke)
+    state = gate.require(REPO, freeze, real=not a.smoke)
     suite = PendulumSuite(root, study, smoke=a.smoke)
+
+    def recheck():  # the gate again before records are written: one clean commit at both boundaries (#127)
+        now = gate.require(REPO, freeze, real=not a.smoke)
+        if now["head"] != state["head"]:
+            raise gate.GateRefused(f"code-state gate refused: HEAD moved from {state['head']} to {now['head']}")
     shard = tuple(map(int, a.shard.split("/")))
 
     def log(m):
@@ -89,7 +95,7 @@ def main() -> int:
 
     if a.step == "tuning":
         out = runner.run_phase(root, study, "tuning", suite, gate=state, smoke=a.smoke, device=a.device, shard=shard,
-                               workers=a.workers, log=log)
+                               workers=a.workers, recheck=recheck, log=log)
     elif a.step == "choose":
         if (root / records.CHOICE).exists():
             raise SystemExit(f"{root / records.CHOICE} exists; the choice is written once")
@@ -97,7 +103,8 @@ def main() -> int:
         out = {"choice_sha256": sha, "values": {t: {arm: c["value"] for arm, c in v.items()}
                                                 for t, v in _choice(root).items()}}
     elif a.step == "returns":
-        n = runner.evaluate_deferred(root, study, "tuning", suite, gate=state, smoke=a.smoke, device=a.device, log=log)
+        n = runner.evaluate_deferred(root, study, "tuning", suite, gate=state, smoke=a.smoke, device=a.device,
+                                     recheck=recheck, log=log)
         out = {"written": n, "verified": len(records.verify_deferred(root, study, "tuning", smoke=a.smoke,
                                                                      audit=PendulumSuite.audit))}
     elif a.step == "study":
@@ -105,7 +112,7 @@ def main() -> int:
             raise SystemExit("the study needs the recorded choice: run choose first")
         out = runner.run_phase(root, study, "study", suite, gate=state, smoke=a.smoke, device=a.device, shard=shard,
                                choice=_choice(root), choice_sha256=records.sha(root / records.CHOICE),
-                               workers=a.workers, log=log)
+                               workers=a.workers, recheck=recheck, log=log)
     else:
         study_records = verify("study")
         deferred = records.verify_deferred(root, study, "tuning", smoke=a.smoke, audit=PendulumSuite.audit)
