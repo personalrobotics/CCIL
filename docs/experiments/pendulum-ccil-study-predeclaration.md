@@ -158,7 +158,7 @@ before the freeze:
 |---|---|---|
 | Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
 | Normalized Lipschitz coordinates | #125 | The penalty equals its definition; it is invariant to a change of units; the two engines give the same penalty and gradients; fit records state the coordinates and the normalization hash |
-| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits). **It failed** on continuous `none` (see below); the confirmatory rerun decides |
+| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits). **It failed** on continuous `none`. The confirmatory rerun (seeds 641–780) **passed on all four configurations** (see below) |
 | Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
 | Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
@@ -245,6 +245,23 @@ and it is the gate's only rerun.
   settings). The runner then fits each unit through `generate_offline`, and
   that is reported.
 - **Blocking.** #123 is blocked until this gate passes.
+- **Result: passed, so the batched engine is accepted.** The gate ran from
+  the clean commit `b2cbf7136b6f54b0034e2b338342605fc9a15711` on siddh.
+
+  | Configuration | Mean difference | 90% interval | Margin | Equivalent |
+  |---|---|---|---|---|
+  | continuous `none` | +11.8% | [−2.9e-7, 1.03e-4] | ±1.10e-4 | yes |
+  | continuous `soft_sampling` | +8.4% | [−1.4e-5, 9.4e-5] | ±1.19e-4 | yes |
+  | discontinuous `none` | −2.2% | [−2.1e-3, 4.3e-4] | ±9.3e-3 | yes |
+  | discontinuous `slack` | −2.1% | [−7.7e-4, 3.9e-5] | ±4.2e-3 | yes |
+
+  On continuous Pendulum, the batched models' held-out one-step error is
+  higher by about 8–12% on average:
+  - for `none`, the upper end of the interval is 94% of the margin;
+  - the first gate saw −8.5% on the same configuration, so the direction is
+    not stable;
+  - the difference is inside the declared margin, and the report (#25)
+    states it.
 - **Independence.** The normalized Lipschitz coordinates (#125) are
   established independently of this gate. The configuration that failed has
   no Lipschitz regularizer, so the coordinate choice cannot affect it.
@@ -597,7 +614,12 @@ and `ccil` commits in `tools/m3_experiments/freeze.json`, and lists the §2
 and §3 evidence.
 - **One combined commit.** The evidence is generated once, on each host,
   from one clean commit that combines every part of the stack. It includes
-  the certificate cross-host audits and the batched-fit equivalence gate.
+  the certificate cross-host audits.
+- **The batched-fit gate is cited, not rerun.** The confirmatory gate (§2)
+  decided it, and there is no third attempt. The freeze records the diff of
+  the fit path (`mlp_batched`, `MLPTransitionModel.fit`, the losses and the
+  normalization) from the gate's commit `b2cbf71` to the frozen commit. If
+  any of it changed, the freeze stops.
   Reports from separate branches do not count.
 - **The design.** The study's design is the runner plan
   `tools/m3_experiments/pendulum_v6.yaml`: 120 tuning units and 600 study
