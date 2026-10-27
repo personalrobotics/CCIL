@@ -7,6 +7,8 @@ policy trainer or the integrated pipeline.
 """
 from __future__ import annotations
 
+import contextlib
+
 from pathlib import Path
 
 import numpy as np
@@ -174,6 +176,17 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                      components={"representation": representation, "transition_model": build_model(v)})
 
 
+@contextlib.contextmanager
+def _jacobian_budget():
+    """A Jacobian budget smaller than one row is a configuration error, not a failure of the computation."""
+    try:
+        yield
+    except ValueError as e:
+        if type(e).__name__ == "JacobianBudgetError":  # models.mlp; torch is imported only with the mlp extra
+            raise ConfigError([str(e)]) from None
+        raise
+
+
 def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
     v = cfg.values
     inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT), **(extra_inputs or {})}
@@ -183,15 +196,19 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         # compute.device places torch models; the numpy linear model always runs on cpu.
         device = "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
         model = load_transition_model(inputs["transition_model"], device=device)
-        cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
-                                run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
-                                action_chunk_size=v["generation.action_chunk_size"],
-                                inputs={name: sha256(path) for name, path in inputs.items()})
+        if hasattr(model, "jacobian_memory_bytes"):
+            model.jacobian_memory_bytes = v["compute.jacobian_memory_mb"] * 2**20
+        with _jacobian_budget():
+            cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
+                                    run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
+                                    action_chunk_size=v["generation.action_chunk_size"],
+                                    inputs={name: sha256(path) for name, path in inputs.items()})
         write_candidates(cands, run.path(layout.CANDIDATES))
         counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(cands.reason_codes)}
         run.metrics({"candidates": int(len(cands.accepted)), "accepted": int(cands.accepted.sum()),
                      "acceptance_rate": float(cands.accepted.mean()) if len(cands.accepted) else 0.0,
-                     "rejections_by_reason": counts, "generator": cands.generator})
+                     "rejections_by_reason": counts, "generator": cands.generator,
+                     "jacobian_chunking": getattr(model, "jacobian_chunking", None)})  # its last call
         run.log(f"generated {len(cands.accepted)} candidates with {cands.generator['name']}; "
                 f"accepted {int(cands.accepted.sum())}")
     return run_stage("labels.generate", cfg, inputs, body,
@@ -221,10 +238,12 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
     def body(run):
         sources = Sources(inputs["candidates"], inputs["dataset"], inputs["transition_model"], representation,
                           extra=dict(extra_inputs or {}), references=references,
-                          device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"])
-        cert = certify(sources, profile, admission=admission, threshold=threshold,
-                       selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
-                       selection_population=selection_population)
+                          device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"],
+                          jacobian_memory_bytes=v["compute.jacobian_memory_mb"] * 2**20)
+        with _jacobian_budget():
+            cert = certify(sources, profile, admission=admission, threshold=threshold,
+                           selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
+                           selection_population=selection_population)
         write_certificates(cert, run.path(layout.CERTIFICATES))
         accepted = read_candidates(inputs["candidates"]).accepted
         usable = np.asarray(accepted) & cert.admissible & cert.selected
