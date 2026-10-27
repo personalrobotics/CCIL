@@ -7,7 +7,8 @@ Run it from a clean commit: the git cases clone HEAD. Each case runs the offline
 (`ccil labels generate`) in a fresh child process:
 1. a ccil source edit between two stages fails the unit (exit 3) and commits no later stage, in a git clone and in
    a non-git copy (only the source hash can see it there); a tracked non-source edit fails the command at its end;
-   the unedited clone exits 0;
+   the unedited clone exits 0; a direct RunWriter, with no stage identity, captures the code state on entry and
+   refuses to commit after a source edit in its body;
 2. an unchanged rerun in one process reuses every stage, hashes pipeline artifacts from the cache and the user's
    dataset in full;
 3. an atomically replaced artifact (same size, same nanosecond mtime, new inode) is rehashed;
@@ -55,6 +56,30 @@ def patched(self):
 writer.RunWriter.__enter__ = patched
 from ccil.__main__ import main
 sys.exit(main(sys.argv[1:]))
+"""
+
+# A direct RunWriter workflow, with no stage identity: the writer captures the code state on entry, and the
+# ccil source is edited inside its body.
+DIRECT_WRITER = """
+import json, sys
+sys.path.insert(0, {src!r})
+import ccil
+assert ccil.__file__.startswith({src!r}), ccil.__file__
+from ccil.config import resolve
+from ccil.runs import RunWriter, provenance
+cfg = resolve(overrides={{"run.seed": 0, "run.output_dir": "runs", "data.path": "fixture.npz"}})
+before = provenance._IMPLEMENTATION is None
+try:
+    with RunWriter("runs", "direct-0001", "direct.writer", cfg) as run:
+        captured = provenance._IMPLEMENTATION is not None
+        run.path("data/note.txt").write_text("written by a direct writer\\n")
+        if {edit!r}:
+            with open({edit!r}, "a") as f:
+                f.write("# edited inside a writer body\\n")
+    outcome = "committed"
+except provenance.CodeStateChanged as e:
+    outcome = "CodeStateChanged"
+print(json.dumps({{"uncaptured_before_entry": before, "captured_in_body": captured, "outcome": outcome}}))
 """
 
 # Cases 2-5 in one process: the cache is per process.
@@ -202,6 +227,20 @@ def main():
            ns["rc"] == 3 and len(ns["runs"]) == 3 and "git state" in ns["stderr"]
            and "the ccil source changed" not in ns["stderr"], result=ns)
     record("unedited_clone_finalizes", un["rc"] == 0 and len(un["runs"]) == 3, result=un)
+
+    direct = {}
+    for name, edit in (("edited", copy / "ccil/core/generators.py"), ("unedited", "")):
+        shutil.rmtree(copy / "ccil", ignore_errors=True)  # a fresh, unedited copy for each run
+        shutil.copytree(REPO / "src" / "ccil", copy / "ccil", ignore=shutil.ignore_patterns("__pycache__"))
+        w = workdir(f"direct_writer_{name}")
+        r = child(DIRECT_WRITER.format(src=str(copy), edit=str(edit)), cwd=w)
+        direct[name] = {**(json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 else
+                           {"stderr": r.stderr[-600:]}), "runs": sorted(p.name for p in (w / "runs").iterdir())}
+    de, du = direct["edited"], direct["unedited"]
+    record("direct_writer_captures_on_entry_and_refuses_a_source_edit_in_its_body",
+           de.get("uncaptured_before_entry") is True and de.get("captured_in_body") is True
+           and de.get("outcome") == "CodeStateChanged" and de["runs"] == []
+           and du.get("outcome") == "committed" and du["runs"] == ["direct-0001"], edited=de, unedited=du)
 
     # 2-5. One process: reuse, replacement, in-place edits, the user's dataset.
     w = workdir("probe")

@@ -234,7 +234,8 @@ def main(argv=None) -> int:
     rval.add_argument("run_dir")
     rval.set_defaults(fn=_run_validate)
     args = ap.parse_args(argv)
-    from .runs.provenance import CodeStateChanged, verify_code_state
+    from .runs.provenance import CodeStateChanged, code, verify_code_state
+    code()  # the git state, captured before the command does any work (#127)
     try:
         rc = args.fn(args)
         if rc == 0:  # a command is a unit: never finalize one that saw its code change (#127)
