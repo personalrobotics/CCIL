@@ -6,6 +6,7 @@ validated at load), so a predeclaration can reference it byte for byte:
     study: pendulum-ccil
     version: 5
     tasks: [continuous, discontinuous]
+    settings: [transition_model.trainer_version=2, policy.trainer_version=2]   # every trained arm
     phases:
       tuning: {seeds: [1, 2, 3], arms: [noise_bc, ccil_tuned], tuning: true}
       study: {seeds: {from: 101, to: 120}, arms: all}
@@ -60,6 +61,12 @@ class Study:
     phases: dict                      # phase -> {"seeds": tuple, "arms": tuple}
     arms: dict                        # name -> Arm
     tuning: dict = field(default_factory=dict)  # tuned arm -> Tuning
+    settings: tuple[str, ...] = ()    # configuration overrides of every trained arm, before the arm's own
+
+    def unit_settings(self, arm: str, value=None) -> list[str]:
+        """The overrides a trained unit runs with: the study's, the arm's, then the tuned value."""
+        a = self.arms[arm]
+        return [*self.settings, *a.settings, *([f"{a.tuned}={value!r}"] if a.tuned and value is not None else [])]
 
     def units(self, phase: str, choice: dict | None = None) -> list[tuple]:
         """Every (task, arm, seed, value) of a phase, in a fixed order: tasks, then seeds, then arms."""
@@ -96,7 +103,7 @@ def _seeds(v, where, problems):
 def from_dict(d: dict) -> Study:
     """Validate a spec and build the Study; PlanError lists every problem."""
     problems = []
-    known = {"study", "version", "tasks", "phases", "arms", "tuning"}
+    known = {"study", "version", "tasks", "phases", "arms", "tuning", "settings"}
     for k in set(d) - known:
         problems.append(f"unknown key {k!r}")
     for k in ("study", "version", "tasks", "phases", "arms"):
@@ -105,6 +112,9 @@ def from_dict(d: dict) -> Study:
     if problems:
         raise PlanError(problems)
     tasks = tuple(d["tasks"])
+    common = d.get("settings") or []
+    if not isinstance(common, list) or not all(isinstance(x, str) and "=" in x for x in common):
+        problems.append("settings must be a list of key=value overrides")
     arms = {}
     for name, a in d["arms"].items():
         extra = set(a) - {"settings", "noise_levels", "data_fraction", "tuned", "train"}
@@ -151,7 +161,7 @@ def from_dict(d: dict) -> Study:
             seen[s] = phase
     if problems:
         raise PlanError(problems)
-    return Study(str(d["study"]), int(d["version"]), tasks, phases, arms, tuning)
+    return Study(str(d["study"]), int(d["version"]), tasks, phases, arms, tuning, tuple(common))
 
 
 def load(path) -> Study:

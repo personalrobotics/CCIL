@@ -188,6 +188,71 @@ def rollout(policy, task: str, seed: int, noise_level: float = 0.0) -> dict:
                      "noise_index": k, "episodes": E, "horizon": T, "integrator": "batched RK45 (numpy)"}}
 
 
+def rollouts(items: list, task: str) -> list[dict]:
+    """rollout() for many (policy, seed, noise_level) items at once: one step() over every live episode of every
+    item, and one policy call per distinct policy per step (on all of its items' rows).
+
+    Each result has rollout()'s arrays and meta. The dynamics are row-wise, so for the same actions a row's
+    states do not depend on what else is in the batch; a policy's float32 outputs can differ in the last bits
+    with its batch size (as they already do in rollout() when episodes fail), and the evidence measures that.
+    """
+    import env as canonical
+    discontinuous = canonical.TASKS[task]
+    E, T, K = canonical.EPISODES, canonical.HORIZON, len(items)
+    obs_noise = np.zeros((K, E, T, 3))
+    act_noise = np.zeros((K, E, T, 1))
+    level = np.zeros((K, 1, 1))
+    ks = []
+    states = np.full((K, E, T + 1, 3), np.nan)
+    for i, (_, seed, n) in enumerate(items):
+        k = canonical.NOISE_LEVELS.index(n) if n else None
+        ks.append(k)
+        if n:
+            obs_noise[i], act_noise[i] = canonical.noise_draws(seed, k)
+            level[i] = n
+        states[i, :, 0] = canonical.initial_states(seed)
+    observations = np.full((K, E, T, 3), np.nan)
+    policy_actions = np.full((K, E, T, 1), np.nan)
+    actions = np.full((K, E, T, 1), np.nan)
+    rewards = np.full((K, E, T), np.nan)
+    flipped = np.zeros((K, E, T), dtype=bool)
+    alive = np.ones((K, E), dtype=bool)
+    noisy = np.array([bool(n) for _, _, n in items])
+    groups = {}
+    for i, (policy, _, _) in enumerate(items):
+        groups.setdefault(id(policy), (policy, []))[1].append(i)
+    for t in range(T):
+        obs = states[:, :, t].copy()
+        obs[noisy] = obs[noisy] * (1 - level[noisy]) + level[noisy] * obs_noise[noisy, :, t]
+        observations[alive, t] = obs[alive]
+        pa = np.full((K, E, 1), np.nan)
+        for policy, idx in groups.values():
+            live = alive[idx]
+            if live.any():
+                sub = pa[idx]
+                sub[live] = np.asarray(policy(obs[idx][live]), dtype=np.float64).reshape(-1, 1)
+                pa[idx] = sub
+        policy_actions[alive, t] = pa[alive]
+        act = pa.copy()
+        act[noisy] = pa[noisy] * (1 - level[noisy]) + level[noisy] * act_noise[noisy, :, t]
+        alive &= np.isfinite(act[:, :, 0])
+        if alive.any():
+            actions[alive, t] = act[alive]
+            rewards[alive, t] = reward(states[alive, t], act[alive][:, 0])
+            states[alive, t + 1], flipped[alive, t] = step(states[alive, t], act[alive][:, 0], discontinuous)
+    out = []
+    for i, (_, seed, n) in enumerate(items):
+        returns = rewards[i].sum(axis=1)
+        out.append({"states": states[i], "observations": observations[i], "policy_actions": policy_actions[i],
+                    "actions": actions[i], "rewards": rewards[i], "flipped": flipped[i],
+                    "initial_states": states[i, :, 0].copy(), "returns": returns, "R": np.float64(returns.mean()),
+                    "failed_episodes": np.flatnonzero(~alive[i]),
+                    **({"obs_noise": obs_noise[i], "act_noise": act_noise[i]} if n else {}),
+                    "meta": {"version": "vector_env.pendulum/1", "task": task, "seed": seed, "noise_level": n,
+                             "noise_index": ks[i], "episodes": E, "horizon": T, "integrator": "batched RK45 (numpy)"}})
+    return out
+
+
 def replay_mismatches(rollout_arrays: dict, task: str) -> int:
     """Transitions of a saved rollout that step() does not reproduce bit for bit (the audit's replay, batched)."""
     import env as canonical
