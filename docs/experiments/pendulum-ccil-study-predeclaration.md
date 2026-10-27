@@ -343,7 +343,9 @@ never reported as study results.
       (mean and quantiles per seed), compared descriptively with the paper's
       reported empirical mean of 0.02367 and bound of 0.065. It is measured
       on 10,000 accepted labels per CCIL unit (all of them if fewer), drawn
-      without replacement by `default_rng(SeedSequence([s, 10]))`.
+      without replacement by `default_rng(SeedSequence([s, 10]))`. Version 5
+      takes the environment step with the batched integrator (§3), one call for
+      all sampled labels.
 
     The ledger entry `sim-pendulum-label-bound` stays **blocked**: the
     procedure behind 0.065 is unrecorded, so this measurement is reported as
