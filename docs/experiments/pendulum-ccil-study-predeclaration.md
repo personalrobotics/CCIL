@@ -1,8 +1,44 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 4.** Committed before any run of this study. Results are reported
-against the version that governed them. A change after any outcome is seen
-is a new version, with its rationale, and is never applied retroactively.
+**Version 5.** Results are reported against the version that governed them.
+A change after any outcome is seen is a new version, with its rationale, and
+is never applied retroactively.
+
+**Changes from version 4** (#113). Version 4 ran under frozen tooling
+`cba34fe` and `ccil` `847b060`. Its tuning phase completed, and its study was
+stopped by the operator after 21 of 520 units, so that the study could run on
+a faster execution stack. Version 5 is a **complete rerun** (§2): fresh
+tuning, a fresh choice, the study and the analysis. Version 4's records are
+reported in #25 as a separate, superseded run, and are never mixed with
+version 5's.
+
+- **What had been seen when version 5 was written.**
+  - **Version 4's tuning choice**, on seeds 1–3, the same on both tasks:
+    NoiseBC scale 1e-4, and CCIL-tuned action noise 3e-1, which is the top
+    of its grid.
+  - **Continuous CCIL − BC**, noise-free, for study seeds 101–110. The stop
+    was decided before any study outcome was examined, but as the session
+    ended a progress monitor printed these differences:
+
+    | Seed | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 |
+    |---|---|---|---|---|---|---|---|---|---|---|
+    | CCIL − BC | +1071.2 | −153.5 | +239.1 | +1082.8 | +1046.4 | +275.5 | +585.4 | +21.4 | −77.8 | +633.3 |
+
+    No other study outcome was seen. Because these were seen, version 5
+    changes nothing that could be tuned to them: every version 4 arm,
+    grid, seed, metric and rule is kept exactly, including CCIL-tuned's grid
+    although its version 4 choice was at the edge.
+- **One change to the version 4 design: the execution stack (§2).**
+  Policies train with trainer v2 (#108). Dynamics models fit in batched
+  groups (#110). Label generation uses stacked Newton solves and chunked
+  Jacobians (#110). Evaluation steps every episode together (#111). Units run
+  through the batched study runner (#112). None of these is bit-identical to
+  the version 4 stack. Each has its own equivalence evidence, listed in §2,
+  which must pass before the freeze.
+- **An addition: two modern-recipe arms (§§5, 6),** BC-modern and
+  CCIL-modern. They are secondary and descriptive and never enter the primary
+  decision. Their tuning uses validation loss only, never a return. Adding
+  them changes no version 4 arm.
 
 **Changes from version 1**, made before any tooling, tuning or study run, so
 no outcome informed them:
@@ -71,18 +107,31 @@ ran.
 ## 2. Implementation, frozen
 
 **The `ccil` package.**
-- Every run uses the `ccil` package at commit
-  `847b06057e8d36a16d13aa2f3b2e375ceb9147e5`, from a clean tree. `ed737b8`
-  is identical in `src`, `pyproject.toml` and `uv.lock`.
-- Experiment tooling lives only under `tools/m3_pendulum/`: the environment,
-  run drivers, evaluation and analysis. It may never modify `src/ccil`,
+- Every run uses the `ccil` package at the commit named by the version 5
+  freeze (§11), from a clean tree. (Version 4 used
+  `847b06057e8d36a16d13aa2f3b2e375ceb9147e5`.)
+- Experiment tooling lives only under `tools/`: `tools/m3_pendulum/` (the
+  canonical environment, the inputs and the audit), `tools/vector_env/` (the
+  batched environment) and `tools/m3_experiments/` (the study plan and the
+  Pendulum suite of the runner). It may never modify `src/ccil`,
   `pyproject.toml` or `uv.lock`.
-- Tooling-only dependencies come from a pinned
-  `tools/m3_pendulum/requirements.txt`, for example scipy for the
-  environment's integrator and the analysis's intervals, layered with
-  `uv run --group evidence --with-requirements`.
+- Tooling-only dependencies come from the pinned
+  `tools/m3_pendulum/requirements.txt` and `tools/vector_env/requirements.txt`,
+  layered with `uv run --group evidence --with-requirements`.
 - A behavior-changing `ccil` fix needs a new version of this document and
   separately reported runs.
+
+**The execution stack (version 5)** and the evidence each part must pass
+before the freeze:
+
+| Part | Issue | Equivalence evidence |
+|---|---|---|
+| Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
+| Batched dynamics fits | #110 | One step equals `MLPTransitionModel.fit` for each regularizer used; held-out one-step error on the Pendulum data matches v1's |
+| Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
+| Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
+| Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
+| Batched study runner | #112 | Writes the stage artifacts `ccil policy train` would (the CLI reuses every one); resumes without recomputation; a unit's evaluation does not depend on what it was batched with |
 
 **The tooling is frozen too, before any outcome.** The tooling is developed,
 and its acceptance checks (§3) pass, without producing any tuning or study
@@ -91,13 +140,15 @@ outcome. Then **one tooling commit is frozen**:
   else (the "tooling freeze" addendum, §11), and merged before the first
   tuning run.
 - Every tuning and study run, the tuning choice and the analysis use exactly
-  that commit's tooling. The freeze pull request adds
-  `tools/m3_pendulum/freeze.json`, which names the commit. Each refuses to
+  that commit's tooling. The freeze pull request adds a manifest
+  (`tools/m3_experiments/freeze.json` for version 5;
+  `tools/m3_pendulum/freeze.json` for version 4) naming the commit. Each refuses to
   run unless:
   - the tree is clean;
   - every path the study executes or reads (`tools/m3_pendulum`,
-    `tools/legacy_conversion`, `correct_il`, `data`, `config`, and the
-    conversion and artifact manifests) equals that commit;
+    `tools/vector_env`, `tools/m3_experiments`, `tools/legacy_conversion`,
+    `correct_il`, `data`, `config`, and the conversion and artifact
+    manifests) equals that commit;
   - `src`, `pyproject.toml` and `uv.lock` equal the frozen `ccil` commit.
 - A behavior-changing tooling fix after the freeze needs a new version of
   this document and a **complete rerun** of tuning and the study. The earlier
@@ -106,10 +157,19 @@ outcome. Then **one tooling commit is frozen**:
 **Host.** All study runs execute on one host (siddh, CUDA). Timings are not
 compared.
 
+**Batching.** The runner trains many units' models in one group and records
+each group's members, bucket and engine. A unit's results can depend on its
+group only through float32 rounding. The grouping is a function of the plan
+and the order of units, so a rerun from the frozen commit reproduces it,
+except where a group runs out of device memory and is split (§9), which is
+recorded.
+
 ## 3. Environment
 
 There is one canonical Pendulum environment in `tools/m3_pendulum/`. It has
-the physics that generated the demonstrations:
+the physics that generated the demonstrations. Version 5 evaluates with the
+batched implementation in `tools/vector_env/` (§2), which runs the same RK45
+algorithm on every episode at once:
 
 | Element | Value |
 |---|---|
@@ -122,10 +182,12 @@ the physics that generated the demonstrations:
 | Episode | 500 steps; no termination |
 
 **Acceptance checks, run before the tooling freeze with no tuning or study
-outcome:**
+outcome, for the canonical and the batched environment:**
 1. **Transitions.** For every transition of both datasets, stepping the
    environment from the stored (s_t, a_t) must reproduce the stored s_{t+1}
-   within max |Δ| ≤ 1e-6.
+   within max |Δ| ≤ 1e-6. The batched environment must also agree with the
+   canonical one on every transition, and the maximum difference is
+   reported.
 2. **Evaluator audit.** The evaluator runs fixed, non-learned policies:
    - zero action;
    - constant actions ±1;
@@ -145,7 +207,9 @@ reported.
 **Every evaluation is auditable.** Each tuning and study evaluation saves
 every episode's per-step states, actions and rewards, plus its initial state
 and noise draws. The analysis recomputes every reported return from those
-files with the independent implementation, and refuses any mismatch.
+files with the independent implementation, and refuses any mismatch. It also
+replays every saved transition through the batched integrator that produced
+it and requires the saved next state bit for bit.
 
 **Initial states.** For each seed s, 100 episodes start from
 θ ~ U(−1, 1) and θ̇ ~ U(−0.5, 0.5), drawn from
@@ -180,12 +244,30 @@ values below. Nothing else is tuned.
 | **CCIL-filtered** | secondary | CCIL labels filtered by the paper's DisturbedAction label-error score (Def. 4.6, the `disturbed_action_paper_proxy` profile), keeping those at or below the 0.3 selection quantile, which is the label-filtering branch's value (`certificate.selection_quantile 0.3`, score admission). It shares CCIL's dynamics model and labels. |
 | **CCIL-noLip** | secondary ablation | CCIL with `transition_model.lipschitz_type none` (the ablation in `scripts/pendulum.sh`) |
 | **CCIL-tuned** | secondary | CCIL with `generation.action_noise_std` chosen as in §6. Every other setting, including the support radius, is CCIL's. |
+| **BC-modern** | secondary (version 5) | BC with the modern recipe below, its learning rate chosen as in §6 |
+| **CCIL-modern** | secondary (version 5) | CCIL (labels and balancing as the CCIL arm) with the modern recipe below, its learning rate chosen as in §6 |
 
-**Shared policy settings:** the experimental vector harness (#89), with
-batch 512, 100 epochs (÷20 when balanced), learning rate 1e-3, [256, 256],
-and standard and min_max scalers. Balancing is the configuration's for the
+**Shared policy settings:** the experimental vector harness (#89), trained
+by trainer v2 (`policy.trainer_version 2`), with batch 512, 100 epochs (÷20
+when balanced), learning rate 1e-3, [256, 256], and standard and min_max
+scalers. Dynamics models fit with `transition_model.trainer_version 2`. Balancing is the configuration's for the
 CCIL arms; BC and NoiseBC never balance
 (`policy.balance_noisy_labels false`).
+
+**The modern recipe** (#115), for BC-modern and CCIL-modern only:
+
+| Setting | Value |
+|---|---|
+| Optimizer | AdamW (`policy.optimizer adamw`), weight decay 1e-4 |
+| Learning rate | chosen as in §6, with a cosine schedule after 1,000 linear warmup steps |
+| Length | 50,000 optimizer steps per model (`policy.step_budget`), the same for both arms; epochs are cut at the budget |
+| Gradient clipping | global norm 1.0 |
+| Weight averaging | EMA with decay 0.999 |
+| Checkpoint | the epoch with the lowest loss on the held-out validation episodes' demonstrations (`policy.checkpoint_selection validation`) |
+| Data | `policy.exclude_validation_episodes true`: 20% of episodes (the data split, `data.validation_fraction 0.2`) are held out from policy training and used only for checkpoint selection and tuning. The dynamics model and the labels are CCIL's, so the dynamics model has seen the held-out episodes. |
+
+Everything else (architecture, batch, scalers, balancing) is the
+corresponding paper-settings arm's.
 
 **Asymmetry, stated.** In the primary comparison, BC and CCIL use the paper's
 settings, while NoiseBC receives a scale search (§6), so any bias this
@@ -201,14 +283,19 @@ CCIL-tuned action noise, **separately per task**. Each search has five values:
 |---|---|---|
 | NoiseBC | `policy.noise_scale` (standardized observation units) | {1e-4 (the paper's value), 1e-3, 1e-2, 1e-1, 3e-1} |
 | CCIL-tuned | `generation.action_noise_std` (action units) | {the paper's value (1e-5 continuous, 1e-4 discontinuous), 1e-3, 1e-2, 1e-1, 3e-1} |
+| BC-modern | `policy.learning_rate` (peak) | {1e-4, 3e-4, 1e-3, 3e-3, 1e-2} |
+| CCIL-modern | `policy.learning_rate` (peak) | {1e-4, 3e-4, 1e-3, 3e-3, 1e-2} |
 
 The support radius is not searched: it is the paper's per-task constraint (on
 discontinuous Pendulum, 0.01 keeps labels from crossing the discontinuity),
 and searching it would give CCIL-tuned a larger budget than NoiseBC.
 
 For each arm and task:
-- **Selection:** the value with the highest mean noise-free return over
-  seeds 1–3. Ties go to the smaller value.
+- **Selection:** for NoiseBC and CCIL-tuned, the value with the highest mean
+  noise-free return over seeds 1–3. For BC-modern and CCIL-modern, the value
+  with the lowest mean selected-checkpoint validation loss over seeds 1–3;
+  their returns on the tuning seeds are recorded but never used. Ties go to
+  the smaller value.
 - **Failed tuning runs.** A value with any failed tuning run is ineligible.
   If every value is ineligible, the arm uses the paper's value, and this is
   recorded.
@@ -231,7 +318,7 @@ never reported as study results.
       [1, 1, 4π], and action [−3, 3].
     - n ∈ {0.01, 0.05, 0.1}, with draws from
       `default_rng(SeedSequence([s, 8, k]))` shared across arms, with k = 0, 1, 2 for n = 0.01, 0.05, 0.1.
-    - It applies to BC, NoiseBC, CCIL and CCIL-tuned.
+    - It applies to BC, NoiseBC, CCIL, CCIL-tuned, BC-modern and CCIL-modern.
   - **Data size.** Nested episode subsets of 10%, 25% and 50%, chosen by
     `default_rng(SeedSequence([s, 9])).permutation`, for BC and CCIL, with
     noise-free evaluation.
@@ -252,7 +339,8 @@ never reported as study results.
     procedure behind 0.065 is unrecorded, so this measurement is reported as
     related evidence, not as a reproduction.
   - **Training diagnostics:** the dynamics model's held-out one-step error,
-    the label counts by reason, and the supervision manifests.
+    the label counts by reason, and the supervision manifests; for the
+    modern arms, the per-epoch validation losses and the selected epoch.
   - **Zero-action reference.** R(s, zero), the zero-action policy (a = 0 at
     every step), on each study seed's initial states, noise-free and at
     each noise level, for both tasks. It needs no training and has no tuning.
@@ -306,7 +394,8 @@ bounds the size of any effect the study could have missed.
 
 **Secondary comparisons** are CCIL − NoiseBC, CCIL-tuned − BC,
 CCIL-tuned − NoiseBC, CCIL-filtered − CCIL and CCIL-noLip − CCIL, and per
-noise level and data size. Each gets the union interval at c = 0.95. They are
+noise level and data size; and, for the modern arms, CCIL-modern − BC-modern,
+BC-modern − BC and CCIL-modern − CCIL, noise-free and per noise level. Each gets the union interval at c = 0.95. They are
 descriptive: no decisions, and no multiplicity claims.
 
 **Paper comparison** (informational): the mean ± std over seeds of BC and
@@ -322,7 +411,8 @@ or disagreement is claimed beyond what the intervals show.
 
 **Zero-action reference** (descriptive). For each task, R(s, zero) is
 reported per seed beside every arm. For each primary and secondary arm
-(noise-free), and for BC, NoiseBC, CCIL and CCIL-tuned at each noise level,
+(noise-free), and for BC, NoiseBC, CCIL, CCIL-tuned, BC-modern and
+CCIL-modern at each noise level,
 arm − zero is reported with the union interval at c = 0.95. These intervals
 inform no decision, are not part of the positive control, and make no
 multiplicity claim.
@@ -330,7 +420,9 @@ multiplicity claim.
 ## 9. Failures
 
 **Infrastructure faults** (out of memory, a lost host, a killed process) are
-rerun once, with identical inputs. A second fault excludes that seed for that
+rerun once, with identical inputs. (Version 5: a training group that runs out
+of device memory is first split in half and retried, down to single units;
+only a single unit's memory exhaustion is a fault.) A second fault excludes that seed for that
 arm, and the exclusion is reported.
 
 **Algorithmic failures** are results: a non-finite loss, a crash inside the
@@ -359,7 +451,18 @@ seeds, or fewer than 16 seeds valid for both.
 
 Negative and null outcomes are reported the same way as positive ones.
 
-## 11. Tooling freeze (addendum, recorded before any tuning run)
+The version 4 run is reported separately, labeled incomplete and superseded:
+its tuning tables and choice, and its 21 study units, with the disclosure
+above.
+
+## 11. Tooling freeze
+
+**Version 5:** to be recorded by a pull request that changes nothing else,
+merged before the first version 5 tuning run. It names the frozen tooling
+and `ccil` commits in `tools/m3_experiments/freeze.json` and lists the §2 and
+§3 evidence, generated from one clean commit on each host.
+
+**Version 4 (superseded; its runs are reported, not reused).**
 
 - **Frozen tooling commit:** `cba34fea7241cdbf4a48bb00083da76bb2383d40`, the
   merge of #106. It is named by
