@@ -8,8 +8,8 @@
    and a failing positive control, a primary-arm algorithmic failure, too many exclusions, too few valid
    seeds, a degenerate BCa interval), ccil.experiments.analysis.decide with the #24 predeclaration gives
    exactly the #24 analysis's result: outcome, intervals, reasons, control and relative effect.
-2. gate: on scratch clones of this commit (clean; an uncommitted src change; an untracked file; no freeze
-   manifest; a manifest naming the current commit; a later committed tooling change; a manifest naming no
+2. gate: on scratch clones of this commit (clean, with main's #24 v4 freeze manifest; an uncommitted src change; an untracked file;
+   a manifest naming the current commit; a later committed tooling change; a manifest naming no
    commit), ccil.experiments.gate with the #24 freeze decides exactly as the #24 provenance module, for real
    and smoke runs.
 """
@@ -73,12 +73,15 @@ def gate_matches_24(out: Path) -> dict:
     subprocess.run(["git", "-C", str(clone), "checkout", "-q", head], check=True)
     git = ["git", "-C", str(clone), "-c", "user.name=check", "-c", "user.email=check@invalid"]
     rows = {}
+    # Freeze this commit's ccil for both implementations, so the scenarios produce passes as well as refusals.
+    saved, p24.CCIL_FROZEN = p24.CCIL_FROZEN, head
+    freeze = Freeze(ccil_commit=head, tooling_paths=p24.TOOLING_PATHS, manifest=p24.FREEZE)
 
     def both(name):
         for real in (True, False):
-            a, b = p24.gate(clone, real)["ok"], gate(clone, FREEZE_24, real)["ok"]
+            a, b = p24.gate(clone, real)["ok"], gate(clone, freeze, real)["ok"]
             rows[f"{name}/{'real' if real else 'smoke'}"] = {"p24": a, "experiments": b, "same": a == b}
-    both("clean_no_manifest")
+    both("clean_with_main_v4_manifest")  # main carries the #24 v4 freeze manifest
     init = clone / "src" / "ccil" / "__init__.py"
     data = init.read_bytes()
     init.write_bytes(data + b"\n")
@@ -99,8 +102,11 @@ def gate_matches_24(out: Path) -> dict:
     (clone / p24.FREEZE).write_text(json.dumps({"tooling_commit": "0" * 40}) + "\n")
     subprocess.run([*git, "commit", "-q", "-am", "name no commit"], check=True)
     both("manifest_names_no_commit")
+    p24.CCIL_FROZEN = saved
     shutil.rmtree(clone)
-    return {"pass": all(r["same"] for r in rows.values()), "scenarios": rows}
+    outcomes = {r["experiments"] for r in rows.values()}
+    return {"pass": all(r["same"] for r in rows.values()) and outcomes == {True, False}, "scenarios": rows,
+            "both_outcomes_exercised": outcomes == {True, False}}
 
 
 def main():
