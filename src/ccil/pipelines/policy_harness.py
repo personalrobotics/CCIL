@@ -70,17 +70,16 @@ def settings_of(v) -> dict:
                                              "grad_clip_norm", "ema_decay", "checkpoint_selection")}}
 
 
-def run_policy_harness(cfg, trained=None) -> list[StageResult]:
-    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+def unit_supervision(cfg):
+    """A unit's label stages (reused when complete) and what its policy trains on.
 
-    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
-    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    Returns (stage results, inputs, supervision, NoiseBC or None, held-out supervision or None). Study runners
+    call it to train many units together on exactly the supervision run_policy_harness would build.
     """
     v = cfg.values
     problems = harness_problems(v)
     if problems:
         raise ConfigError(problems)
-    vector_bc = _trainer_module()
     from ..training.noise_bc import NoiseBC
     results = generate_offline(cfg)
     prepared, labeled = results[0], results[2]
@@ -94,17 +93,35 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
         inputs["candidates"] = labeled.out(layout.CANDIDATES)
         if certified is not None:
             inputs["certificates"] = certified.out(layout.CERTIFICATES)
+    sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
+                            candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
+                            split=inputs.get("split"), demonstration_weight=v["policy.demonstration_weight"])
+    noise = None
+    if v["policy.method"] == "noise_bc":
+        noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
+                        mask_probability=v["policy.noise_mask_probability"],
+                        units="standardized observation units (after the observation scaler)")
+    held = None
+    if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
+        held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
+                                 demonstration_weight=v["policy.demonstration_weight"])
+    return results, inputs, sup, noise, held
+
+
+def run_policy_harness(cfg, trained=None) -> list[StageResult]:
+    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+
+    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
+    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    """
+    v = cfg.values
+    vector_bc = _trainer_module()
+    results, inputs, sup, noise, held = unit_supervision(cfg)
+    rep = IdentityRepresentation(v["representation.modality"])
+    split_path = results[0].out(layout.SPLIT)
 
     def train(run):
-        sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
-                                candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
-                                split=inputs.get("split"), demonstration_weight=v["policy.demonstration_weight"])
         dump_json(sup.manifest(), run.path(SUPERVISION))
-        noise = None
-        if v["policy.method"] == "noise_bc":
-            noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
-                            mask_probability=v["policy.noise_mask_probability"],
-                            units="standardized observation units (after the observation scaler)")
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
         if trained is not None:
             if v["policy.trainer_version"] != "2":
@@ -112,10 +129,6 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
             policy, record = trained
         elif v["policy.trainer_version"] == "2":
             from ..training import vector_bc_v2
-            held = None
-            if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
-                held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
-                                         demonstration_weight=v["policy.demonstration_weight"])
             [(policy, record)] = vector_bc_v2.train_group([vector_bc_v2.Job(sup, v["run.seed"], noise, held)],
                                                           settings_of(v),
                                                           device=v["compute.device"],
