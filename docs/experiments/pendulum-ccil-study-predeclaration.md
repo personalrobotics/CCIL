@@ -1,44 +1,74 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 5.** Results are reported against the version that governed them.
+**Version 6.** Results are reported against the version that governed them.
 A change after any outcome is seen is a new version, with its rationale, and
 is never applied retroactively.
 
-**Changes from version 4** (#113). Version 4 ran under frozen tooling
-`cba34fe` and `ccil` `847b060`. Its tuning phase completed, and its study was
-stopped by the operator after 21 of 520 units, so that the study could run on
-a faster execution stack. Version 5 is a **complete rerun** (§2): fresh
-tuning, a fresh choice, the study and the analysis. Version 4's records are
-reported in #25 as a separate, superseded run, and are never mixed with
-version 5's.
+**History.**
+- **Version 4** ran under frozen tooling `cba34fe` and `ccil` `847b060`. Its
+  tuning phase completed. Its study was stopped by the operator after 21 of
+  520 units, so that the study could run on a faster execution stack.
+- **Version 5** was a draft (#121), never frozen and never run. It kept every
+  version 4 rule and changed only the execution stack.
+- **Version 6** supersedes it. It also changes the continuous CCIL algorithm,
+  so it reruns everything on seeds no run has used: fresh tuning, a fresh
+  choice, the study and the analysis (§2). Version 4's records are reported in
+  #25 as a separate, superseded run, and are never mixed with version 6's.
 
-- **What had been seen when version 5 was written.**
-  - **Version 4's tuning choice**, on seeds 1–3, the same on both tasks:
-    NoiseBC scale 1e-4, and CCIL-tuned action noise 3e-1, which is the top
-    of its grid.
-  - **Continuous CCIL − BC**, noise-free, for study seeds 101–110. The stop
-    was decided before any study outcome was examined, but as the session
-    ended a progress monitor printed these differences:
+**What had been seen when version 6 was written:**
+- **Version 4's tuning choice,** on seeds 1–3, the same on both tasks:
+  NoiseBC scale 1e-4, and CCIL-tuned action noise 3e-1, which is the top of
+  its grid.
+- **Continuous CCIL − BC,** noise-free, for version 4 study seeds 101–110.
+  The stop was decided before any study outcome was examined, but as the
+  session ended a progress monitor printed these differences:
 
-    | Seed | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 |
-    |---|---|---|---|---|---|---|---|---|---|---|
-    | CCIL − BC | +1071.2 | −153.5 | +239.1 | +1082.8 | +1046.4 | +275.5 | +585.4 | +21.4 | −77.8 | +633.3 |
+  | Seed | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | CCIL − BC | +1071.2 | −153.5 | +239.1 | +1082.8 | +1046.4 | +275.5 | +585.4 | +21.4 | −77.8 | +633.3 |
 
-    No other study outcome was seen. Because these were seen, version 5
-    changes nothing that could be tuned to them: every version 4 arm,
-    grid, seed, metric and rule is kept exactly, including CCIL-tuned's grid
-    although its version 4 choice was at the edge.
-- **One change to the version 4 design: the execution stack (§2).**
-  Policies train with trainer v2 (#108). Dynamics models fit in batched
-  groups (#110). Label generation uses stacked Newton solves and chunked
-  Jacobians (#110). Evaluation steps every episode together (#111). Units run
-  through the batched study runner (#112). None of these is bit-identical to
-  the version 4 stack. Each has its own equivalence evidence, listed in §2,
-  which must pass before the freeze.
+- **Training diagnostics of the dynamics models** from dev timing runs of
+  the new stack, on seeds 1–3 and 101–120. These were the recorded Lipschitz
+  penalty and the finite-difference ratios of fitted transition models. No
+  return of those runs was read; the runs used the paper's values in place of
+  a tuning choice.
+- **Nothing else.** No other study outcome was seen.
+
+**Changes from version 4.** Every other version 4 arm, grid, metric and rule
+is kept exactly, including CCIL-tuned's grid although its version 4 choice
+was at the edge.
+- **The execution stack (§2).** Policies train with trainer v2 (#108).
+  Dynamics models fit in batched groups (#110). Label generation uses stacked
+  Newton solves and chunked Jacobians (#110). Evaluation steps every episode
+  together (#111). Units run through the batched study runner (#112). None of
+  these is bit-identical to the version 4 stack. Each has its own equivalence
+  evidence, listed in §2, which must pass before the freeze.
+- **The coordinates of the continuous dynamics model's Lipschitz penalty
+  (§5, #125).** This changes the primary continuous CCIL algorithm.
+  - **Before:** in raw coordinates, as ported in #21, the paper's
+    `soft_sampling` penalty (constraint 2, ε = 3e-4) never binds on continuous
+    Pendulum. The trained residual's ratio peaks near 0.24; a one-step residual
+    over dt = 0.02 has a small raw Lipschitz constant. The penalty was exactly
+    0 in every epoch of every continuous fit.
+  - **Now:** version 6 measures the ratio in the model's normalized
+    coordinates (`transition_model.lipschitz_coordinates model_normalized`).
+    That is a dimensionless metric, invariant to units and timestep, in the
+    space the network is optimized in.
+  - **What it rests on:** only the pre-outcome dynamics diagnostics above. No
+    return informed it.
+  - **What stays fixed:** the constraint 2, ε and the penalty weight keep
+    the paper's values and are not tuned after this change.
+  - **Discontinuous Pendulum** uses the `slack` regularizer, which has no
+    coordinate choice, and is unchanged.
+- **Fresh seeds (§6).** Tuning seeds 11–13 and study seeds 1201–1220 replace
+  1–3 and 101–120. No run of this study, its tooling evidence or its dev
+  timing used them. The ten outcomes above therefore come from seeds version
+  6 never uses.
 - **An addition: two modern-recipe arms (§§5, 6),** BC-modern and
   CCIL-modern. They are secondary and descriptive and never enter the primary
-  decision. Their tuning uses validation loss only, never a return. Adding
-  them changes no version 4 arm.
+  decision. Their tuning uses validation loss only, and their tuning-seed
+  returns are computed only after the choice is recorded. Adding them changes
+  no version 4 arm.
 
 **Changes from version 1**, made before any tooling, tuning or study run, so
 no outcome informed them:
@@ -107,7 +137,7 @@ ran.
 ## 2. Implementation, frozen
 
 **The `ccil` package.**
-- Every run uses the `ccil` package at the commit named by the version 5
+- Every run uses the `ccil` package at the commit named by the version 6
   freeze (§11), from a clean tree. (Version 4 used
   `847b06057e8d36a16d13aa2f3b2e375ceb9147e5`.)
 - Experiment tooling lives only under `tools/`: `tools/m3_pendulum/` (the
@@ -121,12 +151,13 @@ ran.
 - A behavior-changing `ccil` fix needs a new version of this document and
   separately reported runs.
 
-**The execution stack (version 5)** and the evidence each part must pass
+**The execution stack (version 6)** and the evidence each part must pass
 before the freeze:
 
 | Part | Issue | Equivalence evidence |
 |---|---|---|
 | Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
+| Normalized Lipschitz coordinates | #125 | The penalty equals its definition; it is invariant to a change of units; the two engines give the same penalty and gradients; fit records state the coordinates and the normalization hash |
 | Batched dynamics fits | #110 | One step equals `MLPTransitionModel.fit` for each regularizer used; held-out one-step error on the Pendulum data matches v1's |
 | Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
@@ -141,7 +172,7 @@ outcome. Then **one tooling commit is frozen**:
   tuning run.
 - Every tuning and study run, the tuning choice and the analysis use exactly
   that commit's tooling. The freeze pull request adds a manifest
-  (`tools/m3_experiments/freeze.json` for version 5;
+  (`tools/m3_experiments/freeze.json` for version 6;
   `tools/m3_pendulum/freeze.json` for version 4) naming the commit. Each refuses to
   run unless:
   - the tree is clean;
@@ -167,7 +198,7 @@ recorded.
 ## 3. Environment
 
 There is one canonical Pendulum environment in `tools/m3_pendulum/`. It has
-the physics that generated the demonstrations. Version 5 evaluates with the
+the physics that generated the demonstrations. Version 6 evaluates with the
 batched implementation in `tools/vector_env/` (§2), which runs the same RK45
 algorithm on every episode at once:
 
@@ -244,43 +275,34 @@ values below. Nothing else is tuned.
 | **CCIL-filtered** | secondary | CCIL labels filtered by the paper's DisturbedAction label-error score (Def. 4.6, the `disturbed_action_paper_proxy` profile), keeping those at or below the 0.3 selection quantile, which is the label-filtering branch's value (`certificate.selection_quantile 0.3`, score admission). It shares CCIL's dynamics model and labels. |
 | **CCIL-noLip** | secondary ablation | CCIL with `transition_model.lipschitz_type none` (the ablation in `scripts/pendulum.sh`) |
 | **CCIL-tuned** | secondary | CCIL with `generation.action_noise_std` chosen as in §6. Every other setting, including the support radius, is CCIL's. |
-| **BC-modern** | secondary (version 5) | BC with the modern recipe below, its learning rate chosen as in §6 |
-| **CCIL-modern** | secondary (version 5) | CCIL (labels and balancing as the CCIL arm) with the modern recipe below, its learning rate chosen as in §6 |
+| **BC-modern** | secondary (version 6) | BC with the modern recipe below, its learning rate chosen as in §6 |
+| **CCIL-modern** | secondary (version 6) | CCIL (labels and balancing as the CCIL arm) with the modern recipe below, its learning rate chosen as in §6 |
 
 **Shared policy settings:** the experimental vector harness (#89), trained
 by trainer v2 (`policy.trainer_version 2`), with batch 512, 100 epochs (÷20
 when balanced), learning rate 1e-3, [256, 256], and standard and min_max
-scalers. Dynamics models fit with `transition_model.trainer_version 2`. Balancing is the configuration's for the
+scalers. Dynamics models fit with `transition_model.trainer_version 2` and
+`transition_model.lipschitz_coordinates model_normalized`. Balancing is the configuration's for the
 CCIL arms; BC and NoiseBC never balance
 (`policy.balance_noisy_labels false`).
 
-**CCIL-noLip on continuous Pendulum, stated before any version 5 run.** At
-the paper's continuous settings (`soft_sampling`, constraint 2.0, ε = 3e-4),
-the Lipschitz penalty is never active:
-- **The evidence.** In the dev timing runs of the version 5 stack, the
-  recorded penalty is exactly 0 in every epoch of every continuous fit.
-- **Why.** The finite-difference ratio of the trained residual model peaks
-  near 0.24, against the bound of 2.0. A one-step residual over dt = 0.02
-  has a small Lipschitz constant.
-- **The consequence.** CCIL-noLip and CCIL then train the same model:
-  - under trainer v1, bit for bit;
-  - with batched fits, differing only by compiled-kernel rounding.
-
-  So **CCIL-noLip − CCIL on continuous Pendulum is expected to be null by
-  construction.** It is reported, and it is not read as evidence about
-  Lipschitz regularization.
-
-The ablation does act on discontinuous Pendulum, whose `slack` regularizer
-reweights every sample.
-
-**Why this differs from the paper's ablation.** Legacy's soft-sampling term,
-which #21 corrected, compared the normalized residual with the next-state
-prediction, against 2 times the norm of the unscaled noise. At the same
-trained weights, that term is active on about 29% of samples. So the
-paper's continuous "no Lipschitz" ablation removed a different term than
-its name says.
-
-These are training diagnostics only. No return was used.
+**The Lipschitz ablation (CCIL-noLip).** CCIL's dynamics model uses the
+configuration's regularizer: `soft_sampling` on continuous Pendulum and
+`slack` on discontinuous. CCIL-noLip removes it (`lipschitz_type none`).
+- **Continuous Pendulum.** The `soft_sampling` ratio is measured in the
+  model's normalized coordinates (`transition_model.lipschitz_coordinates
+  model_normalized`, #125). Its constraint (2), ε (3e-4) and penalty weight
+  are the paper's. CCIL − CCIL-noLip is then the actual Lipschitz ablation.
+- **No raw-coordinate arm.** In raw coordinates the penalty is never active
+  on this task, so such an arm would train the same model as CCIL-noLip.
+- **Legacy differed again.** Legacy's term, corrected in #21, mixed the two
+  spaces: it compared the normalized residual with the next-state
+  prediction, against 2 times the norm of the unscaled noise. So the paper's
+  continuous ablation removed a different term than this one; the comparison
+  with paper Fig. 4(c) reports this.
+- **A regularizer, not a certified bound.** The penalty is a training
+  regularizer. Its constraint is never used as a certified bound, and the
+  CCIL-filtered certificates recompute model bounds from the weights (#125).
 
 **The modern recipe** (#115), for BC-modern and CCIL-modern only. Each value
 is a fixed design choice, with the reason for it; only the learning rate is
@@ -309,7 +331,7 @@ NoiseBC, so that CCIL − NoiseBC can also be read with both sides tuned.
 
 ## 6. Seeds and tuning
 
-**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale and the
+**Tuning seeds 11–13** (version 4: 1–3). These are used only to choose the NoiseBC scale and the
 CCIL-tuned action noise, **separately per task**. Each search has five values:
 
 | Arm | Parameter | Grid |
@@ -325,8 +347,9 @@ and searching it would give CCIL-tuned a larger budget than NoiseBC.
 
 For each arm and task:
 - **Selection:** for NoiseBC and CCIL-tuned, the value with the highest mean
-  noise-free return over seeds 1–3. For BC-modern and CCIL-modern, the value
-  with the lowest mean selected-checkpoint validation loss over seeds 1–3.
+  noise-free return over the tuning seeds. For BC-modern and CCIL-modern, the
+  value with the lowest mean selected-checkpoint validation loss over the
+  tuning seeds.
   Ties go to the smaller value.
 - **Order, for the modern arms.** Their tuning runs compute no return. The
   choice is computed from validation losses and written once to the run
@@ -341,7 +364,7 @@ For each arm and task:
   CCIL-tuned's label acceptance rate.
 - Both choices are committed to the run record before any study seed runs.
 
-**Study seeds 101–120** (20 seeds). Each seed runs one complete pipeline per
+**Study seeds 1201–1220** (20 seeds; version 4: 101–120). Each seed runs one complete pipeline per
 arm: the dynamics fit, labels, the policy, and evaluation. Tuning seeds are
 never reported as study results.
 
@@ -371,7 +394,7 @@ never reported as study results.
       (mean and quantiles per seed), compared descriptively with the paper's
       reported empirical mean of 0.02367 and bound of 0.065. It is measured
       on 10,000 accepted labels per CCIL unit (all of them if fewer), drawn
-      without replacement by `default_rng(SeedSequence([s, 10]))`. Version 5
+      without replacement by `default_rng(SeedSequence([s, 10]))`. Version 6
       takes the environment step with the batched integrator (§3), one call for
       all sampled labels.
 
@@ -460,7 +483,7 @@ multiplicity claim.
 ## 9. Failures
 
 **Infrastructure faults** (out of memory, a lost host, a killed process) are
-rerun once, with identical inputs. (Version 5: a training group that runs out
+rerun once, with identical inputs. (Version 6: a training group that runs out
 of device memory is first split in half and retried, down to single units;
 only a single unit's memory exhaustion is a fault.) A second fault excludes that seed for that
 arm, and the exclusion is reported.
@@ -497,8 +520,8 @@ above.
 
 ## 11. Tooling freeze
 
-**Version 5:** to be recorded by a pull request that changes nothing else,
-merged before the first version 5 tuning run. It names the frozen tooling
+**Version 6:** to be recorded by a pull request that changes nothing else,
+merged before the first version 6 tuning run. It names the frozen tooling
 and `ccil` commits in `tools/m3_experiments/freeze.json` and lists the §2 and
 §3 evidence, generated from one clean commit on each host.
 
