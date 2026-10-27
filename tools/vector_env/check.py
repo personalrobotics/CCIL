@@ -16,10 +16,15 @@
 4. Audit compatibility: the batched rollouts pass the #24 audit (rewards,
    returns, R, horizon, initial states, noise; replay off), and a batched
    replay reproduces every transition bit for bit.
-5. Gymnasium adapter: driving the VectorEnv with the linear policy gives the
+5. A failing episode: a policy that returns a non-finite action for episode 7 at step 200 (otherwise the linear
+   policy), on both tasks at noise 0 and 0.1. The batched rollout equals the canonical one; only episode 7 is a
+   recorded failure (the same NaN positions, states within 1e-12, as in 3); its prefix equals the rollout without the failure and every later step, and its return,
+   are NaN; every other episode is bit-identical to the rollout without the failure; and the saved rollout
+   passes the independent audit as a recorded algorithmic failure, with the batched replay.
+6. Gymnasium adapter: driving the VectorEnv with the linear policy gives the
    batched rollout's states and rewards exactly, truncates at 500 steps, and
    refuses a reset without a seed.
-6. Timing, reported: one rollout and the 300k-transition replay, canonical
+7. Timing, reported: one rollout and the 300k-transition replay, canonical
    against batched.
 Writes DIR/report.json and DIR/rollouts/.
 """
@@ -113,7 +118,54 @@ def main():
                                       and r["flips"][0] == r["flips"][1] for r in rows), rollouts=rows)
     record("audit_and_batched_replay", all(x["audit_ok"] and x["replay_mismatches"] == 0 for x in audits), audits=audits)
 
-    # 5. The Gymnasium adapter.
+    # 5. A non-finite action for one episode partway through.
+    FAIL_EP, FAIL_STEP = 7, 200
+
+    def failing():
+        calls = [0]
+
+        def policy(o):
+            act = POLICIES["linear"](o)
+            if calls[0] == FAIL_STEP:  # every episode is alive until now, so row FAIL_EP is episode FAIL_EP
+                act[FAIL_EP] = np.nan
+            calls[0] += 1
+            return act
+        return policy
+    rows = []
+    for task in canonical.TASKS:
+        for n in (0.0, 0.1):
+            ref = canonical.rollout(failing(), task, SEED, n)
+            got = vp.rollout(failing(), task, SEED, n)
+            clean = vp.rollout(POLICIES["linear"], task, SEED, n)
+            path = out / "rollouts" / f"{task}-failing-noise{n}.npz"
+            canonical.save(got, path)
+            au = auditor.audit(path, replay=False)
+            others = np.setdiff1d(np.arange(canonical.EPISODES), [FAIL_EP])
+            st, cl = got["states"], clean["states"]
+            row = {"task": task, "noise": n,
+                   "equals_canonical": bool(np.array_equal(ref["failed_episodes"], got["failed_episodes"])
+                                            and all(np.array_equal(np.isnan(ref[k]), np.isnan(got[k]))
+                                                    and np.nanmax(np.abs(ref[k] - got[k])) <= 1e-12
+                                                    for k in ("states", "actions"))),
+                   "failed_episodes": got["failed_episodes"].tolist(),
+                   "prefix_equal": bool(np.array_equal(st[FAIL_EP, :FAIL_STEP + 1], cl[FAIL_EP, :FAIL_STEP + 1])),
+                   "suffix_nan": bool(np.isnan(st[FAIL_EP, FAIL_STEP + 1:]).all()
+                                      and np.isnan(got["actions"][FAIL_EP, FAIL_STEP:]).all()
+                                      and np.isnan(got["rewards"][FAIL_EP, FAIL_STEP:]).all()),
+                   "return_nan": bool(np.isnan(got["returns"][FAIL_EP]) and np.isnan(got["R"])),
+                   "others_unchanged": bool(np.array_equal(st[others], cl[others])
+                                            and np.array_equal(got["returns"][others], clean["returns"][others])),
+                   "audit_ok": au["ok"], "audit_failed_episodes": au["failed_episodes"],
+                   "audit_R_recomputed_nan": bool(np.isnan(au["R_recomputed"])),
+                   "replay_mismatches": vp.replay_mismatches(got, task)}
+            row["ok"] = (row["equals_canonical"] and row["failed_episodes"] == [FAIL_EP] and row["prefix_equal"]
+                         and row["suffix_nan"] and row["return_nan"] and row["others_unchanged"] and row["audit_ok"]
+                         and row["audit_failed_episodes"] == [FAIL_EP] and row["audit_R_recomputed_nan"]
+                         and row["replay_mismatches"] == 0)
+            rows.append(row)
+    record("failing_episode", all(r["ok"] for r in rows), episode=FAIL_EP, step=FAIL_STEP, rollouts=rows)
+
+    # 6. The Gymnasium adapter.
     venv = vp.vector_env("discontinuous")
     obs, _ = venv.reset(seed=SEED)
     states, rewards, trunc = [obs], [], None
