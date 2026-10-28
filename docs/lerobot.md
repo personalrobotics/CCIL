@@ -100,7 +100,19 @@ and 3.12.
 
 | Release | CCIL → LeRobot | LeRobot → CCIL | Training | Supported |
 |---|---|---|---|---|
-| *filled from the evidence report* | | | | |
+| 0.4.0 | pass | pass | pass | **yes** |
+| 0.4.1 | pass | pass | pass | **yes** |
+| 0.4.2 | pass | pass | pass | **yes** |
+| 0.4.3 | pass | pass | pass | **yes** |
+| 0.4.4 | pass | pass | pass | **yes** |
+| 0.5.0 | pass | pass | pass | **yes** |
+| 0.5.1 | pass | pass | pass | **yes** |
+| 0.6.0 | pass | pass | pass | **yes** |
+| 0.6.1 | pass | pass | pass | **yes** |
+| 0.3.3 | fail | fail (writes v2.1, refused) | fail | no |
+
+Tested from commit `31f29ad` on macOS (arm64), Python 3.12 environments, each with the versions it resolved
+(recorded in the report).
 
 The range grows only when a new release passes both directions. If a release
 fails, the bridge is fixed or the release stays unlisted. We do not promise
