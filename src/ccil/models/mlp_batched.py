@@ -35,7 +35,7 @@ from torch.utils._pytree import tree_map
 
 from ..training.vector_bc_v2 import (CUDA_GRAPHS, _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64,
                                      _Streams)
-from .mlp import DynamicsNet, MLPTransitionModel, lipschitz_record, one_step_metrics
+from .mlp import MLPTransitionModel, lipschitz_record, one_step_metrics
 
 SUPPORTED = ("none", "slack", "soft_sampling", "soft_sampling_slack")
 _PERTURB = _s64(0x50455254 << 32)  # domain separation of the perturbation draws
