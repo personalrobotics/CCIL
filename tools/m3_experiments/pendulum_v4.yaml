@@ -1,0 +1,28 @@
+# The #24 predeclaration v4 design (tools/m3_pendulum/study.py), as a ccil.experiments plan.
+study: pendulum-ccil
+version: 4
+tasks: [continuous, discontinuous]
+phases:
+  tuning: {seeds: [1, 2, 3], arms: [noise_bc, ccil_tuned], tuning: true}
+  study: {seeds: {from: 101, to: 120}, arms: all}
+arms:
+  bc: {settings: [policy.method=bc, policy.balance_noisy_labels=false], noise_levels: [0.0, 0.01, 0.05, 0.1]}
+  ccil: {settings: [policy.method=ccil], noise_levels: [0.0, 0.01, 0.05, 0.1]}
+  noise_bc: {settings: [policy.method=noise_bc, policy.noise_model=symmetric_uniform_half_batch,
+                        policy.balance_noisy_labels=false],
+             noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: policy.noise_scale}
+  ccil_filtered: {settings: [policy.method=ccil, certificate.profile=disturbed_action_paper_proxy,
+                             certificate.selection_quantile=0.3]}
+  ccil_nolip: {settings: [policy.method=ccil, transition_model.lipschitz_type=none]}
+  ccil_tuned: {settings: [policy.method=ccil], noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: generation.action_noise_std}
+  bc_frac10: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.1}
+  bc_frac25: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.25}
+  bc_frac50: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.5}
+  ccil_frac10: {settings: [policy.method=ccil], data_fraction: 0.1}
+  ccil_frac25: {settings: [policy.method=ccil], data_fraction: 0.25}
+  ccil_frac50: {settings: [policy.method=ccil], data_fraction: 0.5}
+  zero: {train: false, noise_levels: [0.0, 0.01, 0.05, 0.1]}
+tuning:
+  noise_bc: {grid: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1]}
+  ccil_tuned: {grid: {continuous: [1.0e-5, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1],
+                      discontinuous: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1]}}

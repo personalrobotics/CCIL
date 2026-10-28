@@ -77,17 +77,16 @@ def settings_of(v) -> dict:
                                              "validation_interval_steps")}}
 
 
-def run_policy_harness(cfg, trained=None) -> list[StageResult]:
-    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+def unit_supervision(cfg):
+    """A unit's label stages (reused when complete) and what its policy trains on.
 
-    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
-    unit's (policy, record) instead of training here; it needs policy.trainer_version 2.
+    Returns (stage results, inputs, supervision, NoiseBC or None, held-out supervision or None). Study runners
+    call it to train many units together on exactly the supervision run_policy_harness would build.
     """
     v = cfg.values
     problems = harness_problems(v)
     if problems:
         raise ConfigError(problems)
-    vector_bc = _trainer_module()
     from ..training.noise_bc import NoiseBC
     results = generate_offline(cfg)
     prepared, labeled = results[0], results[2]
@@ -101,21 +100,36 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
         inputs["candidates"] = labeled.out(layout.CANDIDATES)
         if certified is not None:
             inputs["certificates"] = certified.out(layout.CERTIFICATES)
+    sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
+                            candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
+                            split=inputs.get("split"), demonstration_weight=v["policy.demonstration_weight"])
+    noise = None
+    if v["policy.method"] == "noise_bc":
+        noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
+                        mask_probability=v["policy.noise_mask_probability"],
+                        units="standardized observation units (after the observation scaler)")
+    held = None
+    if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
+        held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
+                                 demonstration_weight=v["policy.demonstration_weight"])
+    return results, inputs, sup, noise, held
+
+
+def run_policy_harness(cfg, trained=None, unit=None) -> list[StageResult]:
+    """Run the label stages (reused when complete), then policy.train and policy.evaluate.
+
+    trained, from a study runner that trained many units together (vector_bc_v2.train_group), supplies this
+    unit's (policy, record) instead of training here; it needs policy.trainer_version 2. unit is the runner's
+    unit_supervision(cfg), so the supervision is not built twice.
+    """
+    v = cfg.values
+    vector_bc = _trainer_module()
+    results, inputs, sup, noise, held = unit if unit is not None else unit_supervision(cfg)
+    rep = IdentityRepresentation(v["representation.modality"])
+    split_path = results[0].out(layout.SPLIT)
 
     def train(run):
-        sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
-                                candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
-                                split=inputs.get("split"), demonstration_weight=v["policy.demonstration_weight"])
         dump_json(sup.manifest(), run.path(SUPERVISION))
-        noise = None
-        if v["policy.method"] == "noise_bc":
-            noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],
-                            mask_probability=v["policy.noise_mask_probability"],
-                            units="standardized observation units (after the observation scaler)")
-        held = None
-        if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations (#115)
-            held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
-                                     demonstration_weight=v["policy.demonstration_weight"])
         # An interrupted policy.train restarts from scratch: training is deterministic, so a rerun reproduces it.
         if trained is not None:
             if v["policy.trainer_version"] != "2":
@@ -149,8 +163,8 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
         run.metrics({"experimental": True, "supervision": sup.manifest(), "training": record})
         run.log(f"trained {record['trainer']} ({v['policy.method']}) on {record['rows']} rows for "
                 f"{record['epochs_run']} epochs")
-    trained = run_stage("policy.train", cfg, inputs, train, components={"trainer": VectorMLP()})
-    eval_inputs = {**inputs, "policy": trained.out(POLICY_CHECKPOINT)}
+    train_result = run_stage("policy.train", cfg, inputs, train, components={"trainer": VectorMLP()})
+    eval_inputs = {**inputs, "policy": train_result.out(POLICY_CHECKPOINT)}
     if split_path.exists():
         eval_inputs["split"] = split_path  # evaluated on both splits even when training used every episode
 
@@ -179,4 +193,4 @@ def run_policy_harness(cfg, trained=None) -> list[StageResult]:
                 metrics[f"{part}_transitions"] = int(m.sum())
         run.metrics(metrics)
     evaluated = run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": VectorMLP()})
-    return [*results, trained, evaluated]
+    return [*results, train_result, evaluated]
