@@ -119,7 +119,8 @@ def export_overlay(source, destination, supervision, *, conversion_manifest, run
     chunked = supervision.action_chunks is not None
     if chunked:
         ch = np.asarray(supervision.action_chunks)[synthetic]
-        cols["action_chunk"] = ch.reshape(len(ch), -1).astype(np.dtype(info["features"]["action"]["dtype"]))
+        cols["action_chunk"] = ch.reshape(len(ch), int(np.prod(ch.shape[1:]))).astype(
+            np.dtype(info["features"]["action"]["dtype"]))  # explicit K * A: zero labels must still reshape
         cols["action_chunk_mask"] = np.asarray(supervision.action_chunk_mask)[synthetic].astype(bool)
     else:
         cols["action"] = np.asarray(supervision.actions)[synthetic].astype(np.dtype(info["features"]["action"]["dtype"]))

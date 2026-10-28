@@ -1,0 +1,961 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "ccil_writes_deterministically_and_reads_back",
+   "files": {
+    "data/chunk-000/file-000.parquet": "11a469856f8ddebdc49ebdfbf7bf9fcf53235ea01ca755a2cf3c226df1166f40",
+    "data/chunk-000/file-001.parquet": "f4a3abe37a4614f9f965d7c15536690548e41961946a77c27031d7d632f22a30",
+    "data/chunk-000/file-002.parquet": "bbd582ad3a2a52381841701f0352386958bc8625dce6b7bc8a5b836f952f5ca0",
+    "data/chunk-000/file-003.parquet": "8bf63176536db992f7268b863d915b012f70d225052c17a6014d93fa994b4659",
+    "meta/episodes/chunk-000/file-000.parquet": "1570106e0ec4bbad1b4fbc4358bce69d61a16a42e790ef05c050d2b24d51e147",
+    "meta/info.json": "283e744583768802d9fd775b5b1d07ecb01b180d7fc1f26ad2f3435820035813",
+    "meta/stats.json": "5a578ed74a425faa30a3742cdc1d4d7e77b2a0daa9869869fe17efccb1b8fb10",
+    "meta/tasks.parquet": "c4cf82ff2721385e6b5a6a23c0ede71e65b73ce37f1930a428ec4f3da267153e"
+   },
+   "pass": true,
+   "shards": [
+    "data/chunk-000/file-000.parquet",
+    "data/chunk-000/file-001.parquet",
+    "data/chunk-000/file-002.parquet",
+    "data/chunk-000/file-003.parquet"
+   ]
+  },
+  {
+   "case": "compatibility_matrix",
+   "matrix": {
+    "0.3.3": {
+     "installed": {
+      "datasets": "3.6.0",
+      "lerobot": "0.3.3",
+      "numpy": "2.5.4",
+      "pyarrow": "26.0.0",
+      "torch": "2.7.1"
+     },
+     "read_direction": false,
+     "read_error": "Traceback (most recent call last):\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <module>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <lambda>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n                                                                      ^^^^^^^^^^^^^^^^^^\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 60, in write\n    ds.add_frame({\"observation.state\": np.array([v, v + 0.25, -v], np.float32),\nTypeError: LeRobotDataset.add_frame() missing 1 required positional argument: 'task'\n",
+     "supported": false,
+     "training": false,
+     "training_error": "nvs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n",
+     "write_direction": false,
+     "write_error": "nvs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n"
+    },
+    "0.4.0": {
+     "installed": {
+      "datasets": "4.1.1",
+      "lerobot": "0.4.0",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.7.1"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.4.1": {
+     "installed": {
+      "datasets": "4.1.1",
+      "lerobot": "0.4.1",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.7.1"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.4.2": {
+     "installed": {
+      "datasets": "4.1.1",
+      "lerobot": "0.4.2",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.7.1"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.4.3": {
+     "installed": {
+      "datasets": "4.1.1",
+      "lerobot": "0.4.3",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.7.1"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.4.4": {
+     "installed": {
+      "datasets": "4.8.5",
+      "lerobot": "0.4.4",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.10.0"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.5.0": {
+     "installed": {
+      "datasets": "4.8.5",
+      "lerobot": "0.5.0",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.10.0"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.5.1": {
+     "installed": {
+      "datasets": "4.8.5",
+      "lerobot": "0.5.1",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.10.0"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.6.0": {
+     "installed": {
+      "datasets": "4.8.5",
+      "lerobot": "0.6.0",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.11.0"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    },
+    "0.6.1": {
+     "installed": {
+      "datasets": "4.8.5",
+      "lerobot": "0.6.1",
+      "numpy": "2.2.6",
+      "pyarrow": "26.0.0",
+      "torch": "2.11.0"
+     },
+     "read_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries_agree_with_lerobot": true,
+      "episodes_and_order": true,
+      "pass": true,
+      "stats_agree_with_lerobot": true,
+      "tasks": true,
+      "timestamps": true,
+      "values": true,
+      "values_agree_with_lerobot": true
+     },
+     "read_direction": true,
+     "supported": true,
+     "training": true,
+     "training_detail": {
+      "finite": true,
+      "loss_first": 1.0527432918548585,
+      "loss_last": 0.003014604467898607,
+      "steps": 3760
+     },
+     "write_detail": {
+      "dtypes_and_shapes": true,
+      "episode_boundaries": true,
+      "frames": true,
+      "pass": true,
+      "quantiles_max_abs_difference_reported": {
+       "action/q01": 0.10940365665032692,
+       "action/q10": 0.01314509398268604,
+       "action/q50": 0.0032961475449304095,
+       "action/q90": 0.012746841389579266,
+       "action/q99": 0.09774472221821329,
+       "episode_index/q01": 0.0,
+       "episode_index/q10": 3.552713678800501e-15,
+       "episode_index/q50": 1.7763568394002505e-14,
+       "episode_index/q90": 3.197442310920451e-14,
+       "episode_index/q99": 3.907985046680551e-14,
+       "frame_index/q01": 0.49092445851501165,
+       "frame_index/q10": 0.42061294751887957,
+       "frame_index/q50": 0.2126665003328867,
+       "frame_index/q90": 0.3425435862413906,
+       "frame_index/q99": 0.4750362349621753,
+       "index/q01": 0.490924458516929,
+       "index/q10": 0.4206129475196576,
+       "index/q50": 0.2126665003333983,
+       "index/q90": 0.3425435862427548,
+       "index/q99": 0.4750362349641364,
+       "observation.env/q01": 0.10278307233950157,
+       "observation.env/q10": 0.015246752288170073,
+       "observation.env/q50": 0.003944979930617186,
+       "observation.env/q90": 0.012823686697684078,
+       "observation.env/q99": 0.10350919412836967,
+       "observation.state/q01": 0.1138797015348274,
+       "observation.state/q10": 0.01546653952704835,
+       "observation.state/q50": 0.004592095667910942,
+       "observation.state/q90": 0.013006284239088783,
+       "observation.state/q99": 0.09779282899792818,
+       "task_index/q01": 2.7755575615628914e-16,
+       "task_index/q10": 4.052314039881821e-15,
+       "task_index/q50": 1.992850329202156e-14,
+       "task_index/q90": 3.597122599785507e-14,
+       "task_index/q99": 3.9468428525424315e-14,
+       "timestamp/q01": 0.024546224434360636,
+       "timestamp/q10": 0.021030639768816806,
+       "timestamp/q50": 0.010813679960039124,
+       "timestamp/q90": 0.017391482913645007,
+       "timestamp/q99": 0.023751872715278566
+      },
+      "stats_match_lerobot": true,
+      "stored_stats_read_as_written": true,
+      "tasks": true,
+      "values_and_order": true
+     },
+     "write_direction": true
+    }
+   },
+   "pass": true,
+   "supported": [
+    "0.4.0",
+    "0.4.1",
+    "0.4.2",
+    "0.4.3",
+    "0.4.4",
+    "0.5.0",
+    "0.5.1",
+    "0.6.0",
+    "0.6.1"
+   ],
+   "unsupported": {
+    "0.3.3": [
+     "write_direction",
+     "read_direction",
+     "training"
+    ]
+   }
+  },
+  {
+   "case": "refusals",
+   "depth_modality": {
+    "message": "<out>/refusals/refuse-depth_modality: feature 'observation.depth' (float32) is an image, video, depth or audio modality: not supported until image CCIL (M5)",
+    "refused": true
+   },
+   "future_version": {
+    "message": "<out>/refusals/refuse-future_version/meta/info.json: codebase_version 'v3.1' is not supported; this bridge reads v3.0 only",
+    "refused": true
+   },
+   "ignored_feature_read_and_recorded": {
+    "refused": true
+   },
+   "inconsistent_offsets": {
+    "message": "lerobot/runs/20261028T014456Z-130-m4_lerobot/refusals/refuse-inconsistent_offsets/meta/episodes: episode 0: offsets [1, 5) are not contiguous from 0 with length 5; episode 1: offsets [6, 12) are not contiguous from 5 with length 7; episode 2: offsets [13, 16) are not contiguous from 12 with length 4",
+    "refused": true
+   },
+   "missing_fields": {
+    "message": "<out>/refusals/refuse-missing_fields/meta/info.json: data_path is missing or not a <class 'str'>",
+    "refused": true
+   },
+   "missing_shard": {
+    "message": "<out>/refusals/refuse-missing_shard: data shard data/chunk-000/file-000.parquet (episodes 0-2) is missing",
+    "refused": true
+   },
+   "multi_task_episode": {
+    "message": "<out>/refusals/refuse-multi_task_episode/data/chunk-000/file-000.parquet: episode 0: 2 tasks within one episode; ccil.trajectories has one task per episode",
+    "refused": true
+   },
+   "pass": true,
+   "path_leaves_dataset": {
+    "message": "<out>/refusals/refuse-path_leaves_dataset: data shard '../escape/chunk-000/file-000.parquet' is not a relative path inside the dataset",
+    "refused": true
+   },
+   "unknown_version": {
+    "message": "<out>/refusals/refuse-unknown_version/meta/info.json: codebase_version 'v2.1' is not supported; this bridge reads v3.0 only",
+    "refused": true
+   },
+   "unmapped_feature": {
+    "message": "<out>/refusals/refuse-unmapped_feature: feature 'next.reward' (float32) has no CCIL slot; name it in ignore to read without it",
+    "refused": true
+   },
+   "unreadable_info": {
+    "message": "<out>/refusals/refuse-unreadable_info/meta/info.json: unreadable JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+    "refused": true
+   },
+   "video_modality": {
+    "message": "<out>/refusals/refuse-video_modality: feature 'observation.images.top' (video) is an image, video, depth or audio modality: not supported until image CCIL (M5)",
+    "refused": true
+   },
+   "write_existing_destination": {
+    "message": "<out>/ccil-written exists; LeRobot datasets are written once",
+    "refused": true
+   },
+   "write_image": {
+    "message": "write: modality 'image.top': images are not supported until image CCIL (M5)",
+    "refused": true
+   },
+   "write_off_rate_timestamps": {
+    "message": "write: episode 0: timestamps do not advance by 1 / fps = 0.05 s (max error 0.02 s)",
+    "refused": true
+   }
+  },
+  {
+   "case": "install_boundary",
+   "core": {
+    "forbidden_installed": [],
+    "guidance": "the LeRobot format bridge needs the ccil[lerobot] extra: pip install 'ccil[lerobot]' (it installs CCIL's LeRobot Dataset v3.0 format bridge: pyarrow, and huggingface_hub on Python 3.11+; it does not install the LeRobot runtime)",
+    "install_exit": 0,
+    "ok": true,
+    "pyarrow_absent": true
+   },
+   "extra": {
+    "forbidden_installed": [],
+    "install_exit": 0,
+    "ok": true,
+    "round_trip": {
+     "equal": true,
+     "fetch_guidance": null,
+     "huggingface_hub": "2.3.0",
+     "pyarrow": "26.0.0"
+    }
+   },
+   "minimum_py310": {
+    "forbidden_installed": [],
+    "install_exit": 0,
+    "ok": true,
+    "round_trip": {
+     "equal": true,
+     "fetch_guidance": "the LeRobot format bridge needs the ccil[lerobot] extra: pip install 'ccil[lerobot]' (it installs CCIL's LeRobot Dataset v3.0 format bridge: pyarrow, and huggingface_hub on Python 3.11+; it does not install the LeRobot runtime); Hub access needs Python 3.11+ (the bridge itself works on local directories on 3.10)",
+     "huggingface_hub": null,
+     "pyarrow": "21.0.0"
+    }
+   },
+   "minimum_py312": {
+    "forbidden_installed": [],
+    "install_exit": 0,
+    "ok": true,
+    "round_trip": {
+     "equal": true,
+     "fetch_guidance": null,
+     "huggingface_hub": "1.0.0",
+     "pyarrow": "21.0.0"
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "hub_dataset_read_with_named_ignores",
+   "episodes": 206,
+   "feature_map": {
+    "action": "action",
+    "observation.environment_state": "state.environment_state",
+    "observation.state": "state"
+   },
+   "features": [
+    "action",
+    "episode_index",
+    "frame_index",
+    "index",
+    "next.done",
+    "next.reward",
+    "next.success",
+    "observation.environment_state",
+    "observation.state",
+    "task_index",
+    "timestamp"
+   ],
+   "frames": 25650,
+   "ignored": [
+    "next.done",
+    "next.reward",
+    "next.success"
+   ],
+   "pass": true,
+   "read_as_is": false,
+   "refusal": "<out>/hub-work/hub: feature 'next.reward' (float32) has no CCIL slot; name it in ignore to read without it; feature 'next.done' (bool) has no CCIL slot; name it in ignore to read without it; feature 'next.success' (bool) has no CCIL slot; name it in ignore to read without it",
+   "repo_id": "lerobot/pusht_keypoints",
+   "revision": "ace8c161a68bc025c21a5f29f85b86a9a2c5e64b"
+  }
+ ],
+ "environment": {
+  "code_commit": "fc78a4a27a3e414376bc1df25783b815cf99b0ba",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "supported_releases": [
+  "0.4.0",
+  "0.4.1",
+  "0.4.2",
+  "0.4.3",
+  "0.4.4",
+  "0.5.0",
+  "0.5.1",
+  "0.6.0",
+  "0.6.1"
+ ]
+}

@@ -192,11 +192,13 @@ def main():
         r = ccil_side(src_tree, src, dest, meta, sup, cands)
         record(f"overlay_{name}", r.pop("pass"), **r)
     # Zero accepted labels is an outcome, not an error: a valid, empty overlay.
-    none = bundle(out / "none", src, conv, None, extra=("generation.support_radius=1e-12",))
-    m, rows = read_overlay(none[0])
-    record("zero_accepted_labels_give_an_empty_overlay", m["rows"] == 0 and len(rows["candidate_row"]) == 0
-           and int((~none[3].accepted).sum()) == len(none[3].accepted) > 0 and tree(none[0], skip="ccil") == src_tree
-           and m["classifications"] == {}, candidates=int(len(none[3].accepted)), rows=m["rows"], columns=m["columns"])
+    for name, chunk in (("none", None), ("none-chunked", CHUNK)):  # with chunks too: an empty (0, K, A) reshapes
+        none = bundle(out / name, src, conv, chunk, extra=("generation.support_radius=1e-12",))
+        m, rows = read_overlay(none[0])
+        record(f"zero_accepted_labels_give_an_empty_overlay[{'chunked' if chunk else 'single'}]", m["rows"] == 0
+               and len(rows["candidate_row"]) == 0 and int((~none[3].accepted).sum()) == len(none[3].accepted) > 0
+               and tree(none[0], skip="ccil") == src_tree and m["classifications"] == {},
+               candidates=int(len(none[3].accepted)), rows=m["rows"], columns=m["columns"])
     r = refusals(out / "single", src, conv, single[2], single[3], single[4], single[0])
     record("refusals", r.pop("pass"), **r)
 
