@@ -76,6 +76,18 @@ def temporal(dest, out, k):
     json.dump(res, open(out, "w"))
 
 
+def mismatch(root, out):
+    """A LeRobot dataset carrying another dataset's overlay: CCIL's training dataset must refuse it."""
+    from ccil.lerobot import LeRobotFormatError
+    try:
+        CCILTrainingDataset(LeRobotDataset("ccil/mismatch", root=root))
+        res = {"refused": False}
+    except LeRobotFormatError as e:
+        res = {"refused": "LeRobot portion differs" in str(e), "message": str(e)[-200:]}
+    json.dump(res, open(out, "w"))
+
+
 if __name__ == "__main__":
-    {"stock": lambda: stock(*sys.argv[2:5]), "aware": lambda: aware(*sys.argv[2:4]),
+    {"mismatch": lambda: mismatch(*sys.argv[2:4]),
+     "stock": lambda: stock(*sys.argv[2:5]), "aware": lambda: aware(*sys.argv[2:4]),
      "temporal": lambda: temporal(*sys.argv[2:5])}[sys.argv[1]]()

@@ -10,14 +10,17 @@ by build_supervision, and exported as an overlay bundle. On the CCIL side:
 2. the overlay holds exactly the supervision's synthetic rows (values, weights, candidate rows, source frames,
    classifications), only accepted candidates, the run ID once in ccil/meta.json, and every input hash;
 3. refusals: an existing destination, a source that differs from the conversion manifest, a supervision dataset
-   with no link to the conversion, a non-CCIL supervision; a failed export leaves nothing; a tampered shard or LeRobot
-   portion is refused on reading.
+   with no link to the conversion, a non-CCIL supervision, a candidates file that is not the supervision's, a
+   non-positive rows_per_shard; a failed export leaves nothing; on reading, a tampered shard or LeRobot portion, a
+   shard path that leaves ccil/labels, a shard symlinked to an outside file (never read), malformed or
+   duplicate-key metadata, an unlisted label file, and another dataset carrying the overlay.
 For each LeRobot release (each in its own environment, with ccil's core wheel installed beside it):
 4. stock LeRobot loads the bundle and sees exactly the source's episodes and frames: the overlay is invisible;
 5. CCILTrainingDataset sees every usable label with its weight, the demonstration frames t <= T - 2 of the training
    episodes, and nothing else; its weights, balanced or not, are as recorded;
 6. temporal windows: an observation history is refused; a future-action window is refused without stored chunks,
-   and with them every label's window is exactly its own chunk, never a neighbouring label.
+   and with them every label's window is exactly its own chunk, never a neighbouring label;
+7. a LeRobot dataset carrying another dataset's overlay is refused by CCIL's training dataset.
 Writes DIR/report.json.
 """
 import argparse
@@ -76,9 +79,9 @@ def bundle(work: Path, src: Path, conv: Path, chunk: int | None, extra=()):
                             action_chunks="consume" if chunk else "refuse")  # the chunk size is the candidates'
     cands = read_candidates(cands_path, read_trajectories(prepared / "data" / "dataset.npz"))
     dest = work / "bundle"
-    meta = export_overlay(src, dest, sup, conversion_manifest=conv / "manifest.json", run_id=cands.run_id,
-                          generator=cands.generator, measurements=cands.measurements, prepared_run=prepared)
-    return dest, meta, sup, cands, prepared
+    meta = export_overlay(src, dest, sup, conversion_manifest=conv / "manifest.json", candidates=cands_path,
+                          prepared_run=prepared)
+    return dest, meta, sup, cands, prepared, cands_path
 
 
 def ccil_side(src_tree: dict, src: Path, dest: Path, meta: dict, sup, cands) -> dict:
@@ -111,7 +114,8 @@ def ccil_side(src_tree: dict, src: Path, dest: Path, meta: dict, sup, cands) -> 
             "classifications": m["classifications"], "columns": m["columns"]}
 
 
-def refusals(work: Path, src: Path, conv: Path, sup, cands, prepared, dest: Path) -> dict:
+def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared, dest: Path, other_cands: Path,
+             other_dataset: Path) -> dict:
     res = {}
 
     def attempt(name, fn, expect):
@@ -119,10 +123,10 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands, prepared, dest: Path
         try:
             fn()
             res[name] = {"refused": False}
-        except (LeRobotFormatError, FileExistsError, ValueError, IndexError) as e:
+        except (LeRobotFormatError, FileExistsError, ValueError, OSError) as e:
             res[name] = {"refused": expect in str(e) and sorted(p.name for p in work.iterdir()) == before,
                          "message": str(e)[-250:]}
-    kw = dict(conversion_manifest=conv / "manifest.json", run_id=cands.run_id, generator=cands.generator)
+    kw = dict(conversion_manifest=conv / "manifest.json", candidates=cands_path)
     attempt("existing_destination", lambda: export_overlay(src, dest, sup, prepared_run=prepared, **kw), "exists")
     tampered = work / "tampered-source"
     shutil.copytree(src, tampered)
@@ -138,11 +142,55 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands, prepared, dest: Path
     bc = build_supervision(prepared / "data" / "dataset.npz", "bc", representation=IdentityRepresentation("state"),
                            split=prepared / "data" / "split.json")
     attempt("non_ccil_supervision", lambda: export_overlay(src, work / "o3", bc, prepared_run=prepared, **kw), "method")
-    bad = {"distance": np.zeros(1)}  # too short: fails after the copy has started, inside the staging directory
-    attempt("failed_export_leaves_nothing", lambda: export_overlay(src, work / "o4", sup, prepared_run=prepared,
-                                                                   measurements=bad, **kw), "index")
-    for name, edit in (("tampered_label_shard", lambda d: _flip(next((d / "ccil" / "labels").rglob("*.parquet")))),
-                       ("modified_lerobot_portion", lambda d: _flip(next((d / "data").rglob("*.parquet"))))):
+    attempt("candidates_not_the_supervisions", lambda: export_overlay(src, work / "o5", sup, prepared_run=prepared,
+                                                                      **{**kw, "candidates": other_cands}),
+            "not the one the supervision")
+    attempt("rows_per_shard_not_positive", lambda: export_overlay(src, work / "o6", sup, prepared_run=prepared,
+                                                                  rows_per_shard=0, **kw), "positive integer")
+    from unittest import mock
+
+    def fail_write(*a, **k):
+        raise OSError("injected: a label shard could not be written")
+    with mock.patch("pyarrow.parquet.write_table", fail_write):  # after the LeRobot copy, inside the staging directory
+        attempt("failed_export_leaves_nothing", lambda: export_overlay(src, work / "o4", sup, prepared_run=prepared,
+                                                                       **kw), "injected")
+
+    def meta_edit(f):
+        def edit(d):
+            m = json.loads((d / "ccil" / "meta.json").read_text())
+            f(m)
+            (d / "ccil" / "meta.json").write_text(json.dumps(m))
+        return edit
+
+    def shard_symlink(d):  # the listed shard becomes a symlink to an outside file that is not even Parquet
+        shard = next((d / "ccil" / "labels").rglob("*.parquet"))
+        outside = d.parent / f"outside-{d.name}.parquet"
+        outside.write_text("never read")
+        shard.unlink()
+        shard.symlink_to(outside)
+
+    def relocate(m):
+        rel, digest = next(iter(m["shards"].items()))
+        m["shards"] = {"ccil/labels/../../../outside.parquet": digest}
+
+    def duplicate_keys(d):
+        text = (d / "ccil" / "meta.json").read_text()
+        (d / "ccil" / "meta.json").write_text(text.replace('"rows":', '"rows": 0, "rows":', 1))
+
+    def mismatched_base(d):  # another LeRobot dataset carrying this overlay
+        shutil.rmtree(d)
+        shutil.copytree(other_dataset, d)
+        shutil.copytree(dest / "ccil", d / "ccil")
+    for name, edit, expect in (
+            ("tampered_label_shard", lambda d: _flip(next((d / "ccil" / "labels").rglob("*.parquet"))), "SHA-256"),
+            ("modified_lerobot_portion", lambda d: _flip(next((d / "data").rglob("*.parquet"))), "LeRobot portion"),
+            ("shard_path_leaves_the_overlay", meta_edit(relocate), "not a ccil/labels"),
+            ("shard_symlink_escape_never_read", shard_symlink, "resolves outside"),
+            ("malformed_metadata", meta_edit(lambda m: m.pop("shards")), "shards is missing"),
+            ("duplicate_metadata_keys", duplicate_keys, "duplicate keys"),
+            ("unlisted_label_file", lambda d: (d / "ccil" / "labels" / "chunk-000" / "extra.parquet").write_bytes(b"x"),
+             "unlisted"),
+            ("mismatched_base_dataset", mismatched_base, "LeRobot portion differs")):
         copy = work / f"read-{name}"
         shutil.copytree(dest, copy)
         edit(copy)
@@ -150,7 +198,7 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands, prepared, dest: Path
             read_overlay(copy)
             res[name] = {"refused": False}
         except LeRobotFormatError as e:
-            res[name] = {"refused": True, "message": str(e)[-200:]}
+            res[name] = {"refused": expect in str(e), "message": str(e)[-200:]}
     return {"pass": all(v["refused"] for v in res.values()), **res}
 
 
@@ -188,7 +236,7 @@ def main():
     convert(src, conv / "trajectories.npz", conv / "manifest.json")
     single = bundle(out / "single", src, conv, None)
     chunked = bundle(out / "chunked", src, conv, CHUNK)
-    for name, (dest, meta, sup, cands, _) in (("single", single), ("chunked", chunked)):
+    for name, (dest, meta, sup, cands, _, _) in (("single", single), ("chunked", chunked)):
         r = ccil_side(src_tree, src, dest, meta, sup, cands)
         record(f"overlay_{name}", r.pop("pass"), **r)
     # Zero accepted labels is an outcome, not an error: a valid, empty overlay.
@@ -199,9 +247,17 @@ def main():
                and len(rows["candidate_row"]) == 0 and int((~none[3].accepted).sum()) == len(none[3].accepted) > 0
                and tree(none[0], skip="ccil") == src_tree and m["classifications"] == {},
                candidates=int(len(none[3].accepted)), rows=m["rows"], columns=m["columns"])
-    r = refusals(out / "single", src, conv, single[2], single[3], single[4], single[0])
+    other_src = out / "other-source"  # a different LeRobot dataset: the mismatched-base case
+    oc = fixture(config)
+    for ep in oc.episodes:
+        ep.observations["state"] = ep.observations["state"] + np.float32(0.5)
+    write_dataset(oc, other_src, fps=10)
+    r = refusals(out / "single", src, conv, single[2], single[5], single[4], single[0], chunked[5], other_src)
     record("refusals", r.pop("pass"), **r)
 
+    mixed = out / "mismatched-base"  # another LeRobot dataset carrying the single bundle's overlay
+    shutil.copytree(other_src, mixed)
+    shutil.copytree(single[0] / "ccil", mixed / "ccil")
     dist = out / "dist"
     subprocess.run(["uv", "build", "-q", "--wheel", "--out-dir", str(dist), str(REPO)], check=True)
     wheel = next(dist.glob("ccil-*.whl"))
@@ -220,7 +276,7 @@ def main():
             env = {**os.environ, "HF_HUB_OFFLINE": "1", "HF_LEROBOT_HOME": str(work / "hf-home")}
             return subprocess.run([str(python), str(HERE / "lerobot_side.py"), *map(str, args)], capture_output=True,
                                   text=True, cwd=work, env=env)
-        dest, meta, sup, cands, _ = single
+        dest, meta, sup, cands, _, _ = single
         r = side("stock", dest, src, work / "stock.npz")
         if r.returncode == 0:
             z = dict(np.load(work / "stock.npz", allow_pickle=False))
@@ -254,11 +310,15 @@ def main():
             r = side("temporal", dest_, work / f"temporal-{name}.json", k)
             t[name] = json.loads((work / f"temporal-{name}.json").read_text()) if r.returncode == 0 else {"error": r.stderr[-600:]}
         row["temporal"] = t
+        r = side("mismatch", mixed, work / "mismatch.json")
+        row["mismatched_base_refused"] = (json.loads((work / "mismatch.json").read_text()).get("refused") is True
+                                          if r.returncode == 0 else False)
         row["temporal_fails_closed"] = (t["single"].get("observation_history", {}).get("refused") is True
                                         and t["single"].get("future_actions", {}).get("refused") is True
                                         and t["chunked"].get("observation_history", {}).get("refused") is True
                                         and t["chunked"].get("future_actions", {}).get("windows_are_each_labels_own_chunk") is True)
-        row["pass"] = row["stock_sees_exactly_the_source"] and row["aware_sees_every_label_and_weight"] and row["temporal_fails_closed"]
+        row["pass"] = (row["stock_sees_exactly_the_source"] and row["aware_sees_every_label_and_weight"]
+                       and row["temporal_fails_closed"] and row["mismatched_base_refused"])
         matrix[release] = row
         print(f"  {release}: stock {row['stock_sees_exactly_the_source']} aware {row['aware_sees_every_label_and_weight']} "
               f"temporal {row['temporal_fails_closed']}", flush=True)

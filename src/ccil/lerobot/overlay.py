@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -55,24 +56,35 @@ def _dataset_link(conversion: dict, supervision_dataset: str, prepared_run) -> l
     return problems
 
 
-def export_overlay(source, destination, supervision, *, conversion_manifest, run_id: str, generator: dict,
-                   measurements: dict | None = None, prepared_run=None, rows_per_shard: int = 500_000) -> dict:
+def export_overlay(source, destination, supervision, *, conversion_manifest, candidates, prepared_run=None,
+                   rows_per_shard: int = 500_000) -> dict:
     """Write destination: an unchanged copy of the LeRobot dataset source plus the ccil/ supervision overlay.
 
-    supervision is a ccil.supervision.Supervision (method ccil); measurements maps a measurement name to its
-    per-candidate-row array (the candidates file's measurements), stored for each label's candidate row. The
-    destination is built under a temporary name and moved into place, so it exists only once complete; an existing
-    destination is refused. Returns ccil/meta.json."""
+    supervision is a ccil.supervision.Supervision (method ccil); candidates is the candidates file it was built
+    from. Its SHA-256 must be the one the supervision recorded, and the run ID, generator and measurements are taken
+    from it, never from the caller. The destination is built under a temporary name and moved into place, so it
+    exists only once complete; an existing destination is refused. Returns ccil/meta.json."""
+    from ..schema import read_candidates
     pa, pq = _arrow()
     source, destination = Path(source), Path(destination)
     if destination.exists():
         raise FileExistsError(f"{destination} exists; overlays are written once")
+    if isinstance(rows_per_shard, bool) or not isinstance(rows_per_shard, int) or rows_per_shard < 1:
+        raise ValueError(f"rows_per_shard must be a positive integer, got {rows_per_shard!r}")
     info = read_info(source)
     conversion = json.loads(Path(conversion_manifest).read_text())
     man = supervision.manifest()
     problems = []
-    if man.get("method") != "ccil":
-        problems.append(f"the supervision's method is {man.get('method')!r}; an overlay carries CCIL labels")
+    if man.get("method") != "ccil":  # identified first: a non-CCIL supervision has no candidates to verify
+        raise LeRobotFormatError("overlay", [f"the supervision's method is {man.get('method')!r}; an overlay carries "
+                                             f"CCIL labels"])
+    candidates = Path(candidates)
+    recorded_cands = man.get("inputs", {}).get("candidates")
+    if not candidates.is_file() or _sha256(candidates) != recorded_cands:
+        raise LeRobotFormatError("overlay", [f"the candidates file {candidates.name} is not the one the supervision "
+                                             f"was built from (SHA-256 {str(recorded_cands)[:12]})"])
+    cands = read_candidates(candidates)
+    run_id, generator, measurements = cands.run_id, cands.generator, cands.measurements
     rep = man.get("representation", {})
     if rep.get("kind") != "identity":
         problems.append(f"representation {rep.get('kind')!r}: only identity labels are in a LeRobot feature's space")
@@ -184,18 +196,62 @@ def _sha256_json(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
 
 
+SHARD = re.compile(r"^ccil/labels/chunk-\d{3}/file-\d{3}\.parquet$")
+META_KEYS = {"schema": str, "version": str, "source": dict, "run_id": str, "inputs": dict, "feature_map": dict,
+             "rows": int, "columns": list, "shards": dict, "demonstrations": dict, "supervision": dict}
+
+
+def _no_duplicates(pairs):
+    keys = [k for k, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError(f"duplicate keys {sorted({k for k in keys if keys.count(k) > 1})}")
+    return dict(pairs)
+
+
 def read_overlay(root) -> tuple[dict, dict]:
-    """(ccil/meta.json, {column: array}) of an overlay, verified: every shard has its recorded hash, and the LeRobot
-    portion is unchanged from the source recorded at export."""
+    """(ccil/meta.json, {column: array}) of an overlay, verified before anything it names is opened.
+
+    The metadata's structure is checked first. Every shard path must match ccil/labels/chunk-NNN/file-NNN.parquet,
+    appear once, and resolve (through any symlink) inside ccil/labels; no unlisted file may sit there. Every shard
+    must have its recorded hash, and the LeRobot portion must be the source recorded at export. Any failure is one
+    LeRobotFormatError."""
     _, pq = _arrow()
     root = Path(root)
     path = root / OVERLAY / "meta.json"
     if not path.is_file():
         raise LeRobotFormatError(root, ["no CCIL overlay (ccil/meta.json is missing)"])
-    meta = json.loads(path.read_text())
-    if meta.get("schema") != SCHEMA or str(meta.get("version", "")).split(".")[0] != VERSION.split(".")[0]:
-        raise LeRobotFormatError(path, [f"schema {meta.get('schema')!r} {meta.get('version')!r} is not {SCHEMA} {VERSION}"])
+    try:
+        meta = json.loads(path.read_text(), object_pairs_hook=_no_duplicates)
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        raise LeRobotFormatError(path, [f"unreadable: {e}"]) from e
     problems = []
+    if not isinstance(meta, dict):
+        raise LeRobotFormatError(path, ["not a JSON object"])
+    for key, kind in META_KEYS.items():
+        if not isinstance(meta.get(key), kind) or isinstance(meta.get(key), bool):
+            problems.append(f"{key} is missing or not a {kind.__name__}")
+    if not problems:
+        if meta["schema"] != SCHEMA or meta["version"].split(".")[0] != VERSION.split(".")[0]:
+            problems.append(f"schema {meta['schema']!r} {meta['version']!r} is not {SCHEMA} {VERSION}")
+        if not isinstance(meta["source"].get("files"), dict):
+            problems.append("source.files is missing")
+        labels_root = (root / OVERLAY / "labels").resolve()
+        for rel, digest in meta["shards"].items():
+            if not isinstance(rel, str) or not SHARD.match(rel) or not isinstance(digest, str):
+                problems.append(f"shard {rel!r} is not a ccil/labels/chunk-NNN/file-NNN.parquet path with a hash")
+                continue
+            try:
+                (root / rel).resolve().relative_to(labels_root)
+            except (ValueError, OSError):
+                problems.append(f"shard {rel!r} resolves outside ccil/labels (through a symlink)")
+        if not problems:
+            listed = {(root / rel).resolve() for rel in meta["shards"]}
+            present = {f.resolve() for f in (root / OVERLAY / "labels").rglob("*") if f.is_file() or f.is_symlink()}
+            extra = sorted(str(f) for f in present - listed)
+            if extra:
+                problems.append(f"unlisted files under ccil/labels: {len(extra)}")
+    if problems:
+        raise LeRobotFormatError(path, problems)
     if _tree(root, skip=OVERLAY) != meta["source"]["files"]:
         problems.append("the LeRobot portion differs from the source recorded at export")
     tables = []
@@ -216,6 +272,6 @@ def read_overlay(root) -> tuple[dict, dict]:
             out[name] = col.flatten().to_numpy(zero_copy_only=False).reshape(len(col), col.type.list_size)
         else:
             out[name] = col.to_numpy(zero_copy_only=False)
-    if len(out["candidate_row"]) != meta["rows"]:
-        raise LeRobotFormatError(root, [f"{len(out['candidate_row'])} rows, ccil/meta.json records {meta['rows']}"])
+    if sorted(out) != sorted(meta["columns"]) or len(out.get("candidate_row", ())) != meta["rows"]:
+        raise LeRobotFormatError(root, ["the shards' columns or row count disagree with ccil/meta.json"])
     return meta, out
