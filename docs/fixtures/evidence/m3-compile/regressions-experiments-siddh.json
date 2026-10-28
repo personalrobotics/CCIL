@@ -1,0 +1,828 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "analysis_matches_24",
+   "pass": true,
+   "scenarios": {
+    "algorithmic_failure": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "degenerate_bca": {
+     "identical": true,
+     "outcome": "ccil_improves_on_bc"
+    },
+    "fifteen_valid": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "improves": {
+     "identical": true,
+     "outcome": "ccil_improves_on_bc"
+    },
+    "null_control_fails": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "null_control_passes": {
+     "identical": true,
+     "outcome": "no_detectable_difference"
+    },
+    "three_exclusions": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "worse": {
+     "identical": true,
+     "outcome": "ccil_is_worse_than_bc"
+    }
+   }
+  },
+  {
+   "both_outcomes_exercised": true,
+   "case": "gate_matches_24",
+   "pass": true,
+   "scenarios": {
+    "clean_with_main_v4_manifest/real": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "clean_with_main_v4_manifest/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "committed_tooling_change/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "committed_tooling_change/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_at_this_commit/real": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_at_this_commit/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_names_no_commit/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "manifest_names_no_commit/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "uncommitted_src_change/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "uncommitted_src_change/smoke": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "untracked_file/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "untracked_file/smoke": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    }
+   }
+  },
+  {
+   "arms_same": true,
+   "case": "plan_matches_24",
+   "pass": true,
+   "refusals": [
+    [
+     "missing key 'version'",
+     "missing key 'tasks'",
+     "missing key 'phases'",
+     "missing key 'arms'"
+    ],
+    [
+     "phase tuning: a tuning phase runs tuned arms only",
+     "phase study: unknown arms ['nope']",
+     "seed 2 is in phases 'tuning' and 'study'; phases must not share seeds"
+    ]
+   ],
+   "study_units_same": true,
+   "tuning_units_same": true,
+   "units": {
+    "study": 520,
+    "tuning": 60
+   }
+  },
+  {
+   "batched_evaluation": {
+    "per_rollout": [
+     {
+      "R_alone": -26795.95314657686,
+      "R_recorded": -26795.95314657686,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/bc/s9002"
+     },
+     {
+      "R_alone": -26195.24436873053,
+      "R_recorded": -26195.24436873053,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "continuous/bc/s9002"
+     },
+     {
+      "R_alone": -14431.836673826112,
+      "R_recorded": -14431.836673826112,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/bc/s9003"
+     },
+     {
+      "R_alone": -14067.119293258465,
+      "R_recorded": -14067.119293258465,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "continuous/bc/s9003"
+     },
+     {
+      "R_alone": -35190.03255357669,
+      "R_recorded": -35190.03255357669,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/bc_frac10/s9002"
+     },
+     {
+      "R_alone": -37635.45299649896,
+      "R_recorded": -37635.45299649896,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/bc_frac10/s9003"
+     },
+     {
+      "R_alone": -3238.149395928122,
+      "R_recorded": -3238.149395928122,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/ccil/s9002"
+     },
+     {
+      "R_alone": -3447.3396784185966,
+      "R_recorded": -3447.3396784185966,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "continuous/ccil/s9002"
+     },
+     {
+      "R_alone": -3193.0600426687683,
+      "R_recorded": -3193.0600426687683,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/ccil/s9003"
+     },
+     {
+      "R_alone": -3389.351140721765,
+      "R_recorded": -3389.351140721765,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "continuous/ccil/s9003"
+     },
+     {
+      "R_alone": -26968.980483501236,
+      "R_recorded": -26968.980483501236,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/noise_bc/s9002"
+     },
+     {
+      "R_alone": -13408.263258878222,
+      "R_recorded": -13408.263258878222,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "continuous/noise_bc/s9003"
+     },
+     {
+      "R_alone": -3465.522820115873,
+      "R_recorded": -3465.522820115873,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/bc/s9002"
+     },
+     {
+      "R_alone": -3402.943900265298,
+      "R_recorded": -3402.943900265298,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "discontinuous/bc/s9002"
+     },
+     {
+      "R_alone": -3511.7672189454374,
+      "R_recorded": -3511.7672189454374,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/bc/s9003"
+     },
+     {
+      "R_alone": -3454.4431156438104,
+      "R_recorded": -3454.4431156438104,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "discontinuous/bc/s9003"
+     },
+     {
+      "R_alone": -16563.23634821794,
+      "R_recorded": -16563.23634821794,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/bc_frac10/s9002"
+     },
+     {
+      "R_alone": -13962.369468147484,
+      "R_recorded": -13962.369468147484,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/bc_frac10/s9003"
+     },
+     {
+      "R_alone": -3318.4102686835026,
+      "R_recorded": -3318.4102686835026,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/ccil/s9002"
+     },
+     {
+      "R_alone": -3627.8069016603135,
+      "R_recorded": -3627.8069016603135,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "discontinuous/ccil/s9002"
+     },
+     {
+      "R_alone": -3139.1218152902775,
+      "R_recorded": -3139.1218152902775,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/ccil/s9003"
+     },
+     {
+      "R_alone": -3684.9786255497042,
+      "R_recorded": -3684.9786255497042,
+      "arrays_differing": [],
+      "noise": "0.01",
+      "unit": "discontinuous/ccil/s9003"
+     },
+     {
+      "R_alone": -3290.0562932264625,
+      "R_recorded": -3290.0562932264625,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/noise_bc/s9002"
+     },
+     {
+      "R_alone": -3419.252299370537,
+      "R_recorded": -3419.252299370537,
+      "arrays_differing": [],
+      "noise": "0.0",
+      "unit": "discontinuous/noise_bc/s9003"
+     }
+    ],
+    "rollouts": 24
+   },
+   "case": "runner",
+   "checks": {
+    "batched_evaluation": true,
+    "cli_reuses_every_stage": true,
+    "first_run_verifies": true,
+    "memory_exhaustion": true,
+    "resume": true,
+    "sharded": true,
+    "validation_loss_tuning": true
+   },
+   "cli": [
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/bc/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/bc/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/bc_frac10/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/bc_frac10/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/ccil/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/ccil/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/noise_bc/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "continuous/noise_bc/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/bc/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/bc/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/bc_frac10/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/bc_frac10/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/ccil/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/ccil/s9003"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/noise_bc/s9002"
+    },
+    {
+     "exit": 0,
+     "same_directories": true,
+     "stages": {
+      "data.prepare": "reused",
+      "labels.generate": "reused",
+      "policy.evaluate": "reused",
+      "policy.train": "reused",
+      "transition.fit": "reused"
+     },
+     "unit": "discontinuous/noise_bc/s9003"
+    }
+   ],
+   "first_run": {
+    "status": {
+     "continuous/bc/s9002": "ok",
+     "continuous/bc/s9003": "ok",
+     "continuous/bc_frac10/s9002": "ok",
+     "continuous/bc_frac10/s9003": "ok",
+     "continuous/ccil/s9002": "ok",
+     "continuous/ccil/s9003": "ok",
+     "continuous/noise_bc/s9002": "ok",
+     "continuous/noise_bc/s9003": "ok",
+     "continuous/zero/s9002": "ok",
+     "continuous/zero/s9003": "ok",
+     "discontinuous/bc/s9002": "ok",
+     "discontinuous/bc/s9003": "ok",
+     "discontinuous/bc_frac10/s9002": "ok",
+     "discontinuous/bc_frac10/s9003": "ok",
+     "discontinuous/ccil/s9002": "ok",
+     "discontinuous/ccil/s9003": "ok",
+     "discontinuous/noise_bc/s9002": "ok",
+     "discontinuous/noise_bc/s9003": "ok",
+     "discontinuous/zero/s9002": "ok",
+     "discontinuous/zero/s9003": "ok"
+    },
+    "timing": {
+     "fit_groups": [
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 1
+        }
+       ],
+       "fits": 8,
+       "seconds": 3.8
+      },
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 2
+        }
+       ],
+       "fits": 8,
+       "seconds": 1.1
+      }
+     ],
+     "labels_seconds": 9.7,
+     "phase_seconds": 41.0,
+     "policies_and_evaluation_seconds": 25.3,
+     "prepare_and_fit_seconds": 5.9,
+     "train_groups": [
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 1
+        }
+       ],
+       "models": 14,
+       "seconds": 4.2
+      },
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 2
+        }
+       ],
+       "models": 2,
+       "seconds": 8.7
+      }
+     ]
+    },
+    "units": 20
+   },
+   "memory_exhaustion": {
+    "fit_group_sizes": [
+     8,
+     4,
+     2,
+     2,
+     4,
+     2,
+     2,
+     8,
+     4,
+     2,
+     2,
+     4,
+     2,
+     2
+    ],
+    "status": {
+     "continuous/bc/s9002": "ok",
+     "continuous/bc/s9003": "ok",
+     "continuous/bc_frac10/s9002": "infrastructure_fault",
+     "continuous/bc_frac10/s9003": "ok",
+     "continuous/ccil/s9002": "ok",
+     "continuous/ccil/s9003": "ok",
+     "continuous/noise_bc/s9002": "ok",
+     "continuous/noise_bc/s9003": "ok",
+     "continuous/zero/s9002": "ok",
+     "continuous/zero/s9003": "ok",
+     "discontinuous/bc/s9002": "ok",
+     "discontinuous/bc/s9003": "ok",
+     "discontinuous/bc_frac10/s9002": "ok",
+     "discontinuous/bc_frac10/s9003": "ok",
+     "discontinuous/ccil/s9002": "ok",
+     "discontinuous/ccil/s9003": "ok",
+     "discontinuous/noise_bc/s9002": "ok",
+     "discontinuous/noise_bc/s9003": "ok",
+     "discontinuous/zero/s9002": "ok",
+     "discontinuous/zero/s9003": "ok"
+    },
+    "timing": {
+     "fit_groups": [
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 5
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 0,
+         "requested": "compiled (default)",
+         "specializations": 5
+        }
+       ],
+       "fits": 8,
+       "seconds": 1.6
+      },
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 6
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 0,
+         "requested": "compiled (default)",
+         "specializations": 6
+        }
+       ],
+       "fits": 8,
+       "seconds": 1.6
+      }
+     ],
+     "labels_seconds": 9.5,
+     "phase_seconds": 51.3,
+     "policies_and_evaluation_seconds": 37.3,
+     "prepare_and_fit_seconds": 4.4,
+     "train_groups": [
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 4
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 5
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 0,
+         "requested": "compiled (default)",
+         "specializations": 5
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 1,
+         "requested": "compiled (default)",
+         "specializations": 6
+        },
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 0,
+         "requested": "compiled (default)",
+         "specializations": 6
+        }
+       ],
+       "models": 14,
+       "seconds": 14.8
+      },
+      {
+       "compilation": [
+        {
+         "effective": "compiled (default)",
+         "fresh_context": false,
+         "new_specializations": 0,
+         "requested": "compiled (default)",
+         "specializations": 6
+        }
+       ],
+       "models": 2,
+       "seconds": 6.7
+      }
+     ]
+    },
+    "train_group_sizes": [
+     14,
+     7,
+     3,
+     1,
+     2,
+     4,
+     2,
+     1,
+     1,
+     2,
+     7,
+     3,
+     1,
+     2,
+     4,
+     2,
+     2,
+     1,
+     2
+    ]
+   },
+   "pass": true,
+   "resume": {
+    "after_removal_units": 2,
+    "fit_groups": [],
+    "refused_finalization": {
+     "gate_changed": "GateRefused",
+     "gate_changed_records_written": 0,
+     "source_changed": "CodeStateChanged",
+     "source_changed_records_written": 0
+    },
+    "second_run_units": 0,
+    "train_groups": []
+   },
+   "sharded": {
+    "exit_codes": [
+     0,
+     0
+    ],
+    "records": 20,
+    "status": [
+     "ok"
+    ]
+   },
+   "validation_loss_tuning": {
+    "choice": {
+     "continuous": 0.003,
+     "discontinuous": 0.003
+    },
+    "choice_sha256": "bb3e5e48d8d9a545062b73cd0eed269abb1dbd80370ee330e77fe0ad627f77fe",
+    "deferred_returns": 4,
+    "fit_episodes": [
+     "train"
+    ],
+    "losses": {
+     "continuous@0.0001": 0.11617821455001831,
+     "continuous@0.003": 0.03204122558236122,
+     "discontinuous@0.0001": 0.12022934854030609,
+     "discontinuous@0.003": 0.033497296273708344
+    },
+    "no_returns_in_tuning_records": true,
+    "returns_refused_before_choice": true,
+    "selected_steps": [
+     200,
+     200,
+     200,
+     200
+    ],
+    "units": 4,
+    "validation_steps": [
+     [
+      50,
+      100,
+      150,
+      200
+     ]
+    ]
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "ea3966279c833d0dd6f0a48c40b2a617d7cd5b5f",
+  "code_dirty": false,
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ }
+}
