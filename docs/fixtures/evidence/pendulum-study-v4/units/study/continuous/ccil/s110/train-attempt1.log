@@ -1,0 +1,8 @@
+$ <uv-env>/bin/python -m ccil policy train --config <root>/inputs/config/pendulum_cont.corrected.yaml --set run.seed=110 --set compute.device=cuda --set data.path=<root>/inputs/data/pendulum_cont_100.npz --set run.output_dir=<root>/stages/study/continuous/s110 --set policy.exclude_validation_episodes=false --set policy.method=ccil
+data.prepare       reused <root>/stages/study/continuous/s110/data-prepare-99ff386952d2
+transition.fit     reused <root>/stages/study/continuous/s110/transition-fit-ea6e6c037c33
+labels.generate    reused <root>/stages/study/continuous/s110/labels-generate-d56029feca10
+policy.train       wrote  <root>/stages/study/continuous/s110/policy-train-34906d461806
+policy.evaluate    wrote  <root>/stages/study/continuous/s110/policy-evaluate-59ab573f8563
+
+--- stderr

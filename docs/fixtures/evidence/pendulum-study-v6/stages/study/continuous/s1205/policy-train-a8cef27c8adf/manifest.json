@@ -1,0 +1,78 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "009ada7ed8ce3218962bf922b463fedbaf3ba228b5610ced4bd8e7363c79c2c3",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "checkpoints/policy.npz": {
+   "sha256": "5aca25727eb2dae6d82e50906716b39e41d540f835cb5514c6ab68db04fcfb4e",
+   "size": 273848
+  },
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "a1db316a2dadc1d9c28200ec44509b791c3d35a5b5d7baa1eaadcc09c531093d",
+   "size": 13223,
+   "version": "1"
+  },
+  "logs/run.log": {
+   "sha256": "0e797f17d3b52e36e2ab7a64f1aa498489525504b09c2d85e1feee3e59e5edd3",
+   "size": 55
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "eea42f9f18fcc7a2584343793bff49b9669e69c91dc7361bf0f8131b4e34e248",
+   "size": 36618,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "48e58d0ff50340dea068760fdd8e49080f5f05f374e16e3591c9943ee1ef1b07",
+   "size": 1658
+  },
+  "supervision.json": {
+   "schema": "ccil.supervision-manifest",
+   "sha256": "7db0026cb013f883b2f3ff21d704d30b9c5a5e28f4adf5b8c486082f79e0039c",
+   "size": 924,
+   "version": "1.0"
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/study/continuous/s1205/labels-generate-cf6051598e2b/labels/candidates.npz",
+   "sha256": "b9d73e070295fd79611bea909d964690e6adc7ce6453f07360a8d03511173f59"
+  },
+  "dataset": {
+   "path": "<root>/stages/study/continuous/s1205/data-prepare-6c28e8c002ca/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  },
+  "split": {
+   "path": "<root>/stages/study/continuous/s1205/data-prepare-6c28e8c002ca/data/split.json",
+   "sha256": "a8793edeb4cc34247dd2bb107873986f8da3b8d1fd4c2210ef0dbeb100279a0f"
+  }
+ },
+ "run_id": "policy-train-a8cef27c8adf",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 1205
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.train"
+}

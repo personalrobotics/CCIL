@@ -1,0 +1,475 @@
+{
+ "config_hash": "3955d1d566cc02cbb7074aae313163cdd7526b13a38512cc8c93b38936a2b79f",
+ "converter": "ccil.config.convert/1",
+ "counts": {
+  "derived": 4,
+  "dropped": 6,
+  "renamed": 26
+ },
+ "dataset": {
+  "canonical": "data/pendulum_disc_500.npz",
+  "conversion": "correct_il/convert_legacy_dataset.py (trusted pickle -> M1), then ccil data convert",
+  "legacy": "data/pendulum_disc_500.npz",
+  "legacy_key": "data.path"
+ },
+ "dispositions": [
+  {
+   "canonical": "policy.balance_noisy_labels",
+   "disposition": "renamed",
+   "legacy": "aug.balance_data",
+   "resolved": true,
+   "value": true
+  },
+  {
+   "canonical": "generation.action_noise_std",
+   "disposition": "renamed",
+   "legacy": "aug.delta",
+   "resolved": 0.0001,
+   "value": 0.0001
+  },
+  {
+   "canonical": "generation.support_radius",
+   "disposition": "renamed",
+   "legacy": "aug.epsilon",
+   "resolved": 0.01,
+   "value": 0.01
+  },
+  {
+   "canonical": "generation.max_iterations",
+   "disposition": "renamed",
+   "legacy": "aug.max_iter",
+   "resolved": 30,
+   "value": 30
+  },
+  {
+   "canonical": "generation.labels_per_transition",
+   "disposition": "renamed",
+   "legacy": "aug.num_labels",
+   "resolved": 20,
+   "value": 20
+  },
+  {
+   "canonical": "generation.method",
+   "disposition": "renamed",
+   "legacy": "aug.type",
+   "resolved": "noisy_action",
+   "value": "noisy_action"
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "aug.use_expert_label",
+   "reason": "never read by the legacy code",
+   "value": false
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "data.expert",
+   "reason": "never read by the legacy code",
+   "value": "None"
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "data.horizon",
+   "reason": "derived placeholder ('...') filled in at load time",
+   "value": "..."
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "data.num_datapoints",
+   "reason": "derived placeholder ('...') filled in at load time",
+   "value": "..."
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "data.num_traj",
+   "reason": "derived placeholder ('...') filled in at load time",
+   "value": "..."
+  },
+  {
+   "canonical": "data.path",
+   "disposition": "renamed",
+   "legacy": "data.path",
+   "resolved": "data/pendulum_disc_500.npz",
+   "value": "data/pendulum_disc_500.npz"
+  },
+  {
+   "canonical": "transition_model.activation",
+   "disposition": "renamed",
+   "legacy": "dynamics.activation",
+   "resolved": "relu",
+   "value": "relu"
+  },
+  {
+   "canonical": "transition_model.batch_size",
+   "disposition": "renamed",
+   "legacy": "dynamics.batch_size",
+   "resolved": 2048,
+   "value": 2048
+  },
+  {
+   "canonical": "transition_model.hidden_layers",
+   "disposition": "renamed",
+   "legacy": "dynamics.layers",
+   "resolved": [
+    256,
+    256
+   ],
+   "value": [
+    256,
+    256
+   ]
+  },
+  {
+   "canonical": "transition_model.lipschitz_constraint",
+   "disposition": "renamed",
+   "legacy": "dynamics.lipschitz_constraint",
+   "resolved": 2.0,
+   "value": 2.0
+  },
+  {
+   "canonical": "transition_model.lipschitz_type",
+   "disposition": "renamed",
+   "legacy": "dynamics.lipschitz_type",
+   "resolved": "slack",
+   "value": "slack"
+  },
+  {
+   "canonical": "transition_model.learning_rate",
+   "disposition": "renamed",
+   "legacy": "dynamics.lr",
+   "resolved": 0.001,
+   "value": 0.001
+  },
+  {
+   "canonical": "transition_model.slack_weight",
+   "disposition": "renamed",
+   "legacy": "dynamics.slack_weight",
+   "resolved": 0.1,
+   "value": 0.1
+  },
+  {
+   "canonical": "transition_model.soft_samples",
+   "disposition": "renamed",
+   "legacy": "dynamics.soft_lipschitz_n_samples",
+   "resolved": 5,
+   "value": 5
+  },
+  {
+   "canonical": "transition_model.soft_penalty_weight",
+   "disposition": "renamed",
+   "legacy": "dynamics.soft_lipschitz_penalty_weight",
+   "resolved": 0.001,
+   "value": 0.001
+  },
+  {
+   "canonical": "transition_model.soft_sampling_eps",
+   "disposition": "renamed",
+   "legacy": "dynamics.soft_lipschitz_sampling_eps",
+   "resolved": 0.0003,
+   "value": 0.0003
+  },
+  {
+   "canonical": "transition_model.epochs",
+   "disposition": "renamed",
+   "legacy": "dynamics.train_epochs",
+   "resolved": 500,
+   "value": 500
+  },
+  {
+   "canonical": "data.validation_fraction",
+   "disposition": "renamed",
+   "legacy": "dynamics.validation_fraction",
+   "resolved": 0.2,
+   "value": 0.2
+  },
+  {
+   "canonical": "transition_model.weight_decay",
+   "disposition": "renamed",
+   "legacy": "dynamics.weight_decay",
+   "resolved": 1e-05,
+   "value": 1e-05
+  },
+  {
+   "canonical": "environment.id",
+   "disposition": "renamed",
+   "legacy": "env",
+   "resolved": "PendulumSwingupDisc-v0",
+   "value": "PendulumSwingupDisc-v0"
+  },
+  {
+   "canonical": [
+    "evaluation.noise_levels"
+   ],
+   "disposition": "derived",
+   "legacy": "eval.noise",
+   "resolved": {
+    "evaluation.noise_levels": [
+     0.0
+    ]
+   },
+   "result": {
+    "evaluation.noise_levels": [
+     0
+    ]
+   },
+   "value": [
+    0
+   ]
+  },
+  {
+   "canonical": [
+    "compute.device"
+   ],
+   "disposition": "derived",
+   "legacy": "no_gpu",
+   "resolved": {
+    "compute.device": "cuda"
+   },
+   "result": {
+    "compute.device": "cuda"
+   },
+   "value": false
+  },
+  {
+   "disposition": "dropped",
+   "legacy": "output.folder_suffix",
+   "reason": "run directories are named by run ID",
+   "value": ""
+  },
+  {
+   "canonical": "run.output_dir",
+   "disposition": "renamed",
+   "legacy": "output.location",
+   "resolved": "output/",
+   "value": "output/"
+  },
+  {
+   "canonical": "policy.batch_size",
+   "disposition": "renamed",
+   "legacy": "policy.batch_size",
+   "resolved": 512,
+   "value": 512
+  },
+  {
+   "canonical": "policy.learning_rate",
+   "disposition": "renamed",
+   "legacy": "policy.lr",
+   "resolved": 0.001,
+   "value": 0.001
+  },
+  {
+   "canonical": [
+    "policy.method",
+    "policy.noise_scale"
+   ],
+   "disposition": "derived",
+   "legacy": "policy.naive",
+   "resolved": {
+    "policy.method": "ccil",
+    "policy.noise_scale": null
+   },
+   "result": {
+    "policy.method": "ccil"
+   },
+   "value": false
+  },
+  {
+   "canonical": [
+    "policy.method",
+    "policy.noise_scale"
+   ],
+   "disposition": "derived",
+   "legacy": "policy.noise_bc",
+   "resolved": {
+    "policy.method": "ccil",
+    "policy.noise_scale": null
+   },
+   "result": {
+    "policy.method": "ccil"
+   },
+   "value": 0.0
+  },
+  {
+   "canonical": "policy.epochs",
+   "disposition": "renamed",
+   "legacy": "policy.train_epochs",
+   "resolved": 100,
+   "value": 100
+  },
+  {
+   "canonical": "run.seed",
+   "disposition": "renamed",
+   "legacy": "seed",
+   "resolved": 42,
+   "value": 42
+  }
+ ],
+ "fidelity": "historical",
+ "implicit_legacy_behavior": [
+  {
+   "canonical_default": true,
+   "key": "policy.exclude_validation_episodes",
+   "legacy_behavior": false,
+   "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical harness holds the split's validation episodes out of policy training.",
+   "written": false
+  },
+  {
+   "canonical_default": "symmetric_uniform_half_batch",
+   "key": "policy.noise_model",
+   "legacy_behavior": "legacy_uniform_half_batch",
+   "why": "legacy CustomBC added noise_bc * U[0, 1), always positive; the canonical default is the zero-centered symmetric_uniform_half_batch (#22).",
+   "written": "legacy_uniform_half_batch"
+  }
+ ],
+ "invocation": {
+  "correct_il/eval_bc_policy.py CONFIG": "simulator evaluation: #24 and M7",
+  "correct_il/gen_aug_label.py CONFIG": "ccil labels generate --config CANON (stages labels.generate, labels.certify)",
+  "correct_il/train_bc_policy.py CONFIG": "ccil policy train --config CANON (experimental harness, #89)",
+  "correct_il/train_dynamics_model.py CONFIG": "ccil labels generate --config CANON (stage transition.fit)"
+ },
+ "non_configurable_corrections": [
+  "#21: the dynamics model predicts in eval mode (legacy left spectral-norm power iterations running)",
+  "#21: soft_sampling uses the residual model's finite-difference ratio in raw units",
+  "#21: soft_jac constrains the residual Jacobian df/d(s, a), not d(s + f)",
+  "#21: soft_sampling_slack pairs each sample's slack with its own perturbations",
+  "#22: NoiseBC draws are counter-keyed per (seed, step, sample, draw) and never mutate the batch",
+  "#22: action chunks align to the frame each label reaches (legacy's chunk_size condition was inverted)"
+ ],
+ "notes": [
+  "seed -> run.seed",
+  "no_gpu -> compute.device",
+  "env -> environment.id",
+  "output.location -> run.output_dir",
+  "dropped output.folder_suffix: run directories are named by run ID",
+  "dropped data.expert: never read by the legacy code",
+  "data.path -> data.path",
+  "dropped data.num_traj: derived placeholder ('...') filled in at load time",
+  "dropped data.horizon: derived placeholder ('...') filled in at load time",
+  "dropped data.num_datapoints: derived placeholder ('...') filled in at load time",
+  "dynamics.lipschitz_type -> transition_model.lipschitz_type",
+  "dynamics.slack_weight -> transition_model.slack_weight",
+  "dynamics.lipschitz_constraint -> transition_model.lipschitz_constraint",
+  "dynamics.soft_lipschitz_penalty_weight -> transition_model.soft_penalty_weight",
+  "dynamics.soft_lipschitz_sampling_eps -> transition_model.soft_sampling_eps",
+  "dynamics.soft_lipschitz_n_samples -> transition_model.soft_samples",
+  "dynamics.lr -> transition_model.learning_rate",
+  "dynamics.weight_decay -> transition_model.weight_decay",
+  "dynamics.layers -> transition_model.hidden_layers",
+  "dynamics.activation -> transition_model.activation",
+  "dynamics.train_epochs -> transition_model.epochs",
+  "dynamics.batch_size -> transition_model.batch_size",
+  "dynamics.validation_fraction -> data.validation_fraction",
+  "aug.type -> generation.method",
+  "aug.max_iter -> generation.max_iterations",
+  "aug.num_labels -> generation.labels_per_transition",
+  "aug.delta -> generation.action_noise_std",
+  "aug.epsilon -> generation.support_radius",
+  "aug.balance_data -> policy.balance_noisy_labels",
+  "dropped aug.use_expert_label: never read by the legacy code",
+  "policy.lr -> policy.learning_rate",
+  "policy.batch_size -> policy.batch_size",
+  "policy.train_epochs -> policy.epochs",
+  "eval.noise -> evaluation.noise_levels",
+  "policy.naive + policy.noise_bc -> policy.method (+ policy.noise_scale)"
+ ],
+ "output": {
+  "path": "pendulum_disc.historical.yaml",
+  "sha256": "04d165e82d3113fb47c72418d2531c7142768eec846a330f56e8f904eaa4ea7e"
+ },
+ "resolved": {
+  "certificate.demonstration_residual_bound": null,
+  "certificate.discrepancy_action_lipschitz": null,
+  "certificate.discrepancy_state_lipschitz": null,
+  "certificate.learned_lipschitz_source": "model",
+  "certificate.learned_state_lipschitz": null,
+  "certificate.max_total_error": null,
+  "certificate.neighborhood_action": null,
+  "certificate.neighborhood_state": null,
+  "certificate.profile": null,
+  "certificate.reference_dynamics": null,
+  "certificate.score_threshold": null,
+  "certificate.selection_population": "admitted",
+  "certificate.selection_quantile": null,
+  "certificate.true_action_lipschitz": null,
+  "certificate.true_state_lipschitz": null,
+  "compute.deterministic": false,
+  "compute.device": "cuda",
+  "compute.jacobian_memory_mb": 2048,
+  "data.action_high": null,
+  "data.action_low": null,
+  "data.path": "data/pendulum_disc_500.npz",
+  "data.validation_fraction": 0.2,
+  "environment.id": "PendulumSwingupDisc-v0",
+  "evaluation.episodes": 100,
+  "evaluation.max_episode_steps": null,
+  "evaluation.noise_levels": [
+   0.0
+  ],
+  "evaluation.noise_model": "legacy_uniform_mix",
+  "generation.action_chunk_size": null,
+  "generation.action_noise_std": 0.0001,
+  "generation.labels_per_transition": 20,
+  "generation.max_iterations": 30,
+  "generation.method": "noisy_action",
+  "generation.model_error_threshold": null,
+  "generation.root_tolerance": 0.0001,
+  "generation.support_radius": 0.01,
+  "policy.action_scaler": "min_max",
+  "policy.balance_noisy_labels": true,
+  "policy.batch_size": 512,
+  "policy.checkpoint_selection": "last",
+  "policy.demonstration_weight": 1.0,
+  "policy.ema_decay": null,
+  "policy.epochs": 100,
+  "policy.exclude_validation_episodes": false,
+  "policy.grad_clip_norm": null,
+  "policy.hidden_layers": [
+   256,
+   256
+  ],
+  "policy.learning_rate": 0.001,
+  "policy.lr_schedule": "constant",
+  "policy.method": "ccil",
+  "policy.noise_mask_probability": 0.5,
+  "policy.noise_model": "legacy_uniform_half_batch",
+  "policy.noise_scale": null,
+  "policy.observation_scaler": "standard",
+  "policy.optimizer": "adam",
+  "policy.step_budget": null,
+  "policy.trainer": "linear_least_squares",
+  "policy.trainer_version": "2",
+  "policy.validation_interval_steps": null,
+  "policy.warmup_steps": 0,
+  "policy.weight_decay": 0.0,
+  "representation.dim": null,
+  "representation.kind": "identity",
+  "representation.modality": "state",
+  "run.output_dir": "output/",
+  "run.overwrite": false,
+  "run.seed": 42,
+  "transition_model.activation": "relu",
+  "transition_model.batch_size": 2048,
+  "transition_model.direction": "forward",
+  "transition_model.epochs": 500,
+  "transition_model.fit_episodes": "all",
+  "transition_model.hidden_layers": [
+   256,
+   256
+  ],
+  "transition_model.kind": "mlp",
+  "transition_model.learning_rate": 0.001,
+  "transition_model.lipschitz_constraint": 2.0,
+  "transition_model.lipschitz_coordinates": "raw",
+  "transition_model.lipschitz_type": "slack",
+  "transition_model.slack_weight": 0.1,
+  "transition_model.soft_penalty_weight": 0.001,
+  "transition_model.soft_samples": 5,
+  "transition_model.soft_sampling_eps": 0.0003,
+  "transition_model.trainer_version": "1",
+  "transition_model.weight_decay": 1e-05
+ },
+ "source": {
+  "path": "pendulum_disc.yml",
+  "sha256": "78a020f7789e8bb0329be314d9aa828095a73f2dab4556fc7b03d4dab03920d6"
+ }
+}

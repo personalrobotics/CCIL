@@ -1,0 +1,977 @@
+{
+ "arm": "bc_modern",
+ "attempt": 1,
+ "checkpoint_sha256": "b7c1c2a7703a0e2b9a5a139b07d3875b92513c4081218c0f6e9bf525a7b6b72e",
+ "dynamics_held_out": {
+  "max_l2": 12.110623017440973,
+  "mean_l2": 0.014510292984072881,
+  "note": "evaluation model fitted on the train split; the label model saw every episode",
+  "transitions": 49900
+ },
+ "evaluations": {
+  "0.0": {
+   "R": -2473.1252360905855,
+   "audit_issues": [],
+   "audit_ok": true,
+   "failed_episodes": [],
+   "rollout": "rollouts/study/discontinuous/bc_modern@0.003/s1218-noise0.0.npz",
+   "rollout_sha256": "62df051022e14010953b8c0271578c85068b56db35962c1ee7bf5531f53c0dd9"
+  },
+  "0.01": {
+   "R": -3688.3651691382834,
+   "audit_issues": [],
+   "audit_ok": true,
+   "failed_episodes": [],
+   "rollout": "rollouts/study/discontinuous/bc_modern@0.003/s1218-noise0.01.npz",
+   "rollout_sha256": "301c87fa30d55bd2069c893171cadc91e0ebe35d7864708b8cb87444b75aec3f"
+  },
+  "0.05": {
+   "R": -4191.699251259657,
+   "audit_issues": [],
+   "audit_ok": true,
+   "failed_episodes": [],
+   "rollout": "rollouts/study/discontinuous/bc_modern@0.003/s1218-noise0.05.npz",
+   "rollout_sha256": "f5a9099fe59e7500bdf0bc0b1e779b56d0ec03b6b8bd16902aa35fe66f727f08"
+  },
+  "0.1": {
+   "R": -4701.744119870971,
+   "audit_issues": [],
+   "audit_ok": true,
+   "failed_episodes": [],
+   "rollout": "rollouts/study/discontinuous/bc_modern@0.003/s1218-noise0.1.npz",
+   "rollout_sha256": "2c269b0faa68163f21a07bde51512d6af717549bf6032e351f76ddd2a1e80c82"
+  }
+ },
+ "finished": "2026-10-28T21:16:42Z",
+ "gate": {
+  "ccil_frozen": "6fbcce543e8a1ebdf243063c179dd3af82d5db8a",
+  "differing_from_frozen_ccil": [],
+  "dirty": [],
+  "head": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "ok": true,
+  "real": true,
+  "tooling": {
+   "differing_from_frozen_tooling": [],
+   "ok": true,
+   "tooling_commit": "6fbcce543e8a1ebdf243063c179dd3af82d5db8a"
+  }
+ },
+ "inputs": {
+  "config_sha256": "d17d43476a6bbef9171972601d8271c54251e5963a4760b5ddd52b90bd938f48",
+  "data_sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e"
+ },
+ "labels_report": {
+  "acceptance_rate": 0.8614537074148296,
+  "accepted": 4298654,
+  "candidates": 4990000,
+  "generator": {
+   "name": "noisy_action",
+   "params": {
+    "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+    "action_noise_std": 0.0001,
+    "labels_per_transition": 20
+   },
+   "params_hash": "482305be4f9f06ad",
+   "version": "2"
+  },
+  "jacobian_chunking": null,
+  "rejections_by_reason": {
+   "action_out_of_bounds": 0,
+   "generation_failed": 0,
+   "non_finite": 0,
+   "out_of_support": 691346
+  }
+ },
+ "overrides": [
+  "transition_model.trainer_version=2",
+  "policy.trainer_version=2",
+  "transition_model.lipschitz_coordinates=model_normalized",
+  "policy.exclude_validation_episodes=false",
+  "policy.method=bc",
+  "policy.balance_noisy_labels=false",
+  "policy.exclude_validation_episodes=true",
+  "policy.optimizer=adamw",
+  "policy.weight_decay=0.0001",
+  "policy.lr_schedule=cosine",
+  "policy.warmup_steps=1000",
+  "policy.step_budget=50000",
+  "policy.grad_clip_norm=1.0",
+  "policy.ema_decay=0.999",
+  "policy.checkpoint_selection=validation",
+  "policy.validation_interval_steps=2000",
+  "policy.learning_rate=0.003"
+ ],
+ "phase": "study",
+ "resolved_config": {
+  "config_hash": "f7de7b264bc5bed742e61c7ce6ba6364c735d96a1ad55680d481a94286e243e9",
+  "notes": [
+   "file:<root>/inputs/config/pendulum_disc.corrected.yaml: transition_model.lipschitz_coordinates = 'raw': the meaning of config_version 1 (#125: version 2's default is model_normalized)"
+  ],
+  "schema": "ccil.config",
+  "values": {
+   "certificate.demonstration_residual_bound": {
+    "source": "default",
+    "status": "implemented",
+    "units": "scaled state",
+    "value": null
+   },
+   "certificate.discrepancy_action_lipschitz": {
+    "source": "default",
+    "status": "implemented",
+    "units": "error per scaled action",
+    "value": null
+   },
+   "certificate.discrepancy_state_lipschitz": {
+    "source": "default",
+    "status": "implemented",
+    "units": "error per scaled state",
+    "value": null
+   },
+   "certificate.learned_lipschitz_source": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "model"
+   },
+   "certificate.learned_state_lipschitz": {
+    "source": "default",
+    "status": "implemented",
+    "units": "error per scaled state",
+    "value": null
+   },
+   "certificate.max_total_error": {
+    "source": "default",
+    "status": "implemented",
+    "units": "scaled state",
+    "value": null
+   },
+   "certificate.neighborhood_action": {
+    "source": "default",
+    "status": "implemented",
+    "units": "scaled action",
+    "value": null
+   },
+   "certificate.neighborhood_state": {
+    "source": "default",
+    "status": "implemented",
+    "units": "scaled state",
+    "value": null
+   },
+   "certificate.profile": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": null
+   },
+   "certificate.reference_dynamics": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": null
+   },
+   "certificate.score_threshold": {
+    "source": "default",
+    "status": "implemented",
+    "units": "scaled state",
+    "value": null
+   },
+   "certificate.selection_population": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "admitted"
+   },
+   "certificate.selection_quantile": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": null
+   },
+   "certificate.true_action_lipschitz": {
+    "source": "default",
+    "status": "implemented",
+    "units": "error per scaled action",
+    "value": null
+   },
+   "certificate.true_state_lipschitz": {
+    "source": "default",
+    "status": "implemented",
+    "units": "error per scaled state",
+    "value": null
+   },
+   "compute.deterministic": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": false
+   },
+   "compute.device": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "cuda"
+   },
+   "compute.jacobian_memory_mb": {
+    "source": "default",
+    "status": "implemented",
+    "units": "MiB",
+    "value": 2048
+   },
+   "data.action_high": {
+    "source": "default",
+    "status": "implemented",
+    "units": "action units",
+    "value": null
+   },
+   "data.action_low": {
+    "source": "default",
+    "status": "implemented",
+    "units": "action units",
+    "value": null
+   },
+   "data.path": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "<root>/inputs/data/pendulum_disc_500.npz"
+   },
+   "data.validation_fraction": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.2
+   },
+   "environment.id": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "declared",
+    "units": "-",
+    "value": "PendulumSwingupDisc-v0"
+   },
+   "evaluation.episodes": {
+    "source": "default",
+    "status": "declared",
+    "units": "-",
+    "value": 100
+   },
+   "evaluation.max_episode_steps": {
+    "source": "default",
+    "status": "declared",
+    "units": "steps",
+    "value": null
+   },
+   "evaluation.noise_levels": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "declared",
+    "units": "-",
+    "value": [
+     0.0
+    ]
+   },
+   "evaluation.noise_model": {
+    "source": "default",
+    "status": "declared",
+    "units": "-",
+    "value": "legacy_uniform_mix"
+   },
+   "generation.action_chunk_size": {
+    "source": "default",
+    "status": "implemented",
+    "units": "actions",
+    "value": null
+   },
+   "generation.action_noise_std": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "action units",
+    "value": 0.0001
+   },
+   "generation.labels_per_transition": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 20
+   },
+   "generation.max_iterations": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 30
+   },
+   "generation.method": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": "noisy_action"
+   },
+   "generation.model_error_threshold": {
+    "source": "default",
+    "status": "implemented",
+    "units": "representation units",
+    "value": null
+   },
+   "generation.root_tolerance": {
+    "source": "default",
+    "status": "implemented",
+    "units": "state units",
+    "value": 0.0001
+   },
+   "generation.support_radius": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "state units",
+    "value": 0.01
+   },
+   "policy.action_scaler": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "min_max"
+   },
+   "policy.balance_noisy_labels": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": false
+   },
+   "policy.batch_size": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 512
+   },
+   "policy.checkpoint_selection": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "validation"
+   },
+   "policy.demonstration_weight": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": 1.0
+   },
+   "policy.ema_decay": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.999
+   },
+   "policy.epochs": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 100
+   },
+   "policy.exclude_validation_episodes": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": true
+   },
+   "policy.grad_clip_norm": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 1.0
+   },
+   "policy.hidden_layers": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": [
+     256,
+     256
+    ]
+   },
+   "policy.learning_rate": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.003
+   },
+   "policy.lr_schedule": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "cosine"
+   },
+   "policy.method": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "bc"
+   },
+   "policy.noise_mask_probability": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.5
+   },
+   "policy.noise_model": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "symmetric_uniform_half_batch"
+   },
+   "policy.noise_scale": {
+    "source": "default",
+    "status": "implemented",
+    "units": "standardized observation units",
+    "value": null
+   },
+   "policy.observation_scaler": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "standard"
+   },
+   "policy.optimizer": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "adamw"
+   },
+   "policy.step_budget": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 50000
+   },
+   "policy.trainer": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "linear_least_squares"
+   },
+   "policy.trainer_version": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "2"
+   },
+   "policy.validation_interval_steps": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 2000
+   },
+   "policy.warmup_steps": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 1000
+   },
+   "policy.weight_decay": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.0001
+   },
+   "representation.dim": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": null
+   },
+   "representation.kind": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "identity"
+   },
+   "representation.modality": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "state"
+   },
+   "run.output_dir": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "<root>/stages/study/discontinuous/s1218"
+   },
+   "run.overwrite": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": false
+   },
+   "run.seed": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": 1218
+   },
+   "transition_model.activation": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": "relu"
+   },
+   "transition_model.batch_size": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 2048
+   },
+   "transition_model.direction": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "forward"
+   },
+   "transition_model.epochs": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 500
+   },
+   "transition_model.fit_episodes": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "all"
+   },
+   "transition_model.hidden_layers": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": [
+     256,
+     256
+    ]
+   },
+   "transition_model.kind": {
+    "source": "default",
+    "status": "implemented",
+    "units": "-",
+    "value": "mlp"
+   },
+   "transition_model.learning_rate": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.001
+   },
+   "transition_model.lipschitz_constraint": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 2.0
+   },
+   "transition_model.lipschitz_coordinates": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "model_normalized"
+   },
+   "transition_model.lipschitz_type": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": "slack"
+   },
+   "transition_model.slack_weight": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.1
+   },
+   "transition_model.soft_penalty_weight": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 0.001
+   },
+   "transition_model.soft_samples": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "declared",
+    "units": "-",
+    "value": 5
+   },
+   "transition_model.soft_sampling_eps": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "normalized input units (model_normalized) or raw state and action units (raw)",
+    "value": 0.0003
+   },
+   "transition_model.trainer_version": {
+    "source": "cli",
+    "status": "implemented",
+    "units": "-",
+    "value": "2"
+   },
+   "transition_model.weight_decay": {
+    "source": "file:<root>/inputs/config/pendulum_disc.corrected.yaml",
+    "status": "implemented",
+    "units": "-",
+    "value": 1e-05
+   }
+  },
+  "version": "1"
+ },
+ "seed": 1218,
+ "smoke": false,
+ "stages": {
+  "data.prepare": "<root>/stages/study/discontinuous/s1218/data-prepare-8ad56c411619",
+  "labels.generate": "<root>/stages/study/discontinuous/s1218/labels-generate-6ee107e143a3",
+  "policy.evaluate": "<root>/stages/study/discontinuous/s1218/policy-evaluate-ecccc1069d9f",
+  "policy.train": "<root>/stages/study/discontinuous/s1218/policy-train-3144904a00b4",
+  "transition.fit": "<root>/stages/study/discontinuous/s1218/transition-fit-82b1b33651e0"
+ },
+ "started": "2026-10-28T20:38:24Z",
+ "status": "ok",
+ "suite": "pendulum/m3_experiments.pendulum_suite/1",
+ "supervision": {
+  "action_chunks": {
+   "chunk_size": null,
+   "policy": "refuse"
+  },
+  "certification": null,
+  "counts": {
+   "demonstration_rows": 199600,
+   "demonstration_rows_held_out": 49900,
+   "demonstration_transitions": 249500,
+   "rows": 199600
+  },
+  "demonstration_frames": "transition frames t <= T - 2 of the training episodes",
+  "demonstration_weight": 1.0,
+  "inputs": {
+   "dataset": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+   "split": "3876135e4552f43c9ee2dd03b07f2c57a0815461235418b7207be8ad83873fc0"
+  },
+  "method": "bc",
+  "online_perturbation": null,
+  "representation": {
+   "kind": "identity",
+   "modality": "state",
+   "version": "1"
+  },
+  "schema": "ccil.supervision-manifest",
+  "version": "1.0"
+ },
+ "task": "discontinuous",
+ "training": {
+  "epochs_run": 129,
+  "execution": {
+   "bucket": 16,
+   "compilation": {
+    "effective": "compiled (default)",
+    "fresh_context": false,
+    "new_specializations": 1,
+    "requested": "compiled (default)",
+    "specializations": 7
+   },
+   "data_mode": "resident",
+   "engine": "compiled (default)",
+   "execution_sha256": "1c427714074d7a7a7ec5ee9e084d297fed0da9558eb83923803698ef1d484573",
+   "position": 8
+  },
+  "mean_loss": [
+   0.0692312735824781,
+   0.013285047290870646,
+   0.011729967318341174,
+   0.008568148992974837,
+   0.00558495827996026,
+   0.005659314231578366,
+   0.005843330471558559,
+   0.005107482785124399,
+   0.00463032324087344,
+   0.00428668147187613,
+   0.003990889208482286,
+   0.0037137211748137877,
+   0.003730472991276523,
+   0.003369800842206705,
+   0.003272612787457542,
+   0.003145888103004593,
+   0.0031231749027124714,
+   0.0025977953540635293,
+   0.0026240894298014115,
+   0.0025400979046956433,
+   0.0023060300049867607,
+   0.0023153427327506646,
+   0.0024310103725345093,
+   0.001839412055469111,
+   0.0023281241750349423,
+   0.0021077702468342524,
+   0.0019121707864776063,
+   0.001868633347489227,
+   0.0019756774669441282,
+   0.0019890488266638435,
+   0.0016953416532599834,
+   0.0018853114625788593,
+   0.0017544429528989032,
+   0.001489998595573602,
+   0.001732998917832166,
+   0.0014713975028697508,
+   0.0014631530619525664,
+   0.0015040030822655842,
+   0.0014974502487476809,
+   0.001308916313789191,
+   0.0011910995358366586,
+   0.0011888668898751619,
+   0.0012164557960775027,
+   0.001389184770363462,
+   0.0013677362917627958,
+   0.0010602153205626422,
+   0.001130087899671422,
+   0.0011581560180242386,
+   0.0009630202940619696,
+   0.0010067582283657436,
+   0.0009370796324967725,
+   0.0011599367259400668,
+   0.000955628092307358,
+   0.0010093468933301598,
+   0.0009198560353109953,
+   0.0009679530763993839,
+   0.000939949236063234,
+   0.0008974403219541731,
+   0.000935478351416502,
+   0.0007186879842017794,
+   0.0008063329369366015,
+   0.0007017163660348534,
+   0.000820574999468492,
+   0.000621038606356839,
+   0.0005677734671644196,
+   0.0007875473609620317,
+   0.0006234261631046285,
+   0.0006317725371578972,
+   0.0005393418983812504,
+   0.0007189516083440315,
+   0.0005587088494803422,
+   0.0005192884212900863,
+   0.0005229231554315758,
+   0.0004555536649527464,
+   0.0005096818073856188,
+   0.0004428304099791461,
+   0.00045340326267526816,
+   0.000402537593498328,
+   0.0004399158730911412,
+   0.0003714900090332816,
+   0.0003801919807198728,
+   0.0004055662832407228,
+   0.00034151059649597404,
+   0.0003350984621170554,
+   0.00029551069273740284,
+   0.00027359434065904594,
+   0.00032851387265408864,
+   0.000290655289180481,
+   0.00026218930216252343,
+   0.0002630018559703484,
+   0.0002355898675391484,
+   0.00026679900893821813,
+   0.00023572003243821447,
+   0.000230695563907182,
+   0.00023109454345580544,
+   0.00018830237321191705,
+   0.00019546956360186893,
+   0.00019806200173949214,
+   0.00020366962663925092,
+   0.0001699042848878777,
+   0.00018843150384015474,
+   0.00015475199699095405,
+   0.00016274990796429946,
+   0.00016413108088976313,
+   0.0001607218560951841,
+   0.00014108211606511114,
+   0.00013875709439611068,
+   0.00014020679734053526,
+   0.00012141979445528554,
+   0.0001305380409971301,
+   0.00013223368013732539,
+   0.00011972267094491993,
+   0.00011682842683363083,
+   0.00011523801517363992,
+   0.00011289514275626842,
+   0.0001110030496181743,
+   0.000106034900964379,
+   0.00010538696859673546,
+   0.00010652584442749122,
+   0.00010306531788450893,
+   0.000102269456058664,
+   0.00010191329340701851,
+   0.00010068609276283676,
+   9.998295140143838e-05,
+   9.905265352106952e-05,
+   9.833347138524974e-05,
+   9.813715145949534e-05,
+   9.775367639671561e-05,
+   9.15071891190914e-05
+  ],
+  "recipe": {
+   "checkpoint_selection": "validation",
+   "ema_decay": 0.999,
+   "grad_clip_norm": 1.0,
+   "lr_schedule": "cosine",
+   "optimizer": "adamw",
+   "step_budget": 50000,
+   "total_steps": 50000,
+   "validation_interval_steps": 2000,
+   "warmup_steps": 1000,
+   "weight_decay": 0.0001,
+   "weights_returned": "best validation checkpoint"
+  },
+  "row_sources": {
+   "demonstration": 199600,
+   "synthetic": 0
+  },
+  "rows": 199600,
+  "seconds": null,
+  "trainer": "vector_mlp",
+  "trainer_version": "2",
+  "validation": {
+   "cadence": "every 2000 steps and the last",
+   "evaluations": [
+    {
+     "epoch": 5,
+     "loss": 0.013968483544886112,
+     "step": 2000
+    },
+    {
+     "epoch": 10,
+     "loss": 0.003697558306157589,
+     "step": 4000
+    },
+    {
+     "epoch": 15,
+     "loss": 0.002959350124001503,
+     "step": 6000
+    },
+    {
+     "epoch": 20,
+     "loss": 0.001970861805602908,
+     "step": 8000
+    },
+    {
+     "epoch": 25,
+     "loss": 0.001548679661937058,
+     "step": 10000
+    },
+    {
+     "epoch": 30,
+     "loss": 0.0013374187983572483,
+     "step": 12000
+    },
+    {
+     "epoch": 35,
+     "loss": 0.001025172765366733,
+     "step": 14000
+    },
+    {
+     "epoch": 41,
+     "loss": 0.0008267008815892041,
+     "step": 16000
+    },
+    {
+     "epoch": 46,
+     "loss": 0.0007243792642839253,
+     "step": 18000
+    },
+    {
+     "epoch": 51,
+     "loss": 0.0006070968229323626,
+     "step": 20000
+    },
+    {
+     "epoch": 56,
+     "loss": 0.0005319069605320692,
+     "step": 22000
+    },
+    {
+     "epoch": 61,
+     "loss": 0.0004381440521683544,
+     "step": 24000
+    },
+    {
+     "epoch": 66,
+     "loss": 0.0003552286943886429,
+     "step": 26000
+    },
+    {
+     "epoch": 71,
+     "loss": 0.00029908292344771326,
+     "step": 28000
+    },
+    {
+     "epoch": 77,
+     "loss": 0.00023758011229801923,
+     "step": 30000
+    },
+    {
+     "epoch": 82,
+     "loss": 0.00019297012477181852,
+     "step": 32000
+    },
+    {
+     "epoch": 87,
+     "loss": 0.00015968430670909584,
+     "step": 34000
+    },
+    {
+     "epoch": 92,
+     "loss": 0.0001360479654977098,
+     "step": 36000
+    },
+    {
+     "epoch": 97,
+     "loss": 0.00011850143346237019,
+     "step": 38000
+    },
+    {
+     "epoch": 102,
+     "loss": 0.0001046520919771865,
+     "step": 40000
+    },
+    {
+     "epoch": 107,
+     "loss": 9.481187589699402e-05,
+     "step": 42000
+    },
+    {
+     "epoch": 113,
+     "loss": 8.751187851885334e-05,
+     "step": 44000
+    },
+    {
+     "epoch": 118,
+     "loss": 8.374587196158245e-05,
+     "step": 46000
+    },
+    {
+     "epoch": 123,
+     "loss": 8.165280451066792e-05,
+     "step": 48000
+    },
+    {
+     "epoch": 128,
+     "loss": 8.099126716842875e-05,
+     "step": 50000
+    }
+   ],
+   "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i over the held-out demonstrations, scaled action space, of the weights returned (EMA when on)",
+   "rows": 49900,
+   "selected": 24,
+   "selected_loss": 8.099126716842875e-05,
+   "selected_step": 50000
+  }
+ },
+ "tuning_choice_sha256": "6583f1857ce2e33e846903ec7b62f5b85467717edeb4b2819170017ffca88e8e",
+ "value": 0.003,
+ "value_key": "policy.learning_rate",
+ "version": "ccil.experiments.runner/1",
+ "versions": {
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "scipy": "1.16.3",
+  "suite": {
+   "rollout": "vector_env.pendulum/1",
+   "scipy": "1.16.3",
+   "suite": "m3_experiments.pendulum_suite/1"
+  },
+  "torch": "2.14.1+cu130"
+ }
+}

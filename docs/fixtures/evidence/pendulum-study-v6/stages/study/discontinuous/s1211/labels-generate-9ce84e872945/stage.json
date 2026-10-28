@@ -1,0 +1,52 @@
+{
+ "components": {
+  "generator": {
+   "name": "noisy_action",
+   "version": "2"
+  },
+  "representation": {
+   "kind": "identity",
+   "version": "1"
+  },
+  "transition_model": {
+   "kind": "mlp",
+   "version": "2"
+  },
+  "weighting": {
+   "name": "uniform",
+   "version": "1"
+  }
+ },
+ "config": {
+  "compute.deterministic": false,
+  "compute.device": "cuda",
+  "compute.jacobian_memory_mb": 2048,
+  "data.action_high": null,
+  "data.action_low": null,
+  "generation.action_chunk_size": null,
+  "generation.action_noise_std": 0.0001,
+  "generation.labels_per_transition": 20,
+  "generation.max_iterations": 30,
+  "generation.method": "noisy_action",
+  "generation.model_error_threshold": null,
+  "generation.root_tolerance": 0.0001,
+  "generation.support_radius": 0.01,
+  "representation.modality": "state",
+  "run.seed": 1211
+ },
+ "implementation": {
+  "ccil_version": "0.1.0.dev0",
+  "dependencies": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "source_sha256": "9b9b97326c30f670ca94bd526029c24490460fd0bd48fc547501a10c0ee9557b"
+ },
+ "inputs": {
+  "dataset": "fe9a5238b9bcb70f6a915895404ce72b483134f41b1f552aabb14aec857d8f73",
+  "transition_model": "8cb79f2094658158b786b2fe69e7e3b9e035bbe157b6a60f445bf703b4258213"
+ },
+ "run_id": "labels-generate-9ce84e872945",
+ "stage": "labels.generate"
+}

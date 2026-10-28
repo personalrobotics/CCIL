@@ -1,0 +1,74 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "a52da69b4834e17cc691f118466008950cfde603dd58c963f8cc28c388e8d144",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "1fb7342eb7f61a4ab98755a2fa5e75772441a84442108b459ddcf63ba5fcd047",
+   "size": 13365,
+   "version": "1"
+  },
+  "labels/certificates.npz": {
+   "schema": "ccil.certificates",
+   "sha256": "2c684297130e5bdc8aeda55f8503517b83c794e7f9faaa998d15762d950b1af5",
+   "size": 88837180,
+   "version": "1.0"
+  },
+  "logs/run.log": {
+   "sha256": "811ed629f181afffec653ae06e2dc418ccf3c78ef0cc108d7b2ff963628c099d",
+   "size": 77
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "5a667cfb4d18a537af8ec6cfda3872cda9c123a0f180b3a30024a7e124113130",
+   "size": 399,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "a334f429819b59c88f148eaf51edaa2a2e60c4283cdef3b99a46d7cc71fd3e25",
+   "size": 1869
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/study/continuous/s1202/labels-generate-d0e56ad34b57/labels/candidates.npz",
+   "sha256": "c99b2febb0d70a6b28f3159f6bb0a76a5a04e777ebc8709a0f71d125b528c774"
+  },
+  "dataset": {
+   "path": "<root>/stages/study/continuous/s1202/data-prepare-88c59e83b715/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  },
+  "transition_model": {
+   "path": "<root>/stages/study/continuous/s1202/transition-fit-ae64ab6be543/checkpoints/transition_model.npz",
+   "sha256": "8dd7352350a46b3dda7e5369267826c9e65a509fd3ccd752873f7463dbd1345b"
+  }
+ },
+ "run_id": "labels-certify-51a7e2b21a89",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 1202
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "labels.certify"
+}

@@ -1,0 +1,61 @@
+{
+ "components": {
+  "trainer": {
+   "name": "vector_mlp",
+   "version": "1"
+  }
+ },
+ "config": {
+  "evaluation.episodes": 100,
+  "evaluation.max_episode_steps": null,
+  "evaluation.noise_levels": [
+   0.0
+  ],
+  "evaluation.noise_model": "legacy_uniform_mix",
+  "policy.action_scaler": "min_max",
+  "policy.balance_noisy_labels": false,
+  "policy.batch_size": 512,
+  "policy.checkpoint_selection": "last",
+  "policy.demonstration_weight": 1.0,
+  "policy.ema_decay": null,
+  "policy.epochs": 100,
+  "policy.exclude_validation_episodes": false,
+  "policy.grad_clip_norm": null,
+  "policy.hidden_layers": [
+   256,
+   256
+  ],
+  "policy.learning_rate": 0.001,
+  "policy.lr_schedule": "constant",
+  "policy.method": "ccil",
+  "policy.noise_mask_probability": 0.5,
+  "policy.noise_model": "symmetric_uniform_half_batch",
+  "policy.noise_scale": null,
+  "policy.observation_scaler": "standard",
+  "policy.optimizer": "adam",
+  "policy.step_budget": null,
+  "policy.trainer": "linear_least_squares",
+  "policy.trainer_version": "2",
+  "policy.validation_interval_steps": null,
+  "policy.warmup_steps": 0,
+  "policy.weight_decay": 0.0,
+  "run.seed": 1219
+ },
+ "implementation": {
+  "ccil_version": "0.1.0.dev0",
+  "dependencies": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "source_sha256": "9b9b97326c30f670ca94bd526029c24490460fd0bd48fc547501a10c0ee9557b"
+ },
+ "inputs": {
+  "candidates": "cbf69dfebe115f2ec02dcffae2c53f7079fdaaa97563ec879ef3b1808b75c377",
+  "dataset": "a5fc3e959e27f9248834b511906aca3971314f918f1fb6b3e25e5f93748206f9",
+  "policy": "1398db789e55dfb20fca5b08513000559f2e4998d96c06f67b1f0439fede2fe3",
+  "split": "f0a1bf4f874defa72f136f064d6d47936e9189a9830d50f6a161725b7960b433"
+ },
+ "run_id": "policy-evaluate-8f898d66e5e7",
+ "stage": "policy.evaluate"
+}

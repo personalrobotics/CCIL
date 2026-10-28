@@ -1,0 +1,68 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "10d150b172c10d34ad7e7277bd4217022be2e5b6c2ff2b22a5545949f6a8691c",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "c9070fc08e5b5e2a33191e5551f688a39e7fd316e6e6ed3e035ad78ee01385d5",
+   "size": 13223,
+   "version": "1"
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "45b3095e6bf5066ddf54b0829159ff120d38cb5902b2060153d9cae9a318ef69",
+   "size": 628,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "5d2dd842606209641f9cf25c97497390790a5c18824f1bf7c3d92b2b4ec2f85e",
+   "size": 1807
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/study/continuous/s1203/labels-generate-020ae82d1115/labels/candidates.npz",
+   "sha256": "2f38e7ed0d97a1ebbb79da585f8f53d549e2bc210b3dabc707e645caa2e55c5a"
+  },
+  "dataset": {
+   "path": "<root>/stages/study/continuous/s1203/data-prepare-e5153ab532e8/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  },
+  "policy": {
+   "path": "<root>/stages/study/continuous/s1203/policy-train-40899be36228/checkpoints/policy.npz",
+   "sha256": "d34bb55951971a3bdb4823f088892d6b3d8690e9457dd36afc6d55945c6ec39c"
+  },
+  "split": {
+   "path": "<root>/stages/study/continuous/s1203/data-prepare-e5153ab532e8/data/split.json",
+   "sha256": "90027c8af0c64fffd01aa71b35d181c9b3efd80c95f54efe886d02061224b4db"
+  }
+ },
+ "run_id": "policy-evaluate-1f730a90538d",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 1203
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.evaluate"
+}
