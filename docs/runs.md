@@ -165,3 +165,17 @@ because it clones HEAD.
   restored is detected, and `data.prepare` writes a new run.
 - **Strict mode:** cached and strict runs write byte-identical run
   directories, and strict mode never uses the cache.
+
+**Study-scale cost** (`tools/m3_provenance/shard_timing.py`). The tool times one
+full shard of the v6 study phase: 300 units, development seeds 9401–9420,
+timing only. The three runs below ran on siddh, one at a time on one GPU, each
+with fresh compile caches, and are recorded in `shard-timing-*-siddh.json`:
+
+| Run | Commit | Wall time | sha256 time in the main process |
+|---|---|---|---|
+| Before this change | 29cd366 | 54.8 min | 159 s |
+| Cached | 979c13a | 52.9 min | 20 s |
+| Strict | 979c13a | 55.7 min | 166 s |
+
+The cache removes about 2.5 minutes of hashing per shard. Each row is a single
+run, so the wall-time differences include run-to-run variation.
