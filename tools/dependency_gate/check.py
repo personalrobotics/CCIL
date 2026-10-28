@@ -126,9 +126,9 @@ def main():
     doc = (REPO / "docs" / "security.md").read_text()
     lock = (REPO / "uv.lock").read_text()
     legacy = {}
-    for req in sorted(REPO.glob("**/requirements*.txt")):
-        if ".venv" in req.parts:
-            continue
+    tracked = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z"], capture_output=True, text=True, check=True).stdout
+    for req in sorted(REPO / f for f in tracked.split("\0") if re.fullmatch(r"requirements.*\.txt", Path(f).name)):
+        # the repository's manifests: untracked and ignored files (a .venv, run outputs) are not part of it
         pin = next((l.strip() for l in req.read_text().splitlines() if l.lower().startswith("torch==")), None)
         if pin and tuple(int(x) for x in pin.split("==")[1].split(".")[:2]) < (2, 6):
             rel = req.relative_to(REPO).as_posix()

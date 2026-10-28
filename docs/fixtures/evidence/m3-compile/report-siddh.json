@@ -1,0 +1,339 @@
+{
+ "commit": "f2557816f6715932b09bf9ea1f75c0b2b1c886ef",
+ "dirty": false,
+ "host": "siddh",
+ "python": "3.11.17",
+ "torch": "2.14.1+cu130",
+ "device": "cuda",
+ "cases": {
+  "policy_step": {
+   "pass": true,
+   "base_commit": "b423b3e8d7807a7a7aa405ac34a6c0f998fd9c52",
+   "groups": [
+    "bc_a",
+    "bc_b_other_table_and_lr",
+    "bc_c_other_table_and_lr",
+    "noise_bc",
+    "modern_a",
+    "modern_b_other_table_and_lr",
+    "bc_streaming"
+   ],
+   "imported_from": {
+    "this_eager": "<repo>/src/ccil/__init__.py",
+    "this_compiled_5": "<repo>/src/ccil/__init__.py",
+    "this_compiled_1000": "<repo>/src/ccil/__init__.py",
+    "base_eager": "<out>/ccil-base-4bz5cmh_/src/ccil/__init__.py",
+    "base_compiled_5": "<out>/ccil-base-4bz5cmh_/src/ccil/__init__.py",
+    "base_compiled_1": "<out>/ccil-base-4bz5cmh_/src/ccil/__init__.py"
+   },
+   "imports_ok": true,
+   "rows_and_draws_identical": true,
+   "eager_identical_to_base": true,
+   "compiled_independent_of_chunking": true,
+   "compiled_matches_base": true,
+   "compiled_bitwise_equal_to_base": {
+    "bc_a": true,
+    "bc_b_other_table_and_lr": true,
+    "bc_c_other_table_and_lr": true,
+    "noise_bc": true,
+    "modern_a": false,
+    "modern_b_other_table_and_lr": false,
+    "bc_streaming": true
+   },
+   "compiled_max_relative_loss_difference_from_base": {
+    "bc_a": 0.0,
+    "bc_b_other_table_and_lr": 0.0,
+    "bc_c_other_table_and_lr": 0.0,
+    "noise_bc": 0.0,
+    "modern_a": 0.0,
+    "modern_b_other_table_and_lr": 1.0316262557018523e-07,
+    "bc_streaming": 0.0
+   },
+   "base_compiled_vs_eager_max_relative_loss_difference": {
+    "bc_a": 3.691919147507676e-06,
+    "bc_b_other_table_and_lr": 5.904901328055314e-07,
+    "bc_c_other_table_and_lr": 1.1152256446774035e-05,
+    "noise_bc": 3.4884316896648235e-06,
+    "modern_a": 1.9209900635814017e-07,
+    "modern_b_other_table_and_lr": 1.2585839032943914e-05,
+    "bc_streaming": 5.904901328055314e-07
+   },
+   "base_compiled_independent_of_chunking_per_group": {
+    "bc_a": true,
+    "bc_b_other_table_and_lr": true,
+    "bc_c_other_table_and_lr": true,
+    "noise_bc": true,
+    "modern_a": false,
+    "modern_b_other_table_and_lr": false,
+    "bc_streaming": true
+   },
+   "compilation": {
+    "bc_a": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    "bc_b_other_table_and_lr": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 0,
+     "fresh_context": false
+    },
+    "bc_c_other_table_and_lr": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 0,
+     "fresh_context": false
+    },
+    "noise_bc": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 2,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    "modern_a": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 3,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    "modern_b_other_table_and_lr": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 3,
+     "new_specializations": 0,
+     "fresh_context": false
+    },
+    "bc_streaming": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": false
+    }
+   },
+   "expected_new_specializations": {
+    "bc_a": 1,
+    "bc_b_other_table_and_lr": 0,
+    "bc_c_other_table_and_lr": 0,
+    "noise_bc": 1,
+    "modern_a": 1,
+    "modern_b_other_table_and_lr": 0,
+    "bc_streaming": 1
+   },
+   "records_ok": true,
+   "steps": {
+    "bc_a": 18,
+    "bc_b_other_table_and_lr": 28,
+    "bc_c_other_table_and_lr": 38,
+    "noise_bc": 18,
+    "modern_a": 40,
+    "modern_b_other_table_and_lr": 39,
+    "bc_streaming": 28
+   }
+  },
+  "isolation": {
+   "policy": [
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 2,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 3,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 4,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 5,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 6,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 7,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 8,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": true
+    }
+   ],
+   "fit": [
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 2,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 3,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 4,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 5,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 6,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 7,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 8,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": true
+    }
+   ],
+   "policy_all_compiled": true,
+   "policy_ninth_in_a_fresh_context": true,
+   "fit_all_compiled": true,
+   "fit_ninth_in_a_fresh_context": true,
+   "pass": true
+  },
+  "refusal": {
+   "guard": {
+    "returned": false,
+    "refused": "ccil.training.vector_bc_v2._step_resident needs more than torch.compile's 1 specializations in this process, so this step would run uncompiled; refused before it ran",
+    "engine_calls": 6
+   },
+   "control": {
+    "returned": true,
+    "compilation": {
+     "requested": "compiled (default)",
+     "effective": "compiled (default)",
+     "specializations": 1,
+     "new_specializations": 1,
+     "fresh_context": false
+    },
+    "engine_calls": 7
+   },
+   "refused_on_the_short_chunk_first_step": true,
+   "control_claims_compiled_with_one_specialization": true,
+   "pass": true
+  },
+  "runner_refusal": {
+   "stopped": "CompilationRefused: compilation failed on the first step: RuntimeError: injected compiler failure",
+   "groups": [
+    {
+     "fits": 4,
+     "fit_identities": [
+      "236e5d80f36cfd0d0e7339f0dca42fa53da6e58c421fb346aed8f69f041db90c",
+      "e4418020b4e9b52463c51005bb47dea9baf48344a027c4268905c94b18b54428",
+      "6a0b07d6a740fcfbc8c66b0701abfc63db4739358a566c78832a5eccb00d70ed",
+      "76f6129f88a7866020277e83685f8cf41ddc2d27dc120f7f6aab64d575e27ddc"
+     ],
+     "outcome": "refused: compilation failed on the first step: RuntimeError: injected compiler failure"
+    }
+   ],
+   "complete_stages": {
+    "data.prepare": 2
+   },
+   "records": [],
+   "refused_fits_with_a_complete_stage": [],
+   "pass": true
+  },
+  "v6_schedule": {
+   "pass": true,
+   "root": "<repo>/runs/20261028T150030Z-v6-preflight",
+   "unit_records": 780,
+   "fit": {
+    "group_records": 252,
+    "effective_equals_requested_compiled": true,
+    "max_specializations": 8,
+    "recompile_limit": 8
+   },
+   "policy": {
+    "group_records": 680,
+    "effective_equals_requested_compiled": true,
+    "max_specializations": 7,
+    "recompile_limit": 8
+   }
+  }
+ },
+ "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+}

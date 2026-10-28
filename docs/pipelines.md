@@ -68,7 +68,8 @@ stage manifest.
   identity: its exact rows, settings, seed and engine. `transition.fit` with a
   prefit model recomputes it from the unit's own inputs and refuses a mismatch.
   Likewise, `policy.train` with a group-trained policy recomputes the training
-  identity and checks the policy's parameter hash against its record.
+  identity and checks the policy's parameter hash against its record. Both
+  refuse a group whose effective engine is not the one it requested (#134).
 - **`transition_model.lipschitz_coordinates`** (#125) says which ratio the
   sampled Lipschitz penalties (`soft_sampling`, `soft_sampling_slack`) hinge
   at `lipschitz_constraint`:

@@ -192,12 +192,18 @@ class PrefitMismatch(RuntimeError):
 
 
 def requested_execution_problem(record: dict, v) -> str | None:
-    """Why a group's record was not run as this unit requests (device type, determinism), or None."""
+    """Why a group's record was not run as this unit requests (device type, determinism, and the engine its
+    group requested: never an eager fallback of a compiled one, #134), or None."""
     import torch
     group = record.get("group") or {}
     want = (torch.device(v["compute.device"]).type, bool(v["compute.deterministic"]))
     got = (torch.device(group["device"]).type if group.get("device") else None, group.get("deterministic"))
-    return None if got == want else f"was run with (device, deterministic) {got}, not the unit's {want}"
+    if got != want:
+        return f"was run with (device, deterministic) {got}, not the unit's {want}"
+    comp = group.get("compilation") or {}
+    if not comp.get("requested") or comp.get("effective") != comp["requested"]:
+        return f"ran the engine {comp.get('effective')!r}, not the requested {comp.get('requested')!r}"
+    return None
 
 
 def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:

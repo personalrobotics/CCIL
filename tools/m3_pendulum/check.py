@@ -25,6 +25,10 @@ tuning (1-3) and study (101-120) seeds.
 6. The code-state gate (provenance.py): the tree is clean and src,
    pyproject.toml and uv.lock equal the frozen ccil commit; on a scratch
    clone, an uncommitted src change and an untracked file are each refused.
+   This is the version 4 freeze (tools/m3_pendulum/freeze.json). With
+   --v6-freeze (tools/m3_experiments/freeze_evidence.sh) its two cases are
+   recorded as skipped, not passed: the version 6 code-state gate is checked by
+   tools/m3_experiments, and every other case still runs.
 Writes DIR/report.json, DIR/rollouts/*.npz, and DIR/converted/.
 """
 import argparse
@@ -65,7 +69,11 @@ def sha(path) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
-    out = ap.parse_args().out.resolve()
+    ap.add_argument("--v6-freeze", action="store_true",
+                    help="skip the two version 4 freeze-gate cases (recorded as skipped); the version 6 gate is "
+                         "checked by tools/m3_experiments")
+    args = ap.parse_args()
+    out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = []
 
@@ -172,6 +180,12 @@ def main():
 
     # 6. The code-state gate: this tree, then a scratch clone made dirty, which the gate must refuse.
     state = provenance.tree_state(REPO)
+    if args.v6_freeze:
+        reason = "version 4 freeze gate (ccil 847b060), superseded by the version 6 gate (tools/m3_experiments)"
+        for name in ("clean_tree_at_frozen_ccil", "gate_refuses_a_dirty_tree"):
+            cases.append({"case": name, "skipped": reason})
+            print(f"SKIP {name} {reason}", flush=True)
+        return _report(out, cases, state)
     record("clean_tree_at_frozen_ccil", state["ok"], **{k: v for k, v in state.items() if k != "ok"})
     probe = out / "probe"
     subprocess.run(["git", "clone", "-q", "--no-checkout", str(REPO), str(probe)], check=True)
@@ -186,14 +200,26 @@ def main():
     probes["untracked_file"] = provenance.tree_state(probe)["ok"]
     record("gate_refuses_a_dirty_tree", probes == {"clean_clone": True, "uncommitted_src_change": False,
                                                    "untracked_file": False}, gate_ok=probes)
+    return _report(out, cases, state)
 
-    report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
+
+def _report(out, cases, state) -> int:
+    """Write DIR/report.json. all_pass covers the cases that ran; skipped cases are listed, never counted as passed."""
+    ran = [c for c in cases if "skipped" not in c]
+    skipped = [c["case"] for c in cases if "skipped" in c]
+    report = {"all_pass": all(c["pass"] for c in ran), "cases": cases,
               "environment": {"code_commit": state["head"], "code_dirty": bool(state["dirty"]),
                               "env_version": pendulum.VERSION, "python": platform.python_version(),
                               "platform": platform.platform(), "numpy": np.__version__, "scipy": scipy.__version__}}
+    if skipped:
+        report["skipped"] = skipped
     text = json.dumps(report, indent=1, sort_keys=True, default=str) + "\n"
     (out / "report.json").write_text(text.replace(str(out), "<out>").replace(str(REPO), "<repo>"))
-    print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
+    if skipped:
+        print(f"{sum(c['pass'] for c in ran)}/{len(ran)} applicable cases pass; {len(skipped)} skipped "
+              f"({', '.join(skipped)}); report: {out / 'report.json'}")
+    else:
+        print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
     return 0 if report["all_pass"] else 1
 
 

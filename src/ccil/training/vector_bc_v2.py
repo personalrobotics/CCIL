@@ -35,7 +35,12 @@ order with per-model step counts and masks (models past their last step, and
 minibatches whose weights sum to 0, take no step). The step is a module-level
 function of its tensors, compiled with torch.compile once per process on CUDA
 (eager elsewhere, or when compile is off), so later groups of the same shapes
-reuse the compiled code; the engine is recorded.
+reuse the compiled code. It specializes only on the bucket and the recipe: the
+learning rate is a tensor, the resident table's row count is dynamic, and each
+step's indices have the same strides (#134). A group whose step is at
+torch.compile's recompile limit starts a fresh compiler context, and a step
+that would still exceed the limit, and so run uncompiled, is refused; the
+requested and effective engine and the specializations are recorded.
 
 Setup is linear in the distinct data: blocks are keyed by hashing raw bytes,
 scalers come from per-block statistics combined with their repetitions (each
@@ -324,18 +329,18 @@ def _mlp(p: dict, x: torch.Tensor, layers: int) -> torch.Tensor:
     return x
 
 
-def _lr_at(t: torch.Tensor, lr: float, r: dict, total: torch.Tensor) -> torch.Tensor:
+def _lr_at(t: torch.Tensor, lr: torch.Tensor, r: dict, total: torch.Tensor) -> torch.Tensor:
     """The learning rate at each model's step count t (after this step): constant, or linear warm-up to lr then
-    cosine decay to 0 at the model's total steps."""
+    cosine decay to 0 at the model's total steps. lr is a tensor (M,), so the rate is not a compile-time constant."""
     if r["lr_schedule"] == "constant":
-        return torch.full_like(t, lr)
+        return lr
     warm = float(max(1, int(r["warmup_steps"])))
     progress = ((t - warm) / (total - warm).clamp_min(1.0)).clamp(0.0, 1.0)
     return lr * torch.where(t <= warm, t / warm, 0.5 * (1.0 + torch.cos(np.pi * progress)))
 
 
 def _step(params, m1, m2, t, ema, x, y, w, words, active, gstep, c, layers: int, noisy: bool, scale_obs: bool,
-          scale_act: bool, lr: float, recipe: tuple):
+          scale_act: bool, recipe: tuple):
     """One masked optimizer step for all models on a gathered minibatch (M, B, ·). c holds the per-model constants.
 
     recipe (a sorted tuple of items, so it is a compile-time constant) selects the optimizer (adam: v1's, with
@@ -367,7 +372,7 @@ def _step(params, m1, m2, t, ema, x, y, w, words, active, gstep, c, layers: int,
     b1, b2 = ADAM["betas"]
     t = t + upd.to(t.dtype)
     bc1, bc2 = 1 - b1 ** t, 1 - b2 ** t
-    lr_t = _lr_at(t, lr, r, c["total_steps"])
+    lr_t = _lr_at(t, c["lr"], r, c["total_steps"])
     new_p, new_m1, new_m2, new_ema = {}, {}, {}, ({} if ema is not None else None)
     for k in params:
         shape = (M,) + (1,) * (params[k].dim() - 1)
@@ -386,10 +391,10 @@ def _step(params, m1, m2, t, ema, x, y, w, words, active, gstep, c, layers: int,
 
 
 def _step_resident(params, m1, m2, t, ema, X, Y, W, WORDS, idx, active, gstep, c, layers: int, noisy: bool,
-                   scale_obs: bool, scale_act: bool, lr: float, recipe: tuple):
+                   scale_obs: bool, scale_act: bool, recipe: tuple):
     """_step with the minibatch gathered from the device-resident table inside the step (no chunk of rows)."""
     return _step(params, m1, m2, t, ema, X[idx], Y[idx], W[idx], WORDS[idx] if noisy else None, active, gstep, c,
-                 layers, noisy, scale_obs, scale_act, lr, recipe)
+                 layers, noisy, scale_obs, scale_act, recipe)
 
 
 _COMPILED: dict = {}
@@ -414,25 +419,89 @@ def _compiled(fn):
     return _COMPILED[key]
 
 
+class CompilationRefused(TrainingError):
+    """A compiled step would have run uncompiled: refused before that step ran."""
+
+
+# Whether a compiler failure on the first step falls back to eager (recorded). A study process turns it off: its
+# units must all run the engine they request, so the failure is refused instead.
+EAGER_FALLBACK = True
+
+
+def _dynamo():
+    """torch._dynamo, imported when a step is compiled (it adds half a second to importing torch)."""
+    import torch._dynamo
+    return torch._dynamo
+
+
+def _specializations(fn) -> int:
+    """torch.compile's specializations (cache entries) of fn's code in the current compiler context."""
+    from torch._C._dynamo.eval_frame import _debug_get_cache_entry_list
+    return len(_debug_get_cache_entry_list(fn.__code__))
+
+
+def _fresh_context(fn) -> bool:
+    """Start a fresh compiler context (torch._dynamo.reset: every compiled function recompiles on its next use)
+    when fn already holds the recompile limit's specializations; return whether it did.
+
+    A group's shapes and settings are fixed, so a group adds at most one specialization of its step, and a group
+    that starts below the limit stays within it. A process that runs many groups (a study phase: tasks, settings
+    and buckets) would otherwise exceed it and be refused. The reset happens only between groups, and never
+    changes a compiled step: only how many are kept."""
+    if _specializations(fn) < _dynamo().config.recompile_limit:
+        return False
+    _dynamo().reset()
+    return True
+
+
 class _Engine:
-    """The step, compiled or eager. Compilation is lazy, so the first compiled call is guarded: a compiler
-    failure before any update falls back to eager for the whole run (the step is functional, so a failed call
-    changed nothing), and the outcome is recorded."""
+    """The step, compiled or eager, and what ran.
+
+    Compilation is lazy, so the first compiled call is guarded: a compiler failure before any update falls back
+    to eager for the whole run (the step is functional, so a failed call changed nothing) and is recorded, or is
+    refused when EAGER_FALLBACK is off. Past torch.compile's recompile limit a compiled function would run eager
+    with only a warning; a group starts a fresh compiler context when its step is at the limit (_fresh_context),
+    and a step that would still exceed it is refused (fail_on_recompile_limit_hit, process-wide) before it runs,
+    so an engine that says compiled ran compiled on every step. compilation() is the record."""
 
     def __init__(self, fn, compile: bool):
-        self.fn, self.eager = (_compiled(fn), fn) if compile else (fn, fn)
-        self.state = f"compiled ({COMPILE_MODE})" if compile else "eager"
-        self.first = compile
+        self.requested = f"compiled ({COMPILE_MODE})" if compile else "eager"
+        self.fn, self.eager, self.state, self.first = (_compiled(fn) if compile else fn), fn, self.requested, compile
+        self.limit_hit, self.before, self.fresh = (), None, None
+        if compile:
+            _dynamo().config.fail_on_recompile_limit_hit = True
+            self.fresh = _fresh_context(fn)
+            self.limit_hit, self.before = _dynamo().exc.FailOnRecompileLimitHit, _specializations(fn)
 
     def __call__(self, *args, **kwargs):
-        if not self.first:
-            return self.fn(*args, **kwargs)
-        self.first = False
+        first, self.first = self.first, False
         try:
             return self.fn(*args, **kwargs)
-        except Exception as e:  # a compiler failure on the first call: recorded, never silent
+        except self.limit_hit as e:
+            raise CompilationRefused(
+                f"{self.eager.__module__}.{self.eager.__qualname__} needs more than torch.compile's "
+                f"{_dynamo().config.recompile_limit} specializations in this process, so this step would run "
+                "uncompiled; refused before it ran") from e
+        except Exception as e:  # a compiler failure on the first call: recorded or refused, never silent
+            if not first:
+                raise
+            if not EAGER_FALLBACK:
+                raise CompilationRefused(f"compilation failed on the first step: {type(e).__name__}: {e}"[:300]) from e
             self.fn, self.state = self.eager, f"eager (compilation failed on the first step: {type(e).__name__}: {e})"[:300]
-            return self.fn(*args, **kwargs)
+        return self.fn(*args, **kwargs)
+
+    def compilation(self) -> dict:
+        """The requested and effective engine, and the step's specializations in the compiler context: in all,
+        and new in this run (0 when it reused compiled code), and whether this run started a fresh context; None
+        when eager was requested."""
+        n = _specializations(self.eager) if self.before is not None else None
+        return {"requested": self.requested, "effective": self.state, "specializations": n,
+                "new_specializations": None if n is None else n - self.before, "fresh_context": self.fresh}
+
+
+def _step_major(idx: torch.Tensor) -> torch.Tensor:
+    """A chunk's indices (M, n, B) as contiguous (n, M, B)."""
+    return idx.transpose(0, 1).contiguous()
 
 
 def _bucket(m: int) -> int:
@@ -642,7 +711,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                             dtype=torch.float32, device=device)
     c = {"obs_mean": stat("obs_mean", np.zeros(D)), "obs_std": stat("obs_std", np.ones(D) - OBS_EPS),
          "act_min": stat("act_min", -np.ones(A)), "act_max": stat("act_max", np.ones(A)),
-         "total_steps": torch.tensor(total_steps, dtype=torch.float32, device=device)}
+         "total_steps": torch.tensor(total_steps, dtype=torch.float32, device=device),
+         "lr": torch.full((M,), float(settings["learning_rate"]), dtype=torch.float32, device=device)}
     scale_obs, scale_act = settings["observation_scaler"] != "none", settings["action_scaler"] != "none"
     host = {"x": torch.as_tensor(table["obs"]), "y": torch.as_tensor(table["act"]), "w": torch.as_tensor(table["w"]),
             "syn": torch.as_tensor(table["synthetic"])}
@@ -659,12 +729,14 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         dev = {k: v.to(device) for k, v in host.items()}
         if not noisy:
             dev["words"] = torch.zeros((1, 2), dtype=torch.int64, device=device)
+        if compile and R > 1:  # the step gathers its rows from the table: one compiled step whatever its size
+            for k in ("x", "y", "w", *(("words",) if noisy else ())):
+                _dynamo().mark_dynamic(dev[k], 0)
     elif device.type == "cuda":
         host = {k: v.pin_memory() for k, v in host.items()}
     lr = float(settings["learning_rate"])
     recipe_key = tuple(sorted((k, v) for k, v in recipe.items() if k not in ("step_budget", "checkpoint_selection")))
-    statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "lr": lr,
-               "recipe": recipe_key}
+    statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "recipe": recipe_key}
     validation = (_validation_rows(padded, D, A, stream_chunk_bytes) if recipe["checkpoint_selection"] == "validation"
                   else None)
     step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile)
@@ -674,7 +746,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         return max(0, min(steps[i], total_steps[i] - epoch * steps[i])) if epoch < epochs[i] else 0
 
     def chunks(epoch):
-        """(first step, indices (M, n, B) on the device, gathered rows or None) for every chunk of the epoch.
+        """(first step, indices (n, M, B) on the device, gathered rows (n, M, B, ·) or None) for every chunk of
+        the epoch. Step-major and contiguous, so every step's slice has the same strides whatever the chunk's
+        length (the compiled step specializes on strides).
 
         The epoch runs only as many steps as its longest remaining budget, so a step budget bounds the work
         whatever the dataset size."""
@@ -682,7 +756,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         bounds = [(s0, min(chunk_steps, max_steps - s0)) for s0 in range(0, max_steps, chunk_steps)]
         if data_mode == "resident":
             for s0, n in bounds:
-                yield s0, streams.chunk(epoch, s0, n), None
+                yield s0, _step_major(streams.chunk(epoch, s0, n)), None
             return
         q: queue.Queue = queue.Queue(maxsize=2)  # double buffering: one chunk training, one in flight
         stop = threading.Event()
@@ -695,7 +769,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                         return
                     if side is not None:  # indices on the device (the same code as resident mode), rows from the host
                         with torch.cuda.stream(side):
-                            idx = streams.chunk(epoch, s0, n)
+                            idx = _step_major(streams.chunk(epoch, s0, n))
                             idx_cpu = idx.cpu()
                         cpu = {k: v[idx_cpu].pin_memory() for k, v in host.items()}
                         with torch.cuda.stream(side):
@@ -704,7 +778,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                         ev.record(side)
                         item = (s0, idx, rows, ev, cpu)
                     else:
-                        idx = streams.chunk(epoch, s0, n)
+                        idx = _step_major(streams.chunk(epoch, s0, n))
                         item = (s0, idx, {k: v[idx] for k, v in host.items()}, None, None)
                     if not _put(q, item, stop):
                         return
@@ -772,18 +846,18 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                 n_steps = torch.zeros(M, device=device)
                 seen_syn = torch.zeros(M, device=device)
                 for s0, idx, rows in chunks(epoch):
-                    for j in range(idx.shape[1]):
+                    for j in range(idx.shape[0]):
                         b = s0 + j
                         gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
                         active = live & (b < S_dev) & (gstep[:, 0] < budget_dev)
                         if rows is None:
                             out = step_fn(params, m1, m2, t, ema, dev["x"], dev["y"], dev["w"], dev["words"],
-                                          idx[:, j], active, gstep, c, **statics)
-                            syn_j = dev["syn"][idx[:, j]]
+                                          idx[j], active, gstep, c, **statics)
+                            syn_j = dev["syn"][idx[j]]
                         else:
-                            out = step_fn(params, m1, m2, t, ema, rows["x"][:, j], rows["y"][:, j], rows["w"][:, j],
-                                          rows["words"][:, j] if noisy else None, active, gstep, c, **statics)
-                            syn_j = rows["syn"][:, j]
+                            out = step_fn(params, m1, m2, t, ema, rows["x"][j], rows["y"][j], rows["w"][j],
+                                          rows["words"][j] if noisy else None, active, gstep, c, **statics)
+                            syn_j = rows["syn"][j]
                         params, m1, m2, t, ema, loss, upd = (_own(out) if CUDA_GRAPHS and step_fn.state.startswith("compiled")
                                                              else out)
                         loss_sum += loss
@@ -822,7 +896,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                  "batch_size": bs, "device": str(device), "torch": torch.__version__, "precision": precision.effective,
                  "deterministic": bool(deterministic)}
     execution_sha = hashlib.sha256(json.dumps(execution, sort_keys=True, default=str).encode()).hexdigest()
-    group = {**execution, "size": n_real, "execution_sha256": execution_sha, "table_rows": R, "table_bytes": table_bytes,
+    compilation = step_fn.compilation()  # outside the execution identity: it depends on what ran before in the process
+    group = {**execution, "size": n_real, "execution_sha256": execution_sha, "compilation": compilation,
+             "table_rows": R, "table_bytes": table_bytes,
              "table_blocks": table["blocks"],
              "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over "
                         "2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
@@ -840,7 +916,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                   "training_identity_sha256": ident["sha256"], "parameters_sha256": parameters_sha256(policy),
                   "seed": int(job.seed),
                   "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M,
-                                "engine": step_fn.state, "data_mode": data_mode},
+                                "engine": step_fn.state, "compilation": compilation, "data_mode": data_mode},
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
                   "device": str(device), "rows": int(streams.n[i]), "steps_per_epoch": steps[i],
                   "rows_dropped_per_epoch": int(streams.n[i]) % bs, "epochs_run": epochs[i],

@@ -120,6 +120,19 @@ The steps run in order: `tuning` (one process per shard), `choose`, `returns`,
   equal to the frozen commits.
 - **`--smoke`** runs the same steps before the freeze, on seeds 9101–9103 at
   one epoch, with budgeted recipes scaled down.
+- **`--preflight`** (#134) runs the exact schedule: the plan's seeds and the
+  real shard layout. Only the budgets that are not compiled into a step are
+  cut: one epoch, and a step budget of the warm-up plus one. Its records
+  therefore show each group's compilation as the real run will meet it. They
+  say smoke, so they are never analyzed.
+
+**Compilation.** A study process runs every group with the engine it requests.
+A phase holds more distinct groups than `torch.compile` keeps specializations
+of a step, so a group starts a fresh compiler context when its step is at the
+limit. A step that would still run uncompiled, or a compiler failure on a first
+step, raises `CompilationRefused` before the step runs, and stops the phase
+without a record. The stage hooks refuse a group record whose effective engine
+is not the requested one.
 
 ## Evidence
 
@@ -140,3 +153,22 @@ The check covers:
     recorded;
   - concurrent shards;
   - injected memory exhaustion.
+
+```bash
+uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \
+    python tools/m3_compile/check.py --out <new-dir> --device cuda [--preflight-root ROOT]
+```
+
+The compilation check (#134) covers:
+- **The policy step.** Its rows, NoiseBC draws and outputs match the engine
+  before #134, with one specialization per bucket and recipe. Compiled results
+  do not depend on the chunk size.
+- **Isolation.** Nine distinct policy groups and nine fit groups run compiled
+  in one process; the ninth of each starts a fresh compiler context.
+- **Refusal.** A group whose shapes exceed the limit (the pre-#134 stride,
+  reintroduced) is refused on the first step that would run uncompiled. A
+  control without the guard shows the uncompiled run it prevents.
+- **The runner.** A fit group refused for a first-step compiler failure stops
+  the phase. No record exists, and no completed stage holds its models.
+- **The v6 schedule.** Given a `--preflight` root, every group ran compiled
+  within the limit.
