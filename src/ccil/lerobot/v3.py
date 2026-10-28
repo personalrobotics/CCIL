@@ -33,7 +33,7 @@ from pathlib import Path, PurePosixPath
 
 import numpy as np
 
-from ..schema import Episode, TrajectoryDataset
+from ..schema import Episode, SchemaError, TrajectoryDataset
 
 CODEBASE_VERSION = "v3.0"
 INSTALL = ("the LeRobot format bridge needs the ccil[lerobot] extra: pip install 'ccil[lerobot]' "
@@ -74,11 +74,34 @@ def _sha256(path) -> str:
 
 
 def _inside(root: Path, rel: str, where: str, problems: list) -> Path | None:
+    """root / rel, refusing a path that is absolute, has empty, '.' or '..' parts, or resolves (through any
+    symlink) outside the resolved dataset root."""
     p = PurePosixPath(rel)
     if p.is_absolute() or any(part in ("", ".", "..") for part in p.parts):
         problems.append(f"{where} {rel!r} is not a relative path inside the dataset")
         return None
-    return root.joinpath(*p.parts)
+    path = root.joinpath(*p.parts)
+    if not _contained(root, path):
+        problems.append(f"{where} {rel!r} resolves outside the dataset (through a symlink)")
+        return None
+    return path
+
+
+def _contained(root: Path, path: Path) -> bool:
+    """Whether path, resolved through every symlink, is inside root, resolved."""
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=True))
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _meta_file(root: Path, rel: str) -> Path:
+    """A metadata file of the dataset, refused if it resolves outside it."""
+    path = root.joinpath(*PurePosixPath(rel).parts)
+    if not _contained(root, path):
+        raise LeRobotFormatError(root, [f"{rel} resolves outside the dataset (through a symlink)"])
+    return path
 
 
 # --- reading -------------------------------------------------------------------------------------------------------
@@ -86,7 +109,9 @@ def _inside(root: Path, rel: str, where: str, problems: list) -> Path | None:
 def read_info(root) -> dict:
     """meta/info.json, validated: the format version, the fields the bridge relies on and the path template."""
     root = Path(root)
-    path = root / "meta" / "info.json"
+    if not root.is_dir():
+        raise LeRobotFormatError(root, ["not a directory"])
+    path = _meta_file(root, "meta/info.json")
     if not path.is_file():
         raise LeRobotFormatError(root, ["meta/info.json is missing"])
     try:
@@ -110,6 +135,11 @@ def read_info(root) -> dict:
     fields = {f for _, f, _, _ in string.Formatter().parse(info["data_path"]) if f is not None}
     if fields != {"chunk_index", "file_index"}:
         problems.append(f"data_path {info['data_path']!r} must use exactly the fields chunk_index and file_index")
+    else:
+        try:  # a representative formatting, so a malformed format specification is refused here, not later
+            info["data_path"].format(chunk_index=0, file_index=0)
+        except (ValueError, KeyError, IndexError, TypeError) as e:
+            problems.append(f"data_path {info['data_path']!r} cannot be formatted: {e}")
     for name, spec in info["features"].items():
         if not (isinstance(spec, dict) and isinstance(spec.get("dtype"), str) and isinstance(spec.get("shape"), list)
                 and all(isinstance(d, int) and d > 0 for d in spec["shape"])):
@@ -182,7 +212,8 @@ def _plan(info: dict, ignore=(), preserve=(), terminal_feature=None) -> tuple[di
 def _episodes_table(root: Path, info: dict):
     """Every episode's metadata row, in episode order, from the episode files (checked for consistency)."""
     _, pq = _arrow()
-    files = sorted((root / "meta" / "episodes").glob("chunk-*/file-*.parquet"))
+    files = [_meta_file(root, f.relative_to(root).as_posix())
+             for f in sorted((root / "meta" / "episodes").glob("chunk-*/file-*.parquet"))]
     if not files:
         raise LeRobotFormatError(root, ["no episode metadata under meta/episodes/"])
     cols = ["episode_index", "tasks", "length", "data/chunk_index", "data/file_index", "dataset_from_index",
@@ -224,7 +255,7 @@ def _episodes_table(root: Path, info: dict):
 def _tasks(root: Path) -> dict:
     """task_index -> task string; the task string is the pandas index column the file's metadata names."""
     _, pq = _arrow()
-    path = root / "meta" / "tasks.parquet"
+    path = _meta_file(root, "meta/tasks.parquet")
     if not path.is_file():
         raise LeRobotFormatError(root, ["meta/tasks.parquet is missing"])
     table = pq.read_table(path)
@@ -404,7 +435,7 @@ def read_dataset(root, ignore=(), *, preserve=(), terminal_feature=None) -> Traj
                                   report=report))
     info = read_info(root)
     if (root / "meta" / "stats.json").is_file():
-        files["meta/stats.json"] = _sha256(root / "meta" / "stats.json")
+        files["meta/stats.json"] = _sha256(_meta_file(root, "meta/stats.json"))
     ds = TrajectoryDataset(episodes, {"dataset": {
         "format": f"lerobot.dataset/{CODEBASE_VERSION}", "fps": info["fps"], "files": dict(sorted(files.items())),
         "features": report["dispositions"], "endings": report["endings"]}})
@@ -439,7 +470,7 @@ def convert(source, out, manifest, *, ignore=(), preserve=(), terminal_feature=N
 
 def read_stats(root) -> dict:
     """meta/stats.json as stored: {feature: {min, max, mean, std, count, q01, ...: lists}}."""
-    path = Path(root) / "meta" / "stats.json"
+    path = _meta_file(Path(root), "meta/stats.json")
     try:
         stats = json.loads(path.read_text())
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
@@ -510,7 +541,9 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
                   chunks_size: int = 1000, robot_type: str | None = None) -> Path:
     """Write episodes (a TrajectoryDataset or an iterable of Episode) as a LeRobotDataset v3.0 directory.
 
-    Streams: each data shard is written when it reaches data_files_size_in_mb. Timestamps must advance by 1 / fps
+    Streams: each data shard is written when it reaches data_files_size_in_mb. Each streamed episode is validated
+    as ccil.trajectories validates a dataset (shapes, finiteness, timestamps), and against the first episode's
+    modalities, dimensions and dtypes, with unique IDs, before its rows are written. Timestamps must advance by 1 / fps
     (LeRobot checks this when it loads); episodes without timestamps get frame / fps. The directory is built
     under a temporary name and moved into place, so root exists only once complete; an existing root is refused.
     """
@@ -543,7 +576,18 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
             if file == chunks_size:
                 chunk, file = chunk + 1, 0
 
+        seen_ids = set()
         for e, ep in enumerate(episodes):
+            # A streamed episode meets the same schema as a validated TrajectoryDataset, before its shard is written.
+            if not isinstance(ep, Episode):
+                raise LeRobotFormatError("write", [f"item {e} is a {type(ep).__name__}, not an Episode"])
+            try:
+                TrajectoryDataset([ep]).validate()
+            except SchemaError as err:
+                raise LeRobotFormatError("write", [f"episode {e} ({ep.episode_id!r}): {err}"]) from err
+            if ep.episode_id in seen_ids:
+                raise LeRobotFormatError("write", [f"episode {e}: duplicate episode_id {ep.episode_id!r}"])
+            seen_ids.add(ep.episode_id)
             if names is None:
                 names = _feature_names(ep)
                 dims = {m: ep.observations[m].shape[1] for m, _ in names}
@@ -565,6 +609,13 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
             if sorted(ep.observations) != sorted(m for m, _ in names):
                 raise LeRobotFormatError("write", [f"episode {ep.episode_id}: modalities {sorted(ep.observations)} "
                                                    f"differ from the first episode's"])
+            shape_dtype = {m: (ep.observations[m].shape[1], str(ep.observations[m].dtype)) for m, _ in names}
+            shape_dtype["action"] = (ep.actions.shape[1], str(ep.actions.dtype))
+            first = {m: (dims[m], dtypes[m]) for m, _ in names}
+            first["action"] = (adim, dtypes["action"])
+            if shape_dtype != first:
+                raise LeRobotFormatError("write", [f"episode {ep.episode_id}: dimensions and dtypes {shape_dtype} "
+                                                   f"differ from the first episode's {first}"])
             T = ep.length
             if ep.timestamps is None:
                 ts = (np.arange(T) / fps).astype(np.float32)
