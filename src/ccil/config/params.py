@@ -77,11 +77,25 @@ PARAMS = [
     Param("transition_model.lipschitz_constraint", "float", None, "Target Lipschitz bound.",
           "Task-specific (1.0-4.0) in legacy configs.", "transition_model", low=0.0, low_open=True, nullable=True,
           legacy=("dynamics.lipschitz_constraint",)),
+    Param("transition_model.lipschitz_coordinates", "choice", "model_normalized",
+          "Coordinates of the sampled Lipschitz penalties (soft_sampling, soft_sampling_slack): the ratio hinged at "
+          "lipschitz_constraint.",
+          "model_normalized (#125) perturbs the model's normalized inputs and compares its normalized residuals: a "
+          "dimensionless ratio in the space the network is optimized in, invariant (up to the normalization's 1e-8 "
+          "and ReLU kinks) under a consistent per-coordinate rescaling of states, actions and residuals. raw (#21) "
+          "uses raw residuals over raw perturbations, so the constant depends on the units and the timestep (on "
+          "continuous Pendulum it never binds at 2). Legacy mixed the two. The penalty is a training regularizer, "
+          "never a certified bound. soft_jac supports raw only. Configurations before config_version 2 resolve to "
+          "raw.", "transition_model",
+          choices=("raw", "model_normalized")),
     Param("transition_model.soft_penalty_weight", "float", None, "Weight of the soft Lipschitz penalty.",
           "Task-specific in legacy configs.", "transition_model", low=0.0, nullable=True,
           legacy=("dynamics.soft_lipschitz_penalty_weight",)),
     Param("transition_model.soft_sampling_eps", "float", 0.0003, "Perturbation radius for sampled Lipschitz estimates.",
-          "Same value in every legacy config.", "transition_model", units="state units", low=0.0, low_open=True,
+          "Same value in every legacy config. Under model_normalized it is a radius in the model's normalized input "
+          "space; under raw it perturbs raw state and action coordinates together.", "transition_model",
+          units="normalized input units (model_normalized) or raw state and action units (raw)", low=0.0,
+          low_open=True,
           legacy=("dynamics.soft_lipschitz_sampling_eps",)),
     Param("transition_model.soft_samples", "int", 5, "Samples per point for sampled Lipschitz estimates.",
           "Same value in every legacy config.", "transition_model", low=1, legacy=("dynamics.soft_lipschitz_n_samples",),
@@ -369,6 +383,9 @@ def mlp_settings_problem(v):
     missing += [k for k in LIPSCHITZ_NEEDS.get(v["transition_model.lipschitz_type"], ()) if v[k] is None]
     if missing:
         return f"transition_model.kind mlp with lipschitz_type {v['transition_model.lipschitz_type']!r} requires {missing}"
+    if v["transition_model.lipschitz_type"] == "soft_jac" and v["transition_model.lipschitz_coordinates"] != "raw":
+        return "transition_model.lipschitz_type soft_jac has no model_normalized form yet (#125): set " \
+               "transition_model.lipschitz_coordinates raw"
     return None
 
 

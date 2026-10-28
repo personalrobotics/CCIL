@@ -69,6 +69,39 @@ stage manifest.
   prefit model recomputes it from the unit's own inputs and refuses a mismatch.
   Likewise, `policy.train` with a group-trained policy recomputes the training
   identity and checks the policy's parameter hash against its record.
+- **`transition_model.lipschitz_coordinates`** (#125) says which ratio the
+  sampled Lipschitz penalties (`soft_sampling`, `soft_sampling_slack`) hinge
+  at `lipschitz_constraint`:
+  - `model_normalized` (the default). It perturbs the model's normalized input
+    x = (q − shift) / (scale + 1e-8) by δx ~ ε N(0, I), and takes
+    ‖g(x + δx) − g(x)‖ / ‖δx‖ with g the normalized residual. This ratio is
+    dimensionless, in the space the network is optimized in.
+    - **Invariance.** It is invariant, up to the normalization's 1e-8 and
+      ReLU kinks, under a consistent per-coordinate rescaling of states,
+      actions and residuals.
+    - **Timestep.** A different timestep changes it only as far as the
+      refitted normalization absorbs the change.
+    - **Units of ε.** ε is a radius in normalized input units.
+  - `raw` (#21). Raw residuals over raw perturbations, so the constant
+    depends on the units and the timestep. On continuous Pendulum the paper's
+    L = 2 never binds in raw coordinates.
+  - `soft_jac` supports `raw` only, and needs it set explicitly.
+  - **Compatibility.** The default is `config_version 2`'s. A configuration
+    of `config_version` 0 or 1 that does not set the key resolves to `raw`,
+    its meaning when it was written (the resolved configuration notes this).
+    Converted legacy configurations are version 1. A checkpoint written
+    before #125 loads as `raw`, explicitly.
+  - **Checkpoint provenance.** Checkpoints store the coordinates' descriptor
+    (coordinates, units, constraint and normalization SHA-256), and loading
+    verifies it against the weights.
+  - Fit records state the coordinates, the units and a SHA-256 of the
+    normalization.
+- **The penalty is a training regularizer, not a certificate.** The value of
+  `lipschitz_constraint` is never a proven bound in either coordinate system.
+  Certificates recompute model bounds from the weights and normalization
+  transforms (no certificate code reads it). A normalized bound used directly
+  in a theorem would need every distance in that theorem measured in the same
+  weighted norm, or a conservative conversion to raw coordinates.
 - **Evidence:** `tools/m3_fit_v2/check.py`.
   - One step equals version 1's step from the same initialization.
   - The held-out error of batched fits is compared with per-fit ones on

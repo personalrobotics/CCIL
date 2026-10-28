@@ -89,10 +89,72 @@
     "training_episode_labels": 15968,
     "training_episode_labels_equal": true
    }
+  },
+  {
+   "case": "lipschitz_definition",
+   "dtype": "float64",
+   "max_relative_difference": 8.804726292628078e-12,
+   "pass": true
+  },
+  {
+   "case": "lipschitz_rescaling_invariance",
+   "dtype": "float64",
+   "model_normalized_relative_change": {
+    "max": 7.447399464223701e-05,
+    "median": 7.495975722051614e-13,
+    "p99": 1.7605632023351075e-06
+   },
+   "pass": true,
+   "raw_median_ratio_of_ratios": 10.523013860592172,
+   "units": {
+    "action": [
+     0.5
+    ],
+    "state": [
+     10.0,
+     0.1,
+     3.0
+    ]
+   }
+  },
+  {
+   "case": "lipschitz_engines_agree_soft_sampling",
+   "dtype": "float64",
+   "gradient_max_relative_difference": 2.6316511951104323e-12,
+   "note": "constraint lowered to 0.05 so the hinge is active",
+   "pass": true,
+   "penalty": 0.09813025338815112,
+   "penalty_relative_difference": 9.150010727211805e-14
+  },
+  {
+   "case": "lipschitz_engines_agree_soft_sampling_slack",
+   "dtype": "float64",
+   "gradient_max_relative_difference": 4.904028969578812e-13,
+   "note": "constraint lowered to 0.05 so the hinge is active",
+   "pass": true,
+   "penalty": 0.001317379552472242,
+   "penalty_relative_difference": 0.0
+  },
+  {
+   "case": "lipschitz_records_and_old_checkpoints",
+   "checkpoint_descriptor": {
+    "constraint": 2.0,
+    "coordinates": "model_normalized",
+    "normalization_sha256": "7245bbb40924b56a61d92155e8aab6411423c57e9e8c71e8c22e9da2b457e0ac",
+    "role": "training regularizer; not a certified bound",
+    "units": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)"
+   },
+   "checkpoint_reloads_as": "model_normalized",
+   "constructor_default": "model_normalized",
+   "mismatched_normalization_refused": true,
+   "old_checkpoint_reads_as": "raw",
+   "pass": true,
+   "recorded": true,
+   "soft_jac_model_normalized_refused": true
   }
  ],
  "environment": {
-  "code_commit": "ecc06727c52b1c0f9d557025b4f74a064b242aca",
+  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
   "code_dirty": false,
   "device": "cpu",
   "gpu": null,

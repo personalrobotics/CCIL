@@ -37,10 +37,15 @@ from pathlib import Path
 
 import yaml
 
-from .migrate import CONFIG_VERSION, DROPPED, RENAMED, UNSUPPORTED, flatten, migrate_v0
+from .migrate import DROPPED, RENAMED, UNSUPPORTED, flatten, migrate_v0
 from .params import REGISTRY
 from .resolve import _load_yaml, resolve
 from .spec import ConfigError, coerce
+
+
+# Converted legacy configurations are written as version 1, their meaning (#23): their bytes are pinned by the
+# committed conversion, and version 1 resolves the coordinates of sampled Lipschitz penalties to raw (#125).
+CONFIG_VERSION = 1
 
 CONVERTER = "ccil.config.convert/1"
 FIDELITIES = ("corrected", "historical")

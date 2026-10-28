@@ -103,7 +103,8 @@ rng = np.random.default_rng(21)
 s, a = rng.uniform(-1, 1, (1024, 2)), rng.uniform(-1, 1, (1024, 2))
 f = lambda s, a: 0.05 * (np.sin(s) + a)
 m = MLPTransitionModel([32, 32], epochs=30, batch_size=64, lipschitz_type="soft_jac", lipschitz_constraint=0.5,
-                       soft_penalty_weight=1.0)
+                       soft_penalty_weight=1.0,
+                       **({"lipschitz_coordinates": "raw"} if "lipschitz_coordinates" in MLPTransitionModel.__init__.__code__.co_varnames else {}))
 fit = m.fit(s, a, s + f(s, a), seed=2)
 x = torch.as_tensor(s[:256], dtype=torch.float32), torch.as_tensor(a[:256], dtype=torch.float32)
 m.net.eval()
@@ -122,7 +123,8 @@ from ccil.models.mlp import MLPTransitionModel, slack_sampling_terms
 rng = np.random.default_rng(4)
 s, a = rng.uniform(-1, 1, (256, 2)), rng.uniform(-1, 1, (256, 1))
 m = MLPTransitionModel([16, 16], epochs=2, batch_size=32, lipschitz_type="soft_sampling_slack",
-                       lipschitz_constraint=0.01, soft_penalty_weight=0.01)
+                       lipschitz_constraint=0.01, soft_penalty_weight=0.01,
+                       **({"lipschitz_coordinates": "raw"} if "lipschitz_coordinates" in MLPTransitionModel.__init__.__code__.co_varnames else {}))
 m.fit(s, a, s + 0.3 * np.tanh(s) + 0.1 * a, seed=1)
 n, eps = 5, 0.0003
 g = torch.Generator().manual_seed(0)
