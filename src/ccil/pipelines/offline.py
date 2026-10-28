@@ -161,6 +161,32 @@ def _fit(v, z, a, z_next):
     return model, model.fit(z, a, z_next, seed=v["run.seed"])
 
 
+def transition_inputs(prepared: StageResult, extra_inputs=None) -> dict:
+    """transition.fit's inputs: the prepared dataset, its split when there is one, and any extra inputs."""
+    split_path = prepared.out(layout.SPLIT)
+    inputs = {"dataset": prepared.out(layout.DATASET), **(extra_inputs or {})}
+    if split_path.exists():
+        inputs["split"] = split_path
+    return inputs
+
+
+def transition_data(v, inputs: dict, representation):
+    """(z, a, z_next, train mask, validation mask) for transition.fit; the masks are None without a split.
+
+    The label model fits every transition; the evaluation model fits the train rows.
+    """
+    batch = transitions(read_trajectories(inputs["dataset"]), representation)
+    z, a, z_next = batch.z, batch.a, batch.z_next
+    if v["transition_model.direction"] == "backward":
+        z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
+    if "split" not in inputs:
+        return z, a, z_next, None, None
+    import json
+    split = json.loads(Path(inputs["split"]).read_text())
+    return (z, a, z_next, np.isin(batch.episode_id, list(split["train"])),
+            np.isin(batch.episode_id, list(split["validation"])))
+
+
 class PrefitMismatch(RuntimeError):
     """A model fitted elsewhere does not belong to this unit's inputs: a study-runner defect."""
 
@@ -209,24 +235,11 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
     v = cfg.values
     if prefit is not None and v["transition_model.trainer_version"] != "2":
         raise ConfigError(["prefit transition models come from the batched engine: set transition_model.trainer_version 2"])
-    split_path = prepared.out(layout.SPLIT)
-    inputs = {"dataset": prepared.out(layout.DATASET), **(extra_inputs or {})}
-    if split_path.exists():
-        inputs["split"] = split_path
+    inputs = transition_inputs(prepared, extra_inputs)
 
     def body(run):
-        dataset = read_trajectories(inputs["dataset"])
-        batch = transitions(dataset, representation)
-        z, a, z_next = batch.z, batch.a, batch.z_next
-        if v["transition_model.direction"] == "backward":
-            z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
+        z, a, z_next, tr, va = transition_data(v, inputs, representation)
         clean = v["transition_model.fit_episodes"] == "train"
-        tr = va = None
-        if split_path.exists():
-            import json
-            split = json.loads(split_path.read_text())
-            tr = np.isin(batch.episode_id, list(split["train"]))
-            va = np.isin(batch.episode_id, list(split["validation"]))
         if prefit is not None:
             _check_prefit(v, prefit, z, a, z_next, tr, clean)
             model, record = prefit["label"]
@@ -246,7 +259,7 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
             metrics["held_out"]["note"] = note
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
-        run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")
+        run.log(f"fitted {v['transition_model.kind']} transition model on {len(z)} transitions")
     return run_stage("transition.fit", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v)})
 

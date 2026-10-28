@@ -1,0 +1,48 @@
+# The Pendulum study's version 6 design (docs/experiments/pendulum-ccil-study-predeclaration.md, #113, #121),
+# as a ccil.experiments plan. The freeze (section 11) names this file by its commit.
+study: pendulum-ccil
+version: 6
+tasks: [continuous, discontinuous]
+# Every trained arm: the fast stack, normalized Lipschitz coordinates for continuous CCIL's dynamics model (#125),
+# and, as in the paper, policies trained on every episode (the modern arms override this).
+settings: [transition_model.trainer_version=2, policy.trainer_version=2,
+           transition_model.lipschitz_coordinates=model_normalized, policy.exclude_validation_episodes=false]
+phases:
+  tuning: {seeds: [11, 12, 13], arms: [noise_bc, ccil_tuned, bc_modern, ccil_modern], tuning: true}
+  study: {seeds: {from: 1201, to: 1220}, arms: all}
+arms:
+  bc: {settings: [policy.method=bc, policy.balance_noisy_labels=false], noise_levels: [0.0, 0.01, 0.05, 0.1]}
+  ccil: {settings: [policy.method=ccil], noise_levels: [0.0, 0.01, 0.05, 0.1]}
+  noise_bc: {settings: [policy.method=noise_bc, policy.noise_model=symmetric_uniform_half_batch,
+                        policy.balance_noisy_labels=false],
+             noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: policy.noise_scale}
+  ccil_filtered: {settings: [policy.method=ccil, certificate.profile=disturbed_action_paper_proxy,
+                             certificate.selection_quantile=0.3]}
+  ccil_nolip: {settings: [policy.method=ccil, transition_model.lipschitz_type=none]}
+  ccil_tuned: {settings: [policy.method=ccil], noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: generation.action_noise_std}
+  bc_frac10: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.1}
+  bc_frac25: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.25}
+  bc_frac50: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.5}
+  ccil_frac10: {settings: [policy.method=ccil], data_fraction: 0.1}
+  ccil_frac25: {settings: [policy.method=ccil], data_fraction: 0.25}
+  ccil_frac50: {settings: [policy.method=ccil], data_fraction: 0.5}
+  zero: {train: false, noise_levels: [0.0, 0.01, 0.05, 0.1]}
+  # Secondary, version 6 (section 5): the modern recipe, held-out episodes, a clean holdout for CCIL's labels.
+  bc_modern: {settings: [policy.method=bc, policy.balance_noisy_labels=false, policy.exclude_validation_episodes=true,
+                         policy.optimizer=adamw, policy.weight_decay=0.0001, policy.lr_schedule=cosine,
+                         policy.warmup_steps=1000, policy.step_budget=50000, policy.grad_clip_norm=1.0,
+                         policy.ema_decay=0.999, policy.checkpoint_selection=validation,
+                         policy.validation_interval_steps=2000],
+              noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: policy.learning_rate}
+  ccil_modern: {settings: [policy.method=ccil, transition_model.fit_episodes=train, policy.exclude_validation_episodes=true,
+                           policy.optimizer=adamw, policy.weight_decay=0.0001, policy.lr_schedule=cosine,
+                           policy.warmup_steps=1000, policy.step_budget=50000, policy.grad_clip_norm=1.0,
+                           policy.ema_decay=0.999, policy.checkpoint_selection=validation,
+                           policy.validation_interval_steps=2000],
+                noise_levels: [0.0, 0.01, 0.05, 0.1], tuned: policy.learning_rate}
+tuning:
+  noise_bc: {grid: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1]}
+  ccil_tuned: {grid: {continuous: [1.0e-5, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1],
+                      discontinuous: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 3.0e-1]}}
+  bc_modern: {grid: [1.0e-4, 3.0e-4, 1.0e-3, 3.0e-3, 1.0e-2], select: lowest_mean_validation_loss}
+  ccil_modern: {grid: [1.0e-4, 3.0e-4, 1.0e-3, 3.0e-3, 1.0e-2], select: lowest_mean_validation_loss}
