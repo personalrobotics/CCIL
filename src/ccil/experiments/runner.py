@@ -16,7 +16,10 @@ the same identities; the runner only changes how the work is scheduled:
 A group that runs out of device memory is split in half and retried, down to single units; a single unit out of
 memory is retried once and then recorded as an infrastructure fault. A stage failure of a unit's labels is an
 algorithmic failure of that unit, as is a non-finite training loss or return (the #24 rules). Configuration
-errors and any other exception are tooling defects: they stop the phase without a record.
+errors and any other exception are tooling defects: they stop the phase without a record. So does a compiled
+engine that would run uncompiled (#134): a first-step compiler failure, or a step past torch.compile's recompile
+limit, is refused before it runs, and a group's stages are written only from records whose effective engine is
+the requested one.
 
 The suite supplies what is task-specific (see Suite).
 """
@@ -107,6 +110,16 @@ def _free():
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+def _compilation(results: list) -> list:
+    """The compilation records of a group's results (one per group that ran; a split group has several)."""
+    out = []
+    for r in results:
+        c = None if isinstance(r, BaseException) else r[1]["execution"]["compilation"]
+        if c is not None and c not in out:
+            out.append(c)
+    return out
 
 
 def _split_on_oom(items: list, run, log) -> list:
@@ -245,6 +258,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
 
     from ..runs.provenance import capture_code_state
     capture_code_state()  # before any unit's work: what each record's check compares against (#127)
+    vector_bc_v2.EAGER_FALLBACK = False  # every unit runs the engine it requests (#134)
     root = Path(root).resolve()
     timing = {}
     t_phase = time.time()
@@ -317,7 +331,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
             tg = time.time()
             out = _split_on_oom(list(range(len(jobs))),
                                 lambda idx: fit_group([jobs[i] for i in idx], settings, device=dev, deterministic=det), log)
-            fit_groups.append({"fits": len(jobs), "seconds": round(time.time() - tg, 1)})
+            fit_groups.append({"fits": len(jobs), "seconds": round(time.time() - tg, 1),
+                               "compilation": _compilation(out)})
             prefit = {}
             for (us, role), res in zip(owners, out):
                 prefit.setdefault(id(us), ({"label": None, "evaluation": None}, us))[0][role] = res
@@ -366,7 +381,8 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
             out = _split_on_oom(todo, lambda items: vector_bc_v2.train_group(
                 [j for _, j in items], settings, device=dev, deterministic=det), log) if todo else []
             if todo:
-                train_groups.append({"models": len(todo), "seconds": round(time.time() - tg, 1)})
+                train_groups.append({"models": len(todo), "seconds": round(time.time() - tg, 1),
+                                     "compilation": _compilation(out)})
             trained_by = {id(u): res for (u, _), res in zip(todo, out)}
             for u in chunk:
                 res = trained_by.get(id(u))

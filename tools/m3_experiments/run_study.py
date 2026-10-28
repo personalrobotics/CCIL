@@ -14,7 +14,9 @@ Steps, in order (each refuses to run out of order):
 Real runs need the frozen tooling (tools/m3_experiments/freeze.json, predeclaration section 11): a clean tree whose
 ccil paths equal the frozen ccil commit and whose tooling paths equal the frozen tooling commit. --smoke runs
 the same code at one epoch on smoke seeds before the freeze; its records say smoke and are never analyzed with
-real ones.
+real ones. --preflight (#134) runs the exact schedule (the plan's seeds, the same shards) with every training
+budget that is not compiled into a step cut to its minimum (one epoch; a step budget of the warm-up plus one), so
+its records show every group's compilation as the real run will meet it; its records say smoke too.
 """
 from __future__ import annotations
 
@@ -69,15 +71,17 @@ def main() -> int:
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--preflight", action="store_true")
     a = ap.parse_args()
+    smoke_seeds, a.smoke = a.smoke, a.smoke or a.preflight
 
     from ccil.experiments import gate, records, runner
     from pendulum_suite import PendulumSuite
     root = a.root.resolve()
-    study = _study(a.plan, a.smoke)
+    study = _study(a.plan, smoke_seeds)
     freeze = _freeze(a.smoke)
     state = gate.require(REPO, freeze, real=not a.smoke)
-    suite = PendulumSuite(root, study, smoke=a.smoke)
+    suite = PendulumSuite(root, study, smoke=a.smoke, preflight=a.preflight)
 
     def recheck():  # the gate again before records are written: one clean commit at both boundaries (#127)
         now = gate.require(REPO, freeze, real=not a.smoke)

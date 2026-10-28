@@ -313,6 +313,7 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
                  "padding": M - n_real, "engine": engine.state, "device": str(device), "torch": torch.__version__,
                  "precision": precision.effective, "data_mode": "resident", "deterministic": bool(deterministic)}
     execution_sha = hashlib.sha256(json.dumps(execution, sort_keys=True).encode()).hexdigest()
+    compilation = engine.compilation()  # outside the execution identity: it depends on what ran before in the process
     out = []
     for i, (j, m) in enumerate(zip(jobs, models)):
         for name, mod in nets.items():
@@ -323,8 +324,10 @@ def fit_group(jobs: list[FitJob], settings: dict, *, device: str = "cpu", compil
                   "fit_identity_sha256": fit_identity(j.z, j.a, j.z_next, settings, j.seed),
                   "model_sha256": model_sha256(m),
                   "final_epoch_losses": {q: v[-1] for q, v in history[i].items()}, "epoch_losses": history[i],
-                  "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M, "engine": engine.state},
-                  "group": {**execution, "setup_seconds": t_train - t_setup, "train_seconds": t_done - t_train,
+                  "execution": {"execution_sha256": execution_sha, "position": i, "bucket": M, "engine": engine.state,
+                                "compilation": compilation},
+                  "group": {**execution, "compilation": compilation, "setup_seconds": t_train - t_setup,
+                            "train_seconds": t_done - t_train,
                             "epoch_seconds": epoch_seconds},
                   "shuffle": "counter-based permutation (policy trainer v2's), keyed by (seed, epoch)",
                   "perturbations": "counter-keyed normals (seed, step, minibatch row, sample, component)"

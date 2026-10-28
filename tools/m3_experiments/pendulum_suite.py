@@ -29,9 +29,9 @@ VERSION = "m3_experiments.pendulum_suite/1"
 class PendulumSuite:
     name, version = "pendulum", VERSION
 
-    def __init__(self, root, study, smoke: bool = False):
+    def __init__(self, root, study, smoke: bool = False, preflight: bool = False):
         self.root = Path(root).resolve()
-        self.study, self.smoke = study, smoke
+        self.study, self.smoke, self.preflight = study, smoke or preflight, preflight
         self._inputs = s24.prepare(self.root)  # converts once; verifies the committed conversion's hashes
 
     def inputs(self, task: str) -> dict:
@@ -50,7 +50,10 @@ class PendulumSuite:
         if self.smoke and cfg["policy.balance_noisy_labels"] and cfg["policy.method"] == "ccil":
             sets = [*sets, f"policy.epochs={cfg['generation.labels_per_transition']}"]
             cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task], sets=sets)
-        if self.smoke and cfg["policy.step_budget"]:  # a budgeted recipe, scaled down with its warm-up and cadence
+        if self.preflight and cfg["policy.step_budget"]:  # the budget is not compiled in; the warm-up and cadence are
+            cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task],
+                          sets=[*sets, f"policy.step_budget={int(cfg['policy.warmup_steps']) + 1}"])
+        elif self.smoke and cfg["policy.step_budget"]:  # a budgeted recipe, scaled down with its warm-up and cadence
             cfg = resolve(config=self.root / "inputs" / "config" / s24.CONFIGS[task],
                           sets=[*sets, "policy.step_budget=200", "policy.warmup_steps=20",
                                 *(["policy.validation_interval_steps=50"] if cfg["policy.validation_interval_steps"]
