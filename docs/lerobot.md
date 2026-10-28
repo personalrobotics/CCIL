@@ -154,8 +154,10 @@ and 3.12.
 | 0.6.1 | pass | pass | pass | **yes** |
 | 0.3.3 | fail | fail (writes v2.1, refused) | fail | no |
 
-Tested from commit `31f29ad` on macOS (arm64), Python 3.12 environments, each with the versions it resolved
-(recorded in the report).
+The same matrix on two hosts, each release in its own Python 3.12 environment with the versions it resolved
+(recorded in the reports): macOS arm64 from commit `31f29ad`
+([`report.json`](fixtures/evidence/m4-lerobot/report.json)) and Linux x86_64 from `fc78a4a`
+([`report-siddh.json`](fixtures/evidence/m4-lerobot/report-siddh.json)).
 
 The range grows only when a new release passes both directions. If a release
 fails, the bridge is fixed or the release stays unlisted. We do not promise
