@@ -116,6 +116,56 @@ Every refusal names the problem, and nothing partial is returned or written.
   data, an episode with several tasks, and writing timestamps that do not
   advance by 1 / fps (LeRobot checks this when it loads).
 
+## CCIL supervision as an overlay (#28)
+
+A LeRobot episode means temporally related frames, while a CCIL label is an
+independent counterfactual supervision record. So labels are never written as
+LeRobot episodes. Instead `export_overlay` writes one immutable bundle:
+
+```
+destination/
+  data/  meta/  videos/          # an unchanged copy of the source LeRobot dataset
+  ccil/meta.json                 # schema, source files, run ID, input hashes, feature map, generator, shard hashes
+  ccil/labels/chunk-000/file-000.parquet ...
+```
+
+- **The LeRobot portion** is a byte-for-byte copy of the source, so stock LeRobot readers see exactly the original
+  episodes.
+- **The sidecar** holds exactly the synthetic rows `build_supervision` returns.
+  - Each row has its observation (in the LeRobot feature its modality came from), its action or action chunk and
+    mask, its weight, its source episode, frame and global index, its candidate row, its measurements and its
+    classification.
+  - Rejected, inadmissible and unselected candidates stay in the run's artifacts.
+  - The run ID is recorded once, in `ccil/meta.json`. Version 1 holds one supervision run per overlay.
+- **Provenance is checked before anything is written:**
+  - the source's files must hash to the conversion manifest's;
+  - the supervision's dataset must be the conversion's output, directly or through the `data.prepare` run that read
+    it;
+  - only identity representations are accepted.
+- **Writes are atomic.** An existing destination is refused, and a failed export leaves nothing. `read_overlay`
+  verifies every shard's hash and that the LeRobot portion is unchanged.
+
+**Training (`ccil.lerobot.training`, needs torch).** `CCILTrainingDataset(LeRobotDataset(...))` is CCIL's
+supervision as one dataset. It wraps a LeRobot dataset object that you construct; CCIL never imports LeRobot.
+- **Its rows:** the demonstration frames (t ≤ T−2 of the overlay's training episodes) and every usable label, each
+  with `ccil.weight`.
+- **Sampling:** `sampler()` draws rows by weight, optionally balancing demonstrations against labels.
+- **Stock trainers:** a stock trainer that ignores `ccil.weight` is not CCIL-correct.
+
+**Temporal windows fail closed.**
+- **Demonstration rows** are LeRobot's own items, with its ordinary windows.
+- **An observation history** for a synthetic label is refused, until M5 defines a valid construction.
+- **Future actions** for a synthetic label come only from its stored action chunk, never from neighbouring labels.
+  Without a stored chunk, a future-action window is refused.
+- **Single-frame policies** consume every label directly.
+
+```bash
+uv run --group evidence --extra lerobot python tools/m4_overlay/check.py --out <new-dir>
+```
+
+For each supported release, the evidence checks three things: a stock load that sees exactly the source, a
+CCIL-aware load that sees every label and weight, and the temporal windows.
+
 ## Compatibility: an evidence-backed matrix
 
 A LeRobot release is listed as supported only when it passes **both
