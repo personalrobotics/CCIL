@@ -41,6 +41,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -105,8 +106,9 @@ def policy_step(device: str, out: Path) -> dict:
                and all(c["requested"] == c["effective"] == "eager" for c in col("this_eager", "compilation")))
     imports_ok = (all(v.startswith(str(src)) for k, v in imported.items() if k.startswith("base"))
                   and all(v.startswith(str(REPO)) for k, v in imported.items() if k.startswith("this")))
+    shutil.rmtree(src)  # the extracted pre-#134 source: its commit is recorded
     return {"pass": draws and eager and chunking and vs_base and records and imports_ok,
-            "base_commit": base, "groups": groups, "imported_from": imported,
+            "base_commit": base, "groups": groups, "imported_from": imported, "imports_ok": imports_ok,
             "rows_and_draws_identical": draws, "eager_identical_to_base": eager,
             "compiled_independent_of_chunking": chunking, "compiled_identical_to_base_one_specialization": vs_base,
             "base_compiled_independent_of_chunking_per_group": dict(zip(groups, base_chunking)),
@@ -301,6 +303,7 @@ def main() -> int:
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--preflight-root", type=Path)
     a = ap.parse_args()
+    a.out = a.out.resolve()
     a.out.mkdir(parents=True, exist_ok=False)
     import torch
     report = {"commit": _git("rev-parse", "HEAD"), "dirty": bool(_git("status", "--porcelain")),

@@ -158,9 +158,19 @@ Both modes give bit-identical parameters.
   so groups of the same shapes reuse the compiled step. CUDA graphs
   (`reduce-overhead`) were measured slower: each replay copies the resident
   table into the graph's buffers.
+  - The step specializes only on the bucket, the NoiseBC flag and the recipe
+    (#134). The learning rate is a tensor, the resident table's row count is
+    dynamic, and a chunk's indices are step-major, so every step has the same
+    strides. Groups that differ in table size or learning rate reuse one
+    compiled step, and results do not depend on the chunk size.
+  - Past `torch.compile`'s recompile limit (8 specializations per function and
+    process), a compiled function would run uncompiled with only a warning.
+    That step is refused with `CompilationRefused` before it runs. The
+    batched fits share the guard.
   - Compilation is lazy, so the first compiled step is guarded. A compiler
     failure there falls back to eager for the whole run, with nothing
-    updated, and the outcome is recorded as the engine.
+    updated, and the outcome is recorded as the engine. A study process
+    (`ccil.experiments.runner`) refuses it instead.
 - **Precision:** float32 with TF32 off is enforced during training, and the
   caller's settings are restored afterwards.
 - **NoiseBC:** the #22 counter draws are computed on the device, bit-identical
@@ -178,6 +188,8 @@ and the training identity includes it. The record's `group` field holds:
 - the group size and table blocks;
 - the data mode and chunk size;
 - the engine (compiled or eager), the device and the TF32 setting;
+- `compilation`: the requested and effective engine, and the step's
+  specializations in the process (in all, and new in this group);
 - the shuffle rule;
 - the setup, training and per-epoch times.
 
