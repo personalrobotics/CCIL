@@ -60,40 +60,20 @@ def _verify_one(args):
     return rel, same, audit(path) if same else None
 
 
-def verify_phase(root, study, phase, *, smoke: bool, audit, expected_inputs, choice=None, jobs: int = 8) -> list:
-    """Every record of a phase, verified; each returned record carries "verified": {noise: R recomputed by the audit}.
-
-    Refuses (RecordsRefused, listing every problem) unless:
-    - the records are exactly the plan's units for the phase (no missing, duplicate or extra unit), each at its
-      own path;
-    - every record is of this kind (smoke or real), passed its gate, and all share one code state and one tooling
-      commit; real records passed the frozen-tooling gate;
-    - every record carries the input hashes expected_inputs gives;
-    - every evaluation file has its recorded SHA-256 and passes the suite's audit, and the record's R, failed
-      episodes, task, seed and noise level agree with the audit;
-    - a record is ok exactly when it has every planned evaluation and every recomputed R is finite.
-    """
-    root = Path(root).resolve()
-    files = sorted(p for p in (root / "results" / phase).rglob("s*.json") if ".fault" not in p.name)
-    records = [json.loads(p.read_text()) for p in files]
-    problems = []
-    expected = Counter(study.units(phase, choice))
-    have = Counter((r["task"], r["arm"], r["seed"], r["value"]) for r in records)
-    if have != expected:
-        problems.append(f"records are not exactly the {phase} units: missing {sorted((expected - have).elements())[:3]}, "
-                        f"duplicate or extra {sorted((have - expected).elements())[:3]}")
-    for p, r in zip(files, records):
-        if p != result_path(root, phase, r["task"], r["arm"], r["seed"], r["value"]) or r["phase"] != phase:
-            problems.append(f"{p.relative_to(root)} does not hold the unit its path names")
-    if {r["smoke"] for r in records} - {smoke}:
+def _code_states(records, smoke: bool, problems: list) -> None:
+    """The record-kind and gate invariants every verified record set shares."""
+    if {r.get("smoke") for r in records} - {smoke}:
         problems.append("smoke and real records are mixed")
     if not all(r["gate"]["ok"] and r["gate"]["real"] == (not smoke) for r in records):
         problems.append("a record was made without passing its code-state gate")
     if len({(r["gate"]["head"], r["gate"]["tooling"].get("tooling_commit")) for r in records}) > 1:
         problems.append("records come from more than one code state")
-    for r in records:
-        if r.get("arm") in study.arms and r.get("inputs") != expected_inputs(r):
-            problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}: input hashes differ")
+
+
+def _verify_evaluations(root, records, audit, jobs: int, problems: list) -> None:
+    """Re-audit every evaluation and set each record's "verified": {noise: R recomputed}. An evaluation verifies when
+    its rollout has the recorded SHA-256, passes the audit, and the audit's task, seed and noise level and its
+    failed episodes and R agree with the record."""
     jobs_list = [(str(root), e["rollout"], e["rollout_sha256"], audit) for r in records
                  for e in r.get("evaluations", {}).values()]
     if jobs > 1:  # fork, so the suite's audit function needs no import path in the workers
@@ -119,11 +99,45 @@ def verify_phase(root, study, phase, *, smoke: bool, audit, expected_inputs, cho
                 problems.append(f"{name} noise {n}: the record disagrees with its rollout's audit")
                 continue
             r["verified"][n] = a["R_recomputed"]
+
+
+def verify_phase(root, study, phase, *, smoke: bool, audit, expected_inputs, choice=None, jobs: int = 8) -> list:
+    """Every record of a phase, verified; each returned record carries "verified": {noise: R recomputed by the audit}.
+
+    Refuses (RecordsRefused, listing every problem) unless:
+    - the records are exactly the plan's units for the phase (no missing, duplicate or extra unit), each at its
+      own path;
+    - every record is of this kind (smoke or real), passed its gate, and all share one code state and one tooling
+      commit; real records passed the frozen-tooling gate;
+    - every record carries the input hashes expected_inputs gives;
+    - every evaluation file has its recorded SHA-256 and passes the suite's audit, and the record's R, failed
+      episodes, task, seed and noise level agree with the audit;
+    - a record is ok exactly when it has every planned evaluation and every recomputed R is finite.
+    """
+    root = Path(root).resolve()
+    files = sorted(p for p in (root / "results" / phase).rglob("s*.json") if ".fault" not in p.name)
+    records = [json.loads(p.read_text()) for p in files]
+    problems = []
+    expected = Counter(study.units(phase, choice))
+    have = Counter((r["task"], r["arm"], r["seed"], r["value"]) for r in records)
+    if have != expected:
+        problems.append(f"records are not exactly the {phase} units: missing {sorted((expected - have).elements())[:3]}, "
+                        f"duplicate or extra {sorted((have - expected).elements())[:3]}")
+    for p, r in zip(files, records):
+        if p != result_path(root, phase, r["task"], r["arm"], r["seed"], r["value"]) or r["phase"] != phase:
+            problems.append(f"{p.relative_to(root)} does not hold the unit its path names")
+    _code_states(records, smoke, problems)
+    for r in records:
+        if r.get("arm") in study.arms and r.get("inputs") != expected_inputs(r):
+            problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}: input hashes differ")
+    _verify_evaluations(root, records, audit, jobs, problems)
+    for r in records:
         planned = ({str(x) for x in study.arms[r["arm"]].noise_levels}
                    if r["arm"] in study.arms and r["arm"] not in study.deferred(phase) else set())
         if r["status"] == "ok" and (set(r["verified"]) != planned
                                     or not all(np.isfinite(v) for v in r["verified"].values())):
-            problems.append(f"{name}: status ok without every finite, verified evaluation")
+            problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}: "
+                            "status ok without every finite, verified evaluation")
     if problems:
         raise RecordsRefused(f"{phase} records refused ({len(problems)} problems): " + "; ".join(problems[:10]))
     return records
@@ -145,15 +159,21 @@ def record_choice(root, study, tuning: list, phase: str = "tuning", acceptance_a
 def verify_deferred(root, study, phase, *, smoke: bool, audit, jobs: int = 8) -> list:
     """The deferred returns of a tuning phase (runner.evaluate_deferred), verified like a phase's records.
 
-    Refuses unless they are exactly the phase's deferred units that are ok, each names the recorded choice by its
-    SHA-256 and its tuning record by its SHA-256 (so it was computed after the choice, from that unit's policy),
-    and every rollout passes the audit and agrees with its record."""
+    Refuses (RecordsRefused, listing every problem) unless:
+    - they are exactly the phase's deferred units that are ok, each at its own path under <phase>_returns;
+    - each names the recorded choice by its SHA-256 and its tuning record by its SHA-256 (so it was computed after
+      the choice, from that unit's policy);
+    - every record is of this kind, passed its gate, and shares one code state with the phase's tuning records;
+    - each has exactly its arm's planned noise levels, and every evaluation verifies as in verify_phase (its
+      rollout's audited task, seed and noise level are the record's);
+    - a record is ok exactly when every recomputed R is finite, and algorithmic_failure otherwise."""
     root = Path(root).resolve()
     choice_sha = sha(root / CHOICE)
     tuning = {(r["task"], r["arm"], r["seed"], r["value"]): (p, r) for p in (root / "results" / phase).rglob("s*.json")
               if ".fault" not in p.name for r in [json.loads(p.read_text())]}
     want = {k for k, (_, r) in tuning.items() if k[1] in study.deferred(phase) and r["status"] == "ok"}
-    files = sorted((root / "results" / f"{phase}_returns").rglob("s*.json"))
+    returns = f"{phase}_returns"
+    files = sorted((root / "results" / returns).rglob("s*.json"))
     recs = [json.loads(p.read_text()) for p in files]
     problems = []
     have = Counter((r["task"], r["arm"], r["seed"], r["value"]) for r in recs)
@@ -161,23 +181,22 @@ def verify_deferred(root, study, phase, *, smoke: bool, audit, jobs: int = 8) ->
         problems.append(f"deferred returns are not exactly the ok deferred units of {phase}")
     for p, r in zip(files, recs):
         k = (r["task"], r["arm"], r["seed"], r["value"])
+        if p != result_path(root, returns, *k) or r.get("phase") != returns:
+            problems.append(f"{p.relative_to(root)} does not hold the unit its path names")
         if r.get("choice_sha256") != choice_sha:
             problems.append(f"{p.name}: does not name the recorded choice")
         if k in tuning and r.get("tuning_record_sha256") != sha(tuning[k][0]):
             problems.append(f"{p.name}: does not name its tuning record")
-        if r.get("smoke") != smoke:
-            problems.append(f"{p.name}: smoke and real records are mixed")
-    jobs_list = [(str(root), e["rollout"], e["rollout_sha256"], audit) for r in recs for e in r["evaluations"].values()]
-    audits = {rel: (same, a) for rel, same, a in map(_verify_one, jobs_list)}
+    _code_states(recs + [r for _, r in tuning.values()], smoke, problems)
+    _verify_evaluations(root, recs, audit, jobs, problems)
     for r in recs:
-        r["verified"] = {}
-        for n, e in r["evaluations"].items():
-            same, a = audits[e["rollout"]]
-            if not same or not a["ok"] or a["failed_episodes"] != e["failed_episodes"] or (
-                    abs(e["R"] - a["R_recomputed"]) > TOL and not (np.isnan(e["R"]) and np.isnan(a["R_recomputed"]))):
-                problems.append(f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']} noise {n}: refused")
-                continue
-            r["verified"][n] = a["R_recomputed"]
+        name = f"{r['task']}/{unit_name(r['arm'], r['value'])}/s{r['seed']}"
+        planned = {str(x) for x in study.arms[r["arm"]].noise_levels} if r["arm"] in study.arms else None
+        if set(r["evaluations"]) != planned:
+            problems.append(f"{name}: evaluations {sorted(r['evaluations'])} are not the planned noise levels")
+        finite = set(r["verified"]) == set(r["evaluations"]) and all(np.isfinite(v) for v in r["verified"].values())
+        if r.get("status") != ("ok" if finite else "algorithmic_failure"):
+            problems.append(f"{name}: status {r.get('status')} disagrees with its verified returns")
     if problems:
         raise RecordsRefused(f"{phase} deferred returns refused ({len(problems)} problems): " + "; ".join(problems[:10]))
     return recs
