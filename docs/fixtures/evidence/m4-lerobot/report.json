@@ -33,12 +33,12 @@
       "torch": "2.7.1"
      },
      "read_direction": false,
-     "read_error": "robot_side.py\", line 100, in <module>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <lambda>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n                                                                      ^^^^^^^^^^^^^^^^^^\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 60, in write\n    ds.add_frame({\"observation.state\": np.array([v, v + 0.25, -v], np.float32),\nTypeError: LeRobotDataset.add_frame() missing 1 required positional argument: 'task'\n",
+     "read_error": "bot_side.py\", line 100, in <module>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <lambda>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n                                                                      ^^^^^^^^^^^^^^^^^^\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 60, in write\n    ds.add_frame({\"observation.state\": np.array([v, v + 0.25, -v], np.float32),\nTypeError: LeRobotDataset.add_frame() missing 1 required positional argument: 'task'\n",
      "supported": false,
      "training": false,
-     "training_error": "dling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n",
+     "training_error": "   response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n",
      "write_direction": false,
-     "write_error": "dling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n"
+     "write_error": "   response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n"
     },
     "0.4.0": {
      "installed": {
@@ -813,7 +813,7 @@
     "refused": true
    },
    "inconsistent_offsets": {
-    "message": "cc-b67b-b3de8be4f1db/scratchpad/loc/26-final/refusals/refuse-inconsistent_offsets/meta/episodes: episode 0: offsets [1, 5) are not contiguous from 0 with length 5; episode 1: offsets [6, 12) are not contiguous from 5 with length 7; episode 2: offsets [13, 16) are not contiguous from 12 with length 4",
+    "message": "isode 0): offsets [1, 5) are not contiguous from 0 with length 5; meta/episodes/chunk-000/file-000.parquet row 1 (episode 1): offsets [6, 12) are not contiguous from 5 with length 7; meta/episodes/chunk-000/file-000.parquet row 2 (episode 2): offsets [13, 16) are not contiguous from 12 with length 4",
     "refused": true
    },
    "missing_fields": {
@@ -825,7 +825,7 @@
     "refused": true
    },
    "multi_task_episode": {
-    "message": "<out>/refusals/refuse-multi_task_episode/data/chunk-000/file-000.parquet: episode 0: 2 tasks within one episode; ccil.trajectories has one task per episode",
+    "message": "te/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/27c-m4_lerobot/refusals/refuse-multi_task_episode/data/chunk-000/file-000.parquet: data/chunk-000/file-000.parquet rows 0-4 (episode 0): 2 tasks within one episode; ccil.trajectories has one task per episode",
     "refused": true
    },
    "pass": true,
@@ -838,7 +838,7 @@
     "refused": true
    },
    "unmapped_feature": {
-    "message": "<out>/refusals/refuse-unmapped_feature: feature 'next.reward' (float32) has no CCIL slot; name it in ignore to read without it",
+    "message": "<out>/refusals/refuse-unmapped_feature: feature 'next.reward' (float32) has no CCIL slot; name it in ignore or preserve",
     "refused": true
    },
    "unreadable_info": {
@@ -910,9 +910,10 @@
    "case": "hub_dataset_read_with_named_ignores",
    "episodes": 206,
    "feature_map": {
-    "action": "action",
-    "observation.environment_state": "state.environment_state",
-    "observation.state": "state"
+    "action": "actions",
+    "observation.environment_state": "observations[state.environment_state]",
+    "observation.state": "observations[state]",
+    "timestamp": "timestamps"
    },
    "features": [
     "action",
@@ -935,13 +936,13 @@
    ],
    "pass": true,
    "read_as_is": false,
-   "refusal": "<out>/hub-work/hub: feature 'next.reward' (float32) has no CCIL slot; name it in ignore to read without it; feature 'next.done' (bool) has no CCIL slot; name it in ignore to read without it; feature 'next.success' (bool) has no CCIL slot; name it in ignore to read without it",
+   "refusal": "<out>/hub-work/hub: feature 'next.reward' (float32) has no CCIL slot; name it in ignore or preserve; feature 'next.done' (bool) has no CCIL slot; name it in ignore or preserve; feature 'next.success' (bool) has no CCIL slot; name it in ignore or preserve",
    "repo_id": "lerobot/pusht_keypoints",
    "revision": "ace8c161a68bc025c21a5f29f85b86a9a2c5e64b"
   }
  ],
  "environment": {
-  "code_commit": "31f29adf71bc437df4edb12f29d3f7856b01f58f",
+  "code_commit": "f4401de0be4f0c7fbe74ed85e08220ce0f3a3e98",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
