@@ -226,7 +226,8 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
     info(d, lambda i: i["features"].update({"next.reward": {"dtype": "float32", "shape": [1], "names": None}}))
     try:
         ds = read_dataset(d, ignore=["next.reward"])
-        res["ignored_feature_read_and_recorded"] = {"refused": ds.meta["dataset"]["ignored_features"] == ["next.reward"]}
+        res["ignored_feature_read_and_recorded"] = {
+            "refused": ds.meta["dataset"]["features"]["next.reward"]["disposition"] == "ignored"}
     except LeRobotFormatError as e:
         res["ignored_feature_read_and_recorded"] = {"refused": False, "message": str(e)}
     # Writing: images, off-rate timestamps and an existing destination are refused, and nothing is left behind.
@@ -337,7 +338,7 @@ def hub(work: Path) -> dict:
         ignore = sorted(f for f in info["features"] if f.startswith("next."))
         ds = read_dataset(path, ignore=ignore)  # what a caller gets after naming the features it drops
         return {**out, "ignored": ignore, "episodes": len(ds.episodes), "frames": sum(ep.length for ep in ds.episodes),
-                "feature_map": ds.meta["dataset"]["feature_map"]}
+                "feature_map": {k: d["to"] for k, d in ds.meta["dataset"]["features"].items() if d.get("to")}}
     except Exception as e:  # noqa: BLE001 - reported: network, or a dataset not in v3.0
         return {"repo_id": HUB[0], "read": False, "error": f"{type(e).__name__}: {e}"[-400:]}
 

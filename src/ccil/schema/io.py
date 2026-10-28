@@ -129,7 +129,7 @@ def _layout(schema, path, arrays, specs) -> None:
 
 # --- trajectories ---------------------------------------------------------
 TRAJ_REQUIRED = {"episode_ids", "episode_lengths", "terminated", "actions"}
-TRAJ_OPTIONAL = {"timestamps", "task", "task_present", "action_chunks", "action_chunk_mask"}
+TRAJ_OPTIONAL = {"timestamps", "task", "task_present", "action_chunks", "action_chunk_mask", "termination_known"}
 
 
 def write_trajectories(dataset: TrajectoryDataset, path, validate: bool = True) -> None:
@@ -154,7 +154,12 @@ def write_trajectories(dataset: TrajectoryDataset, path, validate: bool = True) 
     if any(ep.action_chunks is not None for ep in eps):
         arrays["action_chunks"] = np.concatenate([ep.action_chunks for ep in eps])
         arrays["action_chunk_mask"] = np.concatenate([ep.action_chunk_mask for ep in eps])
-    arrays["meta"] = _meta(trajectories.SCHEMA, trajectories.VERSION, optional, dataset=dataset.meta)
+    version = (1, 0)  # files without 1.1's field stay 1.0, byte for byte
+    if eps[0].termination_known is not None:
+        arrays["termination_known"] = np.array([ep.termination_known for ep in eps], dtype=bool)
+        optional.add("termination_known")
+        version = trajectories.VERSION
+    arrays["meta"] = _meta(trajectories.SCHEMA, version, optional, dataset=dataset.meta)
     _atomic_savez(path, arrays)
 
 
@@ -165,7 +170,7 @@ def read_trajectories(path) -> TrajectoryDataset:
     if missing or not any(k.startswith("obs/") for k in z):
         raise _format_error(trajectories.SCHEMA, path, [f"missing required fields {missing or ['obs/<modality>']}"])
     _layout(trajectories.SCHEMA, path, z, {"episode_ids": (1, "U"), "episode_lengths": (1, "iu"), "terminated": (1, "b"),
-                                           "task": (1, "U"), "task_present": (1, "b")})
+                                           "task": (1, "U"), "task_present": (1, "b"), "termination_known": (1, "b")})
     problems = []
     if ("task" in z) != ("task_present" in z):
         problems.append("task and task_present must be given together")
@@ -177,7 +182,7 @@ def read_trajectories(path) -> TrajectoryDataset:
     total = int(lengths.sum())
     obs = {k[4:]: z[k] for k in z if k.startswith("obs/")}
     per_frame = [z["actions"], *obs.values()] + [z[k] for k in ("timestamps", "action_chunks", "action_chunk_mask") if k in z]
-    per_episode = [z[k] for k in ("episode_ids", "terminated", "task", "task_present") if k in z]
+    per_episode = [z[k] for k in ("episode_ids", "terminated", "task", "task_present", "termination_known") if k in z]
     if (lengths < 0).any() or any(x.ndim == 0 or len(x) != total for x in per_frame) \
             or any(len(x) != len(lengths) for x in per_episode):
         problems.append("episode_lengths do not match the per-frame and per-episode arrays")
@@ -191,6 +196,7 @@ def read_trajectories(path) -> TrajectoryDataset:
             observations={k: v[b:f] for k, v in obs.items()},
             actions=z["actions"][b:f],
             terminated=bool(z["terminated"][e]),
+            termination_known=bool(z["termination_known"][e]) if "termination_known" in z else None,
             timestamps=z["timestamps"][b:f] if "timestamps" in z else None,
             task=str(z["task"][e]) if "task" in z and bool(z["task_present"][e]) else None,
             action_chunks=z["action_chunks"][b:f] if "action_chunks" in z else None,

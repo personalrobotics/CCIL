@@ -29,6 +29,7 @@ for p in (REPO / "tools" / "analytic_fixture",):
     sys.path.insert(0, str(p))
 from ccil.schema import (REASON_CODES, CandidateSet, Episode, SchemaError, TrajectoryDataset,  # noqa: E402
                          read_candidates, read_trajectories, write_candidates, write_trajectories)
+from ccil.schema import trajectories  # noqa: E402
 from ccil.schema.io import _meta  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from oracle import episodes_to_transitions  # noqa: E402
@@ -204,10 +205,11 @@ def main():
     record("B", "ext_field_ignored", got is None, errors=got)
     got = variant("major2.npz", meta_edit(version="2.0"))
     record("B", "unknown_major_version_rejected", got is not None and any("major version 2" in d for d in got), errors=got)
+    newer = f"{trajectories.VERSION[0]}.{trajectories.VERSION[1] + 1}"  # one minor beyond this reader
     got = variant("minor_declared.npz", lambda a: (a.__setitem__("future_field", np.zeros(3)),
-                                                    meta_edit(version="1.1", optional_fields=["future_field"])(a)))
+                                                    meta_edit(version=newer, optional_fields=["future_field"])(a)))
     record("B", "newer_minor_declared_optional_field_ignored", got is None, errors=got)
-    got = variant("minor_undeclared.npz", lambda a: (a.__setitem__("future_field", np.zeros(3)), meta_edit(version="1.1")(a)))
+    got = variant("minor_undeclared.npz", lambda a: (a.__setitem__("future_field", np.zeros(3)), meta_edit(version=newer)(a)))
     record("B", "newer_minor_undeclared_field_rejected", got is not None, errors=got)
     got = variant("missing_required.npz", lambda a: a.pop("terminated"))
     record("B", "missing_required_field_rejected", got is not None and any("terminated" in d for d in got), errors=got)
