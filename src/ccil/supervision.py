@@ -138,9 +138,15 @@ def _valid_chunk_size(k) -> bool:
 
 def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, split=None,
                       representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
-                      chunk_size: int | None = None) -> Supervision:
-    """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency."""
+                      chunk_size: int | None = None, part: str = "train") -> Supervision:
+    """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency.
+
+    With a split, part selects its "train" episodes (the default) or its "validation" episodes (held-out
+    supervision, for example for validation-based checkpoint selection); the manifest records which.
+    """
     problems = []
+    if part not in ("train", "validation"):
+        raise SupervisionError([f"part must be train or validation, got {part!r}"])
     if method not in METHODS:
         raise SupervisionError([f"method must be one of {list(METHODS)}, got {method!r}"])
     if action_chunks not in CHUNK_POLICIES:
@@ -181,7 +187,7 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
             raise SupervisionError([f"split: {e}"]) from None
         if sorted(record["episode_ids"]) != sorted(ep.episode_id for ep in ds.episodes):
             raise SupervisionError(["split episode ids are not the dataset's episodes"])
-        train_eps = set(record["train"])
+        train_eps = set(record[part])
 
     # Candidates and certificates, checked against each other and the dataset before any row is used.
     cands = cert = None
@@ -308,6 +314,8 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                                    "version": str(getattr(representation, "version", "?")), "modality": modality},
                 "inputs": hashes, "counts": counts,
                 "online_perturbation": "noise_bc: applied by the trainer at every draw" if method == "noise_bc" else None}
+    if part != "train":  # recorded only when it differs, so training manifests are unchanged
+        manifest["split_part"] = part
     return Supervision(arrays["observations"], arrays["actions"], arrays["weights"], arrays["source"], arrays["episode_id"],
                        arrays["frame"], arrays["candidate_row"], arrays["classification"], manifest,
                        arrays.get("action_chunks"), arrays.get("action_chunk_mask"))

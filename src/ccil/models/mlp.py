@@ -31,6 +31,13 @@ docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
 - soft_sampling_slack weights each sample's perturbation penalties by that
   sample's own slack; legacy broadcast every slack against every sample's
   perturbations.
+- the sampled penalties' coordinates are explicit (#125,
+  transition_model.lipschitz_coordinates): raw, as above, or model_normalized,
+  which perturbs the model's normalized inputs and compares its normalized
+  residuals (a dimensionless ratio, invariant up to the normalization's 1e-8
+  and ReLU kinks under a consistent per-coordinate rescaling). The
+  penalty is a training regularizer: lipschitz_constraint is never a certified
+  bound, and certificates recompute bounds from the weights.
 """
 from __future__ import annotations
 
@@ -58,8 +65,45 @@ LIPSCHITZ_TYPES = ("none", "spectral_normalization", "slack", "spectral_normaliz
                    "soft_sampling_slack", "soft_jac")
 SETTINGS = ("hidden_layers", "activation", "lipschitz_type", "lipschitz_constraint", "soft_penalty_weight",
             "soft_sampling_eps", "soft_samples", "slack_weight", "learning_rate", "weight_decay", "epochs",
-            "batch_size")
+            "batch_size", "lipschitz_coordinates")
+LIPSCHITZ_COORDINATES = ("raw", "model_normalized")
+LIPSCHITZ_UNITS = {
+    "raw": "||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||: raw residuals over raw perturbations eps * N(0, I) (#21)",
+    "model_normalized": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs "
+                        "x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)",
+}
 PREDICT_CHUNK = 65536
+JACOBIAN_MEMORY_BYTES = 2048 * 2**20  # default device-memory budget of one Jacobian chunk (compute.jacobian_memory_mb)
+
+
+def jacobian_row_bytes(state_dim: int, action_dim: int, hidden_layers) -> int:
+    """Estimated device bytes of one row of a vmap(jacrev) chunk.
+
+    A row costs the activations reverse mode keeps for each of its D output directions, about 2 D sum(hidden)
+    floats (measured on Pendulum's [256, 256] model, D = 3: 0.76 GB for 65,536 rows), and its float32 Jacobian,
+    D (D + A) values, held about three times over at large D (the D x D cotangent basis, the result and its copy;
+    measured at D = 512, A = 7). The estimate allows twice the activations and three Jacobians, plus one forward
+    pass.
+    """
+    h = sum(int(x) for x in hidden_layers)
+    return 4 * (3 * state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
+
+
+class JacobianBudgetError(ValueError):
+    """compute.jacobian_memory_mb is smaller than one row of the Jacobian computation."""
+
+
+def jacobian_chunk_rows(state_dim: int, action_dim: int, hidden_layers, budget_bytes: int) -> int:
+    """Rows per vmap(jacrev) call that fit a device-memory budget, falling as the state dimension and width grow.
+
+    The budget is a bound, so a budget smaller than one estimated row fails closed (JacobianBudgetError, naming
+    the minimum) rather than running a one-row chunk over it."""
+    row = jacobian_row_bytes(state_dim, action_dim, hidden_layers)
+    if row > int(budget_bytes):
+        raise JacobianBudgetError(f"one Jacobian row needs about {row / 2**20:.2f} MiB (D = {state_dim}, A = "
+                                  f"{action_dim}, hidden {list(hidden_layers)}), more than compute.jacobian_memory_mb "
+                                  f"= {int(budget_bytes) / 2**20:.2f} MiB; raise it to at least {-(-row // 2**20)}")
+    return int(budget_bytes) // row
 NORMALIZATION = ("s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale")
 
 
@@ -84,11 +128,19 @@ class DynamicsNet(nn.Module):
         for name in NORMALIZATION:
             getattr(self, name).copy_(tensors[name])
 
-    def forward(self, s, a):
-        out = torch.cat([(s - self.s_shift) / (self.s_scale + 1e-8), (a - self.a_shift) / (self.a_scale + 1e-8)], -1)
+    def normalize(self, s, a):
+        """The normalized input x = (q - shift) / (scale + 1e-8) of q = (s, a)."""
+        return torch.cat([(s - self.s_shift) / (self.s_scale + 1e-8), (a - self.a_shift) / (self.a_scale + 1e-8)], -1)
+
+    def forward_normalized(self, x):
+        """The normalized residual g(x) of a normalized input."""
+        out = x
         for layer in self.fc_layers[:-1]:
             out = self.nonlinearity(layer(out))
         return self.fc_layers[-1](out)
+
+    def forward(self, s, a):
+        return self.forward_normalized(self.normalize(s, a))
 
     def predict(self, s, a):
         out = self.forward(s, a) * (self.out_scale + 1e-8) + self.out_shift
@@ -103,15 +155,27 @@ def mse_loss(_, y_pred, y):
     return {"loss": loss, "mean_error": (y_pred - y).norm(dim=-1).mean().detach()}
 
 
-def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps, noise=None):
+def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps, noise=None, coordinates="raw", net=None):
     """Finite-difference Lipschitz estimates of the residual model, (B * n_samples,).
 
-    Rows i * n_samples ... (i + 1) * n_samples - 1 belong to sample i. Each
-    perturbs (s, a) by sampling_eps * N(0, I) and gives
-    ||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||, both in raw units. As in
+    Rows i * n_samples ... (i + 1) * n_samples - 1 belong to sample i. As in
     legacy, state and action are perturbed together. noise optionally supplies
-    the unit normal draws (ns, na) with the repeated shapes.
+    the unit normal draws (ns, na) with the repeated shapes. coordinates
+    (LIPSCHITZ_UNITS):
+    - raw: perturb (s, a) by sampling_eps * N(0, I) and give
+      ||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||, in raw units;
+    - model_normalized: perturb net's normalized input x by dx = sampling_eps *
+      N(0, I) and give ||g(x + dx) - g(x)|| / ||dx||, with g the normalized
+      residual: a dimensionless ratio, invariant to rescaling the raw units.
     """
+    if coordinates == "model_normalized":
+        x = net.normalize(s, a)
+        base = net.forward_normalized(x).repeat_interleave(n_samples, dim=0)
+        x = x.repeat_interleave(n_samples, dim=0)
+        ns, na = noise if noise is not None else (torch.randn_like(s.repeat_interleave(n_samples, dim=0)),
+                                                  torch.randn_like(a.repeat_interleave(n_samples, dim=0)))
+        dx = torch.cat([ns, na], dim=-1) * sampling_eps
+        return torch.linalg.norm(net.forward_normalized(x + dx) - base, dim=-1) / torch.linalg.norm(dx, dim=-1)
     base = residual_fn(s, a).repeat_interleave(n_samples, dim=0)
     s, a = s.repeat_interleave(n_samples, dim=0), a.repeat_interleave(n_samples, dim=0)
     ns, na = noise if noise is not None else (torch.randn_like(s), torch.randn_like(a))
@@ -120,23 +184,27 @@ def lipschitz_ratio(s, a, residual_fn, n_samples, sampling_eps, noise=None):
     return torch.linalg.norm(residual_fn(s + ds, a + da) - base, dim=-1) / step
 
 
-def soft_sampling_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples, residual_fn):
-    ratio = lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps)
+def soft_sampling_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples, residual_fn,
+                       coordinates="raw", net=None):
+    ratio = lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps, coordinates=coordinates, net=net)
     penalty = penalty_weight * torch.relu(ratio - lipschitz_constraint).mean()
     mse = F.mse_loss(y_pred, y)
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
 
 
-def slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples, noise=None):
+def slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples, noise=None,
+                         coordinates="raw", net=None):
     """Per-sample slack-weighted penalty, (B,): sample i's slack times the mean hinge over its own perturbations."""
-    hinge = torch.relu(lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps, noise) - lipschitz_constraint)
+    hinge = torch.relu(lipschitz_ratio(*x, residual_fn, n_samples, sampling_eps, noise, coordinates, net)
+                       - lipschitz_constraint)
     slack = lambda_fn(*x).reshape(-1)
     return slack * hinge.reshape(len(slack), n_samples).mean(dim=1), slack
 
 
 def soft_sampling_slack_loss(x, y_pred, y, lipschitz_constraint, sampling_eps, penalty_weight, n_samples,
-                             residual_fn, lambda_fn):
-    terms, slack = slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples)
+                             residual_fn, lambda_fn, coordinates="raw", net=None):
+    terms, slack = slack_sampling_terms(x, residual_fn, lambda_fn, lipschitz_constraint, sampling_eps, n_samples,
+                                        coordinates=coordinates, net=net)
     # The last term is the legacy batch-level regularizer on slack magnitude, unchanged.
     penalty = penalty_weight * (terms.mean() + 1 - torch.exp(-0.1 * torch.abs(slack).mean()))
     mse = F.mse_loss(y_pred, y)
@@ -166,6 +234,28 @@ def soft_jac_loss(x, y_pred, y, lipschitz_constraint, penalty_weight, residual_f
     return {"loss": mse + penalty, "mse_loss": mse.detach(), "lipschitz_penalty": penalty.detach()}
 
 
+def normalization_sha256(net) -> str:
+    """SHA-256 of a model's normalization (shift and scale of state, action and residual), as float32 bytes."""
+    import hashlib
+    h = hashlib.sha256()
+    for name in NORMALIZATION:
+        h.update(name.encode() + getattr(net, name).detach().cpu().to(torch.float32).numpy().tobytes())
+    return h.hexdigest()
+
+
+def lipschitz_record(settings: dict, net) -> dict:
+    """What a fit record states about its Lipschitz penalty's coordinates (#125); empty without a sampled one.
+
+    The penalty is a training regularizer, never a certificate: lipschitz_constraint is not a proven bound in
+    either coordinate system, and certificates recompute model bounds from the weights."""
+    if "soft_sampling" not in settings["lipschitz_type"] and settings["lipschitz_type"] != "soft_jac":
+        return {}
+    c = settings.get("lipschitz_coordinates", "raw")
+    return {"lipschitz": {"coordinates": c, "units": LIPSCHITZ_UNITS[c], "constraint": settings["lipschitz_constraint"],
+                          "normalization_sha256": normalization_sha256(net),
+                          "role": "training regularizer; not a certified bound"}}
+
+
 class MLPTransitionModel:
     """TransitionModel kind "mlp": the legacy WorldModel on the core interface."""
 
@@ -174,17 +264,26 @@ class MLPTransitionModel:
 
     def __init__(self, hidden_layers, epochs, batch_size, activation="relu", lipschitz_type=None,
                  lipschitz_constraint=None, soft_penalty_weight=None, soft_sampling_eps=0.0003, soft_samples=5,
-                 slack_weight=1.0, learning_rate=0.001, weight_decay=1e-05, device="cpu", deterministic=False):
+                 slack_weight=1.0, learning_rate=0.001, weight_decay=1e-05, lipschitz_coordinates="model_normalized",
+                 device="cpu",
+                 deterministic=False):
         lipschitz_type = lipschitz_type or "none"
         if lipschitz_type not in LIPSCHITZ_TYPES:
             raise ValueError(f"lipschitz_type {lipschitz_type!r} is not one of {LIPSCHITZ_TYPES}")
+        if lipschitz_coordinates not in LIPSCHITZ_COORDINATES:
+            raise ValueError(f"lipschitz_coordinates {lipschitz_coordinates!r} is not one of {LIPSCHITZ_COORDINATES}")
+        if lipschitz_type == "soft_jac" and lipschitz_coordinates != "raw":
+            raise ValueError("soft_jac has no model_normalized form yet (#125); use lipschitz_coordinates raw")
         self.settings = {"hidden_layers": [int(h) for h in hidden_layers], "activation": activation,
                          "lipschitz_type": lipschitz_type, "lipschitz_constraint": lipschitz_constraint,
                          "soft_penalty_weight": soft_penalty_weight, "soft_sampling_eps": soft_sampling_eps,
                          "soft_samples": soft_samples, "slack_weight": slack_weight, "learning_rate": learning_rate,
-                         "weight_decay": weight_decay, "epochs": int(epochs), "batch_size": int(batch_size)}
+                         "weight_decay": weight_decay, "epochs": int(epochs), "batch_size": int(batch_size),
+                         "lipschitz_coordinates": lipschitz_coordinates}
         self.device = _check_device(device)
         self.deterministic = bool(deterministic)
+        self.jacobian_memory_bytes = JACOBIAN_MEMORY_BYTES
+        self.jacobian_chunking = None  # the last jacobian_za call's chunking, for records
         self.net = self.lam = None
 
     @classmethod
@@ -205,14 +304,15 @@ class MLPTransitionModel:
     def _loss_fn(self):
         st, lt = self.settings, self.settings["lipschitz_type"]
         lam = (lambda s, a: self.lam.predict(s, a)) if self.lam is not None else None
+        coords = {"coordinates": st["lipschitz_coordinates"], "net": self.net}
         if lt == "soft_sampling":
             return partial(soft_sampling_loss, lipschitz_constraint=st["lipschitz_constraint"],
                            sampling_eps=st["soft_sampling_eps"], penalty_weight=st["soft_penalty_weight"],
-                           n_samples=st["soft_samples"], residual_fn=self.net.predict)
+                           n_samples=st["soft_samples"], residual_fn=self.net.predict, **coords)
         if lt == "soft_sampling_slack":
             return partial(soft_sampling_slack_loss, lipschitz_constraint=st["lipschitz_constraint"],
                            sampling_eps=st["soft_sampling_eps"], penalty_weight=st["soft_penalty_weight"],
-                           n_samples=st["soft_samples"], residual_fn=self.net.predict, lambda_fn=lam)
+                           n_samples=st["soft_samples"], residual_fn=self.net.predict, lambda_fn=lam, **coords)
         if lt in ("slack", "spectral_normalization_slack"):
             return partial(slack_loss, lambda_fn=lam, slack_weight=st["slack_weight"])
         if lt == "soft_jac":
@@ -255,7 +355,7 @@ class MLPTransitionModel:
                     history.setdefault(k, []).append(total / steps)
         return {"method": "adam", "epochs": self.settings["epochs"], "steps_per_epoch": steps,
                 "final_epoch_losses": {k: v[-1] for k, v in history.items()}, "epoch_losses": history,
-                **one_step_metrics(self, z, a, z_next)}
+                **lipschitz_record(self.settings, self.net), **one_step_metrics(self, z, a, z_next)}
 
     def delta(self, z, a) -> np.ndarray:
         with torch.no_grad(), _determinism(self.deterministic), _eval_mode(self.net, self.lam):
@@ -267,13 +367,29 @@ class MLPTransitionModel:
         return torch.cat(out).cpu().numpy().astype(np.float64)
 
     def jacobian_za(self, z, a) -> np.ndarray:
-        """Exact df/d(z, a) in eval mode, (N, D, D + A)."""
+        """Exact df/d(z, a) in eval mode, (N, D, D + A).
+
+        Rows are processed in balanced chunks of at most jacobian_chunk_rows(D, A, hidden, jacobian_memory_bytes),
+        so peak device memory is bounded by the budget, not by N or D (#109); balanced sizes avoid a tiny final
+        chunk, whose different kernel could move a pre-activation lying within rounding of a ReLU kink to the other
+        side (the exact Jacobian of a ReLU network is discontinuous there). The chunking is kept in
+        jacobian_chunking for records. The result is assembled on the host in float64.
+        """
         d = self.net.state_dim
+        z, a = np.asarray(z), np.asarray(a)
+        out = np.empty((len(z), d, d + a.shape[1]), np.float64)
+        jac_fn = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))
+        cap = jacobian_chunk_rows(d, a.shape[1], self.settings["hidden_layers"], self.jacobian_memory_bytes)
+        chunks = max(1, -(-len(z) // cap))
+        size = -(-len(z) // chunks) if len(z) else 1  # ceil(N / ceil(N / cap)): balanced chunks
+        self.jacobian_chunking = {"budget_bytes": int(self.jacobian_memory_bytes), "max_rows_per_chunk": cap,
+                                  "rows": int(len(z)), "chunks": chunks if len(z) else 0, "rows_per_chunk": size}
         with _determinism(self.deterministic), _eval_mode(self.net, self.lam):
-            x = torch.cat([torch.as_tensor(np.asarray(z), dtype=torch.float32, device=self.device),
-                           torch.as_tensor(np.asarray(a), dtype=torch.float32, device=self.device)], -1)
-            jac = torch.func.vmap(torch.func.jacrev(lambda sa: self.net.predict(sa[..., :d], sa[..., d:])))(x)
-        return jac.detach().cpu().numpy().astype(np.float64)
+            for i in range(0, len(z), size):
+                x = torch.cat([torch.as_tensor(z[i:i + size], dtype=torch.float32, device=self.device),
+                               torch.as_tensor(a[i:i + size], dtype=torch.float32, device=self.device)], -1)
+                out[i:i + size] = jac_fn(x).detach().cpu().numpy()
+        return out
 
     def jacobian_z(self, z, a) -> np.ndarray:
         """Exact df/dz in eval mode, (N, D, D); used by Newton solves instead of float32 finite differences."""
@@ -330,14 +446,18 @@ class MLPTransitionModel:
             arrays.update({f"lambda/{k}": v.detach().cpu().numpy() for k, v in self.lam.state_dict().items()})
         meta = {"component": "transition_model", "kind": self.kind, "version": self.version,
                 "state_dim": self.net.state_dim, "act_dim": self.net.act_dim, "settings": self.settings,
-                "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM}
+                "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM,
+                **lipschitz_record(self.settings, self.net)}  # the coordinates' descriptor (#125)
         _atomic_savez(path, {**arrays, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
     def load(cls, path, device: str = "cpu") -> "MLPTransitionModel":
         meta = checkpoint_meta(path, "transition_model")
         check_identity(path, meta, cls)
-        model = cls(**meta["settings"], device=device)
+        settings = dict(meta["settings"])
+        if "lipschitz_coordinates" not in settings:  # written before #125: its penalty was in raw coordinates
+            settings["lipschitz_coordinates"] = "raw"
+        model = cls(**settings, device=device)
         with torch.random.fork_rng(devices=[]):  # construction draws throwaway init values
             model._build(meta["state_dim"], meta["act_dim"])
         with np.load(path, allow_pickle=False) as z:
@@ -351,6 +471,11 @@ class MLPTransitionModel:
         for net in (model.net, model.lam):
             if net is not None:
                 net.train(meta["training"])
+        recorded = meta.get("lipschitz")
+        if recorded is not None:  # the descriptor must describe these weights' normalization and settings
+            current = lipschitz_record(model.settings, model.net).get("lipschitz")
+            if current != recorded:
+                raise ValueError(f"{path}: its Lipschitz descriptor {recorded} does not match the checkpoint {current}")
         return model
 
 

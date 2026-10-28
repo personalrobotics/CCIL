@@ -45,9 +45,70 @@ reason, the acceptance rate, and the generator identity. The label set records
 its own provenance: the run seed, the uniform weighting, a weight per row (0 on
 rejected rows), and the SHA-256 of the stage's inputs (dataset and transition
 model, plus the representation in the integrated pipeline). These match the
-stage manifest. `transition.fit` also
-reports the held-out error of an evaluation model fitted on the train split
-(#13).
+stage manifest.
+
+**`transition.fit`** fits the label model and reports a held-out one-step error
+(#13):
+- **`transition_model.fit_episodes all`** (the default, as legacy): the label
+  model fits every episode, and a separate evaluation model, fitted on the train
+  split, is scored on the held-out episodes.
+- **`train`:** the label model fits the train split only, and it is the model
+  scored. Held-out episodes then influence no training label: a clean
+  holdout, for studies that select or tune on those episodes. Labels are
+  still generated for held-out episodes' transitions; supervision excludes
+  them when `policy.exclude_validation_episodes` is true.
+- **`transition_model.trainer_version 2`** fits mlp models with the batched
+  engine (`models/mlp_batched.py`): the same protocol (initialization,
+  regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a
+  study runner can fit many seeds as one group. It is not bit-compatible with
+  version 1, so the version is part of the stage identity. It supports
+  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`
+  (preflight refuses the others), and honors `compute.deterministic`.
+- **Grouped results are authenticated.** Each batched fit records a content
+  identity: its exact rows, settings, seed and engine. `transition.fit` with a
+  prefit model recomputes it from the unit's own inputs and refuses a mismatch.
+  Likewise, `policy.train` with a group-trained policy recomputes the training
+  identity and checks the policy's parameter hash against its record. Both
+  refuse a group whose effective engine is not the one it requested (#134).
+- **`transition_model.lipschitz_coordinates`** (#125) says which ratio the
+  sampled Lipschitz penalties (`soft_sampling`, `soft_sampling_slack`) hinge
+  at `lipschitz_constraint`:
+  - `model_normalized` (the default). It perturbs the model's normalized input
+    x = (q − shift) / (scale + 1e-8) by δx ~ ε N(0, I), and takes
+    ‖g(x + δx) − g(x)‖ / ‖δx‖ with g the normalized residual. This ratio is
+    dimensionless, in the space the network is optimized in.
+    - **Invariance.** It is invariant, up to the normalization's 1e-8 and
+      ReLU kinks, under a consistent per-coordinate rescaling of states,
+      actions and residuals.
+    - **Timestep.** A different timestep changes it only as far as the
+      refitted normalization absorbs the change.
+    - **Units of ε.** ε is a radius in normalized input units.
+  - `raw` (#21). Raw residuals over raw perturbations, so the constant
+    depends on the units and the timestep. On continuous Pendulum the paper's
+    L = 2 never binds in raw coordinates.
+  - `soft_jac` supports `raw` only, and needs it set explicitly.
+  - **Compatibility.** The default is `config_version 2`'s. A configuration
+    of `config_version` 0 or 1 that does not set the key resolves to `raw`,
+    its meaning when it was written (the resolved configuration notes this).
+    Converted legacy configurations are version 1. A checkpoint written
+    before #125 loads as `raw`, explicitly.
+  - **Checkpoint provenance.** Checkpoints store the coordinates' descriptor
+    (coordinates, units, constraint and normalization SHA-256), and loading
+    verifies it against the weights.
+  - Fit records state the coordinates, the units and a SHA-256 of the
+    normalization.
+- **The penalty is a training regularizer, not a certificate.** The value of
+  `lipschitz_constraint` is never a proven bound in either coordinate system.
+  Certificates recompute model bounds from the weights and normalization
+  transforms (no certificate code reads it). A normalized bound used directly
+  in a theorem would need every distance in that theorem measured in the same
+  weighted norm, or a conservative conversion to raw coordinates.
+- **Evidence:** `tools/m3_fit_v2/check.py`.
+  - One step equals version 1's step from the same initialization.
+  - The held-out error of batched fits is compared with per-fit ones on
+    Pendulum.
+  - The clean holdout is checked by perturbing the held-out episodes, which
+    changes no training label.
 
 The augmentation is the accepted rows together with the prepared dataset. The
 M4 dataset writer turns them into training data. Offline generation never

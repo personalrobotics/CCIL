@@ -1,0 +1,414 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "endings_unknown_by_default",
+   "endings": {
+    "rule": "no next.* feature is interpreted: every ending is unknown",
+    "terminated": 0,
+    "truncated": 0,
+    "unknown": 3
+   },
+   "pass": true
+  },
+  {
+   "case": "explicit_terminal_and_truncation",
+   "endings": {
+    "rule": "terminal_feature 'next.success': an exhaustive terminal-state indicator",
+    "terminated": 2,
+    "truncated": 1,
+    "unknown": 0
+   },
+   "episodes": [
+    [
+     true,
+     true
+    ],
+    [
+     true,
+     false
+    ],
+    [
+     true,
+     true
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "case": "early_terminal_flag_refused",
+   "message": "data/chunk-000/file-000.parquet row 2 (episode 0, frame 2 of 6): next.success is true before the final frame; as an exhaustive terminal indicator it may be true only on the final frame",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "non_boolean_terminal_feature_refused",
+   "message": "terminal_feature 'next.reward' must be bool of shape [1], got float32 [1]",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "missing_terminal_feature_refused",
+   "message": "feature 'next.terminal' is named by the caller but is not in meta/info.json",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "pusht_pattern_done_true_twice",
+   "default_endings": {
+    "rule": "no next.* feature is interpreted: every ending is unknown",
+    "terminated": 0,
+    "truncated": 0,
+    "unknown": 3
+   },
+   "pass": true,
+   "selected": {
+    "message": "data/chunk-000/file-000.parquet row 4 (episode 0, frame 4 of 6): next.done is true before the final frame; as an exhaustive terminal indicator it may be true only on the final frame",
+    "refused": true
+   }
+  },
+  {
+   "case": "every_feature_has_a_disposition",
+   "dispositions": {
+    "action": {
+     "disposition": "mapped",
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "to": "actions"
+    },
+    "episode_index": {
+     "disposition": "checked_index",
+     "dtype": "int64",
+     "shape": [
+      1
+     ]
+    },
+    "frame_index": {
+     "disposition": "checked_index",
+     "dtype": "int64",
+     "shape": [
+      1
+     ]
+    },
+    "index": {
+     "disposition": "checked_index",
+     "dtype": "int64",
+     "shape": [
+      1
+     ]
+    },
+    "next.done": {
+     "disposition": "preserved_as_source_metadata",
+     "dtype": "bool",
+     "shape": [
+      1
+     ],
+     "summary": {
+      "rows": 18,
+      "sha256_of_values": "ef3bf56dee7c36463fd951ad4f52a2d711293c7fc212a11ef471e160258bcba2",
+      "true_count": 6
+     }
+    },
+    "next.reward": {
+     "disposition": "ignored",
+     "dtype": "float32",
+     "rule": "named in ignore by the caller",
+     "shape": [
+      1
+     ]
+    },
+    "next.success": {
+     "disposition": "terminal_indicator",
+     "dtype": "bool",
+     "rule": "exhaustive terminal-state indicator: true only on an episode's final frame; final true = terminated, final false = truncated; true earlier refuses the episode",
+     "shape": [
+      1
+     ]
+    },
+    "observation.state": {
+     "disposition": "mapped",
+     "dtype": "float32",
+     "shape": [
+      2
+     ],
+     "to": "observations[state]"
+    },
+    "task_index": {
+     "disposition": "checked_index",
+     "dtype": "int64",
+     "shape": [
+      1
+     ]
+    },
+    "timestamp": {
+     "disposition": "mapped",
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "to": "timestamps"
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "undisposed_feature_refused",
+   "message": "feature 'next.reward' (float32) has no CCIL slot; name it in ignore or preserve",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "conflicting_dispositions_refused",
+   "message": "feature 'next.done' is both ignored and preserved",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "episode_and_frame_identity_exact",
+   "identical_consecutive_frames_accepted": true,
+   "lengths": [
+    6,
+    5,
+    7
+   ],
+   "pass": true
+  },
+  {
+   "case": "duplicate_frame_identity_refused",
+   "message": "data/chunk-000/file-000.parquet row 3 (episode 0, frame 3): frame_index 2; frames must be 0..5 in order, each once",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "non_monotonic_index_refused",
+   "message": "data/chunk-000/file-000.parquet row 4: index 5 after 3 skips indices; indices must increase by one",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "conversion_manifest_and_source_unchanged",
+   "file_meta_version": "1.1",
+   "manifest": {
+    "endings": {
+     "rule": "terminal_feature 'next.success': an exhaustive terminal-state indicator",
+     "terminated": 2,
+     "truncated": 1,
+     "unknown": 0
+    },
+    "episodes": 3,
+    "features": {
+     "action": {
+      "disposition": "mapped",
+      "dtype": "float32",
+      "shape": [
+       1
+      ],
+      "to": "actions"
+     },
+     "episode_index": {
+      "disposition": "checked_index",
+      "dtype": "int64",
+      "shape": [
+       1
+      ]
+     },
+     "frame_index": {
+      "disposition": "checked_index",
+      "dtype": "int64",
+      "shape": [
+       1
+      ]
+     },
+     "index": {
+      "disposition": "checked_index",
+      "dtype": "int64",
+      "shape": [
+       1
+      ]
+     },
+     "next.done": {
+      "disposition": "preserved_as_source_metadata",
+      "dtype": "bool",
+      "shape": [
+       1
+      ],
+      "summary": {
+       "rows": 18,
+       "sha256_of_values": "ef3bf56dee7c36463fd951ad4f52a2d711293c7fc212a11ef471e160258bcba2",
+       "true_count": 6
+      }
+     },
+     "next.reward": {
+      "disposition": "ignored",
+      "dtype": "float32",
+      "rule": "named in ignore by the caller",
+      "shape": [
+       1
+      ]
+     },
+     "next.success": {
+      "disposition": "terminal_indicator",
+      "dtype": "bool",
+      "rule": "exhaustive terminal-state indicator: true only on an episode's final frame; final true = terminated, final false = truncated; true earlier refuses the episode",
+      "shape": [
+       1
+      ]
+     },
+     "observation.state": {
+      "disposition": "mapped",
+      "dtype": "float32",
+      "shape": [
+       2
+      ],
+      "to": "observations[state]"
+     },
+     "task_index": {
+      "disposition": "checked_index",
+      "dtype": "int64",
+      "shape": [
+       1
+      ]
+     },
+     "timestamp": {
+      "disposition": "mapped",
+      "dtype": "float32",
+      "shape": [
+       1
+      ],
+      "to": "timestamps"
+     }
+    },
+    "frames": 18,
+    "output": {
+     "path": "trajectories.npz",
+     "sha256": "5303b456ba57589caf63be158b7cf416c3cc1adbdd77600747b50e29720dc5d6"
+    },
+    "schema": "ccil.lerobot.conversion",
+    "source": {
+     "files": {
+      "data/chunk-000/file-000.parquet": "54760bf28c25e9025540124c780044c3594b76e8b3e5e5786d5b44ee441c8c51",
+      "meta/episodes/chunk-000/file-000.parquet": "a7311d011f2ccbb514e96a831afe13896b1dbe296048b1b804367dfe35b87b5d",
+      "meta/info.json": "9693b52c8b65a9bfb81f9d59ab6877f003cc5ca2677cb5af285a2b34b8890f7d",
+      "meta/stats.json": "f24bae0b705b8b0c1587521cf210eb08b5051cb95f702e32e313fa150e518421",
+      "meta/tasks.parquet": "813cf89c688db0f4a16268d3e08192a6e062fab814040290f208044b0ccedb7f"
+     },
+     "format": "lerobot.dataset/v3.0",
+     "fps": 10
+    },
+    "source_unchanged": true,
+    "version": "1.0"
+   },
+   "pass": true
+  },
+  {
+   "case": "refused_conversion_writes_nothing",
+   "message": "data/chunk-000/file-000.parquet row 2 (episode 0, frame 2 of 6): next.success is true before the final frame; as an exhaustive terminal indicator it may be true only on the final frame",
+   "pass": true,
+   "refused": true
+  },
+  {
+   "case": "conversion_is_all_or_nothing",
+   "left_behind": [],
+   "moves": [
+    ".trajectories.npz.tmp-11714.npz",
+    "trajectories.npz",
+    "manifest.json"
+   ],
+   "pass": true
+  },
+  {
+   "case": "known_endings_are_not_silently_dropped",
+   "lossy_mode_reads_back_as": {
+    "rule": "no next.* feature is interpreted: every ending is unknown",
+    "terminated": 0,
+    "truncated": 0,
+    "unknown": 3
+   },
+   "pass": true,
+   "refusal": {
+    "message": "episode 0 ('0') records a known ending (terminated); LeRobot v3.0 has no field for it, so writing would lose it; pass drop_endings=True to write anyway (the lossy mode), and its reader will see an unknown ending",
+    "refused": true
+   }
+  },
+  {
+   "case": "episode_positional_construction_unchanged",
+   "fields": [
+    "episode_id",
+    "observations",
+    "actions",
+    "terminated",
+    "timestamps",
+    "task",
+    "action_chunks",
+    "action_chunk_mask",
+    "termination_known"
+   ],
+   "pass": true
+  },
+  {
+   "base_commit": "e2e7e67af5ee8571efe79ad52912b44c8e3a264b",
+   "case": "schema_1_1_read_by_the_1_0_reader",
+   "file_without_the_field_version": "1.0",
+   "old_reader": {
+    "1.0": [
+     false,
+     false,
+     false
+    ],
+    "1.1 converted": [
+     true,
+     false,
+     true
+    ],
+    "1.1 with termination_known": [
+     false,
+     false,
+     false
+    ]
+   },
+   "pass": true
+  },
+  {
+   "case": "unknown_and_terminated_is_invalid",
+   "pass": true
+  },
+  {
+   "case": "pusht_keypoints_from_the_hub",
+   "endings": {
+    "rule": "no next.* feature is interpreted: every ending is unknown",
+    "terminated": 0,
+    "truncated": 0,
+    "unknown": 206
+   },
+   "episodes": 206,
+   "next_done": {
+    "disposition": "preserved_as_source_metadata",
+    "dtype": "bool",
+    "shape": [
+     1
+    ],
+    "summary": {
+     "rows": 25650,
+     "sha256_of_values": "418fdcf2b695433a64759f9ae0f31ed4688757dd1a51f7a528c9c4b0ccf4a709",
+     "true_count": 412
+    }
+   },
+   "next_done_as_terminal": {
+    "message": "data/chunk-000/file-000.parquet row 159 (episode 0, frame 159 of 161): next.done is true before the final frame; as an exhaustive terminal indicator it may be true only on the final frame",
+    "refused": true
+   },
+   "pass": true,
+   "revision": "ace8c161a68bc025c21a5f29f85b86a9a2c5e64b"
+  }
+ ],
+ "environment": {
+  "code_commit": "9d7c848ce6270d72beee347ec8c8299ad0304b34",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "pyarrow": "26.0.0",
+  "python": "3.11.16"
+ }
+}

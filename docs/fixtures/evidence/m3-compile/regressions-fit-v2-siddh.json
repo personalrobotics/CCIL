@@ -1,0 +1,75 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "correctness_one_step_matches_fit_none",
+   "max_relative_difference": 1.1883994943673315e-07,
+   "pass": true
+  },
+  {
+   "case": "correctness_one_step_matches_fit_slack",
+   "max_relative_difference": 1.1883994943673315e-07,
+   "pass": true
+  },
+  {
+   "case": "correctness_rerun_identical",
+   "pass": true
+  },
+  {
+   "case": "correctness_refuses_unsupported_regularizer",
+   "pass": true
+  },
+  {
+   "active_share": 0.8765624761581421,
+   "case": "correctness_activated_reference_soft_sampling",
+   "constraint": 0.002337108249000304,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 9.407337354409545e-13,
+   "loss_relative_difference": 2.2515875113484447e-16,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.0026885866422439357
+  },
+  {
+   "active_share": null,
+   "case": "correctness_activated_reference_soft_sampling_slack",
+   "constraint": 0.0022828638491513347,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 1.3706737133035227e-14,
+   "loss_relative_difference": 1.125854919968072e-16,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.002635011056188463
+  },
+  {
+   "case": "correctness_determinism_and_preflight",
+   "flag_restored": true,
+   "pass": true,
+   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1",
+   "recorded": true
+  },
+  {
+   "case": "stage_hooks",
+   "changed_validation_refused": true,
+   "own_fit_accepted": true,
+   "own_policy_accepted": true,
+   "own_validation_accepted": true,
+   "pass": true,
+   "policy_wrong_execution_refused": true,
+   "swapped_fit_refused": true,
+   "swapped_policy_refused": true,
+   "tampered_weights_refused": true,
+   "wrong_execution_right_record_refused": true,
+   "wrong_model_right_record_refused": true
+  }
+ ],
+ "environment": {
+  "code_commit": "f2557816f6715932b09bf9ea1f75c0b2b1c886ef",
+  "code_dirty": false,
+  "device": "cuda",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.14.1+cu130"
+ }
+}

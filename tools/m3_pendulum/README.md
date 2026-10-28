@@ -45,7 +45,11 @@ with `report-siddh.json` from the study host. It shows:
 - **Code-state gate.** The tree is clean, and `src`, `pyproject.toml` and
   `uv.lock` equal commit `847b060`. A dirty tree fails the checks. On a
   scratch clone, the gate refuses an uncommitted `src` change and an
-  untracked file.
+  untracked file. This is the version 4 freeze, so these two cases fail at
+  any later commit. The version 6 freeze evidence
+  (`tools/m3_experiments/freeze_evidence.sh`) passes `--v6-freeze`, which
+  records exactly these two as skipped, never as passed; the version 6 gate
+  is checked by `tools/m3_experiments`.
 
 The rollouts are written under `<new-dir>/rollouts/`, and each one can be
 re-audited with `audit.audit(path)`.

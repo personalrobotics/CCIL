@@ -86,7 +86,8 @@ def double_integrator_dataset(path, episodes=40, frames=26, seed=11):
 def legacy_model(d: dict, lt: str):
     st = json.loads(str(d["meta"]))["settings"]
     m = MLPTransitionModel(list(st["hidden"]), epochs=1, batch_size=1, lipschitz_type=lt,
-                           lipschitz_constraint=st["lipschitz_constraint"], soft_penalty_weight=0.01)
+                           lipschitz_constraint=st["lipschitz_constraint"], soft_penalty_weight=0.01,
+                           lipschitz_coordinates="raw")  # legacy's penalties were never normalized (#125)
     m._build(2, 1)
     state = {k[6:]: torch.from_numpy(v) for k, v in d.items() if k.startswith("state/")}
     state.update({k[5:]: torch.from_numpy(v) for k, v in d.items() if k.startswith("norm/")})
@@ -236,7 +237,8 @@ def main():
         rows = {}
         for lt in LEGACY_TYPES:
             m = MLPTransitionModel([32, 32], epochs=8, batch_size=64, lipschitz_type=lt, lipschitz_constraint=1.5,
-                                   soft_penalty_weight=0.01)
+                                   soft_penalty_weight=0.01,
+                                   **({"lipschitz_coordinates": "raw"} if lt == "soft_jac" else {}))  # raw only (#125)
             fit = m.fit(s, a, sp, seed=3)
             losses = [x for v in fit["epoch_losses"].values() for x in v]
             row = {"final_losses": fit["final_epoch_losses"], "finite": bool(np.isfinite(losses).all()),

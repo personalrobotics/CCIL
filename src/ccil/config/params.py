@@ -26,6 +26,12 @@ PARAMS = [
           choices=("cpu", "cuda"), legacy=("no_gpu",)),
     Param("compute.deterministic", "bool", False, "Request deterministic torch kernels while fitting and predicting.",
           "Legacy seeding set no determinism flags. On CUDA this needs CUBLAS_WORKSPACE_CONFIG=:4096:8.", "compute"),
+    Param("compute.jacobian_memory_mb", "int", 2048,
+          "Device-memory budget of one chunk of exact model Jacobians (labels and certificates); the rows per chunk "
+          "are derived from it, the state and action dimensions and the model width. A budget smaller than one row is "
+          "refused, naming the minimum.",
+          "Bounds memory as rows and state dimension grow (#109, #110); legacy used finite differences.", "compute",
+          units="MiB", low=1),
     # data ------------------------------------------------------------------
     Param("data.path", "path", None, "Dataset file: ccil.trajectories .npz, or an M1 ccil-trajectories/1 .npz.",
           "Required; there is no meaningful default dataset.", "data", nullable=True, legacy=("data.pkl", "data.path")),
@@ -50,6 +56,15 @@ PARAMS = [
     Param("environment.id", "str", None, "Simulator task identifier used for evaluation.",
           "Task-specific; set by recipes.", "environment", nullable=True, legacy=("env",), status=D, milestone="M3/M7"),
     # transition model ------------------------------------------------------
+    Param("transition_model.trainer_version", "choice", "1", "How mlp transition models are fitted (#110).",
+          "1 fits each model with its own loop (MLPTransitionModel.fit); 2 with the batched engine "
+          "(models/mlp_batched.py), which study runners use to fit many seeds together. Same protocol, not "
+          "bit-compatible, so the version is part of the stage identity.", "transition_model", choices=("1", "2")),
+    Param("transition_model.fit_episodes", "choice", "all", "Episodes the label model is fitted on.",
+          "all (legacy) fits it on every episode, and a separate evaluation model on the train split is scored on "
+          "the held-out episodes; train fits the label model on the train split only, so held-out episodes "
+          "influence no training label (a clean holdout), and that model is the one scored.", "transition_model",
+          choices=("all", "train")),
     Param("transition_model.kind", "choice", "mlp", "Transition-model family: linear (least squares) or mlp.",
           "Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+).",
           "transition_model", choices=("linear", "mlp")),
@@ -62,11 +77,25 @@ PARAMS = [
     Param("transition_model.lipschitz_constraint", "float", None, "Target Lipschitz bound.",
           "Task-specific (1.0-4.0) in legacy configs.", "transition_model", low=0.0, low_open=True, nullable=True,
           legacy=("dynamics.lipschitz_constraint",)),
+    Param("transition_model.lipschitz_coordinates", "choice", "model_normalized",
+          "Coordinates of the sampled Lipschitz penalties (soft_sampling, soft_sampling_slack): the ratio hinged at "
+          "lipschitz_constraint.",
+          "model_normalized (#125) perturbs the model's normalized inputs and compares its normalized residuals: a "
+          "dimensionless ratio in the space the network is optimized in, invariant (up to the normalization's 1e-8 "
+          "and ReLU kinks) under a consistent per-coordinate rescaling of states, actions and residuals. raw (#21) "
+          "uses raw residuals over raw perturbations, so the constant depends on the units and the timestep (on "
+          "continuous Pendulum it never binds at 2). Legacy mixed the two. The penalty is a training regularizer, "
+          "never a certified bound. soft_jac supports raw only. Configurations before config_version 2 resolve to "
+          "raw.", "transition_model",
+          choices=("raw", "model_normalized")),
     Param("transition_model.soft_penalty_weight", "float", None, "Weight of the soft Lipschitz penalty.",
           "Task-specific in legacy configs.", "transition_model", low=0.0, nullable=True,
           legacy=("dynamics.soft_lipschitz_penalty_weight",)),
     Param("transition_model.soft_sampling_eps", "float", 0.0003, "Perturbation radius for sampled Lipschitz estimates.",
-          "Same value in every legacy config.", "transition_model", units="state units", low=0.0, low_open=True,
+          "Same value in every legacy config. Under model_normalized it is a radius in the model's normalized input "
+          "space; under raw it perturbs raw state and action coordinates together.", "transition_model",
+          units="normalized input units (model_normalized) or raw state and action units (raw)", low=0.0,
+          low_open=True,
           legacy=("dynamics.soft_lipschitz_sampling_eps",)),
     Param("transition_model.soft_samples", "int", 5, "Samples per point for sampled Lipschitz estimates.",
           "Same value in every legacy config.", "transition_model", low=1, legacy=("dynamics.soft_lipschitz_n_samples",),
@@ -194,6 +223,36 @@ PARAMS = [
     Param("policy.observation_scaler", "choice", "standard", "Observation normalization during policy training.",
           "Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std.",
           "policy", choices=("standard", "none")),
+    Param("policy.trainer_version", "choice", "2", "Experimental vector-policy trainer version (#108).",
+          "2 trains groups of policies as one batched, compiled program on the device (vector_bc_v2.py); 1 is the "
+          "original per-step loop (vector_bc.py), kept for comparison. Same protocol, not bit-compatible.",
+          "policy", choices=("1", "2")),
+    Param("policy.optimizer", "choice", "adam", "Optimizer of the trainer v2 recipe (#115).",
+          "adam is v1's (no weight decay); adamw applies decoupled weight decay.", "policy", choices=("adam", "adamw")),
+    Param("policy.weight_decay", "float", 0.0, "AdamW decoupled weight decay (#115).",
+          "0 is v1's protocol; nonzero needs policy.optimizer adamw.", "policy", low=0.0),
+    Param("policy.lr_schedule", "choice", "constant", "Learning-rate schedule (#115).",
+          "constant is v1's; cosine warms up linearly over policy.warmup_steps, then decays to 0 at the last step.",
+          "policy", choices=("constant", "cosine")),
+    Param("policy.warmup_steps", "int", 0, "Linear warm-up steps of the cosine schedule (#115).",
+          "Used with policy.lr_schedule cosine.", "policy", low=0),
+    Param("policy.step_budget", "int", None, "Optimizer steps per model, replacing policy.epochs (#115).",
+          "A budget independent of the dataset size; the last epoch is cut at the budget. Null keeps epochs.",
+          "policy", low=1, nullable=True),
+    Param("policy.grad_clip_norm", "float", None, "Global gradient-norm clipping per model (#115).",
+          "Null disables clipping (v1's).", "policy", low=0.0, low_open=True, nullable=True),
+    Param("policy.ema_decay", "float", None, "Exponential moving average of the weights (#115).",
+          "When set, the averaged weights are the policy that is selected and returned. Null disables it (v1's).",
+          "policy", low=0.0, low_open=True, high=1.0, nullable=True),
+    Param("policy.checkpoint_selection", "choice", "last", "Which epoch's weights are returned (#115).",
+          "last is v1's; validation keeps the epoch with the lowest loss on the split's validation-episode "
+          "demonstrations, never on evaluation data, and needs policy.exclude_validation_episodes.",
+          "policy", choices=("last", "validation")),
+    Param("policy.validation_interval_steps", "int", None,
+          "With checkpoint_selection validation: validate every this many optimizer steps and at the last step, "
+          "rather than once per epoch (#115).",
+          "A step cadence gives arms of very different dataset sizes the same number of selection points.",
+          "policy", low=1, nullable=True),
     Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
           "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
     Param("policy.exclude_validation_episodes", "bool", True,
@@ -324,6 +383,9 @@ def mlp_settings_problem(v):
     missing += [k for k in LIPSCHITZ_NEEDS.get(v["transition_model.lipschitz_type"], ()) if v[k] is None]
     if missing:
         return f"transition_model.kind mlp with lipschitz_type {v['transition_model.lipschitz_type']!r} requires {missing}"
+    if v["transition_model.lipschitz_type"] == "soft_jac" and v["transition_model.lipschitz_coordinates"] != "raw":
+        return "transition_model.lipschitz_type soft_jac has no model_normalized form yet (#125): set " \
+               "transition_model.lipschitz_coordinates raw"
     return None
 
 

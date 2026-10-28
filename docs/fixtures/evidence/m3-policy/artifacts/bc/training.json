@@ -1,11 +1,11 @@
 {
  "balance_labels": null,
- "deterministic": false,
  "device": "cpu",
  "epochs": [
   {
    "epoch": 0,
-   "mean_loss": 0.40763577818870544,
+   "mean_loss": 0.4611005187034607,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -15,7 +15,8 @@
   },
   {
    "epoch": 1,
-   "mean_loss": 0.3947189152240753,
+   "mean_loss": 0.3793286681175232,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -25,7 +26,8 @@
   },
   {
    "epoch": 2,
-   "mean_loss": 0.3497832417488098,
+   "mean_loss": 0.3853030204772949,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -35,7 +37,8 @@
   },
   {
    "epoch": 3,
-   "mean_loss": 0.2154654711484909,
+   "mean_loss": 0.3361170291900635,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -45,6 +48,60 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "c4c5d3c734d33bd758479dc15a64c19f424b59f5e705976c7715a5920e21da19",
+  "position": 0
+ },
+ "group": {
+  "batch_size": 32,
+  "bucket": 1,
+  "chunk_steps": 256,
+  "compile_mode": null,
+  "data_mode": "resident",
+  "deterministic": false,
+  "device": "cpu",
+  "engine": "eager",
+  "epoch_seconds": [
+   0.015469074249267578,
+   0.0032749176025390625,
+   0.0027599334716796875,
+   0.0022971630096435547
+  ],
+  "execution_sha256": "c4c5d3c734d33bd758479dc15a64c19f424b59f5e705976c7715a5920e21da19",
+  "members": [
+   {
+    "method": "bc",
+    "noise_bc": null,
+    "seed": 20261023,
+    "supervision_sha256": "e9c3242dafbd05740b71f028544efbbe0bca4133b2b75c458d29b27bd8b48b21"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.002591371536254883,
+  "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
+  "size": 1,
+  "table_blocks": [
+   {
+    "part": "demonstration",
+    "rows": 54,
+    "start": 0
+   }
+  ],
+  "table_bytes": 918,
+  "table_rows": 54,
+  "torch": "2.14.1",
+  "train_seconds": 0.5756797790527344,
+  "validation": null
+ },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": null,
  "optimizer": {
@@ -53,9 +110,24 @@
    0.999
   ],
   "eps": 1e-08,
+  "implementation": "functional, per-model masked",
   "learning_rate": 0.001,
   "name": "adam",
   "weight_decay": 0.0
+ },
+ "parameters_sha256": "8fa52feea34d24545413dd470d5a0cd3af8c6599c756c2c70aab03363091184b",
+ "recipe": {
+  "checkpoint_selection": "last",
+  "ema_decay": null,
+  "grad_clip_norm": null,
+  "lr_schedule": "constant",
+  "optimizer": "adam",
+  "step_budget": null,
+  "total_steps": 4,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0,
+  "weights_returned": "last"
  },
  "row_sources": {
   "demonstration": 54,
@@ -68,16 +140,27 @@
   "action_scaler": "min_max",
   "balance_labels": null,
   "batch_size": 32,
+  "checkpoint_selection": "last",
+  "ema_decay": null,
   "epochs": 4,
+  "grad_clip_norm": null,
   "hidden_layers": [
    256,
    256
   ],
   "learning_rate": 0.001,
-  "observation_scaler": "standard"
+  "lr_schedule": "constant",
+  "observation_scaler": "standard",
+  "optimizer": "adam",
+  "step_budget": null,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0
  },
  "steps_per_epoch": 1,
  "trainer": "vector_mlp",
- "training_identity_sha256": "496dcb0553bdb892eef00522a02148e3cdfb76ea170068ab344bace769d3c3db",
+ "trainer_version": "2",
+ "training_identity_sha256": "9f98e48e32385f7973a468bb4e657d25d76c8fc07bb1d7cf7a7f123016cb0549",
+ "validation": null,
  "version": "1"
 }

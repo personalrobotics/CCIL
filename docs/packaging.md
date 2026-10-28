@@ -9,7 +9,7 @@ The `ccil` core is a uv-managed project (#20).
 | Python | 3.10 and newer for `ccil`; 3.11 and newer for `ccil[torch]` and the `evidence` group (see [`security.md`](security.md)) |
 | Core dependencies | `numpy>=1.24`, `pyyaml>=6.0`. Nothing else installs with the core. |
 | Dependency groups | `evidence`: exact pins of matplotlib, pillow and torch, Python 3.11+, used only by the evidence tools |
-| Optional extras | `torch`: `torch>=2.9.1` on Python 3.11+, for torch-backed models (#21). Later adapters add their own: LeRobot (M4), image models (M5). A missing extra must fail only when its feature is requested, with install guidance. |
+| Optional extras | `torch`: `torch>=2.9.1` on Python 3.11+, for torch-backed models (#21). `lerobot`: `pyarrow>=21.0.0`, and `huggingface_hub>=1.0.0` on Python 3.11+, CCIL's LeRobot Dataset v3.0 format bridge. It does not install the LeRobot runtime ([`lerobot.md`](lerobot.md), #26). Image models (M5) will add their own. A missing extra fails only when its feature is requested, with install guidance. |
 
 ```bash
 uv sync                              # development environment from the lock

@@ -1,0 +1,219 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "fixture_is_the_recorded_one",
+   "files": {
+    "data/chunk-000/file-000.parquet": "78626dcb4b37bee64a42e9b009c4d899bbb75055c499398b33d5391d81c266ed",
+    "meta/episodes/chunk-000/file-000.parquet": "ef4a18bad2de3faac6610758dfdeff8cf353e3a671c61aa97e25f82a2c999f15",
+    "meta/info.json": "cbbdd1cce86293107d6394bd4e0d50a3aab5eae75d11a465d5ad7034abc4328e",
+    "meta/stats.json": "3209d1128105617e276d190b1ee117bb64f18c2d6ed58e799f8103cf8e91bc63",
+    "meta/tasks.parquet": "ad0e38e71f55fbadadf7c403985e15a39fda6558f3502a0b465297851ffaf7aa"
+   },
+   "pass": true,
+   "written_by": {
+    "command": "python tools/m4_roundtrip/lerobot_side.py fixture docs/fixtures/lerobot-roundtrip (in a LeRobot 0.6.1 environment)",
+    "lerobot": "0.6.1",
+    "python": "3.12"
+   }
+  },
+  {
+   "bundle": true,
+   "candidates": true,
+   "candidates_sha256": "925cf1f094947c9488ca4993709903a5269e9c8692e3398e7474c5205d7fc586",
+   "case": "repeated_runs_are_identical",
+   "conversion_manifest": true,
+   "overlay_meta": true,
+   "overlay_shards": {
+    "ccil/labels/chunk-000/file-000.parquet": "431d456c802387b375e619938bde057b40cdd08184586af2854154c4b1b23c75"
+   },
+   "pass": true,
+   "supervision_manifest": true,
+   "tolerance": "exact (CPU)"
+  },
+  {
+   "case": "reloaded_source_records_preserved",
+   "episodes": [
+    12,
+    9,
+    15,
+    6
+   ],
+   "pass": true,
+   "tasks": [
+    "reach left",
+    "reach right"
+   ]
+  },
+  {
+   "case": "labels_and_provenance_match_the_run",
+   "held_out_episodes": [],
+   "labels": 20,
+   "pass": true,
+   "run_id": "labels-generate-65e81db1834c"
+  },
+  {
+   "accepted": 20,
+   "accepted_labels_with_masked_chunk_positions": 1,
+   "accepted_on_held_out_episodes": 0,
+   "candidates": 38,
+   "case": "quality_report_and_tables",
+   "chunk_masks_are_prefixes": true,
+   "chunk_size": 5,
+   "distance_quantiles": {
+    "0": 2.6208586286204798e-09,
+    "0.25": 0.04832371300737924,
+    "0.5": 0.07837211536602978,
+    "0.75": 0.0957448152748241,
+    "1": 0.1018500752156066
+   },
+   "masked_positions_are_zero": true,
+   "masked_positions_histogram": {
+    "2": 1
+   },
+   "overlay_labels": 20,
+   "overlay_masked_positions": 2,
+   "pass": true,
+   "per_episode": {
+    "0": {
+     "accepted": 5,
+     "candidates": 11,
+     "frames": 12,
+     "held_out": false
+    },
+    "1": {
+     "accepted": 3,
+     "candidates": 8,
+     "frames": 9,
+     "held_out": false
+    },
+    "2": {
+     "accepted": 9,
+     "candidates": 14,
+     "frames": 15,
+     "held_out": false
+    },
+    "3": {
+     "accepted": 3,
+     "candidates": 5,
+     "frames": 6,
+     "held_out": false
+    }
+   },
+   "rejected": 18,
+   "rejection_reasons": {
+    "out_of_support": 18
+   },
+   "support_radius": 0.08
+  },
+  {
+   "candidates": 38,
+   "case": "zero_accepted_gives_an_empty_overlay",
+   "pass": true
+  },
+  {
+   "case": "unchanged_lerobot_consumer_iterates_the_bundle",
+   "consumer": "0.6.1",
+   "installed": {
+    "lerobot": "0.6.1",
+    "numpy": "2.2.6",
+    "pyarrow": "26.0.0",
+    "torch": "2.11.0"
+   },
+   "pass": true,
+   "transcripts": {
+    "labels": {
+     "ccil": {
+      "demonstration_rows": 38,
+      "label_candidate_rows": [
+       0,
+       1,
+       5,
+       6,
+       7,
+       14,
+       15,
+       16,
+       20,
+       21,
+       22,
+       23,
+       26,
+       27,
+       28,
+       29,
+       32,
+       33,
+       34,
+       35
+      ],
+      "label_weights": [
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0,
+       1.0
+      ],
+      "labels": 20,
+      "rows": 58
+     },
+     "image_policy_refused": true,
+     "stock": {
+      "content_sha256": "93354a925bb16986a8b2b36fd82c707f7986deeb089728593a0ad4cb5644a364",
+      "episodes": 4,
+      "frames": 42,
+      "image_shape": [
+       3,
+       8,
+       8
+      ],
+      "images_decoded": 42
+     }
+    },
+    "zero": {
+     "ccil": {
+      "demonstration_rows": 38,
+      "label_candidate_rows": [],
+      "label_weights": [],
+      "labels": 0,
+      "rows": 38
+     },
+     "image_policy_refused": true,
+     "stock": {
+      "content_sha256": "93354a925bb16986a8b2b36fd82c707f7986deeb089728593a0ad4cb5644a364",
+      "episodes": 4,
+      "frames": 42,
+      "image_shape": [
+       3,
+       8,
+       8
+      ],
+      "images_decoded": 42
+     }
+    }
+   }
+  }
+ ],
+ "command": "uv run --group evidence --extra lerobot python tools/m4_roundtrip/check.py --out DIR",
+ "environment": {
+  "code_commit": "6c48779c4973a414864b74f763be78a493b7eb54",
+  "code_dirty": false,
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

@@ -7,6 +7,8 @@ policy trainer or the integrated pipeline.
 """
 from __future__ import annotations
 
+import contextlib
+
 from pathlib import Path
 
 import numpy as np
@@ -128,9 +130,17 @@ def preflight(cfg) -> None:
             read_reference_dynamics(ref)
         except (OSError, SchemaError) as e:
             errors.append(f"certificate.reference_dynamics {ref}: {str(e).splitlines()[-1].strip()}")
+    if v["transition_model.fit_episodes"] == "train" and not v["data.validation_fraction"]:
+        errors.append("transition_model.fit_episodes train fits the label model on the train split: it needs "
+                      "data.validation_fraction > 0")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import SUPPORTED
+        if (v["transition_model.lipschitz_type"] or "none") not in SUPPORTED:
+            errors.append(f"transition_model.trainer_version 2 fits lipschitz types {list(SUPPORTED)}; "
+                          f"{v['transition_model.lipschitz_type']} needs trainer_version 1")
     for check in (build_model, build_generator):
         try:
             if v["generation.method"] is not None:
@@ -141,37 +151,134 @@ def preflight(cfg) -> None:
         raise ConfigError(errors)
 
 
-def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None) -> StageResult:
-    """Fit the label model on every episode; score an evaluation model fitted on the train split (#13)."""
-    v = cfg.values
+def _fit(v, z, a, z_next):
+    """Fit one transition model with the configured engine: (model, fit record)."""
+    model = build_model(v)
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import FitJob, fit_group
+        return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"],
+                         deterministic=v["compute.deterministic"])[0]
+    return model, model.fit(z, a, z_next, seed=v["run.seed"])
+
+
+def transition_inputs(prepared: StageResult, extra_inputs=None) -> dict:
+    """transition.fit's inputs: the prepared dataset, its split when there is one, and any extra inputs."""
     split_path = prepared.out(layout.SPLIT)
     inputs = {"dataset": prepared.out(layout.DATASET), **(extra_inputs or {})}
     if split_path.exists():
         inputs["split"] = split_path
+    return inputs
+
+
+def transition_data(v, inputs: dict, representation):
+    """(z, a, z_next, train mask, validation mask) for transition.fit; the masks are None without a split.
+
+    The label model fits every transition; the evaluation model fits the train rows.
+    """
+    batch = transitions(read_trajectories(inputs["dataset"]), representation)
+    z, a, z_next = batch.z, batch.a, batch.z_next
+    if v["transition_model.direction"] == "backward":
+        z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
+    if "split" not in inputs:
+        return z, a, z_next, None, None
+    import json
+    split = json.loads(Path(inputs["split"]).read_text())
+    return (z, a, z_next, np.isin(batch.episode_id, list(split["train"])),
+            np.isin(batch.episode_id, list(split["validation"])))
+
+
+class PrefitMismatch(RuntimeError):
+    """A model fitted elsewhere does not belong to this unit's inputs: a study-runner defect."""
+
+
+def requested_execution_problem(record: dict, v) -> str | None:
+    """Why a group's record was not run as this unit requests (device type, determinism, and the engine its
+    group requested: never an eager fallback of a compiled one, #134), or None."""
+    import torch
+    group = record.get("group") or {}
+    want = (torch.device(v["compute.device"]).type, bool(v["compute.deterministic"]))
+    got = (torch.device(group["device"]).type if group.get("device") else None, group.get("deterministic"))
+    if got != want:
+        return f"was run with (device, deterministic) {got}, not the unit's {want}"
+    comp = group.get("compilation") or {}
+    if not comp.get("requested") or comp.get("effective") != comp["requested"]:
+        return f"ran the engine {comp.get('effective')!r}, not the requested {comp.get('requested')!r}"
+    return None
+
+
+def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:
+    """Refuse prefit models whose fit identity is not this unit's (rows, split, direction, settings, seed), whose
+    weights are not the ones their record describes, or that ran differently from the unit's request."""
+    from ..models.mlp_batched import fit_identity, model_sha256
+    settings = dict(build_model(v).settings)
+    expected = {"label": (z[tr], a[tr], z_next[tr]) if clean else (z, a, z_next)}
+    if tr is not None and not clean:
+        expected["evaluation"] = (z[tr], a[tr], z_next[tr])
+    for role, rows in expected.items():
+        model, record = prefit.get(role) or (None, {})
+        got = record.get("fit_identity_sha256")
+        want = fit_identity(*rows, settings, v["run.seed"])
+        if got != want:
+            raise PrefitMismatch(f"prefit {role} model has fit identity {got}, not this unit's {want}")
+        if model is None or record.get("model_sha256") != model_sha256(model):
+            raise PrefitMismatch(f"prefit {role} model is not the model its record describes")
+        problem = requested_execution_problem(record, v)
+        if problem:
+            raise PrefitMismatch(f"prefit {role} model {problem}")
+
+
+def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
+    """Fit the label model and score a model fitted on the train split on the held-out episodes (#13).
+
+    transition_model.fit_episodes all fits the label model on every episode and a separate evaluation model on
+    the train split; train fits the label model on the train split only, and scores it.
+
+    prefit, from a study runner that fitted many units together (models/mlp_batched.fit_group), supplies
+    {"label": (model, fit record), "evaluation": (model, fit record) or None} instead of fitting here; it needs
+    transition_model.trainer_version 2, so its stage identity is never a per-fit one. With fit_episodes train,
+    the label model is fitted on the train split and there is no separate evaluation model.
+    """
+    v = cfg.values
+    if prefit is not None and v["transition_model.trainer_version"] != "2":
+        raise ConfigError(["prefit transition models come from the batched engine: set transition_model.trainer_version 2"])
+    inputs = transition_inputs(prepared, extra_inputs)
 
     def body(run):
-        dataset = read_trajectories(inputs["dataset"])
-        batch = transitions(dataset, representation)
-        z, a, z_next = batch.z, batch.a, batch.z_next
-        if v["transition_model.direction"] == "backward":
-            z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
-        model = build_model(v)
-        metrics = {"label_model": model.fit(z, a, z_next, seed=v["run.seed"])}
-        if split_path.exists():
-            import json
-            split = json.loads(split_path.read_text())
-            train, val = set(split["train"]), set(split["validation"])
-            tr = np.isin(batch.episode_id, list(train))
-            va = np.isin(batch.episode_id, list(val))
-            evaluation = build_model(v)
-            evaluation.fit(z[tr], a[tr], z_next[tr], seed=v["run.seed"])
+        z, a, z_next, tr, va = transition_data(v, inputs, representation)
+        clean = v["transition_model.fit_episodes"] == "train"
+        if prefit is not None:
+            _check_prefit(v, prefit, z, a, z_next, tr, clean)
+            model, record = prefit["label"]
+        elif clean:
+            model, record = _fit(v, z[tr], a[tr], z_next[tr])
+        else:
+            model, record = _fit(v, z, a, z_next)
+        metrics = {"label_model": record, "fit_episodes": v["transition_model.fit_episodes"]}
+        if tr is not None:
+            if clean:
+                evaluation, note = model, "the label model, fitted on the train split only, scored on the held-out episodes"
+            else:
+                evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
+                              else _fit(v, z[tr], a[tr], z_next[tr])[0])
+                note = "evaluation model fitted on the train split; the label model saw every episode"
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
-            metrics["held_out"]["note"] = "evaluation model fitted on the train split; the label model saw every episode"
+            metrics["held_out"]["note"] = note
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
-        run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")
+        run.log(f"fitted {v['transition_model.kind']} transition model on {len(z)} transitions")
     return run_stage("transition.fit", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v)})
+
+
+@contextlib.contextmanager
+def _jacobian_budget():
+    """A Jacobian budget smaller than one row is a configuration error, not a failure of the computation."""
+    try:
+        yield
+    except ValueError as e:
+        if type(e).__name__ == "JacobianBudgetError":  # models.mlp; torch is imported only with the mlp extra
+            raise ConfigError([str(e)]) from None
+        raise
 
 
 def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
@@ -183,15 +290,19 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         # compute.device places torch models; the numpy linear model always runs on cpu.
         device = "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
         model = load_transition_model(inputs["transition_model"], device=device)
-        cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
-                                run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
-                                action_chunk_size=v["generation.action_chunk_size"],
-                                inputs={name: sha256(path) for name, path in inputs.items()})
+        if hasattr(model, "jacobian_memory_bytes"):
+            model.jacobian_memory_bytes = v["compute.jacobian_memory_mb"] * 2**20
+        with _jacobian_budget():
+            cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
+                                    run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
+                                    action_chunk_size=v["generation.action_chunk_size"],
+                                    inputs={name: sha256(path) for name, path in inputs.items()})
         write_candidates(cands, run.path(layout.CANDIDATES))
         counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(cands.reason_codes)}
         run.metrics({"candidates": int(len(cands.accepted)), "accepted": int(cands.accepted.sum()),
                      "acceptance_rate": float(cands.accepted.mean()) if len(cands.accepted) else 0.0,
-                     "rejections_by_reason": counts, "generator": cands.generator})
+                     "rejections_by_reason": counts, "generator": cands.generator,
+                     "jacobian_chunking": getattr(model, "jacobian_chunking", None)})  # its last call
         run.log(f"generated {len(cands.accepted)} candidates with {cands.generator['name']}; "
                 f"accepted {int(cands.accepted.sum())}")
     return run_stage("labels.generate", cfg, inputs, body,
@@ -221,10 +332,12 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
     def body(run):
         sources = Sources(inputs["candidates"], inputs["dataset"], inputs["transition_model"], representation,
                           extra=dict(extra_inputs or {}), references=references,
-                          device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"])
-        cert = certify(sources, profile, admission=admission, threshold=threshold,
-                       selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
-                       selection_population=selection_population)
+                          device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"],
+                          jacobian_memory_bytes=v["compute.jacobian_memory_mb"] * 2**20)
+        with _jacobian_budget():
+            cert = certify(sources, profile, admission=admission, threshold=threshold,
+                           selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
+                           selection_population=selection_population)
         write_certificates(cert, run.path(layout.CERTIFICATES))
         accepted = read_candidates(inputs["candidates"]).accepted
         usable = np.asarray(accepted) & cert.admissible & cert.selected

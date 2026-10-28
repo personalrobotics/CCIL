@@ -1,11 +1,11 @@
 {
  "balance_labels": null,
- "deterministic": false,
  "device": "cpu",
  "epochs": [
   {
    "epoch": 0,
-   "mean_loss": 0.40826308727264404,
+   "mean_loss": 0.4613049030303955,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -15,7 +15,8 @@
   },
   {
    "epoch": 1,
-   "mean_loss": 0.3936866223812103,
+   "mean_loss": 0.3778305947780609,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -25,7 +26,8 @@
   },
   {
    "epoch": 2,
-   "mean_loss": 0.35184669494628906,
+   "mean_loss": 0.3863399028778076,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -35,7 +37,8 @@
   },
   {
    "epoch": 3,
-   "mean_loss": 0.21421562135219574,
+   "mean_loss": 0.34039896726608276,
+   "optimizer_steps": 1,
    "rows_seen": {
     "demonstration": 32,
     "synthetic": 0
@@ -45,9 +48,74 @@
   }
  ],
  "epochs_run": 4,
+ "execution": {
+  "bucket": 1,
+  "data_mode": "resident",
+  "engine": "eager",
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "position": 0
+ },
+ "group": {
+  "batch_size": 32,
+  "bucket": 1,
+  "chunk_steps": 256,
+  "compile_mode": null,
+  "data_mode": "resident",
+  "deterministic": false,
+  "device": "cpu",
+  "engine": "eager",
+  "epoch_seconds": [
+   0.014943122863769531,
+   0.0031621456146240234,
+   0.002694845199584961,
+   0.002440929412841797
+  ],
+  "execution_sha256": "75db548d3ca450b08a47182c39503c29a90c4e805840a196b6a2f75486588bfa",
+  "members": [
+   {
+    "method": "noise_bc",
+    "noise_bc": {
+     "component": "noise_bc",
+     "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+     "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+     "mask_probability": 0.5,
+     "mode": "symmetric_uniform_half_batch",
+     "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+     "scale": 0.1,
+     "seed": 20261023,
+     "truncation": "none (bounded by construction)",
+     "units": "standardized observation units (after the observation scaler)",
+     "version": "1"
+    },
+    "seed": 20261023,
+    "supervision_sha256": "a729f4a2dd2952f5abb79976c8089fadc7d240adfc648ed0e64259bb36299790"
+   }
+  ],
+  "padding": 0,
+  "precision": {
+   "dtype": "float32",
+   "float32_matmul_precision": "highest",
+   "tf32_cudnn": false,
+   "tf32_matmul": false
+  },
+  "setup_seconds": 0.0031409263610839844,
+  "shuffle": "counter-based permutation of [0, n): 6-round unbalanced Feistel (splitmix64 rounds) over 2^ceil(log2 n) with cycle-walking, keyed by splitmix64(seed, epoch)",
+  "size": 1,
+  "table_blocks": [
+   {
+    "part": "demonstration",
+    "rows": 54,
+    "start": 0
+   }
+  ],
+  "table_bytes": 1782,
+  "table_rows": 54,
+  "torch": "2.14.1",
+  "train_seconds": 0.492872953414917,
+  "validation": null
+ },
  "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i per minibatch, scaled action space",
  "noise_bc": {
-  "applied_to": "standardized observations of each minibatch (after the observation scaler)",
   "component": "noise_bc",
   "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
   "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
@@ -56,13 +124,6 @@
   "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
   "scale": 0.1,
   "seed": 20261023,
-  "trace_epochs": [
-   "43d78a8f363813893400addbc494d38b201613dead33694d8b2637b98949e717",
-   "7811b966697be73eb8f8cf27e3f0e3acaf9b8b17eab3031257e30cb5ef634a26",
-   "5bae5404f7c79a6f99a9e8a733fd9f025d7c341605bc3e81406fabb2d5767cb9",
-   "86593425d9e53d303123ace322b139216554ca6d88e1b5493d96ff31391f9b3c"
-  ],
-  "trace_sha256": "85a7d3c476f092b0d7afc9a6738cb21d9bd6220c69c768987f5f6681dba027c4",
   "truncation": "none (bounded by construction)",
   "units": "standardized observation units (after the observation scaler)",
   "version": "1"
@@ -73,9 +134,24 @@
    0.999
   ],
   "eps": 1e-08,
+  "implementation": "functional, per-model masked",
   "learning_rate": 0.001,
   "name": "adam",
   "weight_decay": 0.0
+ },
+ "parameters_sha256": "c4f52648e616dff3017e97d344e8944dfc02e2c8e08de1a8a9793c4c1bb80331",
+ "recipe": {
+  "checkpoint_selection": "last",
+  "ema_decay": null,
+  "grad_clip_norm": null,
+  "lr_schedule": "constant",
+  "optimizer": "adam",
+  "step_budget": null,
+  "total_steps": 4,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0,
+  "weights_returned": "last"
  },
  "row_sources": {
   "demonstration": 54,
@@ -88,16 +164,27 @@
   "action_scaler": "min_max",
   "balance_labels": null,
   "batch_size": 32,
+  "checkpoint_selection": "last",
+  "ema_decay": null,
   "epochs": 4,
+  "grad_clip_norm": null,
   "hidden_layers": [
    256,
    256
   ],
   "learning_rate": 0.001,
-  "observation_scaler": "standard"
+  "lr_schedule": "constant",
+  "observation_scaler": "standard",
+  "optimizer": "adam",
+  "step_budget": null,
+  "validation_interval_steps": null,
+  "warmup_steps": 0,
+  "weight_decay": 0.0
  },
  "steps_per_epoch": 1,
  "trainer": "vector_mlp",
- "training_identity_sha256": "8ce1d0ce77c4808a0bb251a2cd2efa69dedce7b0a4e5aa7903931a5e4365e54f",
+ "trainer_version": "2",
+ "training_identity_sha256": "53a8190e24f2e33066e16a1e23b5ea54e79166ab99dd03629e5c8495866cfa91",
+ "validation": null,
  "version": "1"
 }

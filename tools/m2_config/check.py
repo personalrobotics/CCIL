@@ -187,13 +187,42 @@ def main():
         got = e.errors
     record("unsupported_legacy_key_fails_with_guidance", got is not None and any("deferred to M5" in g for g in got), errors=got)
     v2 = out / "future.yml"
-    v2.write_text("config_version: 2\nrun: {seed: 1}\n")
+    v2.write_text("config_version: 3\nrun: {seed: 1}\n")
     try:
         resolve(config=v2)
         got = None
     except ConfigError as e:
         got = e.errors
-    record("unknown_config_version_rejected", got is not None and any("config_version 2" in g for g in got), errors=got)
+    record("unknown_config_version_rejected", got is not None and any("config_version 3" in g for g in got), errors=got)
+
+    # --- a changed default keeps an older file's meaning (#125) ---------------------------------------------------
+    from ccil.config.params import mlp_settings_problem
+    old_sampled = out / "v1-sampled.yml"
+    old_sampled.write_text("config_version: 1\ntransition_model: {lipschitz_type: soft_sampling, lipschitz_constraint: 2.0, "
+                           "soft_penalty_weight: 0.001}\n")
+    old_jac = out / "v1-soft_jac.yml"
+    old_jac.write_text("config_version: 1\ntransition_model: {lipschitz_type: soft_jac, lipschitz_constraint: 2.0, "
+                       "soft_penalty_weight: 0.001, hidden_layers: [8], epochs: 1, batch_size: 8}\n")
+    new = out / "v2-sampled.yml"
+    new.write_text("config_version: 2\ntransition_model: {lipschitz_type: soft_sampling, lipschitz_constraint: 2.0, "
+                   "soft_penalty_weight: 0.001}\n")
+    c_old, c_jac, c_new = resolve(config=old_sampled), resolve(config=old_jac), resolve(config=new)
+    try:
+        from ccil.models.mlp import MLPTransitionModel
+        direct = MLPTransitionModel([8], epochs=1, batch_size=8, lipschitz_type="soft_sampling",
+                                    lipschitz_constraint=2.0, soft_penalty_weight=1e-3).settings["lipschitz_coordinates"]
+    except ImportError:  # the torch extra is not installed
+        direct = "model_normalized (torch not installed; the constructor default is checked where it is)"
+    detail = {"v1_sampled": c_old["transition_model.lipschitz_coordinates"],
+              "v1_sampled_note": [n for n in c_old.notes if "lipschitz_coordinates" in n],
+              "v1_soft_jac": c_jac["transition_model.lipschitz_coordinates"],
+              "v1_soft_jac_buildable": mlp_settings_problem(c_jac.values) is None,
+              "v2_sampled": c_new["transition_model.lipschitz_coordinates"],
+              "direct_construction": direct}
+    record("changed_default_keeps_old_meaning",
+           detail["v1_sampled"] == "raw" and detail["v1_sampled_note"] and detail["v1_soft_jac"] == "raw"
+           and detail["v1_soft_jac_buildable"] and detail["v2_sampled"] == "model_normalized"
+           and str(direct).startswith("model_normalized"), **detail)
 
     # --- one canonical source for docs ---------------------------------------
     drift = {name: ccil(*cmd, cwd=REPO) for name, cmd in (
