@@ -130,9 +130,17 @@ def preflight(cfg) -> None:
             read_reference_dynamics(ref)
         except (OSError, SchemaError) as e:
             errors.append(f"certificate.reference_dynamics {ref}: {str(e).splitlines()[-1].strip()}")
+    if v["transition_model.fit_episodes"] == "train" and not v["data.validation_fraction"]:
+        errors.append("transition_model.fit_episodes train fits the label model on the train split: it needs "
+                      "data.validation_fraction > 0")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
                       "backward_model uses such a model, and it is ported in #22")
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import SUPPORTED
+        if (v["transition_model.lipschitz_type"] or "none") not in SUPPORTED:
+            errors.append(f"transition_model.trainer_version 2 fits lipschitz types {list(SUPPORTED)}; "
+                          f"{v['transition_model.lipschitz_type']} needs trainer_version 1")
     for check in (build_model, build_generator):
         try:
             if v["generation.method"] is not None:
@@ -143,9 +151,64 @@ def preflight(cfg) -> None:
         raise ConfigError(errors)
 
 
-def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None) -> StageResult:
-    """Fit the label model on every episode; score an evaluation model fitted on the train split (#13)."""
+def _fit(v, z, a, z_next):
+    """Fit one transition model with the configured engine: (model, fit record)."""
+    model = build_model(v)
+    if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
+        from ..models.mlp_batched import FitJob, fit_group
+        return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"],
+                         deterministic=v["compute.deterministic"])[0]
+    return model, model.fit(z, a, z_next, seed=v["run.seed"])
+
+
+class PrefitMismatch(RuntimeError):
+    """A model fitted elsewhere does not belong to this unit's inputs: a study-runner defect."""
+
+
+def requested_execution_problem(record: dict, v) -> str | None:
+    """Why a group's record was not run as this unit requests (device type, determinism), or None."""
+    import torch
+    group = record.get("group") or {}
+    want = (torch.device(v["compute.device"]).type, bool(v["compute.deterministic"]))
+    got = (torch.device(group["device"]).type if group.get("device") else None, group.get("deterministic"))
+    return None if got == want else f"was run with (device, deterministic) {got}, not the unit's {want}"
+
+
+def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:
+    """Refuse prefit models whose fit identity is not this unit's (rows, split, direction, settings, seed), whose
+    weights are not the ones their record describes, or that ran differently from the unit's request."""
+    from ..models.mlp_batched import fit_identity, model_sha256
+    settings = dict(build_model(v).settings)
+    expected = {"label": (z[tr], a[tr], z_next[tr]) if clean else (z, a, z_next)}
+    if tr is not None and not clean:
+        expected["evaluation"] = (z[tr], a[tr], z_next[tr])
+    for role, rows in expected.items():
+        model, record = prefit.get(role) or (None, {})
+        got = record.get("fit_identity_sha256")
+        want = fit_identity(*rows, settings, v["run.seed"])
+        if got != want:
+            raise PrefitMismatch(f"prefit {role} model has fit identity {got}, not this unit's {want}")
+        if model is None or record.get("model_sha256") != model_sha256(model):
+            raise PrefitMismatch(f"prefit {role} model is not the model its record describes")
+        problem = requested_execution_problem(record, v)
+        if problem:
+            raise PrefitMismatch(f"prefit {role} model {problem}")
+
+
+def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
+    """Fit the label model and score a model fitted on the train split on the held-out episodes (#13).
+
+    transition_model.fit_episodes all fits the label model on every episode and a separate evaluation model on
+    the train split; train fits the label model on the train split only, and scores it.
+
+    prefit, from a study runner that fitted many units together (models/mlp_batched.fit_group), supplies
+    {"label": (model, fit record), "evaluation": (model, fit record) or None} instead of fitting here; it needs
+    transition_model.trainer_version 2, so its stage identity is never a per-fit one. With fit_episodes train,
+    the label model is fitted on the train split and there is no separate evaluation model.
+    """
     v = cfg.values
+    if prefit is not None and v["transition_model.trainer_version"] != "2":
+        raise ConfigError(["prefit transition models come from the batched engine: set transition_model.trainer_version 2"])
     split_path = prepared.out(layout.SPLIT)
     inputs = {"dataset": prepared.out(layout.DATASET), **(extra_inputs or {})}
     if split_path.exists():
@@ -157,18 +220,30 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
         z, a, z_next = batch.z, batch.a, batch.z_next
         if v["transition_model.direction"] == "backward":
             z, z_next = z_next, z  # a backward model maps (s_{t+1}, a_t) to s_t, as in legacy
-        model = build_model(v)
-        metrics = {"label_model": model.fit(z, a, z_next, seed=v["run.seed"])}
+        clean = v["transition_model.fit_episodes"] == "train"
+        tr = va = None
         if split_path.exists():
             import json
             split = json.loads(split_path.read_text())
-            train, val = set(split["train"]), set(split["validation"])
-            tr = np.isin(batch.episode_id, list(train))
-            va = np.isin(batch.episode_id, list(val))
-            evaluation = build_model(v)
-            evaluation.fit(z[tr], a[tr], z_next[tr], seed=v["run.seed"])
+            tr = np.isin(batch.episode_id, list(split["train"]))
+            va = np.isin(batch.episode_id, list(split["validation"]))
+        if prefit is not None:
+            _check_prefit(v, prefit, z, a, z_next, tr, clean)
+            model, record = prefit["label"]
+        elif clean:
+            model, record = _fit(v, z[tr], a[tr], z_next[tr])
+        else:
+            model, record = _fit(v, z, a, z_next)
+        metrics = {"label_model": record, "fit_episodes": v["transition_model.fit_episodes"]}
+        if tr is not None:
+            if clean:
+                evaluation, note = model, "the label model, fitted on the train split only, scored on the held-out episodes"
+            else:
+                evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
+                              else _fit(v, z[tr], a[tr], z_next[tr])[0])
+                note = "evaluation model fitted on the train split; the label model saw every episode"
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
-            metrics["held_out"]["note"] = "evaluation model fitted on the train split; the label model saw every episode"
+            metrics["held_out"]["note"] = note
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(batch)} transitions")

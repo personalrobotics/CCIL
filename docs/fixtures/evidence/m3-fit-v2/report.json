@@ -1,0 +1,103 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "correctness_one_step_matches_fit_none",
+   "max_relative_difference": 1.1883994943673315e-07,
+   "pass": true
+  },
+  {
+   "case": "correctness_one_step_matches_fit_slack",
+   "max_relative_difference": 1.1883994943673315e-07,
+   "pass": true
+  },
+  {
+   "case": "correctness_rerun_identical",
+   "pass": true
+  },
+  {
+   "case": "correctness_refuses_unsupported_regularizer",
+   "pass": true
+  },
+  {
+   "active_share": 0.8765624761581421,
+   "case": "correctness_activated_reference_soft_sampling",
+   "constraint": 0.0023371082642944653,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 5.192823765215899e-13,
+   "loss_relative_difference": 0.0,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.0026885866072305017
+  },
+  {
+   "active_share": null,
+   "case": "correctness_activated_reference_soft_sampling_slack",
+   "constraint": 0.0022828638825505873,
+   "dtype": "float64",
+   "gradient_max_relative_difference": 2.37151020815439e-14,
+   "loss_relative_difference": 0.0,
+   "note": "constraint at half the median ratio",
+   "pass": true,
+   "penalty": 0.0026350110218650302
+  },
+  {
+   "case": "correctness_determinism_and_preflight",
+   "flag_restored": true,
+   "pass": true,
+   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1\n  compute.device 'cuda' requested but CUDA is not available",
+   "recorded": true
+  },
+  {
+   "case": "stage_hooks",
+   "changed_validation_refused": true,
+   "own_fit_accepted": true,
+   "own_policy_accepted": true,
+   "own_validation_accepted": true,
+   "pass": true,
+   "policy_wrong_execution_refused": true,
+   "swapped_fit_refused": true,
+   "swapped_policy_refused": true,
+   "tampered_weights_refused": true,
+   "wrong_execution_right_record_refused": true,
+   "wrong_model_right_record_refused": true
+  },
+  {
+   "all": {
+    "held_out_episodes": [
+     "10",
+     "11",
+     "13",
+     "17"
+    ],
+    "label_model_equal": false,
+    "split_unchanged": true,
+    "training_episode_labels": 15968,
+    "training_episode_labels_equal": false
+   },
+   "case": "clean_holdout",
+   "pass": true,
+   "train": {
+    "held_out_episodes": [
+     "10",
+     "11",
+     "13",
+     "17"
+    ],
+    "label_model_equal": true,
+    "split_unchanged": true,
+    "training_episode_labels": 15968,
+    "training_episode_labels_equal": true
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "ecc06727c52b1c0f9d557025b4f74a064b242aca",
+  "code_dirty": false,
+  "device": "cpu",
+  "gpu": null,
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.14.1"
+ }
+}

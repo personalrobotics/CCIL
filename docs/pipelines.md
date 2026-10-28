@@ -45,9 +45,36 @@ reason, the acceptance rate, and the generator identity. The label set records
 its own provenance: the run seed, the uniform weighting, a weight per row (0 on
 rejected rows), and the SHA-256 of the stage's inputs (dataset and transition
 model, plus the representation in the integrated pipeline). These match the
-stage manifest. `transition.fit` also
-reports the held-out error of an evaluation model fitted on the train split
-(#13).
+stage manifest.
+
+**`transition.fit`** fits the label model and reports a held-out one-step error
+(#13):
+- **`transition_model.fit_episodes all`** (the default, as legacy): the label
+  model fits every episode, and a separate evaluation model, fitted on the train
+  split, is scored on the held-out episodes.
+- **`train`:** the label model fits the train split only, and it is the model
+  scored. Held-out episodes then influence no training label: a clean
+  holdout, for studies that select or tune on those episodes. Labels are
+  still generated for held-out episodes' transitions; supervision excludes
+  them when `policy.exclude_validation_episodes` is true.
+- **`transition_model.trainer_version 2`** fits mlp models with the batched
+  engine (`models/mlp_batched.py`): the same protocol (initialization,
+  regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a
+  study runner can fit many seeds as one group. It is not bit-compatible with
+  version 1, so the version is part of the stage identity. It supports
+  lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`
+  (preflight refuses the others), and honors `compute.deterministic`.
+- **Grouped results are authenticated.** Each batched fit records a content
+  identity: its exact rows, settings, seed and engine. `transition.fit` with a
+  prefit model recomputes it from the unit's own inputs and refuses a mismatch.
+  Likewise, `policy.train` with a group-trained policy recomputes the training
+  identity and checks the policy's parameter hash against its record.
+- **Evidence:** `tools/m3_fit_v2/check.py`.
+  - One step equals version 1's step from the same initialization.
+  - The held-out error of batched fits is compared with per-fit ones on
+    Pendulum.
+  - The clean holdout is checked by perturbing the held-out episodes, which
+    changes no training label.
 
 The augmentation is the accepted rows together with the prepared dataset. The
 M4 dataset writer turns them into training data. Offline generation never
