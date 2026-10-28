@@ -15,7 +15,8 @@ Endings (#27): an episode boundary says that recording stopped, not why. By defa
 interpreted and every ending is unknown (termination_known False, terminated False). A caller may declare
 terminal_feature, an exhaustive boolean terminal-state indicator: true only on the final frame (terminated), false
 there (truncated), and true earlier refuses the episode. next.done gets no special treatment. Writing: LeRobot v3.0
-has no terminal flag, so write_dataset does not carry endings (#28 decides how supervision exports them).
+has no terminal flag, so write_dataset refuses an episode with a known ending unless drop_endings=True, the
+documented lossy mode; unknown non-terminal endings are written.
 
 Fails closed: an unknown codebase_version, a feature of an unsupported dtype or shape (images, video, depth, audio,
 strings, multi-dimensional arrays), a feature with no CCIL slot unless the caller names it in ignore, a missing
@@ -443,9 +444,11 @@ def read_dataset(root, ignore=(), *, preserve=(), terminal_feature=None) -> Traj
 
 
 def convert(source, out, manifest, *, ignore=(), preserve=(), terminal_feature=None) -> dict:
-    """A LeRobot v3.0 dataset to a ccil.trajectories file plus a conversion manifest, both written atomically.
+    """A LeRobot v3.0 dataset to a ccil.trajectories file plus a conversion manifest: both, or neither.
 
-    The source is only read: its files' hashes are taken before and after, and must agree. Returns the manifest."""
+    Both are staged under temporary names and then moved into place; if the second move fails, the first is
+    removed again. The source is only read: its files' hashes are taken before and after, and must agree. Returns
+    the manifest."""
     from ..schema import write_trajectories
     source, out, manifest = Path(source), Path(out), Path(manifest)
     for dest in (out, manifest):
@@ -456,15 +459,26 @@ def convert(source, out, manifest, *, ignore=(), preserve=(), terminal_feature=N
     after = {p.relative_to(source).as_posix(): _sha256(p) for p in sorted(source.rglob("*")) if p.is_file()}
     if before != after:
         raise RuntimeError(f"{source} changed while it was read")
-    write_trajectories(ds, out)
-    doc = {"schema": "ccil.lerobot.conversion", "version": "1.0", "source": {"format": ds.meta["dataset"]["format"],
-           "fps": ds.meta["dataset"]["fps"], "files": ds.meta["dataset"]["files"]},
-           "features": ds.meta["dataset"]["features"], "endings": ds.meta["dataset"]["endings"],
-           "episodes": len(ds.episodes), "frames": int(sum(ep.length for ep in ds.episodes)),
-           "output": {"path": out.name, "sha256": _sha256(out)}, "source_unchanged": True}
-    tmp = manifest.with_name(f".{manifest.name}.tmp-{os.getpid()}")
-    tmp.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
-    os.replace(tmp, manifest)
+    pid = os.getpid()
+    out_tmp = out.with_name(f".{out.name}.tmp-{pid}.npz")
+    man_tmp = manifest.with_name(f".{manifest.name}.tmp-{pid}")
+    try:
+        write_trajectories(ds, out_tmp)
+        doc = {"schema": "ccil.lerobot.conversion", "version": "1.0", "source": {"format": ds.meta["dataset"]["format"],
+               "fps": ds.meta["dataset"]["fps"], "files": ds.meta["dataset"]["files"]},
+               "features": ds.meta["dataset"]["features"], "endings": ds.meta["dataset"]["endings"],
+               "episodes": len(ds.episodes), "frames": int(sum(ep.length for ep in ds.episodes)),
+               "output": {"path": out.name, "sha256": _sha256(out_tmp)}, "source_unchanged": True}
+        man_tmp.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
+        os.replace(out_tmp, out)
+        try:
+            os.replace(man_tmp, manifest)
+        except BaseException:
+            out.unlink(missing_ok=True)  # the first output was moved into place: take it back
+            raise
+    finally:
+        out_tmp.unlink(missing_ok=True)
+        man_tmp.unlink(missing_ok=True)
     return doc
 
 
@@ -538,12 +552,14 @@ def _aggregate(per_episode: list[dict]) -> dict:
 
 
 def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_files_size_in_mb: int = 100,
-                  chunks_size: int = 1000, robot_type: str | None = None) -> Path:
+                  chunks_size: int = 1000, robot_type: str | None = None, drop_endings: bool = False) -> Path:
     """Write episodes (a TrajectoryDataset or an iterable of Episode) as a LeRobotDataset v3.0 directory.
 
     Streams: each data shard is written when it reaches data_files_size_in_mb. Each streamed episode is validated
     as ccil.trajectories validates a dataset (shapes, finiteness, timestamps), and against the first episode's
-    modalities, dimensions and dtypes, with unique IDs, before its rows are written. Timestamps must advance by 1 / fps
+    modalities, dimensions and dtypes, with unique IDs, before its rows are written. Endings: LeRobot v3.0 has no
+    terminal flag, so an episode with a known ending (termination_known True, or a 1.0 terminated True) is refused
+    unless drop_endings=True, the documented lossy mode; an unknown or unrecorded non-terminal ending is written. Timestamps must advance by 1 / fps
     (LeRobot checks this when it loads); episodes without timestamps get frame / fps. The directory is built
     under a temporary name and moved into place, so root exists only once complete; an existing root is refused.
     """
@@ -587,6 +603,12 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
                 raise LeRobotFormatError("write", [f"episode {e} ({ep.episode_id!r}): {err}"]) from err
             if ep.episode_id in seen_ids:
                 raise LeRobotFormatError("write", [f"episode {e}: duplicate episode_id {ep.episode_id!r}"])
+            known = ep.termination_known is True or (ep.termination_known is None and ep.terminated)
+            if known and not drop_endings:  # LeRobot v3.0 has no field for it: never lose it silently
+                raise LeRobotFormatError("write", [
+                    f"episode {e} ({ep.episode_id!r}) records a known ending ({'terminated' if ep.terminated else 'truncated'}); "
+                    f"LeRobot v3.0 has no field for it, so writing would lose it; pass drop_endings=True to write "
+                    f"anyway (the lossy mode), and its reader will see an unknown ending"])
             seen_ids.add(ep.episode_id)
             if names is None:
                 names = _feature_names(ep)
