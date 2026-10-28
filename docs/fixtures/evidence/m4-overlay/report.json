@@ -1,0 +1,426 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "overlay_single",
+   "classifications": {
+    "uncertified": 4
+   },
+   "columns": [
+    "candidate_row",
+    "source_episode_index",
+    "source_frame_index",
+    "source_index",
+    "weight",
+    "classification",
+    "observation.state",
+    "action",
+    "measurement.distance",
+    "measurement.residual"
+   ],
+   "input_hashes_recorded": true,
+   "lerobot_portion_is_the_source": true,
+   "measurements_per_label": true,
+   "only_accepted_candidates": true,
+   "pass": true,
+   "rejected": 5,
+   "rejected_candidates_absent": true,
+   "rows": 4,
+   "rows_are_the_synthetic_supervision": true,
+   "run_id_once": true,
+   "source_unchanged": true,
+   "values_weights_and_identity": true
+  },
+  {
+   "case": "overlay_chunked",
+   "classifications": {
+    "uncertified": 4
+   },
+   "columns": [
+    "candidate_row",
+    "source_episode_index",
+    "source_frame_index",
+    "source_index",
+    "weight",
+    "classification",
+    "observation.state",
+    "action_chunk",
+    "action_chunk_mask",
+    "measurement.chunk_target_frame",
+    "measurement.distance",
+    "measurement.residual"
+   ],
+   "input_hashes_recorded": true,
+   "lerobot_portion_is_the_source": true,
+   "measurements_per_label": true,
+   "only_accepted_candidates": true,
+   "pass": true,
+   "rejected": 5,
+   "rejected_candidates_absent": true,
+   "rows": 4,
+   "rows_are_the_synthetic_supervision": true,
+   "run_id_once": true,
+   "source_unchanged": true,
+   "values_weights_and_identity": true
+  },
+  {
+   "case": "refusals",
+   "existing_destination": {
+    "message": "<out>/single/bundle exists; overlays are written once",
+    "refused": true
+   },
+   "failed_export_leaves_nothing": {
+    "message": "index 1 is out of bounds for axis 0 with size 1",
+    "refused": true
+   },
+   "modified_lerobot_portion": {
+    "message": "/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final/single/read-modified_lerobot_portion: the LeRobot portion differs from the source recorded at export",
+    "refused": true
+   },
+   "no_link_to_the_conversion": {
+    "message": "overlay: the data.prepare run's input is not the conversion's output",
+    "refused": true
+   },
+   "non_ccil_supervision": {
+    "message": "overlay: the supervision's method is 'bc'; an overlay carries CCIL labels; the supervision has no synthetic rows",
+    "refused": true
+   },
+   "pass": true,
+   "source_differs_from_the_conversion": {
+    "message": "overlay: the source differs from the conversion manifest's files: ['meta/stats.json']",
+    "refused": true
+   },
+   "tampered_label_shard": {
+    "message": "s-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final/single/read-tampered_label_shard: ccil/labels/chunk-000/file-000.parquet is missing or does not have its recorded SHA-256",
+    "refused": true
+   }
+  },
+  {
+   "case": "lerobot_releases",
+   "matrix": {
+    "0.4.0": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.4.1": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.4.2": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.4.3": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.4.4": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.5.0": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.5.1": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.6.0": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    },
+    "0.6.1": {
+     "aware_sees_every_label_and_weight": true,
+     "demonstration_rows": 5,
+     "labels": 4,
+     "pass": true,
+     "stock_sees_exactly_the_source": true,
+     "temporal": {
+      "chunked": {
+       "future_actions": {
+        "demonstration_window_shape": [
+         4
+        ],
+        "labels": 4,
+        "neighbouring_chunks_differ": true,
+        "refused": false,
+        "windows_are_each_labels_own_chunk": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      },
+      "single": {
+       "future_actions": {
+        "message": "a future-action window needs the labels' stored action chunks; this overlay has single actions, and neighbouring labels are never adjacent",
+        "refused": true
+       },
+       "observation_history": {
+        "message": "observation windows ['observation.state'] are refused for synthetic labels: a label has no observation history (until M5 defines one)",
+        "refused": true
+       }
+      }
+     },
+     "temporal_fails_closed": true
+    }
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "ebf54564ce236d3eac3b7b4437cd6828b116769b",
+  "code_dirty": false,
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
