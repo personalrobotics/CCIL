@@ -40,7 +40,8 @@ was at the edge.
 - **The execution stack (§2).** Policies train with trainer v2 (#108).
   Dynamics models fit in batched groups (#110). Label generation uses stacked
   Newton solves and chunked Jacobians (#110). Evaluation steps every episode
-  together (#111). Units run through the batched study runner (#112). None of
+  together (#111). Units run through the batched study runner (#112). Every
+  group runs compiled, and a step that would not is refused (#134). None of
   these is bit-identical to the version 4 stack. Each has its own equivalence
   evidence, listed in §2, which must pass before the freeze.
 - **The coordinates of the continuous dynamics model's Lipschitz penalty
@@ -162,7 +163,8 @@ before the freeze:
 | Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
 | Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
 | Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
-| Batched study runner | #112 | Writes the stage artifacts `ccil policy train` would (the CLI reuses every one); resumes without recomputation; a unit's evaluation does not depend on what it was batched with |
+| Batched study runner | #112 | Writes the stage artifacts `ccil policy train` would (the CLI reuses every one); resumes without recomputation; a unit's evaluation does not depend on what it was batched with; deferred returns verify like a phase's records (audited task, seed and noise level, gate, planned noise levels, status), and substituted or altered ones are refused |
+| Compiled engines | #134 | Every policy and fit group runs compiled, never silently uncompiled: one policy-step specialization per bucket, NoiseBC flag and recipe, with row coverage, noise draws and eager outputs identical to the previous engine; fresh compiler contexts at the recompile limit; a step that would run uncompiled is refused before it runs, and a refused unit leaves no record or completed stage; records state requested and effective compilation. The exact version 6 schedule (a preflight) runs every group compiled. The fit step is unchanged, so the batched-fit gate stands. PyTorch is pinned: an upgrade requires this evidence again |
 | Provenance once per process | #127 | Code state is captured once and rechecked before every stage commit and every unit record: a source edit mid-unit writes no output for that unit. Content hashes are cached only for artifacts `ccil` wrote itself, keyed by path, device, inode, size and nanosecond mtime; inputs are hashed in full. Cached and strict (`CCIL_PROVENANCE_STRICT=1`) hashing give identical records |
 
 **The tooling is frozen too, before any outcome.** The tooling is developed,
