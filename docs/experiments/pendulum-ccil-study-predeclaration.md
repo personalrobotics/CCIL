@@ -1,8 +1,75 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
-**Version 4.** Committed before any run of this study. Results are reported
-against the version that governed them. A change after any outcome is seen
-is a new version, with its rationale, and is never applied retroactively.
+**Version 6.** Results are reported against the version that governed them.
+A change after any outcome is seen is a new version, with its rationale, and
+is never applied retroactively.
+
+**History.**
+- **Version 4** ran under frozen tooling `cba34fe` and `ccil` `847b060`. Its
+  tuning phase completed. Its study was stopped by the operator after 21 of
+  520 units, so that the study could run on a faster execution stack.
+- **Version 5** was a draft (#121), never frozen and never run. It kept every
+  version 4 rule and changed only the execution stack.
+- **Version 6** supersedes it. It also changes the continuous CCIL algorithm,
+  so it reruns everything on seeds no run has used: fresh tuning, a fresh
+  choice, the study and the analysis (§2). Version 4's records are reported in
+  #25 as a separate, superseded run, and are never mixed with version 6's.
+
+**What had been seen when version 6 was written:**
+- **Version 4's tuning choice,** on seeds 1–3, the same on both tasks:
+  NoiseBC scale 1e-4, and CCIL-tuned action noise 3e-1, which is the top of
+  its grid.
+- **Continuous CCIL − BC,** noise-free, for version 4 study seeds 101–110.
+  The stop was decided before any study outcome was examined, but as the
+  session ended a progress monitor printed these differences:
+
+  | Seed | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | CCIL − BC | +1071.2 | −153.5 | +239.1 | +1082.8 | +1046.4 | +275.5 | +585.4 | +21.4 | −77.8 | +633.3 |
+
+- **Training diagnostics of the dynamics models** from dev timing runs of
+  the new stack, on seeds 1–3 and 101–120. These were the recorded Lipschitz
+  penalty and the finite-difference ratios of fitted transition models. No
+  return of those runs was read; the runs used the paper's values in place of
+  a tuning choice.
+- **Nothing else.** No other study outcome was seen.
+
+**Changes from version 4.** Every other version 4 arm, grid, metric and rule
+is kept exactly, including CCIL-tuned's grid although its version 4 choice
+was at the edge.
+- **The execution stack (§2).** Policies train with trainer v2 (#108).
+  Dynamics models fit in batched groups (#110). Label generation uses stacked
+  Newton solves and chunked Jacobians (#110). Evaluation steps every episode
+  together (#111). Units run through the batched study runner (#112). Every
+  group runs compiled, and a step that would not is refused (#134). None of
+  these is bit-identical to the version 4 stack. Each has its own equivalence
+  evidence, listed in §2, which must pass before the freeze.
+- **The coordinates of the continuous dynamics model's Lipschitz penalty
+  (§5, #125).** This changes the primary continuous CCIL algorithm.
+  - **Before:** in raw coordinates, as ported in #21, the paper's
+    `soft_sampling` penalty (constraint 2, ε = 3e-4) never binds on continuous
+    Pendulum. The trained residual's ratio peaks near 0.24; a one-step residual
+    over dt = 0.02 has a small raw Lipschitz constant. The penalty was exactly
+    0 in every epoch of every continuous fit.
+  - **Now:** version 6 measures the ratio in the model's normalized
+    coordinates (`transition_model.lipschitz_coordinates model_normalized`).
+    That is a dimensionless metric, invariant to units and timestep, in the
+    space the network is optimized in.
+  - **What it rests on:** only the pre-outcome dynamics diagnostics above. No
+    return informed it.
+  - **What stays fixed:** the constraint 2, ε and the penalty weight keep
+    the paper's values and are not tuned after this change.
+  - **Discontinuous Pendulum** uses the `slack` regularizer, which has no
+    coordinate choice, and is unchanged.
+- **Fresh seeds (§6).** Tuning seeds 11–13 and study seeds 1201–1220 replace
+  1–3 and 101–120. No run of this study, its tooling evidence or its dev
+  timing used them. The ten outcomes above therefore come from seeds version
+  6 never uses.
+- **An addition: two modern-recipe arms (§§5, 6),** BC-modern and
+  CCIL-modern. They are secondary and descriptive and never enter the primary
+  decision. Their tuning uses validation loss only, and their tuning-seed
+  returns are computed only after the choice is recorded. Adding them changes
+  no version 4 arm.
 
 **Changes from version 1**, made before any tooling, tuning or study run, so
 no outcome informed them:
@@ -71,18 +138,34 @@ ran.
 ## 2. Implementation, frozen
 
 **The `ccil` package.**
-- Every run uses the `ccil` package at commit
-  `847b06057e8d36a16d13aa2f3b2e375ceb9147e5`, from a clean tree. `ed737b8`
-  is identical in `src`, `pyproject.toml` and `uv.lock`.
-- Experiment tooling lives only under `tools/m3_pendulum/`: the environment,
-  run drivers, evaluation and analysis. It may never modify `src/ccil`,
+- Every run uses the `ccil` package at the commit named by the version 6
+  freeze (§11), from a clean tree. (Version 4 used
+  `847b06057e8d36a16d13aa2f3b2e375ceb9147e5`.)
+- Experiment tooling lives only under `tools/`: `tools/m3_pendulum/` (the
+  canonical environment, the inputs and the audit), `tools/vector_env/` (the
+  batched environment) and `tools/m3_experiments/` (the study plan and the
+  Pendulum suite of the runner). It may never modify `src/ccil`,
   `pyproject.toml` or `uv.lock`.
-- Tooling-only dependencies come from a pinned
-  `tools/m3_pendulum/requirements.txt`, for example scipy for the
-  environment's integrator and the analysis's intervals, layered with
-  `uv run --group evidence --with-requirements`.
+- Tooling-only dependencies come from the pinned
+  `tools/m3_pendulum/requirements.txt` and `tools/vector_env/requirements.txt`,
+  layered with `uv run --group evidence --with-requirements`.
 - A behavior-changing `ccil` fix needs a new version of this document and
   separately reported runs.
+
+**The execution stack (version 6)** and the evidence each part must pass
+before the freeze:
+
+| Part | Issue | Equivalence evidence |
+|---|---|---|
+| Trainer v2: every unit's policy trained in vmapped, compiled groups | #108 | One full-batch step equals v1's Adam step; a model's results do not depend on unrelated group members except through float32 rounding (recorded execution identity); no detected difference from v1 in closed-loop return on 10 seeds per task and arm |
+| Normalized Lipschitz coordinates | #125 | The penalty equals its definition; it is invariant to a change of units; the two engines give the same penalty and gradients; fit records state the coordinates and the normalization hash |
+| Batched dynamics fits | #110, #123 | One step equals `MLPTransitionModel.fit`'s for `none` and `slack`; with the hinge active and the same perturbations, the two engines give the same `soft_sampling` and `soft_sampling_slack` loss and gradients; grouped results are authenticated at the stage boundary. **Gate:** for each task with its paper regularizer and with `none`, on fresh seeds 601–640, the 90% union interval of mean(held-out one-step error, batched − per-fit) lies within ±25% of the per-fit mean (a margin declared before those fits). **It failed** on continuous `none`. The confirmatory rerun (seeds 641–780) **passed on all four configurations** (see below) |
+| Stacked Newton solves | #110 | Candidates identical to per-row solves on the real Pendulum labels |
+| Chunked Jacobians | #110 | Certificates identical on the 4.3 M discontinuous labels; one Jacobian row in 4.3 M differs (a ReLU kink) |
+| Batched evaluation | #111 | Reproduces the canonical environment (§3) within a few ulps on every stored transition; every rollout replays bit for bit through the integrator that produced it |
+| Batched study runner | #112 | Writes the stage artifacts `ccil policy train` would (the CLI reuses every one); resumes without recomputation; a unit's evaluation does not depend on what it was batched with; deferred returns verify like a phase's records (audited task, seed and noise level, gate, planned noise levels, status), and substituted or altered ones are refused |
+| Compiled engines | #134 | Every policy and fit group runs compiled, never silently uncompiled: one policy-step specialization per bucket, NoiseBC flag and recipe, with row coverage, noise draws and eager outputs identical to the previous engine; fresh compiler contexts at the recompile limit; a step that would run uncompiled is refused before it runs, and a refused unit leaves no record or completed stage; records state requested and effective compilation. The exact version 6 schedule (a preflight) runs every group compiled. The fit step is unchanged, so the batched-fit gate stands. PyTorch is pinned: an upgrade requires this evidence again |
+| Provenance once per process | #127 | Code state is captured once and rechecked before every stage commit and every unit record: a source edit mid-unit writes no output for that unit. Content hashes are cached only for artifacts `ccil` wrote itself, keyed by path, device, inode, size and nanosecond mtime; inputs are hashed in full. Cached and strict (`CCIL_PROVENANCE_STRICT=1`) hashing give identical records |
 
 **The tooling is frozen too, before any outcome.** The tooling is developed,
 and its acceptance checks (§3) pass, without producing any tuning or study
@@ -91,25 +174,116 @@ outcome. Then **one tooling commit is frozen**:
   else (the "tooling freeze" addendum, §11), and merged before the first
   tuning run.
 - Every tuning and study run, the tuning choice and the analysis use exactly
-  that commit's tooling. The freeze pull request adds
-  `tools/m3_pendulum/freeze.json`, which names the commit. Each refuses to
+  that commit's tooling. The freeze pull request adds a manifest
+  (`tools/m3_experiments/freeze.json` for version 6;
+  `tools/m3_pendulum/freeze.json` for version 4) naming the commit. Each refuses to
   run unless:
   - the tree is clean;
   - every path the study executes or reads (`tools/m3_pendulum`,
-    `tools/legacy_conversion`, `correct_il`, `data`, `config`, and the
-    conversion and artifact manifests) equals that commit;
+    `tools/vector_env`, `tools/m3_experiments`, `tools/legacy_conversion`,
+    `correct_il`, `data`, `config`, and the conversion and artifact
+    manifests) equals that commit;
   - `src`, `pyproject.toml` and `uv.lock` equal the frozen `ccil` commit.
+
+  The check is repeated, at the same HEAD, before each unit's record is
+  written. The running process's captured code state is checked at the
+  same point (#127). If either has changed, no record is written: the code
+  is the same at both ends of every recorded unit.
 - A behavior-changing tooling fix after the freeze needs a new version of
   this document and a **complete rerun** of tuning and the study. The earlier
   runs are reported, not mixed with the new ones.
 
+**The batched-fit gate: the first result and its one confirmatory rerun.**
+
+The first gate failed. It ran from the clean commit
+`6aaf4893117b9d12df6e150e728999671bf8130a` on siddh, with seeds 601–640:
+
+| Configuration | Mean difference | 90% interval | Margin | Equivalent |
+|---|---|---|---|---|
+| continuous `soft_sampling` | −3.2% | [−9.9e-5, 7.8e-5] | ±1.20e-4 | yes |
+| continuous `none` | −8.5% | [−1.34e-4, 4.9e-5] | ±1.24e-4 | **no** |
+| discontinuous `none` | −1.1% | [−2.4e-3, 1.6e-3] | ±9.3e-3 | yes |
+| discontinuous `slack` | −3.4% | [−1.5e-3, 2.9e-4] | ±4.3e-3 | yes |
+
+The interval for continuous `none` includes 0, and it fails on the side
+where the batched models have lower error. The design was underpowered for
+continuous Pendulum:
+- the seed-to-seed spread of the held-out error is about 50% of its mean;
+- the standard deviation of the paired difference is about 69% of the mean;
+- with 40 seeds, a gate with no true difference passes only about 55% of the
+  time.
+
+This result stays reported as failed. It is excluded from the decision below.
+
+**The confirmatory rerun.** It was declared here before any of its fits ran,
+and it is the gate's only rerun.
+- **Frozen.** Everything the first gate used is unchanged:
+  - the statistic: the mean over paired seeds of (batched − per-fit)
+    held-out one-step error;
+  - the interval: the 90% union of BCa and paired t, which is TOST at 5% per
+    side;
+  - the margin: ±25% of the per-fit mean;
+  - the data: each task's training transitions, from `data.prepare` at seed
+    501, with the held-out error on that split's validation transitions;
+  - the configurations: each task with its paper regularizer, and with
+    `none`;
+  - no exclusions: every seed is used.
+- **Code.** The gate runs from the clean commit
+  `b2cbf7136b6f54b0034e2b338342605fc9a15711`, with
+  `tools/m3_fit_v2/check.py --parts confirmatory`. Its `src`,
+  `pyproject.toml` and `uv.lock` are identical to the first gate's commit.
+- **Seeds.** Fresh seeds 641–780: 140 per configuration, the same range for
+  all four. Per-fit models are fitted one at a time. Batched models are fitted
+  in groups of 35 consecutive seeds, close to the first gate's 40.
+- **Power.** These figures use the first gate's spread and a t-interval
+  approximation; the union interval is slightly wider. For continuous
+  `none`, power is about 0.99 if there is no true difference, and about 0.88
+  if the observed −8.5% difference is real. All four configurations pass
+  together with probability of about 0.87 under the observed differences.
+- **Decision.** The batched engine is accepted only if all four
+  configurations pass.
+- **No third attempt.** If this gate fails, every study fit uses the
+  per-fit engine (`transition_model.trainer_version=1` in the plan's study
+  settings). The runner then fits each unit through `generate_offline`, and
+  that is reported.
+- **Blocking.** #123 is blocked until this gate passes.
+- **Result: passed, so the batched engine is accepted.** The gate ran from
+  the clean commit `b2cbf7136b6f54b0034e2b338342605fc9a15711` on siddh.
+
+  | Configuration | Mean difference | 90% interval | Margin | Equivalent |
+  |---|---|---|---|---|
+  | continuous `none` | +11.8% | [−2.9e-7, 1.03e-4] | ±1.10e-4 | yes |
+  | continuous `soft_sampling` | +8.4% | [−1.4e-5, 9.4e-5] | ±1.19e-4 | yes |
+  | discontinuous `none` | −2.2% | [−2.1e-3, 4.3e-4] | ±9.3e-3 | yes |
+  | discontinuous `slack` | −2.1% | [−7.7e-4, 3.9e-5] | ±4.2e-3 | yes |
+
+  On continuous Pendulum, the batched models' held-out one-step error is
+  higher by about 8–12% on average:
+  - for `none`, the upper end of the interval is 94% of the margin;
+  - the first gate saw −8.5% on the same configuration, so the direction is
+    not stable;
+  - the difference is inside the declared margin, and the report (#25)
+    states it.
+- **Independence.** The normalized Lipschitz coordinates (#125) are
+  established independently of this gate. The configuration that failed has
+  no Lipschitz regularizer, so the coordinate choice cannot affect it.
+
 **Host.** All study runs execute on one host (siddh, CUDA). Timings are not
 compared.
+
+**Batching.** The runner trains many units' models in one group and records
+each group's members, bucket and engine. A unit's results can depend on its
+group only through float32 rounding. The grouping is a function of the plan
+and the order of units, so a rerun from the frozen commit reproduces it,
+except where a group runs out of device memory and is split (§9), which is
+recorded.
 
 ## 3. Environment
 
 There is one canonical Pendulum environment in `tools/m3_pendulum/`. It has
-the physics that generated the demonstrations:
+the physics that generated the demonstrations. Version 6 evaluates with the
+batched implementation in `tools/vector_env/` (§2), which runs the same RK45
+algorithm on every episode at once:
 
 | Element | Value |
 |---|---|
@@ -122,10 +296,12 @@ the physics that generated the demonstrations:
 | Episode | 500 steps; no termination |
 
 **Acceptance checks, run before the tooling freeze with no tuning or study
-outcome:**
+outcome, for the canonical and the batched environment:**
 1. **Transitions.** For every transition of both datasets, stepping the
    environment from the stored (s_t, a_t) must reproduce the stored s_{t+1}
-   within max |Δ| ≤ 1e-6.
+   within max |Δ| ≤ 1e-6. The batched environment must also agree with the
+   canonical one on every transition, and the maximum difference is
+   reported.
 2. **Evaluator audit.** The evaluator runs fixed, non-learned policies:
    - zero action;
    - constant actions ±1;
@@ -145,7 +321,9 @@ reported.
 **Every evaluation is auditable.** Each tuning and study evaluation saves
 every episode's per-step states, actions and rewards, plus its initial state
 and noise draws. The analysis recomputes every reported return from those
-files with the independent implementation, and refuses any mismatch.
+files with the independent implementation, and refuses any mismatch. It also
+replays every saved transition through the batched integrator that produced
+it and requires the saved next state bit for bit.
 
 **Initial states.** For each seed s, 100 episodes start from
 θ ~ U(−1, 1) and θ̇ ~ U(−0.5, 0.5), drawn from
@@ -180,12 +358,55 @@ values below. Nothing else is tuned.
 | **CCIL-filtered** | secondary | CCIL labels filtered by the paper's DisturbedAction label-error score (Def. 4.6, the `disturbed_action_paper_proxy` profile), keeping those at or below the 0.3 selection quantile, which is the label-filtering branch's value (`certificate.selection_quantile 0.3`, score admission). It shares CCIL's dynamics model and labels. |
 | **CCIL-noLip** | secondary ablation | CCIL with `transition_model.lipschitz_type none` (the ablation in `scripts/pendulum.sh`) |
 | **CCIL-tuned** | secondary | CCIL with `generation.action_noise_std` chosen as in §6. Every other setting, including the support radius, is CCIL's. |
+| **BC-modern** | secondary (version 6) | BC with the modern recipe below, its learning rate chosen as in §6 |
+| **CCIL-modern** | secondary (version 6) | CCIL (labels and balancing as the CCIL arm) with the modern recipe below, its learning rate chosen as in §6 |
 
-**Shared policy settings:** the experimental vector harness (#89), with
-batch 512, 100 epochs (÷20 when balanced), learning rate 1e-3, [256, 256],
-and standard and min_max scalers. Balancing is the configuration's for the
-CCIL arms; BC and NoiseBC never balance
-(`policy.balance_noisy_labels false`).
+**Shared policy settings:** the experimental vector harness (#89), trained
+by trainer v2 (`policy.trainer_version 2`), with batch 512, 100 epochs (÷20
+when balanced), learning rate 1e-3, [256, 256], and standard and min_max
+scalers. Dynamics models fit with `transition_model.trainer_version 2` and
+`transition_model.lipschitz_coordinates model_normalized`, set explicitly in every unit's
+configuration. It does not rely on a default: configuration version 2 defaults to `model_normalized`,
+and a version 1 configuration migrates to `raw`, its earlier meaning (#125). Balancing is the
+configuration's for the CCIL arms; BC and NoiseBC never balance (`policy.balance_noisy_labels false`).
+
+**The Lipschitz ablation (CCIL-noLip).** CCIL's dynamics model uses the
+configuration's regularizer: `soft_sampling` on continuous Pendulum and
+`slack` on discontinuous. CCIL-noLip removes it (`lipschitz_type none`).
+- **Continuous Pendulum.** The `soft_sampling` ratio is measured in the
+  model's normalized coordinates (`transition_model.lipschitz_coordinates
+  model_normalized`, #125). Its constraint (2), ε (3e-4) and penalty weight
+  are the paper's. CCIL − CCIL-noLip is then the actual Lipschitz ablation.
+- **No raw-coordinate arm.** In raw coordinates the penalty is never active
+  on this task, so such an arm would train the same model as CCIL-noLip.
+- **Legacy differed again.** Legacy's term, corrected in #21, mixed the two
+  spaces: it compared the normalized residual with the next-state
+  prediction, against 2 times the norm of the unscaled noise. So the paper's
+  continuous ablation removed a different term than this one; the comparison
+  with paper Fig. 4(c) reports this.
+- **A regularizer, not a certified bound.** The penalty is a training
+  regularizer. Its constraint is never used as a certified bound, and the
+  CCIL-filtered certificates recompute model bounds from the weights (#125).
+
+**The modern recipe** (#115), for BC-modern and CCIL-modern only. Each value
+is a fixed design choice, with the reason for it; only the learning rate is
+tuned (§6).
+
+| Setting | Value | Reason |
+|---|---|---|
+| Optimizer | AdamW (`policy.optimizer adamw`), β = (0.9, 0.999), ε = 1e-8, decoupled weight decay 1e-4 | The standard optimizer for this model class; light decay regularizes long training without becoming a second tuned axis |
+| Learning rate | peak chosen as in §6; linear warm-up from peak/1,000 at step 1 to the peak at step 1,000 (`policy.warmup_steps 1000`), then cosine decay to 0 at step 50,000 (`policy.lr_schedule cosine`) | Warm-up stabilizes the first steps of AdamW; the cosine endpoint makes the last steps small, which the checkpoint rule then benefits from |
+| Length | 50,000 optimizer steps per model (`policy.step_budget 50000`), the same for both arms; epochs are cut at the budget | Equal compute: CCIL has about 20 times BC's rows, so equal epochs would give it far more steps |
+| Gradient clipping | global norm 1.0 per model (`policy.grad_clip_norm 1.0`) | Guards against rare large gradients from noisy labels; inactive in ordinary steps |
+| Weight averaging | EMA of the weights, decay 0.999 (`policy.ema_decay 0.999`); the EMA weights are the policy, and they are what validation judges and returns | Averaging over about the last 1,000 steps smooths the late iterates |
+| Checkpoint | the EMA weights with the lowest validation loss, judged every 2,000 optimizer steps and at step 50,000 (`policy.checkpoint_selection validation`, `policy.validation_interval_steps 2000`): 25 selection points for both arms | A shared step cadence gives both arms the same selection opportunities; an epoch cadence would give BC about 20 times more |
+| Validation loss | Σ w·mean_j(π(s) − a)_j² / Σ w over the held-out episodes' demonstrations, in the scaled action space: the training loss on held-out data | The quantity training minimizes, on data training never sees |
+| Held-out data | 20% of episodes (the data split, `data.validation_fraction 0.2`, at the unit's seed) are held out of policy training (`policy.exclude_validation_episodes true`) | A clean holdout: see below |
+| Dynamics model | CCIL-modern's label model is fitted on the training episodes only (`transition_model.fit_episodes train`); its labels and acceptance are otherwise CCIL's | Held-out episodes then influence no training label, so CCIL-modern and BC-modern see the same data |
+
+The held-out episodes are used only to select checkpoints and, through their
+losses, to tune the learning rate. Everything else (architecture, batch,
+scalers, balancing) is the corresponding paper-settings arm's.
 
 **Asymmetry, stated.** In the primary comparison, BC and CCIL use the paper's
 settings, while NoiseBC receives a scale search (§6), so any bias this
@@ -194,21 +415,32 @@ NoiseBC, so that CCIL − NoiseBC can also be read with both sides tuned.
 
 ## 6. Seeds and tuning
 
-**Tuning seeds 1–3.** These are used only to choose the NoiseBC scale and the
+**Tuning seeds 11–13** (version 4: 1–3). These are used only to choose the NoiseBC scale and the
 CCIL-tuned action noise, **separately per task**. Each search has five values:
 
 | Arm | Parameter | Grid |
 |---|---|---|
 | NoiseBC | `policy.noise_scale` (standardized observation units) | {1e-4 (the paper's value), 1e-3, 1e-2, 1e-1, 3e-1} |
 | CCIL-tuned | `generation.action_noise_std` (action units) | {the paper's value (1e-5 continuous, 1e-4 discontinuous), 1e-3, 1e-2, 1e-1, 3e-1} |
+| BC-modern | `policy.learning_rate` (peak) | {1e-4, 3e-4, 1e-3, 3e-3, 1e-2} |
+| CCIL-modern | `policy.learning_rate` (peak) | {1e-4, 3e-4, 1e-3, 3e-3, 1e-2} |
 
 The support radius is not searched: it is the paper's per-task constraint (on
 discontinuous Pendulum, 0.01 keeps labels from crossing the discontinuity),
 and searching it would give CCIL-tuned a larger budget than NoiseBC.
 
 For each arm and task:
-- **Selection:** the value with the highest mean noise-free return over
-  seeds 1–3. Ties go to the smaller value.
+- **Selection:** for NoiseBC and CCIL-tuned, the value with the highest mean
+  noise-free return over the tuning seeds. For BC-modern and CCIL-modern, the
+  value with the lowest mean selected-checkpoint validation loss over the
+  tuning seeds.
+  Ties go to the smaller value.
+- **Order, for the modern arms.** Their tuning runs compute no return. The
+  choice is computed from validation losses and written once to the run
+  record (`tuning-choice.json`). Only then are their tuning-seed returns
+  computed, into separate records that name the choice and the tuning record
+  by SHA-256. The analysis refuses returns that do not, so no return can have
+  informed the choice. The returns are reported afterwards.
 - **Failed tuning runs.** A value with any failed tuning run is ineligible.
   If every value is ineligible, the arm uses the paper's value, and this is
   recorded.
@@ -216,7 +448,7 @@ For each arm and task:
   CCIL-tuned's label acceptance rate.
 - Both choices are committed to the run record before any study seed runs.
 
-**Study seeds 101–120** (20 seeds). Each seed runs one complete pipeline per
+**Study seeds 1201–1220** (20 seeds; version 4: 101–120). Each seed runs one complete pipeline per
 arm: the dynamics fit, labels, the policy, and evaluation. Tuning seeds are
 never reported as study results.
 
@@ -231,7 +463,7 @@ never reported as study results.
       [1, 1, 4π], and action [−3, 3].
     - n ∈ {0.01, 0.05, 0.1}, with draws from
       `default_rng(SeedSequence([s, 8, k]))` shared across arms, with k = 0, 1, 2 for n = 0.01, 0.05, 0.1.
-    - It applies to BC, NoiseBC, CCIL and CCIL-tuned.
+    - It applies to BC, NoiseBC, CCIL, CCIL-tuned, BC-modern and CCIL-modern.
   - **Data size.** Nested episode subsets of 10%, 25% and 50%, chosen by
     `default_rng(SeedSequence([s, 9])).permutation`, for BC and CCIL, with
     noise-free evaluation.
@@ -246,13 +478,17 @@ never reported as study results.
       (mean and quantiles per seed), compared descriptively with the paper's
       reported empirical mean of 0.02367 and bound of 0.065. It is measured
       on 10,000 accepted labels per CCIL unit (all of them if fewer), drawn
-      without replacement by `default_rng(SeedSequence([s, 10]))`.
+      without replacement by `default_rng(SeedSequence([s, 10]))`. Version 6
+      takes the environment step with the batched integrator (§3), one call for
+      all sampled labels.
 
     The ledger entry `sim-pendulum-label-bound` stays **blocked**: the
     procedure behind 0.065 is unrecorded, so this measurement is reported as
     related evidence, not as a reproduction.
   - **Training diagnostics:** the dynamics model's held-out one-step error,
-    the label counts by reason, and the supervision manifests.
+    the label counts by reason, and the supervision manifests; for the
+    modern arms, every validation (step, epoch, loss) on the fixed step
+    cadence, and the selected step and its loss.
   - **Zero-action reference.** R(s, zero), the zero-action policy (a = 0 at
     every step), on each study seed's initial states, noise-free and at
     each noise level, for both tasks. It needs no training and has no tuning.
@@ -306,7 +542,8 @@ bounds the size of any effect the study could have missed.
 
 **Secondary comparisons** are CCIL − NoiseBC, CCIL-tuned − BC,
 CCIL-tuned − NoiseBC, CCIL-filtered − CCIL and CCIL-noLip − CCIL, and per
-noise level and data size. Each gets the union interval at c = 0.95. They are
+noise level and data size; and, for the modern arms, CCIL-modern − BC-modern,
+BC-modern − BC and CCIL-modern − CCIL, noise-free and per noise level. Each gets the union interval at c = 0.95. They are
 descriptive: no decisions, and no multiplicity claims.
 
 **Paper comparison** (informational): the mean ± std over seeds of BC and
@@ -322,7 +559,8 @@ or disagreement is claimed beyond what the intervals show.
 
 **Zero-action reference** (descriptive). For each task, R(s, zero) is
 reported per seed beside every arm. For each primary and secondary arm
-(noise-free), and for BC, NoiseBC, CCIL and CCIL-tuned at each noise level,
+(noise-free), and for BC, NoiseBC, CCIL, CCIL-tuned, BC-modern and
+CCIL-modern at each noise level,
 arm − zero is reported with the union interval at c = 0.95. These intervals
 inform no decision, are not part of the positive control, and make no
 multiplicity claim.
@@ -330,8 +568,15 @@ multiplicity claim.
 ## 9. Failures
 
 **Infrastructure faults** (out of memory, a lost host, a killed process) are
-rerun once, with identical inputs. A second fault excludes that seed for that
+rerun once, with identical inputs. (Version 6: a training group that runs out
+of device memory is first split in half and retried, down to single units;
+only a single unit's memory exhaustion is a fault.) A second fault excludes that seed for that
 arm, and the exclusion is reported.
+
+**A code change during a run** is neither kind of failure. A unit that sees
+one (§2) gets no record, and the phase stops. It resumes from a clean tree
+at the frozen commits. Completed stages are reused only when their recorded
+implementation matches the code. Every such stop is reported.
 
 **Algorithmic failures** are results: a non-finite loss, a crash inside the
 algorithm, or a non-finite return. They are reported per arm and seed.
@@ -359,7 +604,40 @@ seeds, or fewer than 16 seeds valid for both.
 
 Negative and null outcomes are reported the same way as positive ones.
 
-## 11. Tooling freeze (addendum, recorded before any tuning run)
+The version 4 run is reported separately, labeled incomplete and superseded:
+its tuning tables and choice, and its 21 study units, with the disclosure
+above.
+
+## 11. Tooling freeze
+
+**Version 6:** to be recorded by a pull request that changes nothing else,
+merged before the first version 6 tuning run. It names the frozen tooling
+and `ccil` commits in `tools/m3_experiments/freeze.json`, and lists the §2
+and §3 evidence.
+- **One combined commit.** The evidence is generated once, on each host,
+  from one clean commit that combines every part of the stack. It includes
+  the certificate cross-host audits.
+- **The batched-fit gate is cited, not rerun.** The confirmatory gate (§2)
+  decided it, and there is no third attempt. The freeze records the diff of
+  the fit path (`mlp_batched`, `MLPTransitionModel.fit`, the losses and the
+  normalization) from the gate's commit `b2cbf71` to the frozen commit. If
+  any of it changed, the freeze stops.
+  Reports from separate branches do not count.
+- **The design.** The study's design is the runner plan
+  `tools/m3_experiments/pendulum_v6.yaml`: 120 tuning units and 600 study
+  units.
+- **The driver.** It is `tools/m3_experiments/run_study.py`, which runs the
+  steps in order behind the gate:
+  1. `tuning`, one process per GPU, split by seed;
+  2. `choose`, which verifies the tuning records and writes the choice once;
+  3. `returns`, the modern arms' deferred tuning returns, which name the
+     choice;
+  4. `study`;
+  5. `verify`.
+- **Smoke runs** of the same driver (`--smoke`) use seeds 9101–9103 at one
+  epoch. They precede the freeze and are never analyzed with real runs.
+
+**Version 4 (superseded; its runs are reported, not reused).**
 
 - **Frozen tooling commit:** `cba34fea7241cdbf4a48bb00083da76bb2383d40`, the
   merge of #106. It is named by
