@@ -165,8 +165,11 @@ Both modes give bit-identical parameters.
     compiled step, and results do not depend on the chunk size.
   - Past `torch.compile`'s recompile limit (8 specializations per function and
     process), a compiled function would run uncompiled with only a warning.
-    That step is refused with `CompilationRefused` before it runs. The
-    batched fits share the guard.
+    A group adds at most one specialization, so a group whose step is
+    already at the limit starts a fresh compiler context
+    (`torch._dynamo.reset`). The compiled steps are unchanged; only how many
+    are kept changes. A step that would still exceed the limit is refused with
+    `CompilationRefused` before it runs. The batched fits share both.
   - Compilation is lazy, so the first compiled step is guarded. A compiler
     failure there falls back to eager for the whole run, with nothing
     updated, and the outcome is recorded as the engine. A study process
@@ -188,8 +191,9 @@ and the training identity includes it. The record's `group` field holds:
 - the group size and table blocks;
 - the data mode and chunk size;
 - the engine (compiled or eager), the device and the TF32 setting;
-- `compilation`: the requested and effective engine, and the step's
-  specializations in the process (in all, and new in this group);
+- `compilation`: the requested and effective engine, the step's
+  specializations in the compiler context (in all, and new in this group),
+  and whether the group started a fresh context;
 - the shuffle rule;
 - the setup, training and per-epoch times.
 

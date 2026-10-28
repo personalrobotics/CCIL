@@ -24,18 +24,21 @@ steps are compiled for the CPU (compile=True), which exercises the same guard.
    - this tree compiles one specialization per data mode, NoiseBC flag and recipe. Groups that differ only in
      table size or learning rate reuse it, and every record states the requested and effective engine and the
      specialization counts.
-2. refusal: a deliberately excessive sequence of shapes, nine policy groups with distinct recipes and then nine
-   fit groups with distinct learning rates. The first eight of each compile, and their records say so with
-   specializations 1 to 8. The ninth raises CompilationRefused on its first step, before the step runs, and
-   returns nothing.
-   Control (the same sequence with the guard switched off after the engine is built): the ninth group returns
-   records claiming a compiled engine with no new specialization, because it ran uncompiled. That is the
+2. isolation: nine policy groups with distinct recipes, then nine fit groups with distinct learning rates, in
+   one process: more specializations than torch.compile's limit of 8. Every group runs compiled. The first eight
+   of each report specializations 1 to 8, and the ninth starts a fresh compiler context (specializations 1).
+3. refusal: a deliberately excessive sequence of shapes inside one group. The pre-#134 stride is reintroduced
+   (a chunk's step slices as views, so the short last chunk is a second specialization), with the recompile
+   limit at 1. The group raises CompilationRefused on the first step of the short chunk, before that step runs,
+   and returns nothing.
+   Control (the same, with the guard switched off after the engine is built): the group returns records
+   claiming a compiled engine with one specialization, because its short chunk ran uncompiled. That is the
    failure the guard prevents.
-3. runner_refusal: ccil.experiments.runner on a small smoke plan whose two fit groups differ in their settings,
-   with torch.compile's recompile limit set to 1, so the second fit group is refused. The phase stops with
-   CompilationRefused. No unit record exists, no labels or policy stage completed, and no completed
-   transition.fit stage holds a model of the refused group (by fit identity).
-4. v6_schedule (with --preflight-root, a root of `run_study.py ... --preflight` for every step and shard): every
+4. runner_refusal: ccil.experiments.runner on a small smoke plan with two fit groups, where the fit step's
+   compiler fails on its first step (injected). A study process refuses that rather than falling back to eager,
+   so the phase stops with CompilationRefused. No unit record exists, no labels or policy stage completed, and
+   no completed transition.fit stage holds a model of the refused group (by fit identity).
+5. v6_schedule (with --preflight-root, a root of `run_study.py ... --preflight` for every step and shard): every
    fit and policy group of the exact v6 schedule ran with its effective engine equal to the requested one,
    compiled; the largest specialization count per step function is reported against the limit. A compilation
    refusal there would have stopped the preflight, so every record existing and verified is the claim.
@@ -135,27 +138,14 @@ def policy_step(device: str, out: Path) -> dict:
             "records_ok": records, "steps": dict(zip(groups, col("this_eager", "steps")))}
 
 
-REFUSAL = r'''
+ISOLATION = r'''
 import json, sys
-import numpy as np, torch
+import numpy as np
 sys.path.insert(0, sys.argv[1])
 from workload import supervision
 from ccil.training import vector_bc_v2 as v2
 from ccil.models.mlp_batched import FitJob, fit_group
-device, control = sys.argv[2], sys.argv[3] == "control"
-if control:  # the guard switched off after each engine is built: torch.compile's own behaviour past the limit
-    real_init = v2._Engine.__init__
-    def init(self, *a, **k):
-        real_init(self, *a, **k)
-        import torch._dynamo
-        torch._dynamo.config.fail_on_recompile_limit_hit = False
-    v2._Engine.__init__ = init
-calls = []
-real_call = v2._Engine.__call__
-def counted(self, *a, **k):
-    calls.append(self.eager.__qualname__)
-    return real_call(self, *a, **k)
-v2._Engine.__call__ = counted
+device = sys.argv[2]
 BASE = {"hidden_layers": [16], "learning_rate": 1e-3, "batch_size": 16, "epochs": 1,
         "observation_scaler": "standard", "action_scaler": "min_max", "balance_labels": None}
 FIT = {"hidden_layers": [16], "activation": "relu", "lipschitz_type": "slack", "lipschitz_constraint": 1.0,
@@ -165,42 +155,74 @@ r = np.random.default_rng(0)
 z, a = r.normal(size=(64, 2)), r.normal(size=(64, 1))
 zn = z + 0.1 * np.tanh(a)
 out = {"policy": [], "fit": []}
-for kind in ("policy", "fit"):
-    for i in range(9):
-        before = len(calls)
-        try:
-            if kind == "policy":  # grad_clip_norm is compiled in: each value is a specialization
-                res = v2.train_group([v2.Job(supervision(64, i, "bc"), 1)], {**BASE, "grad_clip_norm": 1.0 + i},
-                                     device=device, compile=True)
-            else:  # so is the fit's learning rate (the fit step is unchanged by #134)
-                res = fit_group([FitJob(z, a, zn, 1)], {**FIT, "learning_rate": 1e-3 * (i + 1)}, device=device,
-                                compile=True)
-            out[kind].append({"group": i, "returned": True, "compilation": res[0][1]["execution"]["compilation"],
-                              "engine_calls": len(calls) - before})
-        except v2.CompilationRefused as e:
-            out[kind].append({"group": i, "returned": False, "refused": str(e), "engine_calls": len(calls) - before})
+for i in range(9):  # grad_clip_norm is compiled into the policy step: each value is a specialization
+    res = v2.train_group([v2.Job(supervision(64, i, "bc"), 1)], {**BASE, "grad_clip_norm": 1.0 + i}, device=device,
+                         compile=True)
+    out["policy"].append(res[0][1]["execution"]["compilation"])
+for i in range(9):  # so is the fit's learning rate (the fit step is unchanged by #134)
+    res = fit_group([FitJob(z, a, zn, 1)], {**FIT, "learning_rate": 1e-3 * (i + 1)}, device=device, compile=True)
+    out["fit"].append(res[0][1]["execution"]["compilation"])
 print(json.dumps(out))
 '''
 
 
-def refusal(device: str) -> dict:
-    res = {}
-    for mode in ("guard", "control"):
-        p = _sub("-c", REFUSAL, str(HERE), device, mode)
-        res[mode] = _json(p)
+def isolation(device: str) -> dict:
+    res = _json(_sub("-c", ISOLATION, str(HERE), device))
     ok = True
     for kind in ("policy", "fit"):
-        g, c = res["guard"][kind], res["control"][kind]
-        first8 = all(x["returned"] and x["compilation"]["requested"] == x["compilation"]["effective"]
-                     == "compiled (default)" and x["compilation"]["specializations"] == x["group"] + 1
-                     and x["compilation"]["new_specializations"] == 1 for x in g[:8])
-        ninth = (not g[8]["returned"] and g[8]["engine_calls"] == 1 and "refused before it ran" in g[8]["refused"])
-        silent = (c[8]["returned"] and c[8]["compilation"]["effective"] == "compiled (default)"
-                  and c[8]["compilation"]["new_specializations"] == 0 and c[8]["compilation"]["specializations"] == 8)
-        res[f"{kind}_first_eight_compiled"], res[f"{kind}_ninth_refused_on_first_step"] = first8, ninth
-        res[f"{kind}_control_ninth_ran_uncompiled_claiming_compiled"] = silent
-        ok = ok and first8 and ninth and silent
+        cs = res[kind]
+        compiled = all(c["requested"] == c["effective"] == "compiled (default)" and c["new_specializations"] == 1
+                       for c in cs)
+        counts = [c["specializations"] for c in cs] == [1, 2, 3, 4, 5, 6, 7, 8, 1]
+        fresh = [c["fresh_context"] for c in cs] == [False] * 8 + [True]
+        res[f"{kind}_all_compiled"], res[f"{kind}_ninth_in_a_fresh_context"] = compiled, counts and fresh
+        ok = ok and compiled and counts and fresh
     res["pass"] = ok
+    return res
+
+
+REFUSAL = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import torch, torch._dynamo
+from workload import supervision
+from ccil.training import vector_bc_v2 as v2
+device, control = sys.argv[2], sys.argv[3] == "control"
+torch._dynamo.config.recompile_limit = 1
+v2._step_major = lambda idx: idx.transpose(0, 1)  # the pre-#134 stride: step slices are views of the chunk
+if control:  # the guard switched off after the engine is built: torch.compile's own behaviour past the limit
+    real_init = v2._Engine.__init__
+    def init(self, *a, **k):
+        real_init(self, *a, **k)
+        torch._dynamo.config.fail_on_recompile_limit_hit = False
+    v2._Engine.__init__ = init
+calls = []
+real_call = v2._Engine.__call__
+def counted(self, *a, **k):
+    calls.append(1)
+    return real_call(self, *a, **k)
+v2._Engine.__call__ = counted
+settings = {"hidden_layers": [16], "learning_rate": 1e-3, "batch_size": 16, "epochs": 1,
+            "observation_scaler": "standard", "action_scaler": "min_max", "balance_labels": None}
+sup = supervision(16 * 7, 0, "bc")  # 7 steps: chunks of 5 and 2
+try:
+    res = v2.train_group([v2.Job(sup, 1)], settings, device=device, compile=True, chunk_steps=5)
+    print(json.dumps({"returned": True, "compilation": res[0][1]["execution"]["compilation"], "engine_calls": len(calls)}))
+except v2.CompilationRefused as e:
+    print(json.dumps({"returned": False, "refused": str(e), "engine_calls": len(calls)}))
+'''
+
+
+def refusal(device: str) -> dict:
+    res = {mode: _json(_sub("-c", REFUSAL, str(HERE), device, mode)) for mode in ("guard", "control")}
+    g, c = res["guard"], res["control"]
+    # Five steps of the first chunk ran compiled; the sixth (the short chunk's first) was refused before it ran.
+    res["refused_on_the_short_chunk_first_step"] = (not g["returned"] and g["engine_calls"] == 6
+                                                     and "refused before it ran" in g["refused"])
+    res["control_claims_compiled_with_one_specialization"] = (
+        c["returned"] and c["engine_calls"] == 7 and c["compilation"]["effective"] == "compiled (default)"
+        and c["compilation"]["specializations"] == 1)
+    res["pass"] = res["refused_on_the_short_chunk_first_step"] and res["control_claims_compiled_with_one_specialization"]
     return res
 
 
@@ -208,18 +230,25 @@ RUNNER = r'''
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-import torch, torch._dynamo
-torch._dynamo.config.recompile_limit = 1
 from pendulum_suite import PendulumSuite
 from ccil.experiments import plan, runner
 from ccil.models import mlp_batched
+from ccil.training import vector_bc_v2
 from ccil.training.vector_bc_v2 import CompilationRefused
+real_compiled = vector_bc_v2._compiled
+def compiled(fn):  # the fit step's compiler fails on its first step (injected)
+    if fn is not mlp_batched._step:
+        return real_compiled(fn)
+    def broken(*a, **k):
+        raise RuntimeError("injected compiler failure")
+    return broken
+vector_bc_v2._compiled = compiled
 root, device = Path(sys.argv[2]), sys.argv[3]
 study = plan.from_dict({
     "study": "compile-check", "version": 1, "tasks": ["continuous"],
     "settings": ["transition_model.trainer_version=2", "policy.trainer_version=2",
                  "policy.exclude_validation_episodes=false"],
-    "phases": {"study": {"seeds": [9002], "arms": ["ccil", "ccil_nolip"]}},
+    "phases": {"study": {"seeds": [9002, 9003], "arms": ["ccil", "ccil_nolip"]}},
     "arms": {"ccil": {"settings": ["policy.method=ccil"]},
              "ccil_nolip": {"settings": ["policy.method=ccil", "transition_model.lipschitz_type=none"]}}})
 groups = []
@@ -285,9 +314,9 @@ def runner_refusal(device: str, out: Path) -> dict:
                                                            "policy.evaluate")}
     res.update({"complete_stages": {k: len(v) for k, v in stages.items()}, "records": records,
                 "refused_fits_with_a_complete_stage": leaked})
-    res["pass"] = (bool(res["stopped"]) and res["stopped"].startswith("CompilationRefused") and len(refused) == 1
-                   and len(returned) >= 1 and not records and not leaked and not any(later.values())
-                   and len(stages.get("transition.fit", [])) >= 1)
+    res["pass"] = (bool(res["stopped"]) and "compilation failed on the first step" in res["stopped"]
+                   and len(refused) == 1 and not returned and not records and not leaked and not any(later.values())
+                   and not stages.get("transition.fit"))
     return res
 
 
@@ -330,8 +359,8 @@ def main() -> int:
               "device": a.device, "cases": {}}
     if a.device == "cuda":
         report["gpu"] = torch.cuda.get_device_name(0)
-    cases = {"policy_step": lambda: policy_step(a.device, a.out), "refusal": lambda: refusal(a.device),
-             "runner_refusal": lambda: runner_refusal(a.device, a.out)}
+    cases = {"policy_step": lambda: policy_step(a.device, a.out), "isolation": lambda: isolation(a.device),
+             "refusal": lambda: refusal(a.device), "runner_refusal": lambda: runner_refusal(a.device, a.out)}
     if a.preflight_root:
         cases["v6_schedule"] = lambda: v6_schedule(a.preflight_root.resolve())
     for name, fn in cases.items():

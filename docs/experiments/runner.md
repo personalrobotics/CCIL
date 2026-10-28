@@ -123,7 +123,9 @@ The steps run in order: `tuning` (one process per shard), `choose`, `returns`,
   say smoke, so they are never analyzed.
 
 **Compilation.** A study process runs every group with the engine it requests.
-A step past `torch.compile`'s recompile limit, or a compiler failure on a first
+A phase holds more distinct groups than `torch.compile` keeps specializations
+of a step, so a group starts a fresh compiler context when its step is at the
+limit. A step that would still run uncompiled, or a compiler failure on a first
 step, raises `CompilationRefused` before the step runs, and stops the phase
 without a record. The stage hooks refuse a group record whose effective engine
 is not the requested one.
@@ -157,9 +159,12 @@ The compilation check (#134) covers:
 - **The policy step.** Its rows, NoiseBC draws and outputs match the engine
   before #134, with one specialization per bucket and recipe. Compiled results
   do not depend on the chunk size.
-- **Refusal.** A ninth policy or fit specialization is refused on its first
-  step. A control without the guard shows the uncompiled run it prevents.
-- **The runner.** A refused fit group stops the phase. No record exists, and no
-  completed stage holds its models.
+- **Isolation.** Nine distinct policy groups and nine fit groups run compiled
+  in one process; the ninth of each starts a fresh compiler context.
+- **Refusal.** A group whose shapes exceed the limit (the pre-#134 stride,
+  reintroduced) is refused on the first step that would run uncompiled. A
+  control without the guard shows the uncompiled run it prevents.
+- **The runner.** A fit group refused for a first-step compiler failure stops
+  the phase. No record exists, and no completed stage holds its models.
 - **The v6 schedule.** Given a `--preflight` root, every group ran compiled
   within the limit.

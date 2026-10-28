@@ -37,8 +37,9 @@ function of its tensors, compiled with torch.compile once per process on CUDA
 (eager elsewhere, or when compile is off), so later groups of the same shapes
 reuse the compiled code. It specializes only on the bucket and the recipe: the
 learning rate is a tensor, the resident table's row count is dynamic, and each
-step's indices have the same strides (#134). A step that would exceed
-torch.compile's recompile limit, and so run uncompiled, is refused; the
+step's indices have the same strides (#134). A group whose step is at
+torch.compile's recompile limit starts a fresh compiler context, and a step
+that would still exceed the limit, and so run uncompiled, is refused; the
 requested and effective engine and the specializations are recorded.
 
 Setup is linear in the distinct data: blocks are keyed by hashing raw bytes,
@@ -434,9 +435,23 @@ def _dynamo():
 
 
 def _specializations(fn) -> int:
-    """torch.compile's specializations (cache entries) of fn's code in this process."""
+    """torch.compile's specializations (cache entries) of fn's code in the current compiler context."""
     from torch._C._dynamo.eval_frame import _debug_get_cache_entry_list
     return len(_debug_get_cache_entry_list(fn.__code__))
+
+
+def _fresh_context(fn) -> bool:
+    """Start a fresh compiler context (torch._dynamo.reset: every compiled function recompiles on its next use)
+    when fn already holds the recompile limit's specializations; return whether it did.
+
+    A group's shapes and settings are fixed, so a group adds at most one specialization of its step, and a group
+    that starts below the limit stays within it. A process that runs many groups (a study phase: tasks, settings
+    and buckets) would otherwise exceed it and be refused. The reset happens only between groups, and never
+    changes a compiled step: only how many are kept."""
+    if _specializations(fn) < _dynamo().config.recompile_limit:
+        return False
+    _dynamo().reset()
+    return True
 
 
 class _Engine:
@@ -445,15 +460,17 @@ class _Engine:
     Compilation is lazy, so the first compiled call is guarded: a compiler failure before any update falls back
     to eager for the whole run (the step is functional, so a failed call changed nothing) and is recorded, or is
     refused when EAGER_FALLBACK is off. Past torch.compile's recompile limit a compiled function would run eager
-    with only a warning; that is refused (fail_on_recompile_limit_hit, process-wide) before the step runs, so an
-    engine that says compiled ran compiled on every step. compilation() is the record of both."""
+    with only a warning; a group starts a fresh compiler context when its step is at the limit (_fresh_context),
+    and a step that would still exceed it is refused (fail_on_recompile_limit_hit, process-wide) before it runs,
+    so an engine that says compiled ran compiled on every step. compilation() is the record."""
 
     def __init__(self, fn, compile: bool):
         self.requested = f"compiled ({COMPILE_MODE})" if compile else "eager"
         self.fn, self.eager, self.state, self.first = (_compiled(fn) if compile else fn), fn, self.requested, compile
-        self.limit_hit, self.before = (), None
+        self.limit_hit, self.before, self.fresh = (), None, None
         if compile:
             _dynamo().config.fail_on_recompile_limit_hit = True
+            self.fresh = _fresh_context(fn)
             self.limit_hit, self.before = _dynamo().exc.FailOnRecompileLimitHit, _specializations(fn)
 
     def __call__(self, *args, **kwargs):
@@ -474,11 +491,12 @@ class _Engine:
         return self.fn(*args, **kwargs)
 
     def compilation(self) -> dict:
-        """The requested and effective engine, and the step's specializations in this process: in all, and new
-        in this run (0 when it reused compiled code); None when eager was requested."""
+        """The requested and effective engine, and the step's specializations in the compiler context: in all,
+        and new in this run (0 when it reused compiled code), and whether this run started a fresh context; None
+        when eager was requested."""
         n = _specializations(self.eager) if self.before is not None else None
         return {"requested": self.requested, "effective": self.state, "specializations": n,
-                "new_specializations": None if n is None else n - self.before}
+                "new_specializations": None if n is None else n - self.before, "fresh_context": self.fresh}
 
 
 def _step_major(idx: torch.Tensor) -> torch.Tensor:
