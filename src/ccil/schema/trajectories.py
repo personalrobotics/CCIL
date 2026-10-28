@@ -1,4 +1,4 @@
-"""Trajectory schema `ccil.trajectories` 1.0.
+"""Trajectory schema `ccil.trajectories` 1.1 (1.1 adds the optional per-episode termination_known, #27).
 
 An episode is T frames. Frame t has one entry per observation modality and an
 action; a transition is (frame t, action t, frame t+1), identified by
@@ -55,11 +55,11 @@ class Episode:
     observations: dict
     actions: np.ndarray
     terminated: bool = False
-    termination_known: bool | None = None
     timestamps: np.ndarray | None = None
     task: str | None = None
     action_chunks: np.ndarray | None = None
     action_chunk_mask: np.ndarray | None = None
+    termination_known: bool | None = None  # last, so 1.0's positional construction keeps its meaning
 
     @property
     def length(self) -> int:
