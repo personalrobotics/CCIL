@@ -64,7 +64,7 @@
    "I3_accounting": true,
    "acceptance_agrees_with_exact_model": 0.997,
    "accepted": 193,
-   "artifact": "<out>/analytic/runs/labels-generate-d76f819a8368/labels/candidates.npz",
+   "artifact": "<out>/analytic/runs/labels-generate-9c1c2f871c13/labels/candidates.npz",
    "candidates": 1000,
    "case": "analytic_mlp_backward_euler_invariants",
    "correction_residual_max": 0.010193187277429998,
@@ -91,30 +91,30 @@
    },
    "residual_minus_lipschitz_bound_max": -2.699159784441289e-05,
    "stages": {
-    "data-prepare-555a8a42a7e2": "complete",
-    "labels-generate-d76f819a8368": "complete",
-    "transition-fit-01b40e92c4d5": "complete"
+    "data-prepare-61ed8a3cdb13": "complete",
+    "labels-generate-9c1c2f871c13": "complete",
+    "transition-fit-213de982f9f8": "complete"
    }
   },
   {
    "case": "pendulum_held_out_metrics[cuda]",
    "device": "cuda",
    "held_out_evaluation_model": {
-    "max_l2": 0.002140163999466283,
-    "mean_l2": 0.00023172441271238788,
+    "max_l2": 0.002655754745264082,
+    "mean_l2": 0.00031563779306793534,
     "note": "evaluation model fitted on the train split; the label model saw every episode",
     "transitions": 9980
    },
    "label_model": {
     "epochs": 100,
-    "max_l2": 0.003308908148528625,
-    "mean_l2": 0.0004919472999872713,
+    "max_l2": 0.0023888510032110508,
+    "mean_l2": 0.00024620009966670514,
     "transitions": 49900
    },
    "label_model_final_losses": {
-    "lipschitz_penalty": 1.2100072290570434e-05,
-    "loss": 0.0002913281662670473,
-    "mse_loss": 0.00027922809378426406
+    "lipschitz_penalty": 0.0,
+    "loss": 0.00022185602188308376,
+    "mse_loss": 0.00022185602188308376
    },
    "labels": {
     "acceptance_rate": 1.0,
@@ -126,6 +126,7 @@
      "params_hash": "b67b95441f18eaa9",
      "version": "1"
     },
+    "jacobian_chunking": null,
     "rejections_by_reason": {
      "action_out_of_bounds": 0,
      "generation_failed": 0,
@@ -136,9 +137,9 @@
    "pass": true,
    "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
    "stages": {
-    "data-prepare-ef67f01f7858": "complete",
-    "labels-generate-0eba7ef9c28f": "complete",
-    "transition-fit-8a6996ae304f": "complete"
+    "data-prepare-6bcfc3b529c8": "complete",
+    "labels-generate-fa5d05e2622b": "complete",
+    "transition-fit-3d89aa2aa45d": "complete"
    },
    "stderr": ""
   },
@@ -260,9 +261,9 @@
    "case": "same_seed_byte_identical_checkpoints",
    "pass": true,
    "sha256": {
-    "a": "41829d1ba44d5b73552e05805d41e6bde2c108eae4060e62467c17f4674f2346",
-    "b": "41829d1ba44d5b73552e05805d41e6bde2c108eae4060e62467c17f4674f2346",
-    "c": "e5dc15e696806be2b93d45179f4701b5433c9e72fe0842ece2204eeae1ee004b"
+    "a": "858cb9469bae0c7da02fdc3d6503c0d32b0dcca86e77b1b4eb869eb9dd720472",
+    "b": "858cb9469bae0c7da02fdc3d6503c0d32b0dcca86e77b1b4eb869eb9dd720472",
+    "c": "4e69c75a9686849edd279300497fcae7110d77e9e0e040b82a54c6bb139aa960"
    }
   },
   {
@@ -274,14 +275,14 @@
   }
  ],
  "environment": {
-  "code_commit": "8d2b6a24e3b369ed60953a3d02abb8ce90f146d4",
+  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
   "code_dirty": false,
   "cuda": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
   "device": "cuda",
   "host_load": [
-   7.82763671875,
-   3.826171875,
-   2.33056640625
+   17.50244140625,
+   7.2421875,
+   4.599609375
   ],
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",

@@ -45,17 +45,22 @@
    "case": "correctness_determinism_and_preflight",
    "flag_restored": true,
    "pass": true,
-   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1\n  transition_model.lipschitz_type soft_jac has no model_normalized form yet (#125): set transition_model.lipschitz_coordinates raw",
+   "preflight_refusal": "invalid configuration:\n  transition_model.trainer_version 2 fits lipschitz types ['none', 'slack', 'soft_sampling', 'soft_sampling_slack']; soft_jac needs trainer_version 1",
    "recorded": true
   },
   {
    "case": "stage_hooks",
+   "changed_validation_refused": true,
    "own_fit_accepted": true,
    "own_policy_accepted": true,
+   "own_validation_accepted": true,
    "pass": true,
+   "policy_wrong_execution_refused": true,
    "swapped_fit_refused": true,
    "swapped_policy_refused": true,
-   "tampered_weights_refused": true
+   "tampered_weights_refused": true,
+   "wrong_execution_right_record_refused": true,
+   "wrong_model_right_record_refused": true
   },
   {
    "all": {
@@ -132,15 +137,18 @@
   },
   {
    "case": "lipschitz_records_and_old_checkpoints",
-   "old_checkpoint_reads_as": "raw",
-   "pass": true,
-   "record": {
+   "checkpoint_descriptor": {
     "constraint": 2.0,
     "coordinates": "model_normalized",
     "normalization_sha256": "7a0f24db665536bd3d4cdef6c8340bfd78695f5d9b9fd08710bdb21b24f67568",
     "role": "training regularizer; not a certified bound",
     "units": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)"
    },
+   "checkpoint_reloads_as": "model_normalized",
+   "constructor_default": "model_normalized",
+   "mismatched_normalization_refused": true,
+   "old_checkpoint_reads_as": "raw",
+   "pass": true,
    "recorded": true,
    "soft_jac_model_normalized_refused": true
   },
@@ -402,48 +410,10 @@
     404,
     405
    ]
-  },
-  {
-   "case": "timing",
-   "measurements": [
-    {
-     "batch_size": 512,
-     "batched_20_seeds_seconds": 79.87668251991272,
-     "engine": "compiled (default)",
-     "epoch_seconds": [
-      6.6675379276275635,
-      0.7263083457946777,
-      0.7257277965545654
-     ],
-     "epochs": 100,
-     "lipschitz_type": "soft_sampling",
-     "peak_device_gb": 1.205080509185791,
-     "perfit_one_seed_seconds": 9.463023900985718,
-     "task": "continuous",
-     "transitions": 39920
-    },
-    {
-     "batch_size": 2048,
-     "batched_20_seeds_seconds": 168.28477668762207,
-     "engine": "compiled (default)",
-     "epoch_seconds": [
-      1.354536533355713,
-      0.3281693458557129,
-      0.3286323547363281
-     ],
-     "epochs": 500,
-     "lipschitz_type": "slack",
-     "peak_device_gb": 0.5953941345214844,
-     "perfit_one_seed_seconds": 50.25836801528931,
-     "task": "discontinuous",
-     "transitions": 199600
-    }
-   ],
-   "pass": true
   }
  ],
  "environment": {
-  "code_commit": "8d2b6a24e3b369ed60953a3d02abb8ce90f146d4",
+  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
