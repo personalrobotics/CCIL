@@ -52,11 +52,13 @@ def tree(d: Path, skip=None) -> dict:
             for p in sorted(d.rglob("*")) if p.is_file() and not (skip and p.relative_to(d).parts[0] == skip)}
 
 
-def labels(work: Path, data: Path, chunk: int | None):
+def labels(work: Path, data: Path, chunk: int | None, extra=()):
     args = [sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
             "--set", f"data.path={data}", "--set", f"run.output_dir={work / 'runs'}"]
     if chunk:
         args += ["--set", f"generation.action_chunk_size={chunk}"]
+    for kv in extra:
+        args += ["--set", kv]
     r = subprocess.run(args, capture_output=True, text=True, cwd=work)
     if r.returncode != 0:
         raise RuntimeError(r.stderr[-1500:])
@@ -64,9 +66,9 @@ def labels(work: Path, data: Path, chunk: int | None):
     return {k: (v if v.is_absolute() else work / v) for k, v in runs.items()}
 
 
-def bundle(work: Path, src: Path, conv: Path, chunk: int | None):
+def bundle(work: Path, src: Path, conv: Path, chunk: int | None, extra=()):
     work.mkdir(parents=True)
-    runs = labels(work, conv / "trajectories.npz", chunk)
+    runs = labels(work, conv / "trajectories.npz", chunk, extra)
     prepared, labelled = runs["data.prepare"], runs["labels.generate"]
     cands_path = labelled / "labels" / "candidates.npz"
     sup = build_supervision(prepared / "data" / "dataset.npz", "ccil", representation=IdentityRepresentation("state"),
@@ -189,6 +191,12 @@ def main():
     for name, (dest, meta, sup, cands, _) in (("single", single), ("chunked", chunked)):
         r = ccil_side(src_tree, src, dest, meta, sup, cands)
         record(f"overlay_{name}", r.pop("pass"), **r)
+    # Zero accepted labels is an outcome, not an error: a valid, empty overlay.
+    none = bundle(out / "none", src, conv, None, extra=("generation.support_radius=1e-12",))
+    m, rows = read_overlay(none[0])
+    record("zero_accepted_labels_give_an_empty_overlay", m["rows"] == 0 and len(rows["candidate_row"]) == 0
+           and int((~none[3].accepted).sum()) == len(none[3].accepted) > 0 and tree(none[0], skip="ccil") == src_tree
+           and m["classifications"] == {}, candidates=int(len(none[3].accepted)), rows=m["rows"], columns=m["columns"])
     r = refusals(out / "single", src, conv, single[2], single[3], single[4], single[0])
     record("refusals", r.pop("pass"), **r)
 

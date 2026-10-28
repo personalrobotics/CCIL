@@ -87,9 +87,7 @@ def export_overlay(source, destination, supervision, *, conversion_manifest, run
     if changed:
         problems.append(f"the source differs from the conversion manifest's files: {changed[:5]}")
     problems += _dataset_link(conversion, man["inputs"]["dataset"], prepared_run)
-    synthetic = np.asarray(supervision.source) == "synthetic"
-    if not synthetic.any():
-        problems.append("the supervision has no synthetic rows")
+    synthetic = np.asarray(supervision.source) == "synthetic"  # possibly none: zero accepted labels is an outcome
     if problems:
         raise LeRobotFormatError("overlay", problems)
 
@@ -134,7 +132,7 @@ def export_overlay(source, destination, supervision, *, conversion_manifest, run
         shutil.copytree(source, staging)  # the LeRobot portion: an unchanged copy
         shards = {}
         n = len(cand)
-        for i, a in enumerate(range(0, n, rows_per_shard)):
+        for i, a in enumerate(range(0, max(n, 1), rows_per_shard)):  # zero labels: one empty shard with the schema
             b = min(a + rows_per_shard, n)
             arrays = []
             for name, x in cols.items():
