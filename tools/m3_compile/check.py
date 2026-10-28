@@ -12,10 +12,15 @@ steps are compiled for the CPU (compile=True), which exercises the same guard.
    shorter, which is the stride that recompiled before #134. It runs against this tree and against the source
    before #134 (the parent of the commit that introduced the step-major layout):
    - every step's row indices and NoiseBC draws are identical in all runs;
-   - eager: this tree's parameters and losses equal the pre-#134 engine's, bit for bit;
-   - compiled: this tree's parameters and losses do not depend on the chunking (5 or 1000 steps per chunk), and
-     equal the pre-#134 engine's whenever that engine ran one specialization per group (1000 steps per chunk).
-     The pre-#134 engine's own dependence on the chunking is reported;
+   - eager: this tree's parameters and losses equal the pre-#134 engine's, bit for bit (the arithmetic is
+     unchanged);
+   - compiled: this tree's parameters and losses do not depend on the chunking (5 or 1000 steps per chunk). The
+     reference is the pre-#134 engine with one step per chunk, so every step has this tree's strides. For the
+     constant learning rate (bc, noise_bc, streaming), this tree equals the reference bit for bit. For every group,
+     its largest relative loss difference from the reference is no larger than the reference's own compiled
+     against eager difference: the compiler's rounding scale. (On CUDA, the cosine and AdamW recipe compiles to
+     different float32 rounding even with the learning rate kept constant.) The pre-#134 engine's own dependence
+     on the chunking is reported;
    - this tree compiles one specialization per data mode, NoiseBC flag and recipe. Groups that differ only in
      table size or learning rate reuse it, and every record states the requested and effective engine and the
      specialization counts.
@@ -80,7 +85,10 @@ def policy_step(device: str, out: Path) -> dict:
     runs = {}
     for tree, env in (("this", {}), ("base", {"PYTHONPATH": str(src / "src")})):
         for mode, extra in (("eager", ["--compile", "0"]), ("compiled_5", ["--compile", "1", "--chunk-steps", "5"]),
-                            ("compiled_1000", ["--compile", "1", "--chunk-steps", "1000"])):
+                            ("compiled_1000", ["--compile", "1", "--chunk-steps", "1000"]),
+                            ("compiled_1", ["--compile", "1", "--chunk-steps", "1"])):
+            if (tree, mode) in (("this", "compiled_1"), ("base", "compiled_1000")):
+                continue
             runs[f"{tree}_{mode}"] = _json(_sub(str(WORKLOAD), "--device", device, *extra, env=env))
             (out / f"workload-{tree}-{mode}.json").write_text(json.dumps(runs[f"{tree}_{mode}"], indent=1))
     imported = {k: r["ccil"] for k, r in runs.items()}
@@ -94,9 +102,17 @@ def policy_step(device: str, out: Path) -> dict:
     draws = all(col(k, "rows_and_draws_sha256") == col("this_eager", "rows_and_draws_sha256") for k in runs)
     eager = same("this_eager", "base_eager")
     chunking = same("this_compiled_5", "this_compiled_1000")
-    vs_base = same("this_compiled_5", "base_compiled_1000")
+
+    def rel(a, b):  # per group: the largest relative difference of the per-epoch losses
+        return [max((abs(x - y) / max(abs(x), 1e-30) for la, lb in zip(ga, gb) for x, y in zip(la, lb)), default=0.0)
+                for ga, gb in zip(col(a, "epoch_losses"), col(b, "epoch_losses"))]
+    constant_lr = [not g.startswith("modern") for g in groups]
+    bitwise = [p == q for p, q in zip(col("this_compiled_5", "parameters_sha256"),
+                                      col("base_compiled_1", "parameters_sha256"))]
+    gap, scale = rel("this_compiled_5", "base_compiled_1"), rel("base_compiled_1", "base_eager")
+    vs_base = all(b for b, c in zip(bitwise, constant_lr) if c) and all(g <= s for g, s in zip(gap, scale))
     base_chunking = [a == b for a, b in zip(col("base_compiled_5", "parameters_sha256"),
-                                            col("base_compiled_1000", "parameters_sha256"))]
+                                            col("base_compiled_1", "parameters_sha256"))]
     comp = col("this_compiled_5", "compilation")
     # One specialization per (data mode, NoiseBC, recipe): bc_a, noise_bc, modern_a and the streaming step are new.
     expected_new = [1, 0, 0, 1, 1, 0, 1]
@@ -110,7 +126,10 @@ def policy_step(device: str, out: Path) -> dict:
     return {"pass": draws and eager and chunking and vs_base and records and imports_ok,
             "base_commit": base, "groups": groups, "imported_from": imported, "imports_ok": imports_ok,
             "rows_and_draws_identical": draws, "eager_identical_to_base": eager,
-            "compiled_independent_of_chunking": chunking, "compiled_identical_to_base_one_specialization": vs_base,
+            "compiled_independent_of_chunking": chunking, "compiled_matches_base": vs_base,
+            "compiled_bitwise_equal_to_base": dict(zip(groups, bitwise)),
+            "compiled_max_relative_loss_difference_from_base": dict(zip(groups, gap)),
+            "base_compiled_vs_eager_max_relative_loss_difference": dict(zip(groups, scale)),
             "base_compiled_independent_of_chunking_per_group": dict(zip(groups, base_chunking)),
             "compilation": dict(zip(groups, comp)), "expected_new_specializations": dict(zip(groups, expected_new)),
             "records_ok": records, "steps": dict(zip(groups, col("this_eager", "steps")))}
