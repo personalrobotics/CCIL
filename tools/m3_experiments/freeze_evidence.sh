@@ -27,7 +27,7 @@ run() {  # run NAME [uv options] -- TOOL [tool options]
     while [ "$1" != "--" ]; do uvopts+=("$1"); shift; done
     shift
     local tool=$1; shift
-    uv run --group evidence "${uvopts[@]}" python "tools/$tool/check.py" --out "$OUT/$name" "$@" > "$OUT/$name.log" 2>&1
+    uv run --group evidence ${uvopts[@]+"${uvopts[@]}"} python "tools/$tool/check.py" --out "$OUT/$name" "$@" > "$OUT/$name.log" 2>&1
     echo "$name EXIT=$?" >> "$OUT/status.txt"
 }
 
