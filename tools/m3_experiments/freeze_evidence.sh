@@ -2,7 +2,7 @@
 # The freeze evidence of the Pendulum study (predeclaration section 11): every check, once, on one host, from one
 # clean commit that combines the whole stack.
 #
-#     tools/m3_experiments/freeze_evidence.sh OUT cpu    # macOS
+#     tools/m3_experiments/freeze_evidence.sh OUT cpu    # macOS; OUT is new and outside the repository
 #     tools/m3_experiments/freeze_evidence.sh OUT cuda   # siddh; run the cpu host first or after, never mixed
 #
 # Each check writes OUT/<name>/report.json and OUT/<name>.log; OUT/status.txt lists every exit code. The CUDA-only
@@ -15,6 +15,11 @@ set -u
 OUT=$1
 DEV=$2
 if [ -e "$OUT" ]; then echo "$OUT exists; evidence directories are never reused" >&2; exit 2; fi
+mkdir -p "$(dirname "$OUT")"
+case "$(cd "$(dirname "$OUT")" && pwd -P)/" in
+    "$(git rev-parse --show-toplevel)"/*)  # checks scan the tree (dependency_gate reads every requirements file)
+        echo "$OUT is inside the repository; write the evidence outside it" >&2; exit 2 ;;
+esac
 if [ -n "$(git status --porcelain --untracked-files=all)" ]; then echo "the tree is not clean" >&2; exit 2; fi
 mkdir -p "$OUT"
 { echo "commit $(git rev-parse HEAD)"; echo "device $DEV"; uptime; } > "$OUT/status.txt"
@@ -32,7 +37,8 @@ run() {  # run NAME [uv options] -- TOOL [tool options]
 }
 
 legacy() {  # legacy NAME: a check of the legacy correct_il code, outside the project with its own pinned requirements
-    uv run --no-project --python 3.11 --with-requirements "tools/$1/requirements.txt" python "tools/$1/check.py" \
+    # on the CPU: their pinned torch 2.1 has no kernels for current GPUs, and their CUDA cases expect none
+    CUDA_VISIBLE_DEVICES= uv run --no-project --python 3.11 --with-requirements "tools/$1/requirements.txt" python "tools/$1/check.py" \
         --out "$OUT/$1" > "$OUT/$1.log" 2>&1
     echo "$1 EXIT=$?" >> "$OUT/status.txt"
 }
