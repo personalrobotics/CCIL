@@ -5,9 +5,10 @@
 #     tools/m3_experiments/freeze_evidence.sh OUT cpu    # macOS; OUT is new and outside the repository
 #     tools/m3_experiments/freeze_evidence.sh OUT cuda   # siddh; run the cpu host first or after, never mixed
 #
-# Each check writes OUT/<name>/report.json and OUT/<name>.log; OUT/status.txt lists every exit code. The CUDA-only
-# timing parts run last, one at a time, so they see a quiet device. Afterwards each host audits the other's
-# certificate bundle:
+# Each check writes OUT/<name>/report.json and OUT/<name>.log; OUT/status.txt lists every exit code, in the order the
+# checks finish. Independent checks run concurrently (#137): up to JOBS (default 4) CPU checks at once and, on the
+# CUDA host, one lane of GPU checks per device. The v6 driver runs and the timing parts then run alone, so the timing
+# sees a quiet host. Afterwards each host audits the other's certificate bundle:
 #
 #     uv run --group evidence python tools/m3_certificates/audit_bundle.py --bundle OTHER/m3_certificates/bundle \
 #         --out OUT/audit-of-OTHER
@@ -43,35 +44,51 @@ legacy() {  # legacy NAME: a check of the legacy correct_il code, outside the pr
     echo "$1 EXIT=$?" >> "$OUT/status.txt"
 }
 
-# Foundations (M2), provenance (#127) and conversion.
-for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate \
-         legacy_conversion; do
-    run "$t" -- "$t"
-done
-for t in invariants legacy_serialization dynamics_checkpoint validation_split; do
-    legacy "$t"
-done
-# Labels, certificates, supervision, dynamics, policy.
-run m3_labels -- m3_labels
-run m3_certificates -- m3_certificates
-run m3_supervision -- m3_supervision
-run m3_dynamics -- m3_dynamics --device "$DEV"
-run m3_policy -- m3_policy --device "$DEV"
-# The Pendulum environment and the fast stack.
-# The #24 section 3 acceptance checks; the two version 4 freeze-gate cases are recorded as skipped.
-run m3_pendulum "${PEND[@]}" -- m3_pendulum --v6-freeze
-run vector_env "${VENV[@]}" -- vector_env
-run m3_newton_batched "${PEND[@]}" -- m3_newton_batched
+slot() {  # wait for a free CPU slot: JOBS checks of this shell's own at once
+    while [ "$(jobs -rp | wc -l)" -ge "${JOBS:-4}" ]; do sleep 1; done
+}
+
+uv sync --group evidence > "$OUT/sync.log" 2>&1  # once, before the concurrent runs share the environment
+# Foundations (M2), provenance (#127), conversion, labels, certificates, supervision, and the Pendulum environment:
+# CPU checks, independent of each other and of the GPU lanes.
+cpu_checks() {
+    for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate \
+             legacy_conversion m3_labels m3_certificates m3_supervision; do
+        slot; run "$t" -- "$t" &
+    done
+    for t in invariants legacy_serialization dynamics_checkpoint validation_split; do
+        slot; legacy "$t" &
+    done
+    # The #24 section 3 acceptance checks; the two version 4 freeze-gate cases are recorded as skipped.
+    slot; run m3_pendulum "${PEND[@]}" -- m3_pendulum --v6-freeze &
+    slot; run vector_env "${VENV[@]}" -- vector_env &
+    slot; run m3_newton_batched "${PEND[@]}" -- m3_newton_batched &
+    if [ "$DEV" = cpu ]; then  # the device checks are CPU checks here
+        slot; run m3_dynamics -- m3_dynamics --device cpu &
+        slot; run m3_policy -- m3_policy --device cpu &
+        slot; run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu --device cpu &
+        slot; run m3_trainer_v2 -- m3_trainer_v2 --parts correctness,robustness,recipe,modes &
+        slot; run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz &
+        slot; run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device cpu &
+        slot; run m3_compile "${PEND[@]}" -- m3_compile --device cpu &
+    fi
+    wait
+}
 if [ "$DEV" = cuda ]; then
-    run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu,cuda --device cuda
-    run m3_trainer_v2 "${PEND[@]}" -- m3_trainer_v2 --device cuda --parts correctness,robustness,recipe,modes,equivalence
-    run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --device cuda --parts correctness,stage_hooks,clean_holdout,lipschitz,pendulum,lipschitz_pendulum
-else
-    run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu --device cpu
-    run m3_trainer_v2 -- m3_trainer_v2 --parts correctness,robustness,recipe,modes
-    run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz
+    # Two GPU lanes, one device each: the trainer's equivalence part is the longest check, so it has a device alone.
+    ( export CUDA_VISIBLE_DEVICES=0
+      run m3_trainer_v2 "${PEND[@]}" -- m3_trainer_v2 --device cuda --parts correctness,robustness,recipe,modes,equivalence
+    ) &
+    ( export CUDA_VISIBLE_DEVICES=1
+      run m3_dynamics -- m3_dynamics --device cuda
+      run m3_policy -- m3_policy --device cuda
+      run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu,cuda --device cuda
+      run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --device cuda --parts correctness,stage_hooks,clean_holdout,lipschitz,pendulum,lipschitz_pendulum
+      run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device cuda
+    ) &
 fi
-run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device "$DEV"
+( cpu_checks ) &
+wait
 # The version 6 driver on the CUDA host, one shard per GPU. A --preflight run is the exact schedule with only the
 # uncompiled budgets cut; the compilation check (#134) then requires every group of it compiled. A --smoke run
 # (seeds 9101-9103, one epoch) gives the analysis a root to accept and, edited, to refuse (check.py --v6-smoke-root).
@@ -99,10 +116,8 @@ if [ "$DEV" = cuda ]; then
     v6_all "$OUT/v6-smoke" --smoke
     echo "v6_smoke EXIT=$?" >> "$OUT/status.txt"
     run m3_experiments_analysis "${VENV[@]}" "${PEND[@]}" -- m3_experiments --v6-smoke-root "$OUT/v6-smoke"
-else
-    run m3_compile "${PEND[@]}" -- m3_compile --device cpu
 fi
-# Timing, last and one at a time (CUDA host). The batched-fit gate is cited, not rerun: the confirmatory gate
+# Timing, last and one at a time, after every other check (CUDA host). The batched-fit gate is cited, not rerun: the confirmatory gate
 # (b2cbf71) decided it, and the freeze records the fit-path diff from that commit (predeclaration section 11).
 if [ "$DEV" = cuda ]; then
     run m3_trainer_v2_timing "${PEND[@]}" -- m3_trainer_v2 --device cuda --parts realworkload,scaling
