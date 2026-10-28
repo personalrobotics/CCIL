@@ -56,6 +56,30 @@ else
     run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz
 fi
 run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device "$DEV"
+# Compiled engines (#134). On the CUDA host, the exact version 6 schedule first runs with only the uncompiled budgets
+# cut (run_study.py --preflight, one shard per GPU); the compilation check then requires every group of it compiled.
+if [ "$DEV" = cuda ]; then
+    PRE="$OUT/v6-preflight"
+    RS=(uv run --group evidence "${VENV[@]}" python tools/m3_experiments/run_study.py)
+    preflight() {  # preflight STEP: both shards of a phase step, or one step
+        if [ "$1" = tuning ] || [ "$1" = study ]; then
+            CUDA_VISIBLE_DEVICES=0 "${RS[@]}" "$1" --root "$PRE" --shard 0/2 --preflight > "$PRE-$1-0.log" 2>&1 &
+            local p0=$!
+            CUDA_VISIBLE_DEVICES=1 "${RS[@]}" "$1" --root "$PRE" --shard 1/2 --preflight > "$PRE-$1-1.log" 2>&1 &
+            local p1=$!
+            wait $p0; local e0=$?
+            wait $p1; local e1=$?
+            [ $e0 = 0 ] && [ $e1 = 0 ]
+        else
+            "${RS[@]}" "$1" --root "$PRE" --preflight > "$PRE-$1.log" 2>&1
+        fi
+    }
+    preflight tuning && preflight choose && preflight returns && preflight study && preflight verify
+    echo "v6_preflight EXIT=$?" >> "$OUT/status.txt"
+    run m3_compile "${PEND[@]}" -- m3_compile --device cuda --preflight-root "$PRE"
+else
+    run m3_compile "${PEND[@]}" -- m3_compile --device cpu
+fi
 # Timing, last and one at a time (CUDA host). The batched-fit gate is cited, not rerun: the confirmatory gate
 # (b2cbf71) decided it, and the freeze records the fit-path diff from that commit (predeclaration section 11).
 if [ "$DEV" = cuda ]; then
