@@ -31,10 +31,19 @@ run() {  # run NAME [uv options] -- TOOL [tool options]
     echo "$name EXIT=$?" >> "$OUT/status.txt"
 }
 
+legacy() {  # legacy NAME: a check of the legacy correct_il code, outside the project with its own pinned requirements
+    uv run --no-project --python 3.11 --with-requirements "tools/$1/requirements.txt" python "tools/$1/check.py" \
+        --out "$OUT/$1" > "$OUT/$1.log" 2>&1
+    echo "$1 EXIT=$?" >> "$OUT/status.txt"
+}
+
 # Foundations (M2), provenance (#127) and conversion.
-for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate invariants \
-         legacy_serialization legacy_conversion dynamics_checkpoint validation_split; do
+for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate \
+         legacy_conversion; do
     run "$t" -- "$t"
+done
+for t in invariants legacy_serialization dynamics_checkpoint validation_split; do
+    legacy "$t"
 done
 # Labels, certificates, supervision, dynamics, policy.
 run m3_labels -- m3_labels
@@ -43,7 +52,8 @@ run m3_supervision -- m3_supervision
 run m3_dynamics -- m3_dynamics --device "$DEV"
 run m3_policy -- m3_policy --device "$DEV"
 # The Pendulum environment and the fast stack.
-run m3_pendulum "${PEND[@]}" -- m3_pendulum
+# The #24 section 3 acceptance checks; the two version 4 freeze-gate cases are recorded as skipped.
+run m3_pendulum "${PEND[@]}" -- m3_pendulum --v6-freeze
 run vector_env "${VENV[@]}" -- vector_env
 run m3_newton_batched "${PEND[@]}" -- m3_newton_batched
 if [ "$DEV" = cuda ]; then
