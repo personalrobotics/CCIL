@@ -238,6 +238,35 @@ def stage_hooks(out: Path) -> dict:
                                                     "deterministic")
     policy_harness.run_policy_harness(c1, trained=own)
     res["own_policy_accepted"] = True
+
+    # Validation is part of the training identity (#124): a modern-recipe unit accepts a policy selected on its
+    # own held-out episodes and refuses one selected on another unit's.
+    def modern(seed):
+        return resolve(config=config, sets=[f"run.seed={seed}", "compute.device=cpu", f"data.path={data}",
+                                            f"run.output_dir={root / 'stages-modern'}", "transition_model.epochs=1",
+                                            "transition_model.trainer_version=2", "policy.trainer_version=2",
+                                            "policy.method=bc", "policy.exclude_validation_episodes=true",
+                                            "policy.optimizer=adamw", "policy.lr_schedule=cosine",
+                                            "policy.warmup_steps=5", "policy.step_budget=40",
+                                            "policy.checkpoint_selection=validation",
+                                            "policy.validation_interval_steps=10",
+                                            "generation.labels_per_transition=2"])
+
+    def unit(c):  # what the harness trains on, and the held-out supervision that selects its checkpoint
+        p_ = prepare_stage(c)
+        ds, split = p_.out("data/dataset.npz"), p_.out("data/split.json")
+        w = c["policy.demonstration_weight"]
+        return (build_supervision(ds, "bc", representation=rep, split=split, demonstration_weight=w),
+                build_supervision(ds, "bc", representation=rep, split=split, part="validation", demonstration_weight=w))
+    m1, m2 = modern(1), modern(2)
+    (sup1, held1), (_, held2) = unit(m1), unit(m2)
+    st = policy_harness.settings_of(m1.values)
+    [own_v] = v2.train_group([v2.Job(sup1, 1, None, held1)], st, device="cpu", compile=False)
+    [other_v] = v2.train_group([v2.Job(sup1, 1, None, held2)], st, device="cpu", compile=False)
+    res["changed_validation_refused"] = refused(
+        lambda: policy_harness.run_policy_harness(m1, trained=other_v), "not this unit")
+    policy_harness.run_policy_harness(m1, trained=own_v)
+    res["own_validation_accepted"] = True
     return {"pass": all(res.values()), **res}
 
 

@@ -233,6 +233,180 @@ def robustness(device) -> dict:
     return out
 
 
+def recipe(device) -> dict:
+    """The #115 recipe against independent references, on full batches (the shuffle cannot matter)."""
+    import math
+    out = {}
+    sup = synthetic(64, 0, 1, "bc")
+    obs, act, w = sup.arrays()
+    K, warm, lr = 12, 3, 1e-2
+
+    def lam(step):  # #115: linear warm-up to lr over `warm` steps, then cosine decay to 0 at step K (1-based t)
+        t_ = step + 1
+        return t_ / warm if t_ <= warm else 0.5 * (1 + math.cos(math.pi * min(1.0, (t_ - warm) / (K - warm))))
+
+    def reference(clip=None, ema_decay=None):
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(7)
+            ref = v1.VectorBCPolicy(3, 1, SETTINGS["hidden_layers"])
+        ref.fit_scalers(obs, act)
+        opt = torch.optim.AdamW(ref.net.parameters(), lr=lr, betas=v1.ADAM["betas"], eps=v1.ADAM["eps"], weight_decay=0.1)
+        sched = torch.optim.lr_scheduler.LambdaLR(opt, lam)
+        x = ref.scale_obs(torch.as_tensor(obs, dtype=torch.float32))
+        y = ref.scale_act(torch.as_tensor(act, dtype=torch.float32))
+        ema = [p.detach().clone() for p in ref.net.parameters()]
+        for _ in range(K):
+            loss = v1.weighted_loss(ref.net(x), y, torch.as_tensor(w, dtype=torch.float32))
+            opt.zero_grad()
+            loss.backward()
+            if clip:
+                torch.nn.utils.clip_grad_norm_(ref.net.parameters(), clip)
+            opt.step()
+            sched.step()
+            if ema_decay:
+                ema = [e * ema_decay + p.detach() * (1 - ema_decay) for e, p in zip(ema, ref.net.parameters())]
+        return [p.detach() for p in ref.net.parameters()] if not ema_decay else ema
+
+    base = {**SETTINGS, "epochs": K, "learning_rate": lr, "optimizer": "adamw", "weight_decay": 0.1,
+            "lr_schedule": "cosine", "warmup_steps": warm}
+    for name, extra, ref_args in (("adamw_cosine", {}, {}), ("adamw_cosine_clip", {"grad_clip_norm": 0.05}, {"clip": 0.05}),
+                                  ("adamw_cosine_ema", {"ema_decay": 0.9}, {"ema_decay": 0.9})):
+        [(p2, _)] = v2.train_group([v2.Job(sup, 7)], {**base, **extra}, device=device, compile=False)
+        ref = reference(**ref_args)
+        d = max(float((a - b).abs().max() / (b.abs().max() + 1e-12)) for a, b in zip(p2.net.parameters(), ref))
+        out[name] = {"pass": d < 1e-4, "steps": K, "max_relative_difference": d}
+    # Validation selection: the returned weights are the best epoch's, judged on held-out rows only. A small,
+    # noisily labelled training set overfits, so the best held-out epoch is interior, not the first or the last.
+    def labelled(n, seed, noise):
+        r = np.random.default_rng(seed)
+        o = r.normal(size=(n, 3))
+        a_ = np.tanh(o @ np.array([[0.5], [-0.3], [0.2]]) + noise * r.normal(size=(n, 1)))
+        src = np.full(n, "demonstration")
+        return Supervision(o, a_, np.ones(n), src, np.array([str(i // 50) for i in range(n)]), np.arange(n) % 50,
+                           np.full(n, -1), src, {"method": "bc", "inputs": {}})
+    train, held = labelled(128, 3, 1.0), labelled(2048, 4, 0.0)
+    [(p, r)] = v2.train_group([v2.Job(train, 5, validation=held)],
+                              {**SETTINGS, "batch_size": 32, "epochs": 150, "learning_rate": 3e-3,
+                               "checkpoint_selection": "validation"}, device=device, compile=False)
+    o, a_, ww = held.arrays()
+    x = p.scale_obs(torch.as_tensor(o, dtype=torch.float32))
+    y = p.scale_act(torch.as_tensor(a_, dtype=torch.float32))
+    with torch.no_grad():
+        returned = float(v1.weighted_loss(p.net(x), y, torch.as_tensor(ww, dtype=torch.float32)))
+    hist = [e["loss"] for e in r["validation"]["evaluations"]]
+    interior = 0 < r["validation"]["selected"] < len(hist) - 1
+    out["validation_selection"] = {"pass": abs(returned - min(hist)) <= 1e-6 * max(1.0, abs(min(hist)))
+                                   and r["validation"]["selected"] == int(np.argmin(hist)) and interior,
+                                   "epochs": len(hist), "interior": interior,
+                                   "last_epoch_loss": hist[-1],
+                                   "returned_loss": returned, "best_recorded": min(hist),
+                                   "selected": r["validation"]["selected"]}
+    # A step cadence shared by models of very different dataset sizes: under one step budget, a 128-row and a
+    # 2,048-row training set are validated at the same steps (every 40 and the last), the selection is the best
+    # of those, and with EMA on, the EMA weights are both judged and returned.
+    big = labelled(2048, 6, 1.0)
+    budget, every = 300, 40
+    outs = v2.train_group([v2.Job(train, 5, validation=held), v2.Job(big, 6, validation=held)],
+                          {**SETTINGS, "batch_size": 32, "epochs": 1, "learning_rate": 3e-3, "step_budget": budget,
+                           "ema_decay": 0.9, "checkpoint_selection": "validation", "validation_interval_steps": every},
+                          device=device, compile=False)
+    want = [s_ for s_ in range(every, budget + 1, every)] + ([budget] if budget % every else [])
+    cadence = []
+    for p_, r_ in outs:
+        steps_seen = [e["step"] for e in r_["validation"]["evaluations"]]
+        losses = [e["loss"] for e in r_["validation"]["evaluations"]]
+        with torch.no_grad():
+            got = float(v1.weighted_loss(p_.net(p_.scale_obs(torch.as_tensor(o, dtype=torch.float32))),
+                                         p_.scale_act(torch.as_tensor(a_, dtype=torch.float32)),
+                                         torch.as_tensor(ww, dtype=torch.float32)))
+        cadence.append({"steps": steps_seen, "selected_step": r_["validation"]["selected_step"],
+                        "returned_loss": got, "best_recorded": min(losses),
+                        "ok": steps_seen == want and abs(got - min(losses)) <= 1e-6 * max(1.0, abs(min(losses)))
+                        and r_["validation"]["selected"] == int(np.argmin(losses))})
+    out["validation_step_cadence"] = {"pass": all(c_["ok"] for c_ in cadence), "expected_steps": want,
+                                      "models": cadence}
+    try:
+        v2.train_group([v2.Job(train, 5)], {**SETTINGS, "checkpoint_selection": "validation"}, device=device)
+        refused = False
+    except v2.TrainingError:
+        refused = True
+    out["validation_requires_held_out_data"] = {"pass": refused}
+
+    # A step budget bounds the work: with 64 minibatches per epoch, a budget of 100 runs 64 + 36 steps, and a
+    # budget of 10 runs 10, whatever the epoch length; each epoch's record is exact.
+    calls = {"n": 0}
+    real_call = v2._Engine.__call__
+
+    def counting(self, *a, **k):
+        calls["n"] += 1
+        return real_call(self, *a, **k)
+    big_train = labelled(2048, 7, 0.5)
+    budget_rows = []
+    v2._Engine.__call__ = counting
+    try:
+        for budget in (100, 10):
+            calls["n"] = 0
+            [(_, rb)] = v2.train_group([v2.Job(big_train, 5)], {**SETTINGS, "batch_size": 32, "epochs": 1,
+                                                                 "step_budget": budget}, device=device, compile=False)
+            budget_rows.append({"budget": budget, "steps_per_epoch": rb["steps_per_epoch"], "engine_calls": calls["n"],
+                                "epoch_steps": [e["steps"] for e in rb["epochs"]],
+                                "optimizer_steps": sum(e["optimizer_steps"] for e in rb["epochs"]),
+                                "rows_seen": sum(sum(e["rows_seen"].values()) for e in rb["epochs"])})
+    finally:
+        v2._Engine.__call__ = real_call
+    out["step_budget_bounds_work"] = {
+        "pass": all(r["engine_calls"] == r["budget"] == sum(r["epoch_steps"]) == r["optimizer_steps"]
+                    and r["rows_seen"] == r["budget"] * 32 for r in budget_rows)
+        and budget_rows[0]["epoch_steps"] == [64, 36] and budget_rows[1]["epoch_steps"] == [10],
+        "cases": budget_rows}
+
+    # Validation is deduplicated and reduced in bounded chunks: two models sharing one held-out set store it once,
+    # and a tiny chunk (7 rows per model) selects the same checkpoints with the same losses as one large chunk.
+    vs = {"batch_size": 32, "epochs": 6, "learning_rate": 3e-3, "checkpoint_selection": "validation"}
+    jobs_v = [v2.Job(train, 5, validation=held), v2.Job(train, 6, validation=held)]
+    tiny = v2.train_group(jobs_v, {**SETTINGS, **vs}, device=device, compile=False,
+                          stream_chunk_bytes=2 * 7 * 4 * (3 + 1 + 1))
+    large = v2.train_group(jobs_v, {**SETTINGS, **vs}, device=device, compile=False)
+    same = all(a_[1]["validation"]["selected"] == b_[1]["validation"]["selected"]
+               and max(abs(x["loss"] - y["loss"]) / max(abs(y["loss"]), 1e-12)
+                       for x, y in zip(a_[1]["validation"]["evaluations"], b_[1]["validation"]["evaluations"])) < 1e-5
+               for a_, b_ in zip(tiny, large))
+    g_tiny, g_large = tiny[0][1]["group"]["validation"], large[0][1]["group"]["validation"]
+    out["validation_bounded_and_deduplicated"] = {
+        "pass": same and g_tiny["distinct_sets"] == 1 and g_tiny["rows_per_chunk"] == 7 and g_large["rows_per_chunk"] > 1000,
+        "same_selection_and_losses": same, "tiny": g_tiny, "large": g_large}
+
+    # The training identity includes the validation set: a different held-out set is a different training run.
+    other_held = labelled(2048, 8, 0.0)
+    ids = [v2.training_identity_v2(train, {**SETTINGS, **vs}, 5, None, h)["sha256"] for h in (held, held, other_held, None)]
+    out["validation_in_training_identity"] = {"pass": ids[0] == ids[1] and len({ids[0], ids[2], ids[3]}) == 3,
+                                              "identities": ids}
+
+    # Ingress: a cosine warm-up that is not shorter than the budget, and validation with zero total weight.
+    refusals = {}
+    cases = {"warmup_not_shorter_than_budget": ([v2.Job(train, 5)], {**SETTINGS, "lr_schedule": "cosine",
+                                                                      "warmup_steps": 50, "step_budget": 50,
+                                                                      "batch_size": 32}),
+             "zero_weight_validation": ([v2.Job(train, 5, validation=_zero_weight(held))],
+                                        {**SETTINGS, "batch_size": 32, "checkpoint_selection": "validation"}),
+             "warmup_with_constant_schedule": ([v2.Job(train, 5)], {**SETTINGS, "lr_schedule": "constant",
+                                                                    "warmup_steps": 10, "batch_size": 32})}
+    for name, (jobs_, st_) in cases.items():
+        try:
+            v2.train_group(jobs_, st_, device=device, compile=False)
+            refusals[name] = False
+        except v2.TrainingError:
+            refusals[name] = True
+    out["ingress_refusals"] = {"pass": all(refusals.values()), **refusals}
+    return out
+
+
+def _zero_weight(sup):
+    """sup with every weight 0 (the same rows)."""
+    import dataclasses
+    return dataclasses.replace(sup, weights=np.zeros_like(np.asarray(sup.weights)))
+
+
 def modes_and_determinism(device) -> dict:
     jobs = [v2.Job(synthetic(800, 1500 + 50 * s, s), s) for s in (1, 2, 3)]
     nb = [v2.Job(synthetic(800, 0, s, "noise_bc"), s, NoiseBC("symmetric_uniform_half_batch", 0.1, seed=s)) for s in (1, 2)]
@@ -259,7 +433,7 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "robustness", "modes", "equivalence",
+    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "robustness", "recipe", "modes", "equivalence",
                                                           "realworkload", "scaling"]
     cases = []
 
@@ -272,6 +446,9 @@ def main():
     if "robustness" in parts:
         for name, r in robustness(a.device).items():
             record(f"robustness_{name}", r.pop("pass"), **r)
+    if "recipe" in parts:
+        for name, r in recipe(a.device).items():
+            record(f"recipe_{name}", r.pop("pass"), **r)
     if "modes" in parts:
         r = modes_and_determinism(a.device)
         record("modes_and_determinism", r.pop("pass"), **r)
