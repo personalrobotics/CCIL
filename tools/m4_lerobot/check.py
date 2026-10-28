@@ -14,8 +14,9 @@ Python 3.12 environment under DIR/envs; ccil never imports lerobot. For each rel
 5. a small policy trains on CCIL's dataset through LeRobot's dataset, with no rewriting.
 A release is supported only when all of these pass. Once, on the CCIL side:
 6. malformed metadata, missing shards, unsupported modalities, inconsistent episode offsets, unknown versions,
-   unmapped features, a path that leaves the dataset and multi-task episodes are refused, and nothing partial is
-   written or returned;
+   unmapped features, a path that leaves the dataset (lexically, or through a symlink to a data shard or a metadata
+   file), a malformed path format and multi-task episodes are refused; a streamed write with a non-finite episode is
+   refused; nothing partial is written or returned;
 7. the boundary: the built wheel's ccil[lerobot] installs pyarrow (and huggingface_hub on Python 3.11+) and no
    LeRobot runtime; without the extra, using the bridge fails with install guidance; at the declared minimum
    versions, on Python 3.10 (pyarrow only: fetch says it needs 3.11) and 3.12, CCIL's write and read round-trip.
@@ -191,6 +192,17 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
     case("path_leaves_dataset", lambda d: info(d, lambda i: i.update(
         data_path="../escape/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet")), "inside the dataset")
     case("missing_shard", lambda d: next((d / "data").rglob("*.parquet")).unlink(), "is missing")
+    case("malformed_path_format", lambda d: info(d, lambda i: i.update(
+        data_path="data/chunk-{chunk_index:03q}/file-{file_index:03d}.parquet")), "cannot be formatted")
+
+    def escape(d, rel):  # the file moves outside the dataset and a symlink takes its place
+        inside = d / rel
+        outside = d.parent / f"outside-{d.name}-{inside.name}"
+        shutil.move(inside, outside)
+        inside.symlink_to(outside)
+    case("data_shard_symlink_escape",
+         lambda d: escape(d, next((d / "data").rglob("*.parquet")).relative_to(d).as_posix()), "outside the dataset")
+    case("metadata_symlink_escape", lambda d: escape(d, "meta/tasks.parquet"), "outside the dataset")
 
     def shift(d):
         p = next((d / "meta" / "episodes").rglob("*.parquet"))
@@ -222,7 +234,11 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
     img = [Episode("0", {"image.top": np.zeros((5, 4, 4, 3), np.uint8)}, np.zeros((5, 1), np.float32))]
     off = [Episode("0", {"state": np.zeros((5, 2), np.float32)}, np.zeros((5, 1), np.float32),
                    timestamps=np.arange(5) * 0.07)]
-    for name, eps, expect, dest in (("write_image", img, "M5", work / "w-img"),
+    nan = Episode("1", {"state": np.zeros((5, 2), np.float32)}, np.full((5, 1), np.nan, np.float32))
+    good = Episode("0", {"state": np.zeros((5, 2), np.float32)}, np.zeros((5, 1), np.float32))
+    for name, eps, expect, dest in (("write_streamed_non_finite", (e for e in (good, nan)), "episode 1",
+                                     work / "w-nan"),
+                                    ("write_image", img, "M5", work / "w-img"),
                                     ("write_off_rate_timestamps", off, "1 / fps", work / "w-off"),
                                     ("write_existing_destination", src, "exists", ccil_root)):
         before = sorted(p.name for p in dest.parent.iterdir())
