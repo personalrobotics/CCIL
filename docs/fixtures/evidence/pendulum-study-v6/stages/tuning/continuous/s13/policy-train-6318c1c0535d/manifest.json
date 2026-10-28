@@ -1,0 +1,74 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "c62b261bd916ff44e5a294a4a98a89f5cc6cc8cc414730dd91feccb0b99efd22",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "checkpoints/policy.npz": {
+   "sha256": "90a5bc8fadce0a3c14015d1574301669e1f04409396c5be17088967c3f937455",
+   "size": 273536
+  },
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "d2f3b5101630d5683452a9fe96b3c2778c1d00d32f26438169ee1c7922403aea",
+   "size": 13246,
+   "version": "1"
+  },
+  "logs/run.log": {
+   "sha256": "450e0edb4fbc70ee17a18b0fd51a4f22f7e0095bfc3182cd59af2e20727f3f9f",
+   "size": 57
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "638aa625bb381d4a7f46bf403407a4b76e5eddc1ae08892aeb6c55831aa257c0",
+   "size": 48426,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "9308f9cb819011a905e6217745d456105b86c91e5a0e4aa11fdb87bdc74ce703",
+   "size": 1567
+  },
+  "supervision.json": {
+   "schema": "ccil.supervision-manifest",
+   "sha256": "6bd005d49658b3fffffd6b97777d871e42e9ec6d1718fda949988dd30d5bc560",
+   "size": 838,
+   "version": "1.0"
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/tuning/continuous/s13/labels-generate-23a746a9afa5/labels/candidates.npz",
+   "sha256": "5620243efed94f26abe571b7815d4562c858d0b814380da3cf03e2057f7d1a22"
+  },
+  "dataset": {
+   "path": "<root>/stages/tuning/continuous/s13/data-prepare-7554b90e59a0/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  }
+ },
+ "run_id": "policy-train-6318c1c0535d",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 13
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.train"
+}

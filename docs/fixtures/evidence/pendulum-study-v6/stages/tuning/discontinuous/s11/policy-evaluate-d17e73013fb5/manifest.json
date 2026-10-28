@@ -1,0 +1,68 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "78512a93fdc7bf0183f169145c9ae2a2197ed816b933c3cf40419905e2e9017e",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "fae93118695a0a16286c06e92f6921c0a2d9c6cc9c911129d3050dfc89ded3f1",
+   "size": 13335,
+   "version": "1"
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "9a66b804522f68ecd2c6c8133cf9c58c91bbff17a60800a405135634d9462c94",
+   "size": 631,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "acbe93ed8c9fd38dc6ece714c5de457e50326f26ea30a8b402746321517d00a8",
+   "size": 1794
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/tuning/discontinuous/s11/labels-generate-02496959b2c0/labels/candidates.npz",
+   "sha256": "18eb21fb7675c279532fc98fbc659741aaa9366b82cb6e03b27e96c8621c3e0c"
+  },
+  "dataset": {
+   "path": "<root>/stages/tuning/discontinuous/s11/data-prepare-a45e507c0b91/data/dataset.npz",
+   "sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e"
+  },
+  "policy": {
+   "path": "<root>/stages/tuning/discontinuous/s11/policy-train-2f4534994a64/checkpoints/policy.npz",
+   "sha256": "8cfe9b5ed46bd18e711f5f434c1c74d1b431adcbba7f86c18bc0ec475532275d"
+  },
+  "split": {
+   "path": "<root>/stages/tuning/discontinuous/s11/data-prepare-a45e507c0b91/data/split.json",
+   "sha256": "3aefaa2b4d7fd4251261131070dc33061bb0c5a4484c9d62bbc01c635e699f95"
+  }
+ },
+ "run_id": "policy-evaluate-d17e73013fb5",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 11
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.evaluate"
+}

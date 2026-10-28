@@ -1,0 +1,64 @@
+{
+ "components": {
+  "representation": {
+   "kind": "identity",
+   "version": "1"
+  }
+ },
+ "config": {
+  "certificate.demonstration_residual_bound": null,
+  "certificate.discrepancy_action_lipschitz": null,
+  "certificate.discrepancy_state_lipschitz": null,
+  "certificate.learned_lipschitz_source": "model",
+  "certificate.learned_state_lipschitz": null,
+  "certificate.max_total_error": null,
+  "certificate.neighborhood_action": null,
+  "certificate.neighborhood_state": null,
+  "certificate.profile": "disturbed_action_paper_proxy",
+  "certificate.reference_dynamics": null,
+  "certificate.score_threshold": null,
+  "certificate.selection_population": "admitted",
+  "certificate.selection_quantile": 0.3,
+  "certificate.true_action_lipschitz": null,
+  "certificate.true_state_lipschitz": null,
+  "compute.deterministic": false,
+  "compute.device": "cuda",
+  "compute.jacobian_memory_mb": 2048,
+  "representation.modality": "state"
+ },
+ "implementation": {
+  "ccil_version": "0.1.0.dev0",
+  "dependencies": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "source_sha256": "9b9b97326c30f670ca94bd526029c24490460fd0bd48fc547501a10c0ee9557b"
+ },
+ "inputs": {
+  "candidates": "95ee8408e036f3e50f9f1fe04ddb1ad0933543e7a98cddc1a9ec708b6416f984",
+  "dataset": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+  "transition_model": "ddb20df44705b4506c48214c0eda9b4c394437e27684c676288911acd254e778"
+ },
+ "parameters": {
+  "admission": "score",
+  "profile": {
+   "constants": {},
+   "neighborhood": {
+    "action": null,
+    "state": null
+   },
+   "profile": "disturbed_action_paper_proxy",
+   "version": "1"
+  },
+  "scales": {
+   "action": null,
+   "state": null
+  },
+  "selection_population": "admitted",
+  "selection_quantile": 0.3,
+  "threshold": null
+ },
+ "run_id": "labels-certify-73bbf70fb7e6",
+ "stage": "labels.certify"
+}

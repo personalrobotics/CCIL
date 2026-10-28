@@ -1,0 +1,72 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "864af5c4c1d64bc558c16055eb1cd91ea65d96b8c0cde0a7704ce0c0e9992c8e",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "15120c6747b3cf9f75610f0ecfdb4103bcbe2b675941ecf765e509c7223c3383",
+   "size": 13365,
+   "version": "1"
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "60075473d033aaa7da96df30d675daaa7c3e3d236f8684b627c596205b7e73bf",
+   "size": 626,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "9c59b6136042127834cbfca115cac418c57baea627cca7eb7835dcbd45141d30",
+   "size": 1883
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/study/continuous/s1201/labels-generate-f3af0ca25e13/labels/candidates.npz",
+   "sha256": "a3b80ba7c6882a48404ae57f9c7c94a769af6fd5fec3993a467a87a37da74dc7"
+  },
+  "certificates": {
+   "path": "<root>/stages/study/continuous/s1201/labels-certify-a496dd735b56/labels/certificates.npz",
+   "sha256": "373b80643fdc219e13b4dace424d91cbc633fd92972ca41ee792c63741ebfba8"
+  },
+  "dataset": {
+   "path": "<root>/stages/study/continuous/s1201/data-prepare-ce29c5ba47ce/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  },
+  "policy": {
+   "path": "<root>/stages/study/continuous/s1201/policy-train-af8d6615a950/checkpoints/policy.npz",
+   "sha256": "20a8be0c01ab6800476f01d1cf301f320843f56adf28797d3956c24e0e26f2c0"
+  },
+  "split": {
+   "path": "<root>/stages/study/continuous/s1201/data-prepare-ce29c5ba47ce/data/split.json",
+   "sha256": "7ea9bb8386a3ac50f30fd41d00a98bd2c29068a22702c61ad610e623db4fb7e1"
+  }
+ },
+ "run_id": "policy-evaluate-597394701571",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 1201
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.evaluate"
+}

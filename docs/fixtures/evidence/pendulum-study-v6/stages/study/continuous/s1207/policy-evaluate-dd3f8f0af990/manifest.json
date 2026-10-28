@@ -1,0 +1,64 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "d916d355668683b765cd219f1f7a817b57dcc5bf2120e8b04b95e3e0635bac11",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "a039444e3523caafd92d29559e1fa0258428a3248a2267aa15a607db72625ff8",
+   "size": 13264,
+   "version": "1"
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "293f40604f47465bdb35a8f24d45ba6896351219661b945d1b882e206a03825d",
+   "size": 626,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "5546a2da9fb58be9ded26bb259d04e48c337fce3f5972669f6d19423f6202d6f",
+   "size": 1711
+  }
+ },
+ "inputs": {
+  "dataset": {
+   "path": "<root>/stages/study/continuous/s1207/data-prepare-48eb38c71846/data/dataset.npz",
+   "sha256": "bf8421e34662781119ae3ca4173ee15e7a5fb77539040057b52d82253a8cf1f3"
+  },
+  "policy": {
+   "path": "<root>/stages/study/continuous/s1207/policy-train-d5f735ae6f33/checkpoints/policy.npz",
+   "sha256": "600c0714d9f506e880a7f535b65414e17ee1eb936488ba91eed26ed78ebdbaab"
+  },
+  "split": {
+   "path": "<root>/stages/study/continuous/s1207/data-prepare-48eb38c71846/data/split.json",
+   "sha256": "95165a7ad5659972711ba5343e5c4211e17b37fbc0bdc7bc77891246904235e1"
+  }
+ },
+ "run_id": "policy-evaluate-dd3f8f0af990",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 1207
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.evaluate"
+}

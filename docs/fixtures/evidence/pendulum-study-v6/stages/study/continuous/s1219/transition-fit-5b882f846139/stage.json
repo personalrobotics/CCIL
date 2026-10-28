@@ -1,0 +1,54 @@
+{
+ "components": {
+  "representation": {
+   "kind": "identity",
+   "version": "1"
+  },
+  "transition_model": {
+   "kind": "mlp",
+   "version": "2"
+  }
+ },
+ "config": {
+  "compute.deterministic": false,
+  "compute.device": "cuda",
+  "compute.jacobian_memory_mb": 2048,
+  "representation.modality": "state",
+  "run.seed": 1219,
+  "transition_model.activation": "relu",
+  "transition_model.batch_size": 512,
+  "transition_model.direction": "forward",
+  "transition_model.epochs": 100,
+  "transition_model.fit_episodes": "all",
+  "transition_model.hidden_layers": [
+   512,
+   512
+  ],
+  "transition_model.kind": "mlp",
+  "transition_model.learning_rate": 0.001,
+  "transition_model.lipschitz_constraint": 2.0,
+  "transition_model.lipschitz_coordinates": "model_normalized",
+  "transition_model.lipschitz_type": "soft_sampling",
+  "transition_model.slack_weight": 1.0,
+  "transition_model.soft_penalty_weight": 0.001,
+  "transition_model.soft_samples": 5,
+  "transition_model.soft_sampling_eps": 0.0003,
+  "transition_model.trainer_version": "2",
+  "transition_model.weight_decay": 1e-05
+ },
+ "implementation": {
+  "ccil_version": "0.1.0.dev0",
+  "dependencies": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "source_sha256": "9b9b97326c30f670ca94bd526029c24490460fd0bd48fc547501a10c0ee9557b"
+ },
+ "inputs": {
+  "dataset": "a5fc3e959e27f9248834b511906aca3971314f918f1fb6b3e25e5f93748206f9",
+  "split": "f0a1bf4f874defa72f136f064d6d47936e9189a9830d50f6a161725b7960b433"
+ },
+ "run_id": "transition-fit-5b882f846139",
+ "stage": "transition.fit"
+}

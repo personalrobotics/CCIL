@@ -1,0 +1,68 @@
+{
+ "code": {
+  "ccil_version": "0.1.0.dev0",
+  "git_commit": "d4ef5d19cb430606d2429ee0e5749be85d8391e5",
+  "git_dirty": false,
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "config": {
+  "config_hash": "0d51ad302393f708b66c6f00e1e43546cb2d5d7e3532bb8dd1a65cdcaf114406",
+  "path": "config.json"
+ },
+ "environment": {
+  "devices": [
+   "cuda:0 NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "pyyaml": "6.0.3",
+   "torch": "2.14.1"
+  },
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "files": {
+  "config.json": {
+   "schema": "ccil.config",
+   "sha256": "e45a64812d3c9febe03563afc7dc8271eabc385c07e8e3750bdca36283765cbb",
+   "size": 13247,
+   "version": "1"
+  },
+  "metrics.json": {
+   "schema": "ccil.metrics",
+   "sha256": "d552a085a2f905600860aa5214cfe03fcb986fe2eea148fc2806077d6eabae27",
+   "size": 628,
+   "version": "1.0"
+  },
+  "stage.json": {
+   "sha256": "8f9bea0440095f9696c0a82ae5bb7b0d959a2e2d8db2c1b862cce68bb598b815",
+   "size": 1795
+  }
+ },
+ "inputs": {
+  "candidates": {
+   "path": "<root>/stages/tuning/continuous/s13/labels-generate-36c25389fc03/labels/candidates.npz",
+   "sha256": "8a958941d6f5d432836eaec6ebea4f82da33f99b9f8e4ead3e59cc3f2accb17f"
+  },
+  "dataset": {
+   "path": "<root>/stages/tuning/continuous/s13/data-prepare-7554b90e59a0/data/dataset.npz",
+   "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+  },
+  "policy": {
+   "path": "<root>/stages/tuning/continuous/s13/policy-train-567a03d0eb10/checkpoints/policy.npz",
+   "sha256": "d31a565aabff77bddfa5816827cf48e742297869ac53c5cf523eaceddf1607f1"
+  },
+  "split": {
+   "path": "<root>/stages/tuning/continuous/s13/data-prepare-7554b90e59a0/data/split.json",
+   "sha256": "bda3bf7104727fe2a2a8c750506c01e224ab06fe92644c9bae54e88feb0142af"
+  }
+ },
+ "run_id": "policy-evaluate-8b31e1cfcd38",
+ "schema": "ccil.run-manifest",
+ "seeds": {
+  "run.seed": 13
+ },
+ "status": "complete",
+ "version": "2.0",
+ "workflow": "policy.evaluate"
+}
