@@ -86,8 +86,7 @@ def pipeline(work: Path, extra=()) -> dict:
                             candidates=cands_path, split=split_path if split_path.exists() else None,
                             action_chunks="consume")
     meta = export_overlay(FIXTURE, work / "bundle", sup, conversion_manifest=conv / "manifest.json",
-                          run_id=cands.run_id, generator=cands.generator, measurements=cands.measurements,
-                          prepared_run=prepared)
+                          candidates=cands_path, prepared_run=prepared)
     split = json.loads(split_path.read_text()) if split_path.exists() else {"validation": []}
     return {"work": work, "conversion": json.loads((conv / "manifest.json").read_text()), "cands": cands,
             "cands_sha": hashlib.sha256(cands_path.read_bytes()).hexdigest(), "sup": sup, "meta": meta,
@@ -104,13 +103,13 @@ def tables(out: Path, run: dict) -> dict:
     lengths = {ep.episode_id: ep.length for ep in run["dataset"].episodes}
     masked = (~cands.action_chunk_mask).sum(1) if cands.action_chunk_mask is not None else np.zeros(len(cands.accepted))
     with open(out / "accepted.csv", "w", newline="") as f:
-        w = csv.writer(f)
+        w = csv.writer(f, lineterminator="\n")  # LF: the committed tables stay clean under git diff --check
         w.writerow(["candidate_row", "episode", "frame", "weight", "in_overlay", "chunk_positions_masked", *names])
         for i in np.flatnonzero(cands.accepted):
             w.writerow([i, cands.source_episode_id[i], int(cands.source_frame[i]), f"{cands.weight[i]:.17g}",
                         int(i in in_overlay), int(masked[i]), *[f"{cands.measurements[n][i]:.17g}" for n in names]])
     with open(out / "rejected.csv", "w", newline="") as f:
-        w = csv.writer(f)
+        w = csv.writer(f, lineterminator="\n")
         w.writerow(["candidate_row", "episode", "frame", "reasons", *names])
         for i in np.flatnonzero(~cands.accepted):
             reasons = ";".join(REASON_CODES[j] for j in np.flatnonzero(cands.reasons[i]))
