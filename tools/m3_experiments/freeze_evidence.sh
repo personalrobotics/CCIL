@@ -72,27 +72,33 @@ else
     run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz
 fi
 run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device "$DEV"
-# Compiled engines (#134). On the CUDA host, the exact version 6 schedule first runs with only the uncompiled budgets
-# cut (run_study.py --preflight, one shard per GPU); the compilation check then requires every group of it compiled.
+# The version 6 driver on the CUDA host, one shard per GPU. A --preflight run is the exact schedule with only the
+# uncompiled budgets cut; the compilation check (#134) then requires every group of it compiled. A --smoke run
+# (seeds 9101-9103, one epoch) gives the analysis a root to accept and, edited, to refuse (check.py --v6-smoke-root).
 if [ "$DEV" = cuda ]; then
-    PRE="$OUT/v6-preflight"
     RS=(uv run --group evidence "${VENV[@]}" python tools/m3_experiments/run_study.py)
-    preflight() {  # preflight STEP: both shards of a phase step, or one step
-        if [ "$1" = tuning ] || [ "$1" = study ]; then
-            CUDA_VISIBLE_DEVICES=0 "${RS[@]}" "$1" --root "$PRE" --shard 0/2 --preflight > "$PRE-$1-0.log" 2>&1 &
+    v6() {  # v6 ROOT MODE STEP: both shards of a phase step, or one step
+        if [ "$3" = tuning ] || [ "$3" = study ]; then
+            CUDA_VISIBLE_DEVICES=0 "${RS[@]}" "$3" --root "$1" --shard 0/2 "$2" > "$1-$3-0.log" 2>&1 &
             local p0=$!
-            CUDA_VISIBLE_DEVICES=1 "${RS[@]}" "$1" --root "$PRE" --shard 1/2 --preflight > "$PRE-$1-1.log" 2>&1 &
+            CUDA_VISIBLE_DEVICES=1 "${RS[@]}" "$3" --root "$1" --shard 1/2 "$2" > "$1-$3-1.log" 2>&1 &
             local p1=$!
             wait $p0; local e0=$?
             wait $p1; local e1=$?
             [ $e0 = 0 ] && [ $e1 = 0 ]
         else
-            "${RS[@]}" "$1" --root "$PRE" --preflight > "$PRE-$1.log" 2>&1
+            "${RS[@]}" "$3" --root "$1" "$2" > "$1-$3.log" 2>&1
         fi
     }
-    preflight tuning && preflight choose && preflight returns && preflight study && preflight verify
+    v6_all() {  # v6_all ROOT MODE: every step in order, stopping at the first failure
+        v6 "$1" "$2" tuning && v6 "$1" "$2" choose && v6 "$1" "$2" returns && v6 "$1" "$2" study && v6 "$1" "$2" verify
+    }
+    v6_all "$OUT/v6-preflight" --preflight
     echo "v6_preflight EXIT=$?" >> "$OUT/status.txt"
-    run m3_compile "${PEND[@]}" -- m3_compile --device cuda --preflight-root "$PRE"
+    run m3_compile "${PEND[@]}" -- m3_compile --device cuda --preflight-root "$OUT/v6-preflight"
+    v6_all "$OUT/v6-smoke" --smoke
+    echo "v6_smoke EXIT=$?" >> "$OUT/status.txt"
+    run m3_experiments_analysis "${VENV[@]}" "${PEND[@]}" -- m3_experiments --v6-smoke-root "$OUT/v6-smoke"
 else
     run m3_compile "${PEND[@]}" -- m3_compile --device cpu
 fi
