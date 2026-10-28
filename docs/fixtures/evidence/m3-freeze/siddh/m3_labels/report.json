@@ -1,0 +1,499 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "accepted": 36,
+   "action_noise": {
+    "configured_std": 0.05,
+    "mean": 0.004665991694006759,
+    "std": 0.04243053842282187
+   },
+   "bound": 1e-05,
+   "candidates": 36,
+   "case": "closed_form_and_measurements[noisy_action]",
+   "generator": {
+    "name": "noisy_action",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4
+    },
+    "params_hash": "dd33246fed28112b",
+    "version": "2"
+   },
+   "max_l2_vs_closed_form": 0.0,
+   "measurement_specs": {
+    "distance": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.action_noise_norm": {
+     "definition": "||a_G - a_t||: norm of the sampled action perturbation",
+     "norm": "l2",
+     "units": "action units"
+    },
+    "generator.state_displacement_norm": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "residual": {
+     "definition": "||z_G + f(z_G, a_G) - target||: one-step error of the label under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    }
+   },
+   "measurements": [
+    "distance",
+    "generator.action_noise_norm",
+    "generator.state_displacement_norm",
+    "residual"
+   ],
+   "pass": true
+  },
+  {
+   "batch_sha256": [
+    "400ebfb6fa7996b93185ce90115306a072f57c805b7d5bcd3c7ee333da7da876",
+    "400ebfb6fa7996b93185ce90115306a072f57c805b7d5bcd3c7ee333da7da876"
+   ],
+   "case": "specs_round_trip_and_batch_invariance[noisy_action]",
+   "file_version": "2.2",
+   "pass": true
+  },
+  {
+   "accepted": 36,
+   "action_noise": {
+    "configured_std": 0.05,
+    "mean": 0.004665991694006759,
+    "std": 0.04243053842282187
+   },
+   "bound": 0.00010612492197250395,
+   "candidates": 36,
+   "case": "closed_form_and_measurements[noisy_action_preimage]",
+   "generator": {
+    "name": "noisy_action_preimage",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4,
+     "max_iterations": 50,
+     "tolerance": 0.0001
+    },
+    "params_hash": "7c63f7a7e906c264",
+    "version": "1"
+   },
+   "max_l2_vs_closed_form": 9.694554175293067e-05,
+   "measurement_specs": {
+    "distance": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition, accepted when < radius",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.action_noise_norm": {
+     "definition": "||a_G - a_t||: norm of the sampled action perturbation",
+     "norm": "l2",
+     "units": "action units"
+    },
+    "generator.solver_residual": {
+     "definition": "||z_G + f(z_G, a_G) - target|| of the returned Newton iterate under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "generator.state_displacement_norm": {
+     "definition": "||z_G - z_t||: distance of the label state from the demonstration state of its source transition",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    },
+    "residual": {
+     "definition": "||z_G + f(z_G, a_G) - target||: one-step error of the label under the model",
+     "norm": "l2",
+     "units": "representation units (state units for representation.kind=identity)"
+    }
+   },
+   "measurements": [
+    "distance",
+    "generator.action_noise_norm",
+    "generator.solver_residual",
+    "generator.state_displacement_norm",
+    "residual"
+   ],
+   "pass": true
+  },
+  {
+   "batch_sha256": [
+    "688fecd188794ad7d270826aaff5567dcc44011bb88e2b9ece17e8033a29b3c9",
+    "688fecd188794ad7d270826aaff5567dcc44011bb88e2b9ece17e8033a29b3c9"
+   ],
+   "case": "specs_round_trip_and_batch_invariance[noisy_action_preimage]",
+   "file_version": "2.2",
+   "pass": true
+  },
+  {
+   "candidates": 36,
+   "case": "failed_proposals_rejected_never_refilled",
+   "failed": 10,
+   "pass": true,
+   "rows_per_transition": [
+    4
+   ]
+  },
+  {
+   "artifact": "<out>/pipeline/runs/labels-generate-6316c8d27707/labels/candidates.npz",
+   "case": "noisy_action_fe_pipeline_run",
+   "generator": {
+    "name": "noisy_action_preimage",
+    "params": {
+     "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+     "action_noise_std": 0.05,
+     "labels_per_transition": 4,
+     "max_iterations": 50,
+     "tolerance": 0.0001
+    },
+    "params_hash": "8a4b8ad5be907a75",
+    "version": "1"
+   },
+   "pass": true,
+   "stages": {
+    "data-prepare-dfc9a9d9a282": "complete",
+    "labels-generate-6316c8d27707": "complete",
+    "transition-fit-df5b146d104e": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "action_magnitude": 10000.0,
+   "action_noise_std": 0.0001,
+   "case": "measurements_match_the_stored_float32_candidate",
+   "float32_spacing_at_1e4": 0.0009765625,
+   "pass": true,
+   "rows": 80,
+   "rows_whose_stored_perturbation_is_zero": 80,
+   "stored_noise_norm_max": 0.0
+  },
+  {
+   "case": "solver_convergence_judged_on_the_stored_candidate",
+   "failed": 35,
+   "pass": true,
+   "rows": 36,
+   "stored_residual_max": 5.4446618298091986e-08,
+   "tolerance": 1e-12
+  },
+  {
+   "case": "crc32_collision_pair_gets_distinct_streams",
+   "crc32": 3851551514,
+   "crc32_equal": true,
+   "generator_normals": [
+    [
+     -0.6708412061110233,
+     2.9413844358454835,
+     -0.8180062202526108,
+     -0.09374255503563521
+    ],
+    [
+     -1.6790537334886568,
+     -0.7983323657734861,
+     0.20431978086505162,
+     -0.550288726441166
+    ]
+   ],
+   "noise_bc_uniforms": [
+    [
+     0.6512483971591241,
+     0.23287832339445214,
+     0.9298017526416869,
+     0.7883002649120554
+    ],
+    [
+     0.4003903567172037,
+     0.8274481524098742,
+     0.28475279146217936,
+     0.6722276921385293
+    ]
+   ],
+   "pair": [
+    "4300bByhudVrUGx5",
+    "0BZ5Gzkl9ccfsEbx"
+   ],
+   "pass": true
+  },
+  {
+   "case": "measurement_contracts_enforced",
+   "pass": true,
+   "results": {
+    "generator_without_specs": "InterfaceError: Unspecified declares no measurement_specs; every generator and validator must declare the definition, norm, and units of what it measures ({} if nothing)",
+    "validator_with_extra_spec": "InterfaceError: ExtraSpec.check returned measurements ['residual'] but its measurement_specs name ['residual', 'unmeasured']"
+   }
+  },
+  {
+   "case": "noise_bc_validates_inputs",
+   "pass": true,
+   "results": {
+    "frames_not_integer": "ValueError: frames must be 2 non-negative integers, one per observation row",
+    "ids_length_mismatch": "ValueError: episode_ids must be 2 non-empty strings, one per observation row",
+    "integer_observations": "ValueError: NoiseBC observations must be a floating-point array of shape (B, ...); integer arrays would truncate the noise",
+    "negative_frame": "ValueError: frames must be 2 non-negative integers, one per observation row",
+    "negative_step": "ValueError: step must be a non-negative integer, got -1",
+    "one_dimensional_observations": "ValueError: NoiseBC observations must be a floating-point array of shape (B, ...); integer arrays would truncate the noise"
+   }
+  },
+  {
+   "case": "noise_bc_legacy_vs_symmetric",
+   "modes": {
+    "legacy_uniform_half_batch": {
+     "descriptor": {
+      "component": "noise_bc",
+      "distribution": "uniform on [0, scale) per observation dimension, applied to masked samples",
+      "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+      "mask_probability": 0.5,
+      "mode": "legacy_uniform_half_batch",
+      "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+      "scale": 0.1,
+      "seed": 20261023,
+      "truncation": "none (bounded by construction)",
+      "units": "observation units",
+      "version": "1"
+     },
+     "input_unchanged": true,
+     "mask_rate": 0.497575,
+     "noise_max": 0.09999950975179672,
+     "noise_mean": 0.05013355240225792,
+     "noise_min": 6.883698802084837e-07,
+     "unmasked_rows_unchanged": true
+    },
+    "symmetric_uniform_half_batch": {
+     "descriptor": {
+      "component": "noise_bc",
+      "distribution": "uniform on [-scale, scale) per observation dimension, applied to masked samples",
+      "draw_schedule": "fresh draw per (optimizer step, draw index, sample identity)",
+      "mask_probability": 0.5,
+      "mode": "symmetric_uniform_half_batch",
+      "rng": "splitmix64-counter/1 over ccil.transition-identity/1 (BLAKE2b-128)",
+      "scale": 0.1,
+      "seed": 20261023,
+      "truncation": "none (bounded by construction)",
+      "units": "observation units",
+      "version": "1"
+     },
+     "input_unchanged": true,
+     "mask_rate": 0.497575,
+     "noise_max": 0.09999901056289673,
+     "noise_mean": 0.00026710701058618724,
+     "noise_min": -0.09999862313270569,
+     "unmasked_rows_unchanged": true
+    }
+   },
+   "pass": true,
+   "samples": 40000,
+   "scale": 0.1
+  },
+  {
+   "artifact": "<out>/noise_bc_draws.npz",
+   "case": "noise_bc_per_draw_reproducible_and_independent",
+   "masked_step0": 5,
+   "masked_step1": 6,
+   "pass": true,
+   "samples": 9
+  },
+  {
+   "case": "noise_bc_trace_hash",
+   "other_seed": {
+    "draws": 5,
+    "sha256": "d02bd467368d61fe64f873f331a0c9f71a1f792486a3a2b3da9486f6372cac05"
+   },
+   "pass": true,
+   "same_seed": [
+    {
+     "draws": 5,
+     "sha256": "a817cb6b75ee04b5dced7f8e4ef80e9f3dc2100a5165ff05acc473fe67c833c9"
+    },
+    {
+     "draws": 5,
+     "sha256": "a817cb6b75ee04b5dced7f8e4ef80e9f3dc2100a5165ff05acc473fe67c833c9"
+    }
+   ]
+  },
+  {
+   "batch_invariant": true,
+   "candidates": 36,
+   "case": "model_misfit_measured_and_rejected",
+   "pass": true,
+   "read_by_520f343": true,
+   "rejected_model_misfit": 16,
+   "rejected_source_frames": [
+    2,
+    3
+   ]
+  },
+  {
+   "case": "finite_differences_vanish_so_exact_jacobians_are_used",
+   "float32_finite_difference_at_1e4": 0.0,
+   "mlp_exact_jacobian_z": true,
+   "pass": true,
+   "true_derivative": 19999.0
+  },
+  {
+   "accepted": 14,
+   "candidates": 36,
+   "case": "filters_record_independent_reasons",
+   "pass": true,
+   "rows_with_both": 16
+  },
+  {
+   "accepted_with_zero_weight": 13,
+   "case": "weighting_never_changes_validity",
+   "pass": true,
+   "positive_weight_on_rejected": "SchemaError: ['weight']",
+   "rejected_rows": 10
+  },
+  {
+   "case": "fixed_point_forward_euler_superseded_by_newton",
+   "contraction_norm": 0.1,
+   "max_abs_difference": 1.734723475976807e-18,
+   "pass": true
+  },
+  {
+   "case": "branch_filter_keys_migrate",
+   "pass": true,
+   "values": {
+    "certificate.profile": "legacy_label_filtering",
+    "certificate.score_threshold": 0.5,
+    "certificate.selection_quantile": 0.3,
+    "generation.model_error_threshold": 0.1
+   }
+  },
+  {
+   "capabilities": [
+    "action-chunking-labels",
+    "bc-policy",
+    "cluster-sweeps",
+    "corrective-labels",
+    "data-fraction-ablation",
+    "documentation",
+    "dynamics-model",
+    "dynamics-training-tool",
+    "f1-evaluation",
+    "label-filtering",
+    "pipeline-scripts",
+    "repo-hygiene",
+    "results-analysis",
+    "task-configs"
+   ],
+   "case": "label_filtering_inventory_fully_classified",
+   "missing": [],
+   "pass": true
+  },
+  {
+   "artifact": "<out>/pipeline_filters/runs/labels-generate-c5d43ec7a9b9/labels/candidates.npz",
+   "case": "filters_pipeline_run",
+   "file_version": "2.2",
+   "pass": true,
+   "reason_codes": [
+    "non_finite",
+    "out_of_support",
+    "generation_failed",
+    "action_out_of_bounds",
+    "label_filter.model_misfit"
+   ],
+   "stages": {
+    "data-prepare-dfc9a9d9a282": "complete",
+    "labels-certify-e35508562600": "complete",
+    "labels-generate-c5d43ec7a9b9": "complete",
+    "transition-fit-df5b146d104e": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "backtrack_target": "t",
+   "case": "action_chunks_align_to_the_label_target",
+   "chunk_size": 4,
+   "disturbed_action_target": "t + 1",
+   "masked_positions": {
+    "backtrack": 2,
+    "disturbed_action": 24
+   },
+   "pass": true
+  },
+  {
+   "all_values_from_their_own_episode": true,
+   "case": "action_chunks_never_cross_or_pad_episodes",
+   "chunk_size": 7,
+   "episode_lengths": [
+    6,
+    2,
+    4
+   ],
+   "failed_rows_with_chunks": 10,
+   "pass": true,
+   "two_frame_episode_valid_positions": 2
+  },
+  {
+   "case": "legacy_chunking_defects_corrected",
+   "configured_chunk_size": 4,
+   "disturbed_action_rows": 9,
+   "disturbed_action_rows_whose_legacy_continuation_differs": 8,
+   "legacy_chunk_sizes": [
+    8
+   ],
+   "legacy_padded_positions": 29,
+   "of_which_inside_our_chunk_and_masked": 2,
+   "pass": true
+  },
+  {
+   "action_chunk_spec": {
+    "alignment": "position 0 is the label action a_G; position k >= 1 is the source episode's action at frame chunk_target_frame + k - 1, taken from the state the label reaches",
+    "chunk_size": 4,
+    "guarantee": "one-step: only position 0 carries the label's CCIL claim; positions k >= 1 are demonstration actions",
+    "target_frame_offset": 1,
+    "truncation": "positions past the source episode's last frame are masked and zero; never padded"
+   },
+   "case": "action_chunk_schema_round_trip_and_compatibility",
+   "file_version": "2.3",
+   "optional_fields": [
+    "action_chunk_mask",
+    "action_chunks"
+   ],
+   "pass": true,
+   "read_by_8071952": "36 False"
+  },
+  {
+   "artifact": "<out>/pipeline_chunks/runs/labels-generate-d534b3448e6f/labels/candidates.npz",
+   "case": "action_chunks_pipeline_and_migration",
+   "migrated_chunk_size": 5,
+   "pass": true,
+   "stages": {
+    "data-prepare-dfc9a9d9a282": "complete",
+    "labels-generate-d534b3448e6f": "complete",
+    "transition-fit-df5b146d104e": "complete"
+   },
+   "stderr": ""
+  },
+  {
+   "action_chunk_size": {
+    "0": "InterfaceError: action_chunk_size must be an integer >= 1, got 0",
+    "2.5": "InterfaceError: action_chunk_size must be an integer >= 1, got 2.5",
+    "True": "InterfaceError: action_chunk_size must be an integer >= 1, got True"
+   },
+   "case": "malformed_chunks_and_chunk_files_rejected",
+   "malformed": {
+    "chunk_arrays_not_declared_optional": "SchemaError: ['format']: a chunk file must list ['action_chunk_mask', 'action_chunks'] in optional_fields",
+    "forged_2_2_file_with_chunks": "SchemaError: ['format']: version 2.2 cannot carry ['action_chunk_mask', 'action_chunks', 'action_chunk_spec']; action chunks need 2.3",
+    "non_finite_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "non_finite_target_frame_on_rejected_row": "SchemaError: ['action_chunks']: chunk_target_frame nan must equal source_frame + target_frame_offset = 3",
+    "nonzero_masked_position": "SchemaError: ['action_chunks']: masked chunk positions must be exactly zero (truncated, never padded)",
+    "spec_without_target_frame_offset": "SchemaError: ['action_chunk_spec']: action_chunk_spec needs integer chunk_size (= K), target_frame_offset 0 or 1, and non-empty alignment, guarantee, and tr",
+    "target_frame_string_dtype": "SchemaError: ['action_chunks', 'dtype']: measurements[name] dtype <U32 is not float",
+    "target_frame_wrong_shape": "SchemaError: ['action_chunks', 'rank']: measurements[name] has shape (36, 2); expected rank 1 ('N',)",
+    "wrong_integral_target_frame": "SchemaError: ['action_chunks']: chunk_target_frame 2.0 must equal source_frame + target_frame_offset = 1"
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ }
+}

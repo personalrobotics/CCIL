@@ -1,0 +1,52 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "timing",
+   "measurements": [
+    {
+     "batch_size": 512,
+     "batched_20_seeds_seconds": 75.822509765625,
+     "engine": "compiled (default)",
+     "epoch_seconds": [
+      2.15887451171875,
+      0.7232067584991455,
+      0.722064733505249
+     ],
+     "epochs": 100,
+     "lipschitz_type": "soft_sampling",
+     "peak_device_gb": 1.2720451354980469,
+     "perfit_one_seed_seconds": 10.839452981948853,
+     "task": "continuous",
+     "transitions": 39920
+    },
+    {
+     "batch_size": 2048,
+     "batched_20_seeds_seconds": 168.00042724609375,
+     "engine": "compiled (default)",
+     "epoch_seconds": [
+      1.1240203380584717,
+      0.3281748294830322,
+      0.32860779762268066
+     ],
+     "epochs": 500,
+     "lipschitz_type": "slack",
+     "peak_device_gb": 0.5953941345214844,
+     "perfit_one_seed_seconds": 49.66243100166321,
+     "task": "discontinuous",
+     "transitions": 199600
+    }
+   ],
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "device": "cuda",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.14.1+cu130"
+ }
+}

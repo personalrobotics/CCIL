@@ -1,0 +1,230 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "analytic_oracle_I1_to_I5_pass_for_every_method",
+   "expected_classes": {
+    "backward_euler": {
+     "accepted": 9,
+     "boundary": 0,
+     "out_of_support": 0
+    },
+    "backward_euler_fast": {
+     "accepted": 4,
+     "boundary": 0,
+     "out_of_support": 5
+    },
+    "forward_euler": {
+     "accepted": 9,
+     "boundary": 0,
+     "out_of_support": 0
+    },
+    "noisy_action": {
+     "accepted": 24,
+     "boundary": 3,
+     "out_of_support": 9
+    }
+   },
+   "pass": true,
+   "verdicts": {
+    "I1_accepted_finite[backward_euler]": true,
+    "I1_accepted_finite[backward_euler_fast]": true,
+    "I1_accepted_finite[forward_euler]": true,
+    "I1_accepted_finite[noisy_action]": true,
+    "I2_accepted_in_support[backward_euler]": true,
+    "I2_accepted_in_support[backward_euler_fast]": true,
+    "I2_accepted_in_support[forward_euler]": true,
+    "I2_accepted_in_support[noisy_action]": true,
+    "I3_accounting[backward_euler]": true,
+    "I3_accounting[backward_euler_fast]": true,
+    "I3_accounting[forward_euler]": true,
+    "I3_accounting[noisy_action]": true,
+    "I4_closed_form[backward_euler]": true,
+    "I4_closed_form[backward_euler_fast]": true,
+    "I4_closed_form[forward_euler]": true,
+    "I4_closed_form[noisy_action]": true,
+    "I5_expected_acceptance[backward_euler]": true,
+    "I5_expected_acceptance[backward_euler_fast]": true,
+    "I5_expected_acceptance[forward_euler]": true,
+    "I5_expected_acceptance[noisy_action]": true
+   }
+  },
+  {
+   "case": "analytic_run_directory_complete",
+   "pass": true,
+   "problems": [],
+   "status": "complete"
+  },
+  {
+   "case": "rows_carry_multiple_independent_reasons",
+   "example": [
+    {
+     "action": [
+      -0.11802724003791809
+     ],
+     "distance": 0.006821075278799259,
+     "episode": "slow",
+     "frame": 4,
+     "reasons": [
+      "out_of_support",
+      "action_out_of_bounds"
+     ]
+    },
+    {
+     "action": [
+      0.11348328739404678
+     ],
+     "distance": 0.00887982368486397,
+     "episode": "fast",
+     "frame": 0,
+     "reasons": [
+      "out_of_support",
+      "action_out_of_bounds"
+     ]
+    },
+    {
+     "action": [
+      0.29164573550224304
+     ],
+     "distance": 0.009380295361348436,
+     "episode": "fast",
+     "frame": 0,
+     "reasons": [
+      "out_of_support",
+      "action_out_of_bounds"
+     ]
+    }
+   ],
+   "pass": true,
+   "reason_counts": {
+    "action_out_of_bounds": 13,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 10
+   },
+   "rows_with_both": 5
+  },
+  {
+   "case": "generation_is_batch_invariant",
+   "pass": true,
+   "sha256": {
+    "exact_preimage": [
+     "c2ba24cea1e5eeb77c546aa2c1c6178daaa5062b73a44d2b0e4036cdccb98cae",
+     "c2ba24cea1e5eeb77c546aa2c1c6178daaa5062b73a44d2b0e4036cdccb98cae"
+    ],
+    "noisy_action": [
+     "68865d03946791feab76aac9f97003e295bc4ce638936db3958c6d87712927e0",
+     "68865d03946791feab76aac9f97003e295bc4ce638936db3958c6d87712927e0"
+    ]
+   }
+  },
+  {
+   "accepted": 33,
+   "candidates": 33,
+   "case": "image_style_latent_plug_in_uses_unchanged_schema",
+   "fit": {
+    "max_l2": 0.08520053186966617,
+    "mean_l2": 0.03299473505278547,
+    "method": "least_squares",
+    "transitions": 33
+   },
+   "latent_dim": 4,
+   "pass": true
+  },
+  {
+   "case": "malformed_stage_outputs_raise_before_writing",
+   "errors": {
+    "generator_shape": "BadGen.generate returned a malformed CandidateBatch: z (9, 1), expected float (9, 2)",
+    "measuring_validator_rejects": "SneakyMeasure has no reason code but rejected candidates",
+    "representation_rank": "BadRep.encode returned (6,) float32 for episode 'slow'; expected float (6, D)",
+    "unknown_reason": "BadReason.reason: 'too_far' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\."
+   },
+   "pass": true,
+   "staging_left": []
+  },
+  {
+   "accepted": 4,
+   "batch_sizes": [
+    1,
+    4,
+    "all"
+   ],
+   "case": "exact_preimage_isolates_singular_and_non_finite_rows",
+   "distinct_sha256": [
+    "8af7c7e03945b5eb85d2d1bbdf8a2033f3e727dfa1849ed4e63b1798f61f0f80"
+   ],
+   "generation_failed": 5,
+   "non_finite_rows": 2,
+   "pass": true,
+   "rows": 9,
+   "singular_rows": 3,
+   "solvable_rows_match_exact_model": true
+  },
+  {
+   "case": "transition_model_persistence_contract",
+   "checkpoint_meta": {
+    "component": "transition_model",
+    "kind": "linear",
+    "version": "1"
+   },
+   "delta_identical": true,
+   "failures": {
+    "future_version": "CheckpointError: <out>/ck_ver.npz holds 'linear' version '2'; LinearTransitionModel reads 'linear' version '1'",
+    "not_a_checkpoint": "CheckpointError: <out>/not_a_checkpoint.npz is not a transition_model checkpoint: This file contains pickled (object) data. If you trust the file you can load it unsafely using the `allow_pickle=` keyword argument or `pickle.load()`.",
+    "other_component": "CheckpointError: <out>/ck_comp.npz is not a transition_model checkpoint",
+    "unavailable_device": "ValueError: LinearTransitionModel runs on cpu only",
+    "unknown_kind": "CheckpointError: <out>/ck_kind.npz holds transition model kind 'spline'; this ccil reads ['linear', 'mlp']"
+   },
+   "pass": true,
+   "save_load_save_identical": true
+  },
+  {
+   "accepted": 23,
+   "artifact": "<out>/runs/analytic-extension/labels/candidates.npz",
+   "builtin_only_file_version": "2.2",
+   "builtin_without_specs_file_version": "2.0",
+   "candidates": 36,
+   "case": "namespaced_reason_round_trips_through_a_run",
+   "file_version": "2.2",
+   "pass": true,
+   "reason_codes": [
+    "non_finite",
+    "out_of_support",
+    "generation_failed",
+    "action_out_of_bounds",
+    "example.low_confidence"
+   ],
+   "rows_by_reason": {
+    "action_out_of_bounds": 0,
+    "example.low_confidence": 13,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 0
+   }
+  },
+  {
+   "artifacts_left": [],
+   "case": "malformed_reason_codes_fail_before_any_artifact",
+   "pass": true,
+   "results": {
+    "declared:duplicate": "SchemaError: ['reason_codes']",
+    "declared:extensions_unsorted": "SchemaError: ['reason_codes']",
+    "declared:non_string": "SchemaError: ['reason_codes']",
+    "declared:not_a_sequence": "SchemaError: ['reason_codes', 'shape']",
+    "declared:not_canonical_order": "SchemaError: ['reason_codes']",
+    "validator:nested_namespace": "InterfaceError: Bad.reason: 'a.b.c' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:non_string": "InterfaceError: Bad.reason: 3 is not a string",
+    "validator:reserved_namespace": "InterfaceError: Bad.reason: 'ccil.low' uses the reserved namespace 'ccil'",
+    "validator:unnamespaced_unknown": "InterfaceError: Bad.reason: 'low_confidence' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+    "validator:uppercase_namespace": "InterfaceError: Bad.reason: 'Example.low' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ }
+}

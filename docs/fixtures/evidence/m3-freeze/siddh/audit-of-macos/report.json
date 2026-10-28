@@ -1,0 +1,110 @@
+{
+ "all_pass": true,
+ "bundle_sha256": {
+  "backtrack_mlp/candidates.npz": "444a97101a51287b6380184eb2e2db299e4de78976e0fc33dd0ac5d9b4e2a18d",
+  "backtrack_mlp/certificates.npz": "44fd7aa54b59d99f128ce17097752038947633c063e10d5360382274be775ffd",
+  "backtrack_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "backtrack_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "backtrack_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
+  "continuity_linear/candidates.npz": "f09e95bc84a912cb70057c84ec3ce67b9f8b9094fc0fc4ffbdcc2109c89bcb19",
+  "continuity_linear/certificates.npz": "8dc339bba3d6eeae031cb9b986b9eb3d07f9b0ca3cd08e58ce696914025a70d0",
+  "continuity_linear/dataset.npz": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+  "continuity_linear/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "continuity_linear/transition_model.npz": "b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3",
+  "disturbed_action_mlp/candidates.npz": "82e2b76b650ecf3fc951868923d61ad9f5e40aac1e28e8c410c596f9c7791127",
+  "disturbed_action_mlp/certificates.npz": "e1f3162ce95ece1abd0c8c5ac316c48b8996bd24c29f056f157e84c423d03254",
+  "disturbed_action_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "disturbed_action_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "disturbed_action_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
+  "legacy_label_filtering_mlp/candidates.npz": "e0f2f65b79323a63594b233ef17d0b49006942af9e322b7b8f308e87deb958df",
+  "legacy_label_filtering_mlp/certificates.npz": "38170e5fed80de01084cc46f011d91ac76d566d998b80df280f53329806888fa",
+  "legacy_label_filtering_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "legacy_label_filtering_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
+  "manifest.json": "303b981b23ce9afa30b40d4099ec5cf1480ae0f1165f5a34987e21f6b61c92d5"
+ },
+ "cases": [
+  {
+   "audit": [],
+   "case": "backtrack_mlp",
+   "classification": [
+    "conditional"
+   ],
+   "constants": {
+    "K_hat_z": {
+     "source": "model_bound",
+     "value": 0.30863990810553954
+    },
+    "K_z": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    }
+   },
+   "pass": true,
+   "profile": "backtrack",
+   "rows": 720,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "continuity_linear",
+   "classification": [
+    "certified",
+    "unsupported"
+   ],
+   "constants": {
+    "C_a": {
+     "source": "analytic_bound",
+     "value": 0.0600000000000546
+    },
+    "C_z": {
+     "source": "analytic_bound",
+     "value": 0.10051926163554567
+    }
+   },
+   "pass": true,
+   "profile": "continuity",
+   "rows": 36,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "disturbed_action_mlp",
+   "classification": [
+    "certified"
+   ],
+   "constants": {
+    "K_a": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    },
+    "K_z": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    }
+   },
+   "pass": true,
+   "profile": "disturbed_action",
+   "rows": 2880,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "legacy_label_filtering_mlp",
+   "classification": [
+    "empirical"
+   ],
+   "constants": {},
+   "pass": true,
+   "profile": "legacy_label_filtering",
+   "rows": 2880,
+   "structure": []
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ }
+}

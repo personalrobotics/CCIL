@@ -1,0 +1,316 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "analytic_run_complete_and_replayed_byte_identically",
+   "files": [
+    "config.json",
+    "data/dataset.npz",
+    "labels/candidates.npz",
+    "logs/run.log",
+    "metrics.json",
+    "plots/distance.png"
+   ],
+   "manifest": {
+    "code": {
+     "ccil_version": "0.1.0.dev0",
+     "git_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+     "git_dirty": false,
+     "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "config": {
+     "config_hash": "2a90b522612d1cc852894a49065ccab85155c6c5e99e0d72f562c0dc7fba634f",
+     "path": "config.json"
+    },
+    "environment": {
+     "devices": "cpu (CUDA unavailable)",
+     "packages": {
+      "numpy": "2.4.6",
+      "pyyaml": "6.0.3",
+      "torch": "2.14.1"
+     },
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "python": "3.11.16"
+    },
+    "files": {
+     "config.json": {
+      "schema": "ccil.config",
+      "sha256": "59ee1b581c079e7fc1ed817f51aa1ab2d7df989f3b7d6ffcf745ef10160f8ce5",
+      "size": 10795,
+      "version": "1"
+     },
+     "data/dataset.npz": {
+      "schema": "ccil.trajectories",
+      "sha256": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871",
+      "size": 2120,
+      "version": "1.0"
+     },
+     "labels/candidates.npz": {
+      "schema": "ccil.candidates",
+      "sha256": "a2ecabf36c13be93b15a93f07ccfa24dabac2862ea006ea07794c8db89fe92f7",
+      "size": 5427,
+      "version": "2.0"
+     },
+     "logs/run.log": {
+      "sha256": "5ef11d024085bb7daabe32b172218cc5d0fea3d2832212093615faf8a901ed96",
+      "size": 35
+     },
+     "metrics.json": {
+      "schema": "ccil.metrics",
+      "sha256": "2fab756706d13801fda5187703a9a27f21b9e2649c8a0ee5df5e3a2d11e6cb86",
+      "size": 144,
+      "version": "1.0"
+     },
+     "plots/distance.png": {
+      "sha256": "9f3d4f542a22f80cf3271629cbb786b2ef13668f2bcf1c6e531144c303a70c26",
+      "size": 5155
+     }
+    },
+    "inputs": {
+     "dataset": {
+      "path": "fixture.npz",
+      "sha256": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871"
+     }
+    },
+    "run_id": "analytic-0001",
+    "schema": "ccil.run-manifest",
+    "seeds": {
+     "run.seed": 0
+    },
+    "status": "complete",
+    "version": "2.0",
+    "workflow": "analytic.backward_euler"
+   },
+   "pass": true,
+   "status": "complete"
+  },
+  {
+   "accepted": 4,
+   "case": "accepted_and_rejected_share_run_and_source_ids",
+   "pass": true,
+   "rejected": 5,
+   "run_id": "analytic-0001",
+   "sources": [
+    [
+     "slow",
+     0,
+     true
+    ],
+    [
+     "slow",
+     1,
+     true
+    ],
+    [
+     "slow",
+     2,
+     false
+    ],
+    [
+     "slow",
+     3,
+     true
+    ],
+    [
+     "slow",
+     4,
+     true
+    ],
+    [
+     "fast",
+     0,
+     false
+    ],
+    [
+     "fast",
+     1,
+     false
+    ],
+    [
+     "fast",
+     2,
+     false
+    ],
+    [
+     "fast",
+     3,
+     false
+    ]
+   ]
+  },
+  {
+   "case": "data_prepare_complete_and_v1_manifest_incompatible",
+   "pass": true,
+   "prepare_run": "data-prepare-11160e6749e5",
+   "stderr": ""
+  },
+  {
+   "case": "exception_leaves_previous_run_intact",
+   "pass": true,
+   "staging_left": []
+  },
+  {
+   "case": "sigkill_leaves_destination_intact_and_staging_is_reclaimed",
+   "left_after_rerun": [],
+   "pass": true,
+   "staging_name": ".analytic-0001.tmp-70096",
+   "staging_status": [
+    1,
+    "incomplete"
+   ]
+  },
+  {
+   "case": "validate[flipped_byte]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[missing_file]",
+   "expected": "incomplete",
+   "got": "incomplete",
+   "pass": true
+  },
+  {
+   "case": "validate[missing_manifest]",
+   "expected": "incomplete",
+   "got": "incomplete",
+   "pass": true
+  },
+  {
+   "case": "validate[unlisted_file]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[candidates_run_id_mismatch]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[future_component_schema]",
+   "expected": "incompatible",
+   "got": "incompatible",
+   "pass": true
+  },
+  {
+   "case": "validate[future_manifest_version]",
+   "expected": "incompatible",
+   "got": "incompatible",
+   "pass": true
+  },
+  {
+   "case": "validate[parent_traversal_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[absolute_path_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[non_canonical_entry]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[symlinked_file_escapes]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[symlinked_directory_escapes]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[files_is_a_list]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[entry_is_a_string]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "case": "validate[size_is_a_string]",
+   "expected": "corrupt",
+   "got": "corrupt",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "previous",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "complete",
+    "hidden": [],
+    "returncode": 1,
+    "stderr": " in _replace_by_renames\n    os.replace(self.staging, self.dest)\n  File \"<string>\", line 25, in replace\nOSError: [Errno 5] simulated failure of the second rename"
+   },
+   "case": "commit_boundary[second_rename_fails]",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "previous",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "missing",
+    "hidden": [
+     ".analytic-0001.old-70180",
+     ".analytic-0001.tmp-70180"
+    ],
+    "returncode": -9,
+    "stderr": ""
+   },
+   "case": "commit_boundary[kill_after_first_rename]",
+   "pass": true
+  },
+  {
+   "after_recovery": {
+    "content": "replacement",
+    "hidden": [],
+    "status": "complete"
+   },
+   "at_failure": {
+    "dest_status": "complete",
+    "hidden": [
+     ".analytic-0001.tmp-70190"
+    ],
+    "returncode": -9,
+    "stderr": ""
+   },
+   "case": "commit_boundary[kill_after_exchange]",
+   "pass": true
+  },
+  {
+   "case": "next_writer_restores_before_existence_check",
+   "dest_missing_after_kill": true,
+   "pass": true,
+   "refused_existing": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

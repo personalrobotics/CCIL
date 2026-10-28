@@ -1,0 +1,149 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "analysis_matches_24",
+   "pass": true,
+   "scenarios": {
+    "algorithmic_failure": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "degenerate_bca": {
+     "identical": true,
+     "outcome": "ccil_improves_on_bc"
+    },
+    "fifteen_valid": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "improves": {
+     "identical": true,
+     "outcome": "ccil_improves_on_bc"
+    },
+    "null_control_fails": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "null_control_passes": {
+     "identical": true,
+     "outcome": "no_detectable_difference"
+    },
+    "three_exclusions": {
+     "identical": true,
+     "outcome": "inconclusive"
+    },
+    "worse": {
+     "identical": true,
+     "outcome": "ccil_is_worse_than_bc"
+    }
+   }
+  },
+  {
+   "both_outcomes_exercised": true,
+   "case": "gate_matches_24",
+   "pass": true,
+   "scenarios": {
+    "clean_with_main_v4_manifest/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "clean_with_main_v4_manifest/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "committed_tooling_change/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "committed_tooling_change/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_at_this_commit/real": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_at_this_commit/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "manifest_names_no_commit/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "manifest_names_no_commit/smoke": {
+     "experiments": true,
+     "p24": true,
+     "same": true
+    },
+    "uncommitted_src_change/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "uncommitted_src_change/smoke": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "untracked_file/real": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    },
+    "untracked_file/smoke": {
+     "experiments": false,
+     "p24": false,
+     "same": true
+    }
+   }
+  },
+  {
+   "arms_same": true,
+   "case": "plan_matches_24",
+   "pass": true,
+   "refusals": [
+    [
+     "missing key 'version'",
+     "missing key 'tasks'",
+     "missing key 'phases'",
+     "missing key 'arms'"
+    ],
+    [
+     "phase tuning: a tuning phase runs tuned arms only",
+     "phase study: unknown arms ['nope']",
+     "seed 2 is in phases 'tuning' and 'study'; phases must not share seeds"
+    ]
+   ],
+   "study_units_same": true,
+   "tuning_units_same": true,
+   "units": {
+    "study": 520,
+    "tuning": 60
+   }
+  },
+  {
+   "case": "analysis_v6",
+   "clean": "accepted",
+   "clean_after_restore": "accepted",
+   "edited_choice": "refused: analysis refused: the tuning choice differs from its recomputation from the verified records",
+   "edited_study_R": "refused: study records refused (5 problems): continuous/bc/s9102 noise 0.0: the record disagrees with its rollout's audit; continuous/bc/s9102 noise 0.01: the record dis",
+   "pass": true,
+   "removed_deferred_return": "refused: tuning deferred returns refused (1 problems): deferred returns are not exactly the ok deferred units of tuning"
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ }
+}

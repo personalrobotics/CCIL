@@ -1,0 +1,341 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "datasets_convert_exactly_with_provenance",
+   "datasets": {
+    "pendulum_cont": {
+     "chain_ok": true,
+     "dtypes": {
+      "actions": "float32",
+      "obs/state": "float64"
+     },
+     "episodes": 100,
+     "exact": true,
+     "legacy_pickle_sha256": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc",
+     "output_sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+    },
+    "pendulum_disc": {
+     "chain_ok": true,
+     "dtypes": {
+      "actions": "float32",
+      "obs/state": "float64"
+     },
+     "episodes": 500,
+     "exact": true,
+     "legacy_pickle_sha256": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8",
+     "output_sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e"
+    }
+   },
+   "pass": true,
+   "second_conversion_byte_identical": true
+  },
+  {
+   "case": "configurations_convert_with_dispositions",
+   "configurations": {
+    "pendulum_cont": {
+     "counts": {
+      "derived": 4,
+      "dropped": 6,
+      "renamed": 25
+     },
+     "dispositions_cover_every_key": true,
+     "fidelities_differ_in": [
+      "policy.exclude_validation_episodes",
+      "policy.noise_model"
+     ],
+     "implicit": [
+      {
+       "canonical_default": true,
+       "key": "policy.exclude_validation_episodes",
+       "legacy_behavior": false,
+       "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical harness holds the split's validation episodes out of policy training.",
+       "written": false
+      },
+      {
+       "canonical_default": "symmetric_uniform_half_batch",
+       "key": "policy.noise_model",
+       "legacy_behavior": "legacy_uniform_half_batch",
+       "why": "legacy CustomBC added noise_bc * U[0, 1), always positive; the canonical default is the zero-centered symmetric_uniform_half_batch (#22).",
+       "written": "legacy_uniform_half_batch"
+      }
+     ],
+     "legacy_keys": 35,
+     "recipe_differences": {},
+     "supplied_values_preserved": true
+    },
+    "pendulum_disc": {
+     "counts": {
+      "derived": 4,
+      "dropped": 6,
+      "renamed": 26
+     },
+     "dispositions_cover_every_key": true,
+     "fidelities_differ_in": [
+      "policy.exclude_validation_episodes",
+      "policy.noise_model"
+     ],
+     "implicit": [
+      {
+       "canonical_default": true,
+       "key": "policy.exclude_validation_episodes",
+       "legacy_behavior": false,
+       "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical harness holds the split's validation episodes out of policy training.",
+       "written": false
+      },
+      {
+       "canonical_default": "symmetric_uniform_half_batch",
+       "key": "policy.noise_model",
+       "legacy_behavior": "legacy_uniform_half_batch",
+       "why": "legacy CustomBC added noise_bc * U[0, 1), always positive; the canonical default is the zero-centered symmetric_uniform_half_batch (#22).",
+       "written": "legacy_uniform_half_batch"
+      }
+     ],
+     "legacy_keys": 36,
+     "recipe_differences": {},
+     "supplied_values_preserved": true
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "malformed_inputs_fail_closed",
+   "cases": {
+    "ambiguous_naive_with_noise": {
+     "diagnostic": "  policy.naive=False with policy.noise_bc=0.5 has no supported equivalent",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "dataset_already_canonical": {
+     "diagnostic": "  format at <out>/convert_a/data/pendulum_cont_100.npz: not a ccil-trajectories/1 file",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "dataset_not_m1": {
+     "diagnostic": "  format at <out>/malformed/not_m1.npz: missing meta",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "dataset_path_not_pkl_without_map": {
+     "diagnostic": "  data.pkl 'data/pendulum_cont_100.h5' is ambiguous: it is not a .pkl path and --dataset-map gives no converted dataset for it",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "dataset_truncated": {
+     "diagnostic": "  format at <out>/malformed/truncated.npz: not a readable .npz file: File is not a zip file",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "duplicate_key": {
+     "diagnostic": "  in \"<out>/malformed/duplicate_key.yml\", line 31, column 3",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "incompatible_data_frac": {
+     "diagnostic": "  data.data_frac has no supported equivalent: trajectory subsampling; superseded by M7 low-data subsets (#51-#55)",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "incompatible_state_encoder": {
+     "diagnostic": "  state_encoder has no supported equivalent: image-observation encoder from the fork image branch; deferred to M5",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "mistyped_value": {
+     "diagnostic": "  aug.num_labels (-> generation.labels_per_transition): generation.labels_per_transition: 'twenty' is not a valid integer",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
+    "pickle_tampered": {
+     "diagnostic": "LegacyInputError: <out>/malformed/exploit.pkl: sha256 dee822210ceb0f6334d89f99e274f6a7ae191523affe13d98ef",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true,
+     "pickle_executed": false
+    },
+    "pickle_unacknowledged": {
+     "diagnostic": "LegacyInputError: refusing to unpickle <out>/malformed/exploit.pkl: pickle can execute arbitrary code. Pa",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true,
+     "pickle_executed": false
+    },
+    "unknown_key": {
+     "diagnostic": "  unknown legacy key 'aug.bogus_knob'",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    }
+   },
+   "pass": true
+  },
+  {
+   "case": "converted_artifacts_prepare_a_complete_run",
+   "historical_policy": {
+    "exclude_validation_episodes": false,
+    "noise_model": "legacy_uniform_half_batch"
+   },
+   "pass": true,
+   "runs": {
+    "pendulum_cont.corrected": {
+     "exit": 0,
+     "status": "complete",
+     "stderr": ""
+    },
+    "pendulum_cont.historical": {
+     "exit": 0,
+     "status": "complete",
+     "stderr": ""
+    },
+    "pendulum_disc.corrected": {
+     "exit": 0,
+     "status": "complete",
+     "stderr": ""
+    },
+    "pendulum_disc.historical": {
+     "exit": 0,
+     "status": "complete",
+     "stderr": ""
+    }
+   }
+  },
+  {
+   "case": "policy_validation_holdout_follows_the_flag",
+   "pass": true,
+   "runs": {
+    "false": {
+     "demonstration_rows": 72,
+     "exit": 0,
+     "held_out": 0,
+     "validation_episodes_in_training": true
+    },
+    "true": {
+     "demonstration_rows": 54,
+     "exit": 0,
+     "held_out": 18,
+     "validation_episodes_in_training": false
+    }
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17"
+ },
+ "summary": {
+  "retained": {
+   "pendulum_cont": {
+    "configs": {
+     "corrected": {
+      "counts": {
+       "derived": 4,
+       "dropped": 6,
+       "renamed": 25
+      },
+      "implicit_written": {
+       "policy.exclude_validation_episodes": true,
+       "policy.noise_model": "symmetric_uniform_half_batch"
+      },
+      "path": "config/pendulum_cont.corrected.yaml",
+      "sha256": "f2115584b7c1143f2e47c3db08bcce79814f2260ddddcb50ca9b0ddf5c23562e"
+     },
+     "historical": {
+      "counts": {
+       "derived": 4,
+       "dropped": 6,
+       "renamed": 25
+      },
+      "implicit_written": {
+       "policy.exclude_validation_episodes": false,
+       "policy.noise_model": "legacy_uniform_half_batch"
+      },
+      "path": "config/pendulum_cont.historical.yaml",
+      "sha256": "cbaf71ead34d08d758621676e8db9d2520b561c6f676cfbc7ed6bc844d1800ff"
+     }
+    },
+    "dataset": {
+     "counts": {
+      "episodes": 100,
+      "frames": 50000,
+      "transitions": 49900
+     },
+     "path": "data/pendulum_cont_100.npz",
+     "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962"
+    },
+    "legacy_config": {
+     "path": "config/pendulum_cont.yml",
+     "sha256": "888bdd9a17747d5e57855af6f62e4d55bc6ae41aac3bfaa83aa74f0eee0654b6"
+    },
+    "legacy_pickle": {
+     "path": "data/pendulum_cont_100.pkl",
+     "sha256": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc"
+    },
+    "m1": {
+     "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+    }
+   },
+   "pendulum_disc": {
+    "configs": {
+     "corrected": {
+      "counts": {
+       "derived": 4,
+       "dropped": 6,
+       "renamed": 26
+      },
+      "implicit_written": {
+       "policy.exclude_validation_episodes": true,
+       "policy.noise_model": "symmetric_uniform_half_batch"
+      },
+      "path": "config/pendulum_disc.corrected.yaml",
+      "sha256": "d17d43476a6bbef9171972601d8271c54251e5963a4760b5ddd52b90bd938f48"
+     },
+     "historical": {
+      "counts": {
+       "derived": 4,
+       "dropped": 6,
+       "renamed": 26
+      },
+      "implicit_written": {
+       "policy.exclude_validation_episodes": false,
+       "policy.noise_model": "legacy_uniform_half_batch"
+      },
+      "path": "config/pendulum_disc.historical.yaml",
+      "sha256": "04d165e82d3113fb47c72418d2531c7142768eec846a330f56e8f904eaa4ea7e"
+     }
+    },
+    "dataset": {
+     "counts": {
+      "episodes": 500,
+      "frames": 250000,
+      "transitions": 249500
+     },
+     "path": "data/pendulum_disc_500.npz",
+     "sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e"
+    },
+    "legacy_config": {
+     "path": "config/pendulum_disc.yml",
+     "sha256": "78a020f7789e8bb0329be314d9aa828095a73f2dab4556fc7b03d4dab03920d6"
+    },
+    "legacy_pickle": {
+     "path": "data/pendulum_disc_500.pkl",
+     "sha256": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8"
+    },
+    "m1": {
+     "sha256": "0b5b1c5ae473795a8a7278d976c7d18db8ffb512b01daaf2f009ffbfc828af95"
+    }
+   }
+  }
+ }
+}
