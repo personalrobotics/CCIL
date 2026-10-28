@@ -1,0 +1,245 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "source_edit_mid_unit_fails_the_unit",
+   "git_clone": {
+    "rc": 3,
+    "runs": [
+     "data-prepare-2d1800c483e0"
+    ],
+    "stderr": "the code changed while this process ran: the ccil source changed; this command's outputs are not a consistent unit",
+    "stdout": []
+   },
+   "non_git_copy": {
+    "rc": 3,
+    "runs": [
+     "data-prepare-2d1800c483e0"
+    ],
+    "stderr": "the code changed while this process ran: the ccil source changed; this command's outputs are not a consistent unit",
+    "stdout": []
+   },
+   "pass": true
+  },
+  {
+   "case": "non_source_edit_fails_the_command_at_its_end",
+   "pass": true,
+   "result": {
+    "rc": 3,
+    "runs": [
+     "data-prepare-2d1800c483e0",
+     "labels-generate-73864e1e43fd",
+     "transition-fit-9bd7e4e63c95"
+    ],
+    "stderr": "the code changed while this process ran: git state {'ccil_version': '0.1.0.dev0', 'git_commit': '710913f92aee582758ce38434d1ac4f800ab2f14', 'git_dirty': False, 'git_status_sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'} -> {'ccil_version': '0.1.0.dev0', 'git_commit': '710913f92aee582758ce38434d1ac4f800ab2f14', 'git_dirty': True, 'git_status_sha256': '4f090744751163492353c5518b3fefb8c62d845a29a1be9b0db6831c942f84c7'}; this command's outputs are not a consistent unit",
+    "stdout": [
+     "data.prepare       wrote  runs/data-prepare-2d1800c483e0",
+     "transition.fit     wrote  runs/transition-fit-9bd7e4e63c95",
+     "labels.generate    wrote  runs/labels-generate-73864e1e43fd"
+    ]
+   }
+  },
+  {
+   "case": "unedited_clone_finalizes",
+   "pass": true,
+   "result": {
+    "rc": 0,
+    "runs": [
+     "data-prepare-2d1800c483e0",
+     "labels-generate-73864e1e43fd",
+     "transition-fit-9bd7e4e63c95"
+    ],
+    "stderr": "",
+    "stdout": [
+     "data.prepare       wrote  runs/data-prepare-2d1800c483e0",
+     "transition.fit     wrote  runs/transition-fit-9bd7e4e63c95",
+     "labels.generate    wrote  runs/labels-generate-73864e1e43fd"
+    ]
+   }
+  },
+  {
+   "case": "direct_writer_captures_on_entry_and_refuses_a_source_edit_in_its_body",
+   "edited": {
+    "captured_in_body": true,
+    "outcome": "CodeStateChanged",
+    "runs": [],
+    "uncaptured_before_entry": true
+   },
+   "pass": true,
+   "unedited": {
+    "captured_in_body": true,
+    "outcome": "committed",
+    "runs": [
+     "direct-0001"
+    ],
+    "uncaptured_before_entry": true
+   }
+  },
+  {
+   "case": "unchanged_rerun_uses_the_cache",
+   "first": {
+    "full": [
+     "fixture.npz",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/config.json",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/data/dataset.npz",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/data/split.json",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/logs/run.log",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/metrics.json",
+     "runs/.data-prepare-2d1800c483e0.tmp-42927/stage.json",
+     "runs/.labels-generate-73864e1e43fd.tmp-42927/config.json",
+     "runs/.labels-generate-73864e1e43fd.tmp-42927/labels/candidates.npz",
+     "runs/.labels-generate-73864e1e43fd.tmp-42927/logs/run.log",
+     "runs/.labels-generate-73864e1e43fd.tmp-42927/metrics.json",
+     "runs/.labels-generate-73864e1e43fd.tmp-42927/stage.json",
+     "runs/.transition-fit-9bd7e4e63c95.tmp-42927/checkpoints/transition_model.npz",
+     "runs/.transition-fit-9bd7e4e63c95.tmp-42927/config.json",
+     "runs/.transition-fit-9bd7e4e63c95.tmp-42927/logs/run.log",
+     "runs/.transition-fit-9bd7e4e63c95.tmp-42927/metrics.json",
+     "runs/.transition-fit-9bd7e4e63c95.tmp-42927/stage.json"
+    ],
+    "rc": 0,
+    "stats": {
+     "cached": 10,
+     "full": 34
+    },
+    "status": {
+     "data.prepare": "wrote",
+     "labels.generate": "wrote",
+     "transition.fit": "wrote"
+    }
+   },
+   "pass": true,
+   "second": {
+    "full": [
+     "fixture.npz"
+    ],
+    "rc": 0,
+    "stats": {
+     "cached": 20,
+     "full": 1
+    },
+    "status": {
+     "data.prepare": "reused",
+     "labels.generate": "reused",
+     "transition.fit": "reused"
+    }
+   }
+  },
+  {
+   "case": "same_size_user_input_rewrite_with_mtime_restored_is_detected",
+   "hash_is_content": true,
+   "meta_after": [
+    408052930,
+    1936,
+    1793135872038723427
+   ],
+   "meta_before": [
+    408052930,
+    1936,
+    1793135872038723427
+   ],
+   "pass": true,
+   "rerun": {
+    "full": [
+     "fixture.npz",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/config.json",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/data/dataset.npz",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/data/split.json",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/logs/run.log",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/metrics.json",
+     "runs/.data-prepare-7d0e6d2796ba.tmp-42927/stage.json",
+     "runs/.labels-generate-c12a365bb4f9.tmp-42927/config.json",
+     "runs/.labels-generate-c12a365bb4f9.tmp-42927/labels/candidates.npz",
+     "runs/.labels-generate-c12a365bb4f9.tmp-42927/logs/run.log",
+     "runs/.labels-generate-c12a365bb4f9.tmp-42927/metrics.json",
+     "runs/.labels-generate-c12a365bb4f9.tmp-42927/stage.json",
+     "runs/.transition-fit-57bc7eb5cbc3.tmp-42927/checkpoints/transition_model.npz",
+     "runs/.transition-fit-57bc7eb5cbc3.tmp-42927/config.json",
+     "runs/.transition-fit-57bc7eb5cbc3.tmp-42927/logs/run.log",
+     "runs/.transition-fit-57bc7eb5cbc3.tmp-42927/metrics.json",
+     "runs/.transition-fit-57bc7eb5cbc3.tmp-42927/stage.json"
+    ],
+    "rc": 0,
+    "stats": {
+     "cached": 10,
+     "full": 34
+    },
+    "status": {
+     "data.prepare": "wrote",
+     "labels.generate": "wrote",
+     "transition.fit": "wrote"
+    }
+   }
+  },
+  {
+   "after": "16be58fd8d98f133bd955971f09e9c41613421a902a0a5d28cf39fd87cf44d4a",
+   "cached_before": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+   "case": "atomic_replacement_is_rehashed",
+   "meta_after": [
+    408053239,
+    1936,
+    1793135872240615362
+   ],
+   "meta_before": [
+    408052940,
+    1936,
+    1793135872240615362
+   ],
+   "pass": true,
+   "truth": "16be58fd8d98f133bd955971f09e9c41613421a902a0a5d28cf39fd87cf44d4a"
+  },
+  {
+   "after": "83b876b53245d545e1d5f602776e9ed576621e5dfe7cf1451d272c9c88da5835",
+   "cached_before": "4a1eaf376626994219e6e7ccccdf9d587a3fe5e6fc78d09490ac1f958a9e15c2",
+   "case": "in_place_edit_with_changed_mtime_is_rehashed",
+   "pass": true,
+   "truth": "83b876b53245d545e1d5f602776e9ed576621e5dfe7cf1451d272c9c88da5835"
+  },
+  {
+   "after": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec",
+   "cached_before": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec",
+   "case": "metadata_preserving_in_place_edit_is_outside_the_model_and_strict_mode_sees_it",
+   "pass": true,
+   "strict": "c6255ee364d53dd25b25b74ce2fa8c7c94291841b3c46bc9785fad9cece6179d",
+   "truth": "c6255ee364d53dd25b25b74ce2fa8c7c94291841b3c46bc9785fad9cece6179d"
+  },
+  {
+   "cached_stats": {
+    "cached": 30,
+    "full": 35
+   },
+   "case": "strict_and_cached_records_are_identical",
+   "pass": true,
+   "runs": [
+    "data-prepare-2d1800c483e0",
+    "labels-generate-73864e1e43fd",
+    "transition-fit-9bd7e4e63c95"
+   ],
+   "stderr": [
+    "",
+    ""
+   ],
+   "stdout": [
+    [
+     0,
+     "data.prepare       wrote  runs/data-prepare-2d1800c483e0\ntransition.fit     wrote  runs/transition-fit-9bd7e4e63c95\nlabels.generate    wrote  runs/labels-generate-73864e1e43fd\n"
+    ],
+    [
+     0,
+     "data.prepare       reused runs/data-prepare-2d1800c483e0\ntransition.fit     reused runs/transition-fit-9bd7e4e63c95\nlabels.generate    reused runs/labels-generate-73864e1e43fd\n"
+    ]
+   ],
+   "strict_stats": {
+    "cached": 0,
+    "full": 65
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "710913f92aee582758ce38434d1ac4f800ab2f14",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

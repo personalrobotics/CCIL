@@ -213,19 +213,19 @@ def main(argv=None) -> int:
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
     labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
-    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure',
+    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran',
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(gen)
     gen.set_defaults(fn=lambda a: _run_pipeline(a, "offline"))
     pipeline = groups.add_parser("pipeline", help="integrated pipelines").add_subparsers(dest="command", required=True)
     integ = pipeline.add_parser("integrated", help="representation, labels, and downstream policy",
-                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure', formatter_class=argparse.RawDescriptionHelpFormatter)
+                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(integ)
     integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
     policy = groups.add_parser("policy", help="experimental vector-policy harness (reference, not required by CCIL)"
                                ).add_subparsers(dest="command", required=True)
     ptrain = policy.add_parser("train", help="train the experimental vector policy on CCIL supervision",
-                               description='Run the experimental vector-policy harness: the offline label stages\n(reused when complete), then policy.train and policy.evaluate.\n\nExperimental reference infrastructure for reproducing the BC, NoiseBC, and\nCCIL arms (#24). CCIL ends at the supervision artifacts; any trainer may\nconsume them (docs/supervision.md, docs/policy-harness.md).\n\nrequired:  data.path, generation.method, policy.method, policy.batch_size, policy.epochs\noutputs:   policy-train-*/checkpoints/policy.npz, supervision.json, and the\n           training record in metrics.json; offline metrics in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused\noptional:  the ccil[torch] extra (Python 3.11+)\nexit:      0 success; 2 invalid configuration, data, supervision, or stage failure',
+                               description='Run the experimental vector-policy harness: the offline label stages\n(reused when complete), then policy.train and policy.evaluate.\n\nExperimental reference infrastructure for reproducing the BC, NoiseBC, and\nCCIL arms (#24). CCIL ends at the supervision artifacts; any trainer may\nconsume them (docs/supervision.md, docs/policy-harness.md).\n\nrequired:  data.path, generation.method, policy.method, policy.batch_size, policy.epochs\noutputs:   policy-train-*/checkpoints/policy.npz, supervision.json, and the\n           training record in metrics.json; offline metrics in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused\noptional:  the ccil[torch] extra (Python 3.11+)\nexit:      0 success; 2 invalid configuration, data, supervision, or stage failure;\n           3 the code changed while it ran',
                                formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(ptrain)
     ptrain.set_defaults(fn=lambda a: _run_pipeline(a, "policy"))
@@ -234,7 +234,16 @@ def main(argv=None) -> int:
     rval.add_argument("run_dir")
     rval.set_defaults(fn=_run_validate)
     args = ap.parse_args(argv)
-    return args.fn(args)
+    from .runs.provenance import CodeStateChanged, code, verify_code_state
+    code()  # the git state, captured before the command does any work (#127)
+    try:
+        rc = args.fn(args)
+        if rc == 0:  # a command is a unit: never finalize one that saw its code change (#127)
+            verify_code_state()
+    except CodeStateChanged as e:
+        print(f"{e}; this command's outputs are not a consistent unit", file=sys.stderr)
+        return 3
+    return rc
 
 
 if __name__ == "__main__":
