@@ -13,8 +13,10 @@ exactly what the source records. Cases:
    an undisposed feature is refused; a preserved feature is summarized and hashed, not copied;
 3. identity: episode and frame identity survive exactly; duplicate (episode_index, frame_index) identities and
    non-monotonic indices are refused with the shard, row, episode and frame; identical consecutive frames are not;
-4. conversion: convert writes a ccil.trajectories file and a manifest atomically, leaves the source byte-for-byte
-   unchanged, writes nothing when it refuses, and records dataset metadata apart from any algorithm parameter;
+4. conversion: convert writes a ccil.trajectories file and a manifest, both or neither (a failure injected at the
+   manifest's final move leaves neither), leaves the source byte-for-byte unchanged, writes nothing when it refuses,
+   and records dataset metadata apart from any algorithm parameter; writing back to LeRobot refuses known endings
+   unless the lossy drop_endings=True is chosen; Episode's 1.0 positional construction keeps its meaning;
 5. schema: trajectories 1.1 adds the optional termination_known; ccil.trajectories 1.0's reader (main before #27)
    reads a 1.1 file, seeing every unknown ending as non-terminal; a file without the field stays 1.0;
 6. with --hub: lerobot/pusht_keypoints at a recorded revision, the same rules on real data.
@@ -198,6 +200,44 @@ def main():
     r = refused(lambda: convert(early, failed / "t.npz", failed / "m.json", terminal_feature="next.success"),
                 "before the final frame")
     record("refused_conversion_writes_nothing", r["refused"] and not any(failed.iterdir()), **r)
+
+    # 4b. Conversion is all-or-nothing: a failure at the manifest's final move takes back the first output.
+    import os
+    from unittest import mock
+    real_replace, calls = os.replace, []
+
+    def failing_replace(a, b):
+        calls.append(str(b))
+        if str(b).endswith("manifest.json"):
+            raise OSError("injected: the manifest could not be moved into place")
+        return real_replace(a, b)
+    partial = out / "conversion-interrupted"
+    partial.mkdir()
+    with mock.patch("os.replace", failing_replace):
+        try:
+            convert(rich, partial / "trajectories.npz", partial / "manifest.json", preserve=all_next)
+            raised = False
+        except OSError:
+            raised = True
+    record("conversion_is_all_or_nothing", raised and not any(partial.iterdir())
+           and any(c.endswith("trajectories.npz") for c in calls), moves=[Path(c).name for c in calls],
+           left_behind=sorted(p.name for p in partial.iterdir()))
+
+    # 4c. Writing to LeRobot never silently loses a known ending (v3.0 has no field for it).
+    known = read_dataset(rich, preserve=["next.done", "next.reward"], terminal_feature="next.success")
+    r = refused(lambda: write_dataset(known, out / "known-endings", fps=10), "known ending")
+    lossy = write_dataset(known, out / "known-endings-dropped", fps=10, drop_endings=True)
+    back = read_dataset(lossy)
+    unknown_ok = write_dataset(read_dataset(rich, preserve=all_next), out / "unknown-endings-written", fps=10)
+    record("known_endings_are_not_silently_dropped", r["refused"] and not (out / "known-endings").exists()
+           and all(ep.termination_known is False for ep in back.episodes) and unknown_ok.exists(),
+           refusal=r, lossy_mode_reads_back_as=back.meta["dataset"]["endings"])
+
+    # 4d. 1.0's positional construction keeps its meaning: the new field is last.
+    ts = np.arange(4, dtype=np.float64) / 10
+    ep = Episode("0", {"state": np.zeros((4, 2))}, np.zeros((4, 1)), False, ts)
+    record("episode_positional_construction_unchanged", ep.timestamps is ts and ep.termination_known is None,
+           fields=list(Episode.__dataclass_fields__))
 
     # 5. Schema compatibility with the 1.0 reader.
     old = out / "reader-1.0"

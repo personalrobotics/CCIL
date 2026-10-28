@@ -1,7 +1,7 @@
 """CCIL supervision as one training dataset over a LeRobot dataset and its overlay (#28). Needs torch.
 
 CCILTrainingDataset wraps a LeRobot dataset object the caller constructs (CCIL never imports lerobot) together
-with the ccil/ overlay of the same directory. Its rows are exactly CCIL's supervision: the demonstration frames
+with the ccil/ overlay of the same directory, verified to have been made from that directory's dataset. Its rows are exactly CCIL's supervision: the demonstration frames
 (t <= T - 2 of the overlay's training episodes) and every usable synthetic label, each with its weight under
 "ccil.weight"; sampler() draws them by weight, optionally balancing demonstrations against labels. A stock
 LeRobot trainer that ignores ccil.weight is not CCIL-correct, and this module never claims it is.
@@ -32,12 +32,17 @@ def _deltas(lerobot_dataset) -> dict:
 class CCILTrainingDataset:
     """Demonstration frames and synthetic labels as one indexable dataset, with weights."""
 
-    def __init__(self, lerobot_dataset, root=None, *, keys=None):
+    def __init__(self, lerobot_dataset, *, keys=None):
         import torch
         self._torch = torch
         self.base = lerobot_dataset
-        root = Path(root if root is not None else lerobot_dataset.root)
-        self.meta, self.labels = read_overlay(root)
+        # The overlay is read from the LeRobot dataset's own directory, never from a separate root: read_overlay
+        # verifies that directory's LeRobot portion against the source the labels were made from, so demonstrations
+        # and labels always come from one dataset.
+        root = getattr(lerobot_dataset, "root", None)
+        if root is None:
+            raise ValueError("the LeRobot dataset has no root directory to read its CCIL overlay from")
+        self.meta, self.labels = read_overlay(Path(root))
         feature = self.meta["feature_map"]["observation"]["lerobot_feature"]
         self.feature = feature
         features = getattr(getattr(lerobot_dataset, "meta", None), "features", {}) or {}
