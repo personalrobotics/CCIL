@@ -1,0 +1,74 @@
+{
+ "all_pass": true,
+ "cases": {
+  "cpu_chunk_boundaries": {
+   "pass": true,
+   "cases": [
+    {
+     "D": 3,
+     "A": 1,
+     "rows": 30000,
+     "unchunked": {
+      "budget_bytes": 1152921504606846976,
+      "max_rows_per_chunk": 39987566058783,
+      "rows": 30000,
+      "chunks": 1,
+      "rows_per_chunk": 30000
+     },
+     "chunked": {
+      "budget_bytes": 28745504,
+      "max_rows_per_chunk": 997,
+      "rows": 30000,
+      "chunks": 31,
+      "rows_per_chunk": 968
+     },
+     "rows_differing": 0,
+     "identical": true,
+     "balanced": true
+    },
+    {
+     "D": 64,
+     "A": 7,
+     "rows": 3000,
+     "unchunked": {
+      "budget_bytes": 1152921504606846976,
+      "max_rows_per_chunk": 1976902284320,
+      "rows": 3000,
+      "chunks": 1,
+      "rows_per_chunk": 3000
+     },
+     "chunked": {
+      "budget_bytes": 123054356,
+      "max_rows_per_chunk": 211,
+      "rows": 3000,
+      "chunks": 15,
+      "rows_per_chunk": 200
+     },
+     "rows_differing": 0,
+     "identical": true,
+     "balanced": true
+    }
+   ],
+   "max_rows_per_chunk_at_1_GiB": {
+    "3": 37241,
+    "16": 7752,
+    "64": 1855,
+    "512": 146
+   },
+   "below_one_row": {
+    "D": 512,
+    "A": 7,
+    "budget_mib": 1,
+    "estimated_row_mib": 7.046901702880859,
+    "refusal": "one Jacobian row needs about 7.05 MiB (D = 512, A = 7, hidden [256, 256]), more than compute.jacobian_memory_mb = 1.00 MiB; raise it to at least 8"
+   }
+  }
+ },
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "torch": "2.14.1",
+  "gpu": null,
+  "platform": "macOS-26.6.2-arm64-arm-64bit"
+ }
+}

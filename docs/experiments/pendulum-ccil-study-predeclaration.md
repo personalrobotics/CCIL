@@ -610,19 +610,57 @@ above.
 
 ## 11. Tooling freeze
 
-**Version 6:** to be recorded by a pull request that changes nothing else,
-merged before the first version 6 tuning run. It names the frozen tooling
-and `ccil` commits in `tools/m3_experiments/freeze.json`, and lists the §2
-and §3 evidence.
-- **One combined commit.** The evidence is generated once, on each host,
-  from one clean commit that combines every part of the stack. It includes
-  the certificate cross-host audits.
+**Version 6 (frozen).** Recorded by a pull request that changes nothing
+else, merged before the first version 6 tuning run.
+
+- **Frozen commits:** `ccil` and tooling at
+  `6fbcce543e8a1ebdf243063c179dd3af82d5db8a`, the merge of #136. They are
+  named by
+  [`tools/m3_experiments/freeze.json`](../../tools/m3_experiments/freeze.json),
+  which every real run, the tuning choice and the analysis check (§2).
+- **Evidence.** It was generated once on each host from the clean commit
+  `60f5703`, which combines the whole stack. Its tree is identical to
+  `6fbcce5`; only this record and its reports differ, as in version 4.
+  Reports from separate branches do not count. Script:
+  `tools/m3_experiments/freeze_evidence.sh`.
+  - macOS (CPU): 26/26 checks,
+    [`status`](../fixtures/evidence/m3-freeze/macos/status.txt).
+  - Linux (CUDA, two RTX PRO 6000 Blackwell): 31/31 checks,
+    [`status`](../fixtures/evidence/m3-freeze/siddh/status.txt). They
+    include:
+    - the exact version 6 schedule as a preflight, in which every fit group
+      and every policy group ran compiled (#134);
+    - a smoke run of the driver, which the analysis accepts and, once
+      edited, refuses;
+    - the timing parts, on a quiet host.
+  - Certificate bundles audited across hosts: 4/4 each way
+    ([macOS of Linux](../fixtures/evidence/m3-freeze/macos/audit-of-siddh/report.json),
+    [Linux of macOS](../fixtures/evidence/m3-freeze/siddh/audit-of-macos/report.json)).
+  - **#24 acceptance checks (§3, m3_pendulum with `--v6-freeze`):** the 6
+    applicable checks passed. The 2 version 4 gate checks
+    (`clean_tree_at_frozen_ccil`, `gate_refuses_a_dirty_tree`) were skipped,
+    and are recorded as skipped, because the version 4 freeze (`ccil`
+    847b060) is superseded. The version 6 code-state gate passed separately
+    (m3_experiments `gate_matches_24`). No required check failed.
 - **The batched-fit gate is cited, not rerun.** The confirmatory gate (§2)
-  decided it, and there is no third attempt. The freeze records the diff of
-  the fit path (`mlp_batched`, `MLPTransitionModel.fit`, the losses and the
-  normalization) from the gate's commit `b2cbf71` to the frozen commit. If
-  any of it changed, the freeze stops.
-  Reports from separate branches do not count.
+  decided it, and there is no third attempt. The first gate, `6aaf489`,
+  failed on continuous `none`. The confirmatory gate, `b2cbf71`, passed on
+  all four configurations. The fit path's diff from `b2cbf71` to `6fbcce5`:
+  - `_loss`, `MLPTransitionModel.fit` and the normalization are unchanged.
+    `fit_group` changes only by recording the compilation fields (#134).
+  - `mlp.py` changes only the Jacobian chunking (#119), which runs after
+    fitting.
+  - `mlp_batched.py` also drops an unused import.
+  - `offline.py` moves the fit stage's data loading, unchanged, into
+    `transition_inputs` and `transition_data`. It adds the Jacobian budget
+    and the compilation check to stage hooks.
+  - The compiled engine, shared with the policy trainer, changes only how it
+    compiles: fresh compiler contexts, and a refused eager fallback. The fit
+    regressions pass at `60f5703` on both hosts.
+- **Compiled engines (#134).** Every group runs compiled, and a step that
+  would not is refused. The compiler inspection uses private
+  `torch._dynamo` interfaces. PyTorch is pinned at 2.14.1, and an upgrade
+  requires this evidence again.
 - **The design.** The study's design is the runner plan
   `tools/m3_experiments/pendulum_v6.yaml`: 120 tuning units and 600 study
   units.
@@ -636,6 +674,7 @@ and §3 evidence.
   5. `verify`.
 - **Smoke runs** of the same driver (`--smoke`) use seeds 9101–9103 at one
   epoch. They precede the freeze and are never analyzed with real runs.
+- **No tuning or study outcome** existed when this was recorded.
 
 **Version 4 (superseded; its runs are reported, not reused).**
 

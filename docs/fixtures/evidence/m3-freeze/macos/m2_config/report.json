@@ -1,0 +1,402 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "default_and_override_runs_record_provenance",
+   "changed_values": [
+    "data.validation_fraction"
+   ],
+   "default_manifest": {
+    "code": {
+     "ccil_version": "0.1.0.dev0",
+     "git_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+     "git_dirty": false,
+     "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "config": {
+     "config_hash": "1864977d88bcf64799665a19b0c4c278f2a09f5c1d3ad7b8c6764c340cf9da02",
+     "path": "config.json"
+    },
+    "environment": {
+     "devices": "cpu (torch not imported by this run)",
+     "packages": {
+      "numpy": "2.4.6",
+      "pyyaml": "6.0.3",
+      "torch": "2.14.1"
+     },
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "python": "3.11.16"
+    },
+    "files": {
+     "config.json": {
+      "schema": "ccil.config",
+      "sha256": "dc253e1a4511f8165c5a7abee4c8d81f90539070bb515ab532fdc6d9df06dc27",
+      "size": 11371,
+      "version": "1"
+     },
+     "data/dataset.npz": {
+      "schema": "ccil.trajectories",
+      "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+      "size": 1405034,
+      "version": "1.0"
+     },
+     "data/split.json": {
+      "schema": "ccil.split",
+      "sha256": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb",
+      "size": 1725,
+      "version": "1.0"
+     },
+     "logs/run.log": {
+      "sha256": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
+      "size": 55
+     },
+     "metrics.json": {
+      "schema": "ccil.metrics",
+      "sha256": "df5eb6b3cfb6bc2a069a38b394db94387bcb13cb7caa746ef0414fe24a58a7ac",
+      "size": 161,
+      "version": "1.0"
+     },
+     "stage.json": {
+      "sha256": "7b46c4fb5bb8105ee9721c0d4a5901343e7d2bdcd68fd4dab70f7bc8d336228a",
+      "size": 586
+     }
+    },
+    "inputs": {
+     "dataset": {
+      "path": "data/pendulum_cont_100.npz",
+      "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+     }
+    },
+    "run_id": "data-prepare-11160e6749e5",
+    "schema": "ccil.run-manifest",
+    "seeds": {
+     "run.seed": 42
+    },
+    "status": "complete",
+    "version": "2.0",
+    "workflow": "data.prepare"
+   },
+   "default_run": "data-prepare-11160e6749e5",
+   "default_value_sources": {
+    "certificate.demonstration_residual_bound": "default",
+    "certificate.discrepancy_action_lipschitz": "default",
+    "certificate.discrepancy_state_lipschitz": "default",
+    "certificate.learned_lipschitz_source": "default",
+    "certificate.learned_state_lipschitz": "default",
+    "certificate.max_total_error": "default",
+    "certificate.neighborhood_action": "default",
+    "certificate.neighborhood_state": "default",
+    "certificate.profile": "default",
+    "certificate.reference_dynamics": "default",
+    "certificate.score_threshold": "default",
+    "certificate.selection_population": "default",
+    "certificate.selection_quantile": "default",
+    "certificate.true_action_lipschitz": "default",
+    "certificate.true_state_lipschitz": "default",
+    "compute.deterministic": "default",
+    "compute.device": "recipe:pendulum_cont",
+    "compute.jacobian_memory_mb": "default",
+    "data.action_high": "default",
+    "data.action_low": "default",
+    "data.path": "recipe:pendulum_cont",
+    "data.validation_fraction": "recipe:pendulum_cont",
+    "environment.id": "recipe:pendulum_cont",
+    "evaluation.episodes": "default",
+    "evaluation.max_episode_steps": "default",
+    "evaluation.noise_levels": "recipe:pendulum_cont",
+    "evaluation.noise_model": "default",
+    "generation.action_chunk_size": "default",
+    "generation.action_noise_std": "recipe:pendulum_cont",
+    "generation.labels_per_transition": "recipe:pendulum_cont",
+    "generation.max_iterations": "recipe:pendulum_cont",
+    "generation.method": "recipe:pendulum_cont",
+    "generation.model_error_threshold": "default",
+    "generation.root_tolerance": "default",
+    "generation.support_radius": "recipe:pendulum_cont",
+    "policy.action_scaler": "default",
+    "policy.balance_noisy_labels": "recipe:pendulum_cont",
+    "policy.batch_size": "recipe:pendulum_cont",
+    "policy.checkpoint_selection": "default",
+    "policy.demonstration_weight": "default",
+    "policy.ema_decay": "default",
+    "policy.epochs": "recipe:pendulum_cont",
+    "policy.exclude_validation_episodes": "default",
+    "policy.grad_clip_norm": "default",
+    "policy.hidden_layers": "default",
+    "policy.learning_rate": "recipe:pendulum_cont",
+    "policy.lr_schedule": "default",
+    "policy.method": "recipe:pendulum_cont",
+    "policy.noise_mask_probability": "default",
+    "policy.noise_model": "default",
+    "policy.noise_scale": "default",
+    "policy.observation_scaler": "default",
+    "policy.optimizer": "default",
+    "policy.step_budget": "default",
+    "policy.trainer": "default",
+    "policy.trainer_version": "default",
+    "policy.validation_interval_steps": "default",
+    "policy.warmup_steps": "default",
+    "policy.weight_decay": "default",
+    "representation.dim": "default",
+    "representation.kind": "default",
+    "representation.modality": "default",
+    "run.output_dir": "cli",
+    "run.overwrite": "default",
+    "run.seed": "recipe:pendulum_cont",
+    "transition_model.activation": "recipe:pendulum_cont",
+    "transition_model.batch_size": "recipe:pendulum_cont",
+    "transition_model.direction": "default",
+    "transition_model.epochs": "recipe:pendulum_cont",
+    "transition_model.fit_episodes": "default",
+    "transition_model.hidden_layers": "recipe:pendulum_cont",
+    "transition_model.kind": "default",
+    "transition_model.learning_rate": "recipe:pendulum_cont",
+    "transition_model.lipschitz_constraint": "recipe:pendulum_cont",
+    "transition_model.lipschitz_coordinates": "recipe:pendulum_cont",
+    "transition_model.lipschitz_type": "recipe:pendulum_cont",
+    "transition_model.slack_weight": "default",
+    "transition_model.soft_penalty_weight": "recipe:pendulum_cont",
+    "transition_model.soft_samples": "recipe:pendulum_cont",
+    "transition_model.soft_sampling_eps": "recipe:pendulum_cont",
+    "transition_model.trainer_version": "default",
+    "transition_model.weight_decay": "recipe:pendulum_cont"
+   },
+   "override_manifest": {
+    "code": {
+     "ccil_version": "0.1.0.dev0",
+     "git_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+     "git_dirty": false,
+     "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "config": {
+     "config_hash": "6af9dea8859b55956db1e166611d79d09b510cd911d3322bb843d8eedcecbe6f",
+     "path": "config.json"
+    },
+    "environment": {
+     "devices": "cpu (torch not imported by this run)",
+     "packages": {
+      "numpy": "2.4.6",
+      "pyyaml": "6.0.3",
+      "torch": "2.14.1"
+     },
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "python": "3.11.16"
+    },
+    "files": {
+     "config.json": {
+      "schema": "ccil.config",
+      "sha256": "8e04081a4a3fcd1c7a44187fe02ed1887ab65c12c9aab9c1e93831c9bd8e3ae8",
+      "size": 11354,
+      "version": "1"
+     },
+     "data/dataset.npz": {
+      "schema": "ccil.trajectories",
+      "sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+      "size": 1405034,
+      "version": "1.0"
+     },
+     "data/split.json": {
+      "schema": "ccil.split",
+      "sha256": "0329abf1cc8576d8b3435972723c38ca8d6129ffd8575bb91bb4af477758af4e",
+      "size": 1725,
+      "version": "1.0"
+     },
+     "logs/run.log": {
+      "sha256": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
+      "size": 55
+     },
+     "metrics.json": {
+      "schema": "ccil.metrics",
+      "sha256": "41835b1da51c5f2a79803240d03295ebe2b44d1610d8d7b76328619f01b4c8fa",
+      "size": 161,
+      "version": "1.0"
+     },
+     "stage.json": {
+      "sha256": "dcaeb7be129dc76f8162811a4c02c7ca07d314c1a4de7255c18d53a51a447ae2",
+      "size": 586
+     }
+    },
+    "inputs": {
+     "dataset": {
+      "path": "data/pendulum_cont_100.npz",
+      "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+     }
+    },
+    "run_id": "data-prepare-f483fd22d7c7",
+    "schema": "ccil.run-manifest",
+    "seeds": {
+     "run.seed": 42
+    },
+    "status": "complete",
+    "version": "2.0",
+    "workflow": "data.prepare"
+   },
+   "override_run": "data-prepare-f483fd22d7c7",
+   "override_source": "cli",
+   "pass": true,
+   "seed": 42,
+   "validation_episodes": [
+    20,
+    30
+   ]
+  },
+  {
+   "case": "replay_is_byte_identical",
+   "files": {
+    "config.json": "dc253e1a4511f8165c5a7abee4c8d81f90539070bb515ab532fdc6d9df06dc27",
+    "data/dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+    "data/split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb",
+    "logs/run.log": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
+    "manifest.json": "54183d62b8ff33bb6d96ac2c8de53ab4ec0a9ece59c9f8161ae8d83bdde1b15e",
+    "metrics.json": "df5eb6b3cfb6bc2a069a38b394db94387bcb13cb7caa746ef0414fe24a58a7ac",
+    "stage.json": "7b46c4fb5bb8105ee9721c0d4a5901343e7d2bdcd68fd4dab70f7bc8d336228a"
+   },
+   "pass": true,
+   "run_id": "data-prepare-11160e6749e5"
+  },
+  {
+   "case": "existing_run_reused_then_replaced_atomically",
+   "leftovers": [],
+   "pass": true,
+   "rerun_stdout": "wrote runs/data-prepare-11160e6749e5"
+  },
+  {
+   "case": "fails_before_output[misspelled_key]",
+   "error": "invalid configuration:\n  unknown key 'data.validaton_fraction' (cli); did you mean 'data.validation_fraction'?",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[wrong_type]",
+   "error": "invalid configuration:\n  run.seed: 'abc' is not a valid integer (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[ambiguous_boolean]",
+   "error": "invalid configuration:\n  expected true or false, got 'yes' (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[wrong_unit]",
+   "error": "invalid configuration:\n  evaluation.max_episode_steps: unit 's' does not match the declared unit 'steps' (no conversion is applied) (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[out_of_range]",
+   "error": "invalid configuration:\n  data.validation_fraction: 1.5 is outside [0.0, 1.0) (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[incompatible_combination]",
+   "error": "invalid configuration:\n  data.action_low and data.action_high must be declared together [action_bounds; sources: data.action_low=cli, data.action_high=default]",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[noise_bc_without_scale]",
+   "error": "invalid configuration:\n  policy.method noise_bc requires a positive policy.noise_scale [noise_bc_scale; sources: policy.method=cli, policy.noise_scale=default, policy.balance_noisy_labels=recipe:pendulum_cont, generation.method=recipe:pendulum_cont]",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[unknown_recipe_value]",
+   "error": "invalid configuration:\n  generation.method: 'magic' is not one of ['backward_euler', 'backward_euler_fast', 'forward_euler', 'noisy_action', 'noisy_action_fe', 'backward_model'] (cli)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[action_bounds_wrong_dimension]",
+   "error": "invalid configuration:\n  data.action_low has 2 values but data/pendulum_cont_100.npz has 1-dimensional actions; give one value or 1 [source: cli]",
+   "pass": true
+  },
+  {
+   "case": "schema_rejects_wrong_dimension_bounds",
+   "error": "ccil.trajectories failed validation (dimension_mismatch=1):\n  dimension_mismatch at action bounds: bounds have [2] values but actions have 1 dimensions; give 1 or 1",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[duplicate_keys_nested]",
+   "error": "invalid configuration:\n  cannot read dup.yml: while constructing a mapping\n  in \"dup.yml\", line 3, column 3\nfound duplicate key 'seed'\n  in \"dup.yml\", line 4, column 3",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[duplicate_keys_top_level]",
+   "error": "invalid configuration:\n  cannot read dup.yml: while constructing a mapping\n  in \"dup.yml\", line 1, column 1\nfound duplicate key 'run'\n  in \"dup.yml\", line 3, column 1",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[duplicate_keys_dotted_and_nested]",
+   "error": "invalid configuration:\n  key 'run.seed' is given more than once (file:dup.yml)",
+   "pass": true
+  },
+  {
+   "case": "fails_before_output[invalid_dataset]",
+   "error": "ccil.trajectories failed validation (non_finite=1):\n  non_finite at episode 7 (7), frame 123: actions has non-finite values",
+   "pass": true
+  },
+  {
+   "case": "typed_parsing",
+   "pass": true,
+   "values": {
+    "data.action_high": [
+     3.0,
+     3.0
+    ],
+    "data.action_low": [
+     -3.0,
+     -3.0
+    ],
+    "evaluation.max_episode_steps": 500,
+    "run.overwrite": false
+   }
+  },
+  {
+   "case": "python_interface_precedence",
+   "pass": true
+  },
+  {
+   "case": "legacy_config_replays_to_recipe_values",
+   "differing": [],
+   "migration_notes": 36,
+   "pass": true
+  },
+  {
+   "case": "unsupported_legacy_key_fails_with_guidance",
+   "errors": [
+    "state_encoder has no supported equivalent: image-observation encoder from the fork image branch; deferred to M5 (file:<out>/label_filtering.yml)"
+   ],
+   "pass": true
+  },
+  {
+   "case": "unknown_config_version_rejected",
+   "errors": [
+    "config_version 3 is not supported (this version reads 0 to 2) (file:<out>/future.yml)"
+   ],
+   "pass": true
+  },
+  {
+   "case": "changed_default_keeps_old_meaning",
+   "direct_construction": "model_normalized",
+   "pass": true,
+   "v1_sampled": "raw",
+   "v1_sampled_note": [
+    "file:<out>/v1-sampled.yml: transition_model.lipschitz_coordinates = 'raw': the meaning of config_version 1 (#125: version 2's default is model_normalized)"
+   ],
+   "v1_soft_jac": "raw",
+   "v1_soft_jac_buildable": true,
+   "v2_sampled": "model_normalized"
+  },
+  {
+   "case": "generated_docs_match_sources",
+   "output": {
+    "audit": "docs/config/parameter-audit.md is up to date",
+    "parameters": "docs/config/parameters.md is up to date",
+    "schemas": "docs/schemas/reference.md is up to date"
+   },
+   "pass": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

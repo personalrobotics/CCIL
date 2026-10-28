@@ -1,0 +1,799 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "valid_vector_round_trips",
+   "episodes": 2,
+   "modalities": [
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_multimodal_image_round_trips",
+   "episodes": 1,
+   "modalities": [
+    "image.top",
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_action_chunks_round_trips",
+   "episodes": 1,
+   "modalities": [
+    "state"
+   ],
+   "pass": true,
+   "section": "A"
+  },
+  {
+   "case": "valid_multi_reason_candidates_round_trip",
+   "pass": true,
+   "row_reasons": [
+    [],
+    [
+     "out_of_support"
+    ],
+    [
+     "out_of_support",
+     "action_out_of_bounds"
+    ],
+    [
+     "non_finite"
+    ]
+   ],
+   "section": "A"
+  },
+  {
+   "case": "nan_state",
+   "expected_rule": "non_finite",
+   "expected_where": "episode 1 (ep1), state, frame 4",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "observations[state*] has non-finite values",
+     "rule": "non_finite",
+     "where": "episode 1 (ep1), state, frame 4"
+    }
+   ]
+  },
+  {
+   "case": "wrong_rank",
+   "expected_rule": "rank",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "observations[state*] has shape (6,); expected rank 2 ('T', 'D')",
+     "rule": "rank",
+     "where": "episode 0 (ep0), state"
+    }
+   ]
+  },
+  {
+   "case": "integer_actions",
+   "expected_rule": "dtype",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "actions dtype int64 is not float",
+     "rule": "dtype",
+     "where": "episode 0 (ep0)"
+    }
+   ]
+  },
+  {
+   "case": "non_increasing_timestamps",
+   "expected_rule": "timestamps",
+   "expected_where": "frame 3",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "timestamps must strictly increase",
+     "rule": "timestamps",
+     "where": "episode 0 (cam0), frame 3"
+    }
+   ]
+  },
+  {
+   "case": "chunk_crosses_episode",
+   "expected_rule": "chunk_crosses_episode",
+   "expected_where": "frame 5",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action_chunk_mask marks entries past the episode end as valid",
+     "rule": "chunk_crosses_episode",
+     "where": "episode 0 (chunk0), frame 5"
+    }
+   ]
+  },
+  {
+   "case": "duplicate_episode_id",
+   "expected_rule": "episode_id",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "duplicate episode_id 'ep0'",
+     "rule": "episode_id",
+     "where": "episode 1"
+    }
+   ]
+  },
+  {
+   "case": "modality_shape_mismatch",
+   "expected_rule": "dimension_mismatch",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "shape (4,), other episodes have (3,)",
+     "rule": "dimension_mismatch",
+     "where": "episode 1 (ep1), state"
+    }
+   ]
+  },
+  {
+   "case": "bad_modality_name",
+   "expected_rule": "modality_name",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "modality 'rgb' must match state[.name] or image.<camera>",
+     "rule": "modality_name",
+     "where": "episode 0 (ep0)"
+    },
+    {
+     "detail": "modalities ['state'], others have ['rgb']",
+     "rule": "modality_mismatch",
+     "where": "episode 1 (ep1)"
+    }
+   ]
+  },
+  {
+   "case": "action_out_of_bounds",
+   "expected_rule": "action_out_of_bounds",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "actions [0.4116305410861969, 1.042513370513916] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 0"
+    },
+    {
+     "detail": "actions [-0.12853465974330902, 1.3664634227752686] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 1"
+    },
+    {
+     "detail": "actions [-0.6651946902275085, 0.35151007771492004] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 2"
+    },
+    {
+     "detail": "actions [0.9034701585769653, 0.0940122976899147] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 3"
+    },
+    {
+     "detail": "actions [-0.7434992790222168, -0.9217253923416138] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 4"
+    },
+    {
+     "detail": "actions [-0.4577258229255676, 0.22019512951374054] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 0 (ep0), frame 5"
+    },
+    {
+     "detail": "actions [1.8016349077224731, 1.3151037693023682] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 0"
+    },
+    {
+     "detail": "actions [0.3573804199695587, -1.2083185911178589] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 1"
+    },
+    {
+     "detail": "actions [-0.004454133100807667, 0.6564749479293823] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 2"
+    },
+    {
+     "detail": "actions [-1.2883614301681519, 0.39512205123901367] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 3"
+    },
+    {
+     "detail": "actions [0.42986369132995605, 0.6960427165031433] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 4"
+    },
+    {
+     "detail": "actions [-1.1841179132461548, -0.661702573299408] outside bounds",
+     "rule": "action_out_of_bounds",
+     "where": "episode 1 (ep1), frame 5"
+    }
+   ]
+  },
+  {
+   "case": "missing_source_identity",
+   "expected_rule": "source_identity",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "every row needs a source_episode_id",
+     "rule": "source_identity",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "source_frame_not_a_transition",
+   "expected_rule": "source_identity",
+   "expected_where": "row 0",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "source_frame 5 is not a transition of a 6-frame episode",
+     "rule": "source_identity",
+     "where": "row 0"
+    }
+   ]
+  },
+  {
+   "case": "accepted_row_with_reason",
+   "expected_rule": "accepted_reasons",
+   "expected_where": "row 0",
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "accepted must be True exactly when the row has no reason",
+     "rule": "accepted_reasons",
+     "where": "row 0"
+    }
+   ]
+  },
+  {
+   "case": "rejected_row_weight",
+   "expected_rule": "weight",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "rejected rows must have weight 0",
+     "rule": "weight",
+     "where": "rejected rows"
+    }
+   ]
+  },
+  {
+   "case": "unknown_reason_code",
+   "expected_rule": "reason_codes",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "'too_far' is neither a built-in reason ['non_finite', 'out_of_support', 'generation_failed', 'action_out_of_bounds'] nor an extension <namespace>.<reason> matching ^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+     "rule": "reason_codes",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "unknown_field_rejected",
+   "errors": [
+    "unknown field 'foo'"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "ext_field_ignored",
+   "errors": null,
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "unknown_major_version_rejected",
+   "errors": [
+    "major version 2 is not supported (this reader supports 1.x)"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "newer_minor_declared_optional_field_ignored",
+   "errors": null,
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "newer_minor_undeclared_field_rejected",
+   "errors": [
+    "unknown field 'future_field'"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "case": "missing_required_field_rejected",
+   "errors": [
+    "missing required fields ['terminated']"
+   ],
+   "pass": true,
+   "section": "B"
+  },
+  {
+   "accepted": 4,
+   "accepted_sources": [
+    [
+     "slow",
+     0
+    ],
+    [
+     "slow",
+     1
+    ],
+    [
+     "slow",
+     3
+    ],
+    [
+     "slow",
+     4
+    ]
+   ],
+   "case": "analytic_fixture_identity_and_measurements_survive",
+   "multi_reason_rows": 4,
+   "pass": true,
+   "section": "C",
+   "transitions": 9
+  },
+  {
+   "case": "shipped_datasets_convert_exactly",
+   "datasets": [
+    {
+     "dataset": "ant-expert-v2_10.npz",
+     "episodes": 10,
+     "exact": true,
+     "source_sha256": "37e25f7dcf47406ae3c92b50a4e22693ec40e6fc2c94d085b91a2d37c11dfcc5"
+    },
+    {
+     "dataset": "circle_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "2d36d6ea3083d07462306f748126d92e57fb58449ccbaf90cad3397cee06c15c"
+    },
+    {
+     "dataset": "f1.npz",
+     "episodes": 1,
+     "exact": true,
+     "source_sha256": "7e056a4b540300dc030aa04ac0aa07ef17f05d25a9a0e11bb0ca3c525ae5b30f"
+    },
+    {
+     "dataset": "flythrugate_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "4ce3481fe25c469070269ae94e2e42c935ba6c3966b3563816e123429d3156cb"
+    },
+    {
+     "dataset": "halfcheetah-expert-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "52bdf081a8e139d06f693892ab8b977a04ea3f2c9b340e9c91c0062efca95298"
+    },
+    {
+     "dataset": "hopper-expert-v2_25.npz",
+     "episodes": 25,
+     "exact": true,
+     "source_sha256": "3cd064bbe0085f93ccc8efaffa3fe48a4dfb7d6c387f097439de11316372bd46"
+    },
+    {
+     "dataset": "hover_5.npz",
+     "episodes": 5,
+     "exact": true,
+     "source_sha256": "2f9806793e40f6052242e0e232ea0b1f2cba020294c59d0902e91062252838af"
+    },
+    {
+     "dataset": "metaworld-button-press-top-down-v2.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "0e2775f8ff7b3ef4cbf5d0415a2f6dcd4c4ed8dc76deb7c8b6ea022dd0844ab7"
+    },
+    {
+     "dataset": "metaworld-coffee-pull-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "393e01e16b8a2289d3242c621d0cf21a5727a0871ea7287427087db87e3d84ba"
+    },
+    {
+     "dataset": "metaworld-coffee-push-v2_50.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "39afc5e9197249748284d312cfd5c6c12812eca7bc7fd8905407b1374331d89a"
+    },
+    {
+     "dataset": "metaworld-drawer-close-v2.npz",
+     "episodes": 50,
+     "exact": true,
+     "source_sha256": "00dba5b95dbf1dc464a8b81d8c2db179deddfaa70a1c9ba6f83c1c6e5500f7c0"
+    },
+    {
+     "dataset": "pendulum_cont_100.npz",
+     "episodes": 100,
+     "exact": true,
+     "source_sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
+    },
+    {
+     "dataset": "pendulum_disc_500.npz",
+     "episodes": 500,
+     "exact": true,
+     "source_sha256": "0b5b1c5ae473795a8a7278d976c7d18db8ffb512b01daaf2f009ffbfc828af95"
+    },
+    {
+     "dataset": "pendulumswingup-v0.npz",
+     "episodes": 25,
+     "exact": true,
+     "source_sha256": "b986161d6e083159f73c77ad39d1564e1575e8330987ebb81a162251de09b032"
+    },
+    {
+     "dataset": "walker2d-expert-v2_20.npz",
+     "episodes": 20,
+     "exact": true,
+     "source_sha256": "309b647355a1e9292c56abbe3a41948606d5da34e84de193824bb9e8092c9884"
+    }
+   ],
+   "pass": true,
+   "section": "D"
+  },
+  {
+   "case": "provenance_survives_round_trip_and_accepted_labels",
+   "pass": true,
+   "provenance": {
+    "generator": {
+     "name": "backward_euler_closed_form",
+     "params_hash": "eps=0.01",
+     "version": "1"
+    },
+    "inputs": {
+     "dataset": "9d3a76f04632c91cd8657f4cfa9186293a0f0547a84c909e807a851e9f09f871",
+     "transition_model": "7192c38c7cd309b7f475c67d8d9567b7d589a52bbd71e607931d25f81d08bf24"
+    },
+    "run_id": "analytic-fixture",
+    "seed": 0,
+    "weighting": {
+     "name": "uniform",
+     "params": {},
+     "version": "1"
+    }
+   },
+   "section": "E",
+   "weights": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "case": "missing_seed",
+   "expected_rule": "seed",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "seed must be an int, got NoneType",
+     "rule": "seed",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "inputs_without_transition_model",
+   "expected_rule": "inputs",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "inputs must map non-empty names, including transition_model, to SHA-256 hex digests",
+     "rule": "inputs",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "input_hash_not_sha256",
+   "expected_rule": "inputs",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "inputs must map non-empty names, including transition_model, to SHA-256 hex digests",
+     "rule": "inputs",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "weighting_without_params",
+   "expected_rule": "weighting",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "weighting needs non-empty string name and version and a params dict",
+     "rule": "weighting",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "missing_weight",
+   "expected_rule": "type",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "weight must be a numpy array, got NoneType",
+     "rule": "type",
+     "where": "candidates"
+    }
+   ]
+  },
+  {
+   "case": "candidates_1_0_rejected_by_major_version",
+   "errors": [
+    "major version 1 is not supported (this reader supports 2.x)"
+   ],
+   "pass": true,
+   "section": "E"
+  },
+  {
+   "case": "timestamps_on_some_episodes",
+   "expected_rule": "optional_field_presence",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "timestamps is given for 1 of 2 episodes; give it for every episode or none (missing: ['second'])",
+     "rule": "optional_field_presence",
+     "where": "dataset"
+    }
+   ]
+  },
+  {
+   "case": "action_chunks_on_some_episodes",
+   "expected_rule": "optional_field_presence",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action_chunks is given for 1 of 2 episodes; give it for every episode or none (missing: ['second'])",
+     "rule": "optional_field_presence",
+     "where": "dataset"
+    }
+   ]
+  },
+  {
+   "case": "action_chunk_length_differs",
+   "expected_rule": "dimension_mismatch",
+   "expected_where": null,
+   "pass": true,
+   "section": "B",
+   "violations": [
+    {
+     "detail": "action chunk length 2, other episodes have 3",
+     "rule": "dimension_mismatch",
+     "where": "episode 1 (second)"
+    }
+   ]
+  },
+  {
+   "case": "writer_refuses_mixed_optional_fields_with_schema_error",
+   "pass": true,
+   "section": "F",
+   "writes": {
+    "action_chunks": "SchemaError: ['optional_field_presence']",
+    "chunk_length": "SchemaError: ['dimension_mismatch']",
+    "timestamps": "SchemaError: ['optional_field_presence']"
+   }
+  },
+  {
+   "case": "malformed_files_raise_schema_error",
+   "pass": true,
+   "results": {
+    "candidates:inputs_not_an_object": {
+     "error": [
+      "ccil.candidates failed validation (inputs=1):",
+      "  inputs at candidates: inputs must map non-empty names, including transition_model, to SHA-256 hex digests"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:meta_invalid_json": {
+     "error": [
+      "ccil.candidates failed validation (format=1):",
+      "  format at <out>/mc_meta_invalid_json.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:reason_codes_not_a_list": {
+     "error": [
+      "ccil.candidates failed validation (format=1):",
+      "  format at <out>/mc_reason_codes_not_a_list.npz: meta.reason_codes must be a list of strings"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:seed_not_an_int": {
+     "error": [
+      "ccil.candidates failed validation (seed=1):",
+      "  seed at candidates: seed must be an int, got str"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "candidates:zero_dim_observation": {
+     "error": [
+      "ccil.candidates failed validation (shape=1):",
+      "  shape at observations[state]: expected an array with 4 rows"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "legacy:meta_invalid_json": {
+     "error": [
+      "ccil.schema.legacy failed validation (format=1):",
+      "  format at <out>/m1_bad_meta.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:dataset_meta_not_an_object": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_ds.npz: meta.dataset must be a JSON object"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_2d": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_len2d.npz: episode_lengths has shape (1, 2) and dtype int64; expected rank 1 and kind iu"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_float": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_lenf.npz: episode_lengths has shape (2,) and dtype float64; expected rank 1 and kind iu"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:episode_lengths_mismatch": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_lenx.npz: episode_lengths do not match the per-frame and per-episode arrays"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_invalid_json": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_json.npz: meta is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_json_list": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_list.npz: meta must be a JSON object, got list"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:meta_not_a_string": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_num.npz: meta must be a JSON string"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:not_an_archive": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_garbage.npz: not a readable .npz file: This file contains pickled (object) data. If you trust the file you can load it unsafely using the `allow_pickle=` keyword argument or `pickle.load()`."
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:optional_fields_not_a_list": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_opt.npz: optional_fields must be a list of field names"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:pickled_object_array": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_pickled.npz: an array cannot be read: Object arrays cannot be loaded when allow_pickle=False"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:terminated_not_bool": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_term.npz: terminated has shape (2,) and dtype int64; expected rank 1 and kind b"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:truncated_archive": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_truncated.npz: not a readable .npz file: File is not a zip file"
+     ],
+     "exit": 1,
+     "traceback": false
+    },
+    "trajectories:zero_dim_actions": {
+     "error": [
+      "ccil.trajectories failed validation (format=1):",
+      "  format at <out>/m_act0.npz: episode_lengths do not match the per-frame and per-episode arrays"
+     ],
+     "exit": 1,
+     "traceback": false
+    }
+   },
+   "section": "G"
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

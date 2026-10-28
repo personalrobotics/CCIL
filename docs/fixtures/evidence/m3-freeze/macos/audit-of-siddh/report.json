@@ -1,0 +1,110 @@
+{
+ "all_pass": true,
+ "bundle_sha256": {
+  "backtrack_mlp/candidates.npz": "eaaf968f9a621f29c1c03c077e058fef626dee87e15fbc715984247c5ee79143",
+  "backtrack_mlp/certificates.npz": "53c9c9642e6e05af4d8ee9e3c2a4929ded068492bc80610e697b4b5a68b0577e",
+  "backtrack_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "backtrack_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "backtrack_mlp/transition_model.npz": "bd7a331cc227d07a34d0d5f04fdb87a01993496ddc77e5b0f4ee462ce4a2b761",
+  "continuity_linear/candidates.npz": "f09e95bc84a912cb70057c84ec3ce67b9f8b9094fc0fc4ffbdcc2109c89bcb19",
+  "continuity_linear/certificates.npz": "8dc339bba3d6eeae031cb9b986b9eb3d07f9b0ca3cd08e58ce696914025a70d0",
+  "continuity_linear/dataset.npz": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+  "continuity_linear/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "continuity_linear/transition_model.npz": "b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3",
+  "disturbed_action_mlp/candidates.npz": "3d9fc54f8a59f278a9012e710b2527c7793e5b3409daedfb1b574012c3bf0070",
+  "disturbed_action_mlp/certificates.npz": "a400fdc1ce72e89de19f6c0462e65cc067172c9923e28b546fe910ccc814b8d6",
+  "disturbed_action_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "disturbed_action_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
+  "disturbed_action_mlp/transition_model.npz": "bd7a331cc227d07a34d0d5f04fdb87a01993496ddc77e5b0f4ee462ce4a2b761",
+  "legacy_label_filtering_mlp/candidates.npz": "b3ac74124cfb1531059bcebd6682613d3c003d8976c78c6198829e38428dc99c",
+  "legacy_label_filtering_mlp/certificates.npz": "1538cac3f42dde86e7657ecc49bd8c673df878ef808b89adaa28736018bb4c34",
+  "legacy_label_filtering_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
+  "legacy_label_filtering_mlp/transition_model.npz": "bd7a331cc227d07a34d0d5f04fdb87a01993496ddc77e5b0f4ee462ce4a2b761",
+  "manifest.json": "303b981b23ce9afa30b40d4099ec5cf1480ae0f1165f5a34987e21f6b61c92d5"
+ },
+ "cases": [
+  {
+   "audit": [],
+   "case": "backtrack_mlp",
+   "classification": [
+    "conditional"
+   ],
+   "constants": {
+    "K_hat_z": {
+     "source": "model_bound",
+     "value": 0.3086399036690072
+    },
+    "K_z": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    }
+   },
+   "pass": true,
+   "profile": "backtrack",
+   "rows": 720,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "continuity_linear",
+   "classification": [
+    "certified",
+    "unsupported"
+   ],
+   "constants": {
+    "C_a": {
+     "source": "analytic_bound",
+     "value": 0.0600000000000546
+    },
+    "C_z": {
+     "source": "analytic_bound",
+     "value": 0.10051926163554567
+    }
+   },
+   "pass": true,
+   "profile": "continuity",
+   "rows": 36,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "disturbed_action_mlp",
+   "classification": [
+    "certified"
+   ],
+   "constants": {
+    "K_a": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    },
+    "K_z": {
+     "source": "analytic_bound",
+     "value": 0.10000000000009097
+    }
+   },
+   "pass": true,
+   "profile": "disturbed_action",
+   "rows": 2880,
+   "structure": []
+  },
+  {
+   "audit": [],
+   "case": "legacy_label_filtering_mlp",
+   "classification": [
+    "empirical"
+   ],
+   "constants": {},
+   "pass": true,
+   "profile": "legacy_label_filtering",
+   "rows": 2880,
+   "structure": []
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

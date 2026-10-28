@@ -1,0 +1,180 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "builds_are_reproducible",
+   "pass": true,
+   "sdist_sha256": "0f822d380635e146adb473c97bf8d08990a211c4bc9a1570c4973d976d7b0b42",
+   "wheel_sha256": "5148768a4239df3921de66be6577f3c41b384f2a4b9cfb12360c4d304feb67bd"
+  },
+  {
+   "case": "wheel_contains_package_only",
+   "local_paths": [],
+   "missing": [],
+   "pass": true,
+   "unexpected": [],
+   "wheel_files": [
+    "ccil/",
+    "ccil/__init__.py",
+    "ccil/__main__.py",
+    "ccil/config/",
+    "ccil/config/__init__.py",
+    "ccil/config/convert.py",
+    "ccil/config/docs.py",
+    "ccil/config/migrate.py",
+    "ccil/config/params.py",
+    "ccil/config/resolve.py",
+    "ccil/config/spec.py",
+    "ccil/core/",
+    "ccil/core/__init__.py",
+    "ccil/core/batch.py",
+    "ccil/core/certificates.py",
+    "ccil/core/chunks.py",
+    "ccil/core/generators.py",
+    "ccil/core/identity.py",
+    "ccil/core/labels.py",
+    "ccil/core/representation.py",
+    "ccil/core/transition.py",
+    "ccil/core/validators.py",
+    "ccil/core/verified.py",
+    "ccil/data/",
+    "ccil/data/__init__.py",
+    "ccil/data/convert.py",
+    "ccil/data/prepare.py",
+    "ccil/data/split.py",
+    "ccil/experiments/",
+    "ccil/experiments/__init__.py",
+    "ccil/experiments/analysis.py",
+    "ccil/experiments/gate.py",
+    "ccil/experiments/plan.py",
+    "ccil/experiments/records.py",
+    "ccil/experiments/runner.py",
+    "ccil/lerobot/",
+    "ccil/lerobot/__init__.py",
+    "ccil/lerobot/overlay.py",
+    "ccil/lerobot/training.py",
+    "ccil/lerobot/v3.py",
+    "ccil/models/",
+    "ccil/models/LICENSE-pytorch.txt",
+    "ccil/models/__init__.py",
+    "ccil/models/mlp.py",
+    "ccil/models/mlp_batched.py",
+    "ccil/models/spectral_norm.py",
+    "ccil/pipelines/",
+    "ccil/pipelines/__init__.py",
+    "ccil/pipelines/integrated.py",
+    "ccil/pipelines/offline.py",
+    "ccil/pipelines/policy.py",
+    "ccil/pipelines/policy_harness.py",
+    "ccil/pipelines/stages.py",
+    "ccil/recipes/",
+    "ccil/recipes/analytic_double_integrator.yaml",
+    "ccil/recipes/analytic_double_integrator_mlp.yaml",
+    "ccil/recipes/pendulum_cont.yaml",
+    "ccil/recipes/pendulum_disc.yaml",
+    "ccil/runs/",
+    "ccil/runs/__init__.py",
+    "ccil/runs/layout.py",
+    "ccil/runs/provenance.py",
+    "ccil/runs/validate.py",
+    "ccil/runs/writer.py",
+    "ccil/schema/",
+    "ccil/schema/__init__.py",
+    "ccil/schema/certificates.py",
+    "ccil/schema/docs.py",
+    "ccil/schema/fields.py",
+    "ccil/schema/io.py",
+    "ccil/schema/labels.py",
+    "ccil/schema/legacy.py",
+    "ccil/schema/trajectories.py",
+    "ccil/supervision.py",
+    "ccil/training/",
+    "ccil/training/__init__.py",
+    "ccil/training/noise_bc.py",
+    "ccil/training/vector_bc.py",
+    "ccil/training/vector_bc_v2.py",
+    "ccil-0.1.0.dev0.dist-info/",
+    "ccil-0.1.0.dev0.dist-info/WHEEL",
+    "ccil-0.1.0.dev0.dist-info/entry_points.txt",
+    "ccil-0.1.0.dev0.dist-info/METADATA",
+    "ccil-0.1.0.dev0.dist-info/RECORD"
+   ]
+  },
+  {
+   "case": "metadata_declares_core_dependencies_only",
+   "entry_points": "[console_scripts]\nccil = ccil.__main__:main",
+   "extras": [
+    "lerobot",
+    "torch"
+   ],
+   "pass": true,
+   "requires_dist": [
+    "huggingface-hub>=1.0.0 ; python_full_version >= '3.11' and extra == 'lerobot'",
+    "numpy>=1.24",
+    "pyarrow>=21.0.0 ; extra == 'lerobot'",
+    "pyyaml>=6.0",
+    "torch>=2.9.1 ; python_full_version >= '3.11' and extra == 'torch'"
+   ],
+   "requires_python": [
+    ">=3.10"
+   ]
+  },
+  {
+   "case": "clean_install_runs[python 3.10]",
+   "imported_from_venv": true,
+   "installed": {
+    "ccil": "0.1.0.dev0",
+    "numpy": "2.2.6",
+    "pyyaml": "6.0.3"
+   },
+   "labels_generate_stages": [
+    "complete",
+    "complete",
+    "complete"
+   ],
+   "labels_stderr": "",
+   "metrics": {
+    "episodes": 5,
+    "train_episodes": 4,
+    "transitions": 35,
+    "validation_episodes": 1
+   },
+   "pass": true,
+   "prepare_stderr": "",
+   "python": "3.10.22",
+   "run_status": "complete"
+  },
+  {
+   "case": "clean_install_runs[python 3.14]",
+   "imported_from_venv": true,
+   "installed": {
+    "ccil": "0.1.0.dev0",
+    "numpy": "2.5.4",
+    "pyyaml": "6.0.3"
+   },
+   "labels_generate_stages": [
+    "complete",
+    "complete",
+    "complete"
+   ],
+   "labels_stderr": "",
+   "metrics": {
+    "episodes": 5,
+    "train_episodes": 4,
+    "transitions": 35,
+    "validation_episodes": 1
+   },
+   "pass": true,
+   "prepare_stderr": "",
+   "python": "3.14.8",
+   "run_status": "complete"
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "host": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "optional_dependencies": "none declared yet; adapters add extras in M3-M5",
+  "uv": "uv 0.13.0 (x86_64-unknown-linux-gnu)"
+ }
+}

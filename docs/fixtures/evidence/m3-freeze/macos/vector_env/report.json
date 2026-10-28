@@ -1,0 +1,371 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "batched_seconds": 0.03,
+   "canonical_flips": 0,
+   "case": "transitions_pendulum_cont_100",
+   "flips": 0,
+   "max_abs_error": 8.881784197001252e-16,
+   "pass": true,
+   "transitions": 49900
+  },
+  {
+   "batched_seconds": 0.15,
+   "canonical_flips": 650,
+   "case": "transitions_pendulum_disc_500",
+   "flips": 650,
+   "max_abs_error": 8.881784197001252e-16,
+   "pass": true,
+   "transitions": 249500
+  },
+  {
+   "case": "one_step_equivalence",
+   "exactly_equal_fraction": 0.30666666666666664,
+   "max_abs_difference": 5.273559366969494e-16,
+   "pass": true,
+   "samples": 3000
+  },
+  {
+   "case": "rollout_equivalence",
+   "pass": true,
+   "rollouts": [
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.145,
+     "canonical_seconds": 2.87,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 5.320743845516063e-14,
+     "noise": 0.0,
+     "policy": "zero",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.15,
+     "canonical_seconds": 2.91,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 6.27831120425526e-14,
+     "noise": 0.1,
+     "policy": "zero",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.135,
+     "canonical_seconds": 2.9,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 9.492406860545088e-15,
+     "noise": 0.0,
+     "policy": "linear",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.145,
+     "canonical_seconds": 2.91,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 1.1157741397482823e-14,
+     "noise": 0.1,
+     "policy": "linear",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.16,
+     "canonical_seconds": 2.9,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 6.372680161348399e-14,
+     "noise": 0.0,
+     "policy": "tanh_mlp",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.163,
+     "canonical_seconds": 2.92,
+     "flips": [
+      0,
+      0
+     ],
+     "max_state_difference": 7.37188088351104e-14,
+     "noise": 0.1,
+     "policy": "tanh_mlp",
+     "task": "continuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.149,
+     "canonical_seconds": 2.98,
+     "flips": [
+      841,
+      841
+     ],
+     "max_state_difference": 1.8263168755083825e-14,
+     "noise": 0.0,
+     "policy": "zero",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.154,
+     "canonical_seconds": 2.98,
+     "flips": [
+      817,
+      817
+     ],
+     "max_state_difference": 4.6407322429331543e-14,
+     "noise": 0.1,
+     "policy": "zero",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.151,
+     "canonical_seconds": 3.02,
+     "flips": [
+      2320,
+      2320
+     ],
+     "max_state_difference": 4.718447854656915e-15,
+     "noise": 0.0,
+     "policy": "linear",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.156,
+     "canonical_seconds": 3.0,
+     "flips": [
+      1336,
+      1336
+     ],
+     "max_state_difference": 5.370703881624195e-15,
+     "noise": 0.1,
+     "policy": "linear",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 0.0,
+     "batched_seconds": 0.165,
+     "canonical_seconds": 2.98,
+     "flips": [
+      1105,
+      1105
+     ],
+     "max_state_difference": 4.529709940470639e-14,
+     "noise": 0.0,
+     "policy": "tanh_mlp",
+     "task": "discontinuous"
+    },
+    {
+     "R_difference": 4.547473508864641e-13,
+     "batched_seconds": 0.167,
+     "canonical_seconds": 2.93,
+     "flips": [
+      1086,
+      1086
+     ],
+     "max_state_difference": 1.9095836023552692e-14,
+     "noise": 0.1,
+     "policy": "tanh_mlp",
+     "task": "discontinuous"
+    }
+   ]
+  },
+  {
+   "audits": [
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-zero-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-zero-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-linear-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-linear-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-tanh_mlp-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "continuous-tanh_mlp-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-zero-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-zero-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-linear-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-linear-noise0.1.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-tanh_mlp-noise0.0.npz"
+    },
+    {
+     "audit_ok": true,
+     "issues": [],
+     "replay_mismatches": 0,
+     "rollout": "discontinuous-tanh_mlp-noise0.1.npz"
+    }
+   ],
+   "case": "audit_and_batched_replay",
+   "pass": true
+  },
+  {
+   "case": "failing_episode",
+   "episode": 7,
+   "pass": true,
+   "rollouts": [
+    {
+     "audit_R_recomputed_nan": true,
+     "audit_failed_episodes": [
+      7
+     ],
+     "audit_ok": true,
+     "equals_canonical": true,
+     "failed_episodes": [
+      7
+     ],
+     "noise": 0.0,
+     "ok": true,
+     "others_unchanged": true,
+     "prefix_equal": true,
+     "replay_mismatches": 0,
+     "return_nan": true,
+     "suffix_nan": true,
+     "task": "continuous"
+    },
+    {
+     "audit_R_recomputed_nan": true,
+     "audit_failed_episodes": [
+      7
+     ],
+     "audit_ok": true,
+     "equals_canonical": true,
+     "failed_episodes": [
+      7
+     ],
+     "noise": 0.1,
+     "ok": true,
+     "others_unchanged": true,
+     "prefix_equal": true,
+     "replay_mismatches": 0,
+     "return_nan": true,
+     "suffix_nan": true,
+     "task": "continuous"
+    },
+    {
+     "audit_R_recomputed_nan": true,
+     "audit_failed_episodes": [
+      7
+     ],
+     "audit_ok": true,
+     "equals_canonical": true,
+     "failed_episodes": [
+      7
+     ],
+     "noise": 0.0,
+     "ok": true,
+     "others_unchanged": true,
+     "prefix_equal": true,
+     "replay_mismatches": 0,
+     "return_nan": true,
+     "suffix_nan": true,
+     "task": "discontinuous"
+    },
+    {
+     "audit_R_recomputed_nan": true,
+     "audit_failed_episodes": [
+      7
+     ],
+     "audit_ok": true,
+     "equals_canonical": true,
+     "failed_episodes": [
+      7
+     ],
+     "noise": 0.1,
+     "ok": true,
+     "others_unchanged": true,
+     "prefix_equal": true,
+     "replay_mismatches": 0,
+     "return_nan": true,
+     "suffix_nan": true,
+     "task": "discontinuous"
+    }
+   ],
+   "step": 200
+  },
+  {
+   "autoreset_mode": "AutoresetMode.DISABLED",
+   "case": "gymnasium_adapter",
+   "matches_batched_rollout": true,
+   "pass": true,
+   "reset_without_seed_refused": true,
+   "truncated_at_horizon": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "gymnasium": "1.4.0",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "scipy": "1.16.3"
+ }
+}

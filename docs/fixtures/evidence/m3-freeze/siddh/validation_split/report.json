@@ -1,0 +1,947 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "train_with_validation_exits_0",
+   "pass": true,
+   "stderr": "00%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:02<00:00,  1.10s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:02<00:00,  1.11s/it]\n\n  0%|          | 0/2 [00:00<?, ?it/s]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 1/2 [00:00<00:00,  1.90it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.90it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 2/2 [00:01<00:00,  1.90it/s]\n<home>/.cache/uv/archive-v0/S93rGPvoGKImx9ac/lib/python3.11/site-packages/torch/_functorch/deprecated.py:83: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.jacrev is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.func.jacrev instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('jacrev')\n<home>/.cache/uv/archive-v0/S93rGPvoGKImx9ac/lib/python3.11/site-packages/torch/_functorch/deprecated.py:61: UserWarning: We've integrated functorch into PyTorch. As the final step of the integration, functorch.vmap is deprecated as of PyTorch 2.0 and will be deleted in a future version of PyTorch >= 2.3. Please use torch.vmap instead; see the PyTorch 2.0 release notes and/or the torch.func migration guide for more details https://pytorch.org/docs/master/func.migrating.html\n  warn_deprecated('vmap', 'torch.vmap')\n\n  0%|          | 0/49 [00:00<?, ?it/s]\n 33%|\u2588\u2588\u2588\u258e      | 16/49 [00:00<00:00, 156.71it/s]\n 73%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e  | 36/49 [00:00<00:00, 178.91it/s]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 49/49 [00:00<00:00, 179.69it/s]\n"
+  },
+  {
+   "case": "split_is_trajectory_partition",
+   "overlap": [],
+   "pass": true,
+   "train": 80,
+   "validation": 20
+  },
+  {
+   "case": "held_out_metrics_only_from_validation_trajectories",
+   "held_out_trajectories": [
+    2,
+    4,
+    18,
+    21,
+    24,
+    25,
+    27,
+    33,
+    42,
+    50,
+    51,
+    52,
+    56,
+    59,
+    61,
+    71,
+    81,
+    92,
+    97,
+    99
+   ],
+   "pass": true
+  },
+  {
+   "aggregate": {
+    "macro_mean_l2": 0.0008185105456504971,
+    "max_l2": 0.007528454996645451,
+    "pooled_mean_l2": 0.0008185105456504971,
+    "trajectories": 20,
+    "transitions": 9980
+   },
+   "case": "aggregate_matches_per_trajectory_rows",
+   "pass": true
+  },
+  {
+   "case": "statistics_label_training_error_honestly",
+   "pass": true,
+   "statistics": "Training-set one-step L2 error, label model (not a held-out metric): 0.0008095994418701\nHeld-out one-step L2 error, evaluation model (20 trajectories, 9980 transitions): pooled 0.0008185105456505, per-trajectory mean 0.0008185105456505; see validation.json\n"
+  },
+  {
+   "case": "rerun_reuses_split",
+   "pass": true
+  },
+  {
+   "case": "malformed_persisted_splits_fail_before_reuse",
+   "errors": {
+    "boolean_id": "split train IDs must be integers, got [0, 1, True]",
+    "duplicate": "split train contains duplicate trajectory IDs: [0, 0, 1, 2]",
+    "invalid_json": "<artifact>/broken-split.json: cannot read persisted split: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+    "missing_field": "split is missing required fields ['seed']",
+    "out_of_range": "split train contains out-of-range trajectory IDs [4]; expected 0..3",
+    "unsorted": "split train IDs must be sorted, got [3, 1, 0]",
+    "wrong_validation_count": "split validation has 1 trajectories, but n_trajectories=4 and validation_fraction=0.5 require 2"
+   },
+   "pass": true
+  },
+  {
+   "case": "config_change_creates_new_split",
+   "pass": true,
+   "validation": 30
+  },
+  {
+   "case": "label_model_identical_with_and_without_validation",
+   "no_validation_files": true,
+   "pass": true
+  },
+  {
+   "case": "small_dataset_fails_fast_with_diagnostic",
+   "pass": true,
+   "stderr_tail": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<repo>/correct_il/validation.py\", line 25, in make_split\n    raise SplitError(\nvalidation.SplitError: dataset has 1 trajectories; validation_fraction=0.2 gives 0 validation trajectories, but each split needs at least one. Use more trajectories, change dynamics.validation_fraction, or set it to 0 to skip held-out evaluation.\n"
+  },
+  {
+   "batch_size": 512,
+   "case": "eval_prediction_error_uses_partial_batch",
+   "got": 0.001291524459972877,
+   "manual": 0.001291524269618094,
+   "pass": true,
+   "transitions": 37
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "config": "config/pendulum_cont.yml",
+  "epochs": 2,
+  "numpy": "1.26.4",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "python": "3.11.17",
+  "torch": "2.1.0+cu121"
+ },
+ "split": {
+  "format": "ccil-split/1",
+  "n_trajectories": 100,
+  "seed": 42,
+  "train": [
+   0,
+   1,
+   3,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   19,
+   20,
+   22,
+   23,
+   26,
+   28,
+   29,
+   30,
+   31,
+   32,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   43,
+   44,
+   45,
+   46,
+   47,
+   48,
+   49,
+   53,
+   54,
+   55,
+   57,
+   58,
+   60,
+   62,
+   63,
+   64,
+   65,
+   66,
+   67,
+   68,
+   69,
+   70,
+   72,
+   73,
+   74,
+   75,
+   76,
+   77,
+   78,
+   79,
+   80,
+   82,
+   83,
+   84,
+   85,
+   86,
+   87,
+   88,
+   89,
+   90,
+   91,
+   93,
+   94,
+   95,
+   96,
+   98
+  ],
+  "validation": [
+   2,
+   4,
+   18,
+   21,
+   24,
+   25,
+   27,
+   33,
+   42,
+   50,
+   51,
+   52,
+   56,
+   59,
+   61,
+   71,
+   81,
+   92,
+   97,
+   99
+  ],
+  "validation_fraction": 0.2
+ },
+ "validation_report": {
+  "evaluation_model": "fitted on the train split with the label model's settings and seed; not saved",
+  "held_out": {
+   "aggregate": {
+    "macro_mean_l2": 0.0008185105456504971,
+    "max_l2": 0.007528454996645451,
+    "pooled_mean_l2": 0.0008185105456504971,
+    "trajectories": 20,
+    "transitions": 9980
+   },
+   "per_trajectory": [
+    {
+     "max_l2": 0.00557265430688858,
+     "mean_l2": 0.0012271194718778133,
+     "relative_l2": 0.012862310196388177,
+     "trajectory": 2,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005855478812009096,
+     "mean_l2": 0.0005210033268667758,
+     "relative_l2": 0.012519807571284318,
+     "trajectory": 4,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005690283607691526,
+     "mean_l2": 0.0005839361692778766,
+     "relative_l2": 0.014062847928358853,
+     "trajectory": 18,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006390100810676813,
+     "mean_l2": 0.0006353678763844073,
+     "relative_l2": 0.009310244655358539,
+     "trajectory": 21,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006849984638392925,
+     "mean_l2": 0.0007549039437435567,
+     "relative_l2": 0.010341876264263505,
+     "trajectory": 24,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005765482317656279,
+     "mean_l2": 0.0006644664681516588,
+     "relative_l2": 0.013637133776001932,
+     "trajectory": 25,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0055524674244225025,
+     "mean_l2": 0.0005516801029443741,
+     "relative_l2": 0.012953157816844418,
+     "trajectory": 27,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007327747531235218,
+     "mean_l2": 0.0009842447470873594,
+     "relative_l2": 0.015327275942750426,
+     "trajectory": 33,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0073164282366633415,
+     "mean_l2": 0.0008371095173060894,
+     "relative_l2": 0.01206949202830851,
+     "trajectory": 42,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005715145263820887,
+     "mean_l2": 0.0005324442172423005,
+     "relative_l2": 0.01288776913595164,
+     "trajectory": 50,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00539797730743885,
+     "mean_l2": 0.0005438504740595818,
+     "relative_l2": 0.013754659396611966,
+     "trajectory": 51,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005284672137349844,
+     "mean_l2": 0.0012865045573562384,
+     "relative_l2": 0.013718167962346796,
+     "trajectory": 52,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0055724745616316795,
+     "mean_l2": 0.0013190596364438534,
+     "relative_l2": 0.013431232648722365,
+     "trajectory": 56,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005686141550540924,
+     "mean_l2": 0.001350692007690668,
+     "relative_l2": 0.013911249479153478,
+     "trajectory": 59,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0070139397867023945,
+     "mean_l2": 0.0007086903788149357,
+     "relative_l2": 0.012724151086733256,
+     "trajectory": 61,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006188815459609032,
+     "mean_l2": 0.0006878586136735976,
+     "relative_l2": 0.012765092122379923,
+     "trajectory": 71,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007528454996645451,
+     "mean_l2": 0.0009250657167285681,
+     "relative_l2": 0.01091641630140932,
+     "trajectory": 81,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007208740804344416,
+     "mean_l2": 0.0007347792270593345,
+     "relative_l2": 0.011248557258882982,
+     "trajectory": 92,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007122073322534561,
+     "mean_l2": 0.0007914715097285807,
+     "relative_l2": 0.010539892214641737,
+     "trajectory": 97,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006556666921824217,
+     "mean_l2": 0.0007299629505723715,
+     "relative_l2": 0.012885542854005163,
+     "trajectory": 99,
+     "transitions": 499
+    }
+   ]
+  },
+  "label_model": "fitted on all trajectories",
+  "metric": "one-step L2 error ||f(s, a) - s_target||_2 in state units; relative_l2 divides by mean true displacement",
+  "split_file": "split.json",
+  "train_split": {
+   "aggregate": {
+    "macro_mean_l2": 0.0008171487948857248,
+    "max_l2": 0.011601024307310581,
+    "pooled_mean_l2": 0.0008171487948857248,
+    "trajectories": 80,
+    "transitions": 39920
+   },
+   "per_trajectory": [
+    {
+     "max_l2": 0.006844071671366692,
+     "mean_l2": 0.0007041553035378456,
+     "relative_l2": 0.010620074555049692,
+     "trajectory": 0,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006123267579823732,
+     "mean_l2": 0.000663482234813273,
+     "relative_l2": 0.01719033556267698,
+     "trajectory": 1,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007238955236971378,
+     "mean_l2": 0.000891831994522363,
+     "relative_l2": 0.010751312643974357,
+     "trajectory": 3,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00682396674528718,
+     "mean_l2": 0.0008491218904964626,
+     "relative_l2": 0.01337640808861157,
+     "trajectory": 5,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006255737040191889,
+     "mean_l2": 0.0005531940259970725,
+     "relative_l2": 0.012357291360241725,
+     "trajectory": 6,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006359342485666275,
+     "mean_l2": 0.0006735139759257436,
+     "relative_l2": 0.009496036096958874,
+     "trajectory": 7,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00560228805989027,
+     "mean_l2": 0.0005639498122036457,
+     "relative_l2": 0.012347175446477945,
+     "trajectory": 8,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00732026482000947,
+     "mean_l2": 0.0009037514682859182,
+     "relative_l2": 0.010753293088536602,
+     "trajectory": 9,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006906717084348202,
+     "mean_l2": 0.0008646734058856964,
+     "relative_l2": 0.013394015894231425,
+     "trajectory": 10,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0078117442317306995,
+     "mean_l2": 0.0009721945389173925,
+     "relative_l2": 0.011216168570314322,
+     "trajectory": 11,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006791488267481327,
+     "mean_l2": 0.0007846337393857539,
+     "relative_l2": 0.010971569078267102,
+     "trajectory": 12,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005604545120149851,
+     "mean_l2": 0.0005536648095585406,
+     "relative_l2": 0.012899145051179284,
+     "trajectory": 13,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006195044610649347,
+     "mean_l2": 0.0006718132644891739,
+     "relative_l2": 0.00949018735724343,
+     "trajectory": 14,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006080749910324812,
+     "mean_l2": 0.0006766289006918669,
+     "relative_l2": 0.013365965476252588,
+     "trajectory": 15,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006967328023165464,
+     "mean_l2": 0.0005455450154840946,
+     "relative_l2": 0.01216060612527622,
+     "trajectory": 16,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0076406970620155334,
+     "mean_l2": 0.000923698244150728,
+     "relative_l2": 0.01496211726357535,
+     "trajectory": 17,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006227701436728239,
+     "mean_l2": 0.0006877369014546275,
+     "relative_l2": 0.00959439098866216,
+     "trajectory": 19,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.011601024307310581,
+     "mean_l2": 0.0011356740724295378,
+     "relative_l2": 0.012728350169179588,
+     "trajectory": 20,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0070030963979661465,
+     "mean_l2": 0.0009251019801013172,
+     "relative_l2": 0.0134470283336104,
+     "trajectory": 22,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006976486183702946,
+     "mean_l2": 0.0006470063817687333,
+     "relative_l2": 0.009491780092830426,
+     "trajectory": 23,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006004228722304106,
+     "mean_l2": 0.0005343789234757423,
+     "relative_l2": 0.012422869242527248,
+     "trajectory": 26,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005734147969633341,
+     "mean_l2": 0.0005608291830867529,
+     "relative_l2": 0.013229620278504377,
+     "trajectory": 28,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006390364374965429,
+     "mean_l2": 0.0010315687395632267,
+     "relative_l2": 0.015689163487865938,
+     "trajectory": 29,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0064207385294139385,
+     "mean_l2": 0.0005448057781904936,
+     "relative_l2": 0.012057381627655803,
+     "trajectory": 30,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006319145672023296,
+     "mean_l2": 0.0005353391170501709,
+     "relative_l2": 0.01241916425067208,
+     "trajectory": 31,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006952707655727863,
+     "mean_l2": 0.0007019808399491012,
+     "relative_l2": 0.0127937925799939,
+     "trajectory": 32,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006782546639442444,
+     "mean_l2": 0.000668580352794379,
+     "relative_l2": 0.009808655253264794,
+     "trajectory": 34,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005831750575453043,
+     "mean_l2": 0.0006179542979225516,
+     "relative_l2": 0.01608177852533129,
+     "trajectory": 35,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006872131954878569,
+     "mean_l2": 0.0007583573460578918,
+     "relative_l2": 0.013350302170517664,
+     "trajectory": 36,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005704039242118597,
+     "mean_l2": 0.0012225349200889468,
+     "relative_l2": 0.012858929801511858,
+     "trajectory": 37,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006301554385572672,
+     "mean_l2": 0.0006372023490257561,
+     "relative_l2": 0.009309972026982027,
+     "trajectory": 38,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007080089766532183,
+     "mean_l2": 0.0007024221122264862,
+     "relative_l2": 0.010648256335671577,
+     "trajectory": 39,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006466243881732225,
+     "mean_l2": 0.0006931678508408368,
+     "relative_l2": 0.009713657869703608,
+     "trajectory": 40,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006737814750522375,
+     "mean_l2": 0.0006427793996408582,
+     "relative_l2": 0.009817067663290852,
+     "trajectory": 41,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005790190305560827,
+     "mean_l2": 0.0005616314010694623,
+     "relative_l2": 0.01337973716617391,
+     "trajectory": 43,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007121843285858631,
+     "mean_l2": 0.0007696766406297684,
+     "relative_l2": 0.010385815670716633,
+     "trajectory": 44,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0061156474985182285,
+     "mean_l2": 0.0013028908288106322,
+     "relative_l2": 0.013006763660701854,
+     "trajectory": 45,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007093130610883236,
+     "mean_l2": 0.0008008185541257262,
+     "relative_l2": 0.013493894785480198,
+     "trajectory": 46,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006746051833033562,
+     "mean_l2": 0.0006566625670529902,
+     "relative_l2": 0.009677174582754695,
+     "trajectory": 47,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006941878702491522,
+     "mean_l2": 0.0007426507072523236,
+     "relative_l2": 0.011441482432736148,
+     "trajectory": 48,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006639936938881874,
+     "mean_l2": 0.0006458270945586264,
+     "relative_l2": 0.009435589115519706,
+     "trajectory": 49,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005694827530533075,
+     "mean_l2": 0.0005788783892057836,
+     "relative_l2": 0.013885423641220309,
+     "trajectory": 53,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006060118321329355,
+     "mean_l2": 0.0006834870437160134,
+     "relative_l2": 0.009573187888366473,
+     "trajectory": 54,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007655689958482981,
+     "mean_l2": 0.0009253103053197265,
+     "relative_l2": 0.01086313458646577,
+     "trajectory": 55,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006417783908545971,
+     "mean_l2": 0.0013284978922456503,
+     "relative_l2": 0.013982860488578365,
+     "trajectory": 57,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006721742916852236,
+     "mean_l2": 0.0009415806853212416,
+     "relative_l2": 0.015002595107366581,
+     "trajectory": 58,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005640980787575245,
+     "mean_l2": 0.000557109247893095,
+     "relative_l2": 0.014211553116280095,
+     "trajectory": 60,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.008268101140856743,
+     "mean_l2": 0.0010941802756860852,
+     "relative_l2": 0.012398670038951634,
+     "trajectory": 62,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006444820202887058,
+     "mean_l2": 0.0007822286570444703,
+     "relative_l2": 0.010016845634852903,
+     "trajectory": 63,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006305628456175327,
+     "mean_l2": 0.0007900881464593112,
+     "relative_l2": 0.01002594662893994,
+     "trajectory": 64,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007465314585715532,
+     "mean_l2": 0.000868569768499583,
+     "relative_l2": 0.014306810946004174,
+     "trajectory": 65,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.009587004780769348,
+     "mean_l2": 0.0011414354667067528,
+     "relative_l2": 0.01274346682704045,
+     "trajectory": 66,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007513084448873997,
+     "mean_l2": 0.000931013491936028,
+     "relative_l2": 0.010936004415149171,
+     "trajectory": 67,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006613046396523714,
+     "mean_l2": 0.000646881409920752,
+     "relative_l2": 0.0094085650275312,
+     "trajectory": 68,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007109382189810276,
+     "mean_l2": 0.0007482296205125749,
+     "relative_l2": 0.012985572720654646,
+     "trajectory": 69,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005313907749950886,
+     "mean_l2": 0.0013278720434755087,
+     "relative_l2": 0.013722905334312236,
+     "trajectory": 70,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005648584105074406,
+     "mean_l2": 0.0012819495750591159,
+     "relative_l2": 0.013761947548661212,
+     "trajectory": 72,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.008493090979754925,
+     "mean_l2": 0.001090747769922018,
+     "relative_l2": 0.012282476547146662,
+     "trajectory": 73,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005691444501280785,
+     "mean_l2": 0.0006024052854627371,
+     "relative_l2": 0.01574057161229394,
+     "trajectory": 74,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007052316330373287,
+     "mean_l2": 0.000773702806327492,
+     "relative_l2": 0.010468044334433853,
+     "trajectory": 75,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005653067026287317,
+     "mean_l2": 0.0011882118415087461,
+     "relative_l2": 0.012602831745471296,
+     "trajectory": 76,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005682017188519239,
+     "mean_l2": 0.0012055323459208012,
+     "relative_l2": 0.013018330350773783,
+     "trajectory": 77,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.005276779644191265,
+     "mean_l2": 0.0006637303158640862,
+     "relative_l2": 0.01295623283016228,
+     "trajectory": 78,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006971645634621382,
+     "mean_l2": 0.0006342344568111002,
+     "relative_l2": 0.009555716856621772,
+     "trajectory": 79,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007127140183001757,
+     "mean_l2": 0.000744397402741015,
+     "relative_l2": 0.013006751369117806,
+     "trajectory": 80,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006768934894353151,
+     "mean_l2": 0.0009315659990534186,
+     "relative_l2": 0.013669117122141113,
+     "trajectory": 82,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006177013739943504,
+     "mean_l2": 0.000560714106541127,
+     "relative_l2": 0.012239683287198695,
+     "trajectory": 83,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00961351953446865,
+     "mean_l2": 0.0011709174141287804,
+     "relative_l2": 0.012951755870110822,
+     "trajectory": 84,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006751846056431532,
+     "mean_l2": 0.0007639180985279381,
+     "relative_l2": 0.01060827912478971,
+     "trajectory": 85,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007128853350877762,
+     "mean_l2": 0.0008516291272826493,
+     "relative_l2": 0.014195187846943359,
+     "trajectory": 86,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00785546563565731,
+     "mean_l2": 0.001049454789608717,
+     "relative_l2": 0.011951786521586545,
+     "trajectory": 87,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.0068206810392439365,
+     "mean_l2": 0.0006704063853248954,
+     "relative_l2": 0.013031865117931815,
+     "trajectory": 88,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007970989681780338,
+     "mean_l2": 0.0010386789217591286,
+     "relative_l2": 0.011873243030483536,
+     "trajectory": 89,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006438315846025944,
+     "mean_l2": 0.0008696988224983215,
+     "relative_l2": 0.013643160677439632,
+     "trajectory": 90,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006919087842106819,
+     "mean_l2": 0.0009247468551620841,
+     "relative_l2": 0.013619241877361292,
+     "trajectory": 91,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006954449228942394,
+     "mean_l2": 0.0008557991241104901,
+     "relative_l2": 0.010516198920221905,
+     "trajectory": 93,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.006870124489068985,
+     "mean_l2": 0.0008093263022601604,
+     "relative_l2": 0.012536149673583984,
+     "trajectory": 94,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007126760669052601,
+     "mean_l2": 0.000871534866746515,
+     "relative_l2": 0.014417577570842768,
+     "trajectory": 95,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.007089960854500532,
+     "mean_l2": 0.0007320612785406411,
+     "relative_l2": 0.01354239880752366,
+     "trajectory": 96,
+     "transitions": 499
+    },
+    {
+     "max_l2": 0.00585034117102623,
+     "mean_l2": 0.0012177462922409177,
+     "relative_l2": 0.012864691580770552,
+     "trajectory": 98,
+     "transitions": 499
+    }
+   ]
+  }
+ }
+}

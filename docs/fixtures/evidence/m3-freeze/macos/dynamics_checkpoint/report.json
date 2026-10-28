@@ -1,0 +1,116 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "roundtrip_cpu[none]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[spectral_normalization]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[slack]",
+   "has_lambda": true,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "roundtrip_cpu[soft_sampling]",
+   "has_lambda": false,
+   "max_abs_diff": 0.0,
+   "pass": true,
+   "tolerance": 1e-06,
+   "training_mode_restored": true
+  },
+  {
+   "case": "backward_name_lookup",
+   "lookup": "dynamics_backward.pt",
+   "pass": true
+  },
+  {
+   "case": "cpu_label_generation",
+   "counts": {
+    "accepted": 32,
+    "action_out_of_bounds": 0,
+    "attempted": 32,
+    "generation_failed": 0,
+    "non_finite": 0,
+    "out_of_support": 0
+   },
+   "pass": true
+  },
+  {
+   "case": "malformed_file",
+   "error": "cannot read dynamics checkpoint ../rehearse-60f5703/dynamics_checkpoint/work/malformed.pt: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution.Do it only if you get the file from a trusted source. Wei",
+   "pass": true
+  },
+  {
+   "case": "legacy_pickle_not_executed",
+   "error": "cannot read dynamics checkpoint ../rehearse-60f5703/dynamics_checkpoint/work/legacy.pkl: Weights only load failed. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution.Do it only if you get the file from a trusted source. Weigh",
+   "marker_created": false,
+   "pass": true
+  },
+  {
+   "case": "incompatible_architecture",
+   "error": "../rehearse-60f5703/dynamics_checkpoint/work/arch.pt: incompatible architecture for dynamics_net: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.weight: copying a param with shape torch.Size([32, 3]) from checkpoint, the shape in current model is torch.Size([16, 3]).\n",
+   "pass": true
+  },
+  {
+   "case": "network_set_mismatch",
+   "error": "../rehearse-60f5703/dynamics_checkpoint/work/nets.pt: networks ['dynamics_net', 'learnable_lambda'] do not match lipschitz_type 'none', which needs ['dynamics_net']",
+   "pass": true
+  },
+  {
+   "case": "unsupported_format",
+   "error": "../rehearse-60f5703/dynamics_checkpoint/work/fmt.pt: unsupported checkpoint format 'ccil-dynamics/0', expected 'ccil-dynamics/1'",
+   "pass": true
+  },
+  {
+   "case": "missing_metadata",
+   "error": "../rehearse-60f5703/dynamics_checkpoint/work/missing-meta.pt: checkpoint metadata missing ['act_dim', 'activation', 'd_config', 'dtype', 'hidden_size', 'state_dim', 'training']",
+   "pass": true
+  },
+  {
+   "case": "malformed_network_payload",
+   "error": "../rehearse-60f5703/dynamics_checkpoint/work/transforms.pt: network dynamics_net transformations must be ['a_scale', 'a_shift', 'out_scale', 'out_shift', 's_scale', 's_shift'], got ['a_scale', 'a_shift', 'out_scale', 'out_shift', 's_shift']",
+   "pass": true
+  },
+  {
+   "case": "cuda_requested_without_cuda",
+   "error": "device 'cuda' requested but CUDA is unavailable",
+   "pass": true
+  },
+  {
+   "case": "failed_save_preserves_existing",
+   "leftover_temp_files": [],
+   "pass": true,
+   "raised": true,
+   "unchanged": true
+  }
+ ],
+ "environment": {
+  "code_commit": "60f570320ee9e7d13a12445c554307cf24f95e01",
+  "code_dirty": false,
+  "cuda_available": false,
+  "cuda_devices": [],
+  "numpy": "1.26.4",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16",
+  "torch": "2.1.0"
+ },
+ "tolerances": {
+  "cross_device": 1e-05,
+  "same_device": 1e-06
+ }
+}
