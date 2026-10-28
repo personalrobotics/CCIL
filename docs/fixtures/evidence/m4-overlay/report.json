@@ -64,6 +64,44 @@
    "values_weights_and_identity": true
   },
   {
+   "candidates": 9,
+   "case": "zero_accepted_labels_give_an_empty_overlay[single]",
+   "columns": [
+    "candidate_row",
+    "source_episode_index",
+    "source_frame_index",
+    "source_index",
+    "weight",
+    "classification",
+    "observation.state",
+    "action",
+    "measurement.distance",
+    "measurement.residual"
+   ],
+   "pass": true,
+   "rows": 0
+  },
+  {
+   "candidates": 9,
+   "case": "zero_accepted_labels_give_an_empty_overlay[chunked]",
+   "columns": [
+    "candidate_row",
+    "source_episode_index",
+    "source_frame_index",
+    "source_index",
+    "weight",
+    "classification",
+    "observation.state",
+    "action_chunk",
+    "action_chunk_mask",
+    "measurement.chunk_target_frame",
+    "measurement.distance",
+    "measurement.residual"
+   ],
+   "pass": true,
+   "rows": 0
+  },
+  {
    "case": "refusals",
    "existing_destination": {
     "message": "<out>/single/bundle exists; overlays are written once",
@@ -74,7 +112,7 @@
     "refused": true
    },
    "modified_lerobot_portion": {
-    "message": "/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final/single/read-modified_lerobot_portion: the LeRobot portion differs from the source recorded at export",
+    "message": "tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final3/single/read-modified_lerobot_portion: the LeRobot portion differs from the source recorded at export",
     "refused": true
    },
    "no_link_to_the_conversion": {
@@ -82,7 +120,7 @@
     "refused": true
    },
    "non_ccil_supervision": {
-    "message": "overlay: the supervision's method is 'bc'; an overlay carries CCIL labels; the supervision has no synthetic rows",
+    "message": "overlay: the supervision's method is 'bc'; an overlay carries CCIL labels",
     "refused": true
    },
    "pass": true,
@@ -91,7 +129,7 @@
     "refused": true
    },
    "tampered_label_shard": {
-    "message": "s-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final/single/read-tampered_label_shard: ccil/labels/chunk-000/file-000.parquet is missing or does not have its recorded SHA-256",
+    "message": "-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/loc/28-final3/single/read-tampered_label_shard: ccil/labels/chunk-000/file-000.parquet is missing or does not have its recorded SHA-256",
     "refused": true
    }
   },
@@ -418,7 +456,7 @@
   }
  ],
  "environment": {
-  "code_commit": "ebf54564ce236d3eac3b7b4437cd6828b116769b",
+  "code_commit": "1d68f326cd8e14fe1f8364c3cbb896995e1cd0cf",
   "code_dirty": false,
   "platform": "macOS-26.6.2-arm64-arm-64bit",
   "python": "3.11.16"
