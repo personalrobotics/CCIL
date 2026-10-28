@@ -52,6 +52,15 @@ uv sync --group evidence > "$OUT/sync.log" 2>&1  # once, before the concurrent r
 # Foundations (M2), provenance (#127), conversion, labels, certificates, supervision, and the Pendulum environment:
 # CPU checks, independent of each other and of the GPU lanes.
 cpu_checks() {
+    if [ "$DEV" = cpu ]; then  # the device checks are CPU checks here; the longest start first
+        slot; run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device cpu &
+        slot; run m3_compile "${PEND[@]}" -- m3_compile --device cpu &
+        slot; run m3_dynamics -- m3_dynamics --device cpu &
+        slot; run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz &
+        slot; run m3_trainer_v2 -- m3_trainer_v2 --parts correctness,robustness,recipe,modes &
+        slot; run m3_policy -- m3_policy --device cpu &
+        slot; run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu --device cpu &
+    fi
     for t in m2_config m2_schemas m2_interfaces m2_pipelines m2_runs m3_provenance m2_packaging dependency_gate \
              legacy_conversion m3_labels m3_certificates m3_supervision; do
         slot; run "$t" -- "$t" &
@@ -63,15 +72,6 @@ cpu_checks() {
     slot; run m3_pendulum "${PEND[@]}" -- m3_pendulum --v6-freeze &
     slot; run vector_env "${VENV[@]}" -- vector_env &
     slot; run m3_newton_batched "${PEND[@]}" -- m3_newton_batched &
-    if [ "$DEV" = cpu ]; then  # the device checks are CPU checks here
-        slot; run m3_dynamics -- m3_dynamics --device cpu &
-        slot; run m3_policy -- m3_policy --device cpu &
-        slot; run m3_jacobian_chunks "${PEND[@]}" -- m3_jacobian_chunks --parts cpu --device cpu &
-        slot; run m3_trainer_v2 -- m3_trainer_v2 --parts correctness,robustness,recipe,modes &
-        slot; run m3_fit_v2 "${PEND[@]}" -- m3_fit_v2 --parts correctness,stage_hooks,clean_holdout,lipschitz &
-        slot; run m3_experiments "${VENV[@]}" -- m3_experiments --runner --device cpu &
-        slot; run m3_compile "${PEND[@]}" -- m3_compile --device cpu &
-    fi
     wait
 }
 if [ "$DEV" = cuda ]; then
