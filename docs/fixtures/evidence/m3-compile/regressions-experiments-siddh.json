@@ -308,6 +308,7 @@
    "checks": {
     "batched_evaluation": true,
     "cli_reuses_every_stage": true,
+    "deferred_corruptions_refused": true,
     "first_run_verifies": true,
     "memory_exhaustion": true,
     "resume": true,
@@ -508,6 +509,19 @@
      "unit": "discontinuous/noise_bc/s9003"
     }
    ],
+   "deferred_corruptions": {
+    "clean": "accepted",
+    "clean_after_restore": "accepted",
+    "gate_mismatch": "refused: tuning deferred returns refused (1 problems): records come from more than one code state",
+    "missing_planned_evaluation": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: evaluations ['0.0'] are not the planned noise levels",
+    "nonfinite_return": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "pass": true,
+    "status_mismatch": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: status algorithmic_failure disagrees with its verified returns",
+    "target": "results/tuning_returns/continuous/bc_modern@0.0001/s9001.json",
+    "wrong_noise_level": "refused: tuning deferred returns refused (3 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001 noise 0.01: the record disag",
+    "wrong_seed": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "wrong_task": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it"
+   },
    "first_run": {
     "status": {
      "continuous/bc/s9002": "ok",
@@ -544,7 +558,7 @@
         }
        ],
        "fits": 8,
-       "seconds": 3.8
+       "seconds": 3.2
       },
       {
        "compilation": [
@@ -557,13 +571,13 @@
         }
        ],
        "fits": 8,
-       "seconds": 1.1
+       "seconds": 1.0
       }
      ],
-     "labels_seconds": 9.7,
-     "phase_seconds": 41.0,
-     "policies_and_evaluation_seconds": 25.3,
-     "prepare_and_fit_seconds": 5.9,
+     "labels_seconds": 9.6,
+     "phase_seconds": 36.5,
+     "policies_and_evaluation_seconds": 21.6,
+     "prepare_and_fit_seconds": 5.2,
      "train_groups": [
       {
        "compilation": [
@@ -576,7 +590,7 @@
         }
        ],
        "models": 14,
-       "seconds": 4.2
+       "seconds": 3.9
       },
       {
        "compilation": [
@@ -589,7 +603,7 @@
         }
        ],
        "models": 2,
-       "seconds": 8.7
+       "seconds": 6.3
       }
      ]
     },
@@ -654,7 +668,7 @@
         }
        ],
        "fits": 8,
-       "seconds": 1.6
+       "seconds": 1.5
       },
       {
        "compilation": [
@@ -674,13 +688,13 @@
         }
        ],
        "fits": 8,
-       "seconds": 1.6
+       "seconds": 1.5
       }
      ],
-     "labels_seconds": 9.5,
-     "phase_seconds": 51.3,
-     "policies_and_evaluation_seconds": 37.3,
-     "prepare_and_fit_seconds": 4.4,
+     "labels_seconds": 9.4,
+     "phase_seconds": 38.7,
+     "policies_and_evaluation_seconds": 25.2,
+     "prepare_and_fit_seconds": 4.0,
      "train_groups": [
       {
        "compilation": [
@@ -721,7 +735,7 @@
         }
        ],
        "models": 14,
-       "seconds": 14.8
+       "seconds": 7.9
       },
       {
        "compilation": [
@@ -734,7 +748,7 @@
         }
        ],
        "models": 2,
-       "seconds": 6.7
+       "seconds": 5.9
       }
      ]
     },
@@ -820,7 +834,7 @@
   }
  ],
  "environment": {
-  "code_commit": "ea3966279c833d0dd6f0a48c40b2a617d7cd5b5f",
+  "code_commit": "f2557816f6715932b09bf9ea1f75c0b2b1c886ef",
   "code_dirty": false,
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
   "python": "3.11.17"

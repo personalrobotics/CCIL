@@ -308,6 +308,7 @@
    "checks": {
     "batched_evaluation": true,
     "cli_reuses_every_stage": true,
+    "deferred_corruptions_refused": true,
     "first_run_verifies": true,
     "memory_exhaustion": true,
     "resume": true,
@@ -508,6 +509,19 @@
      "unit": "discontinuous/noise_bc/s9003"
     }
    ],
+   "deferred_corruptions": {
+    "clean": "accepted",
+    "clean_after_restore": "accepted",
+    "gate_mismatch": "refused: tuning deferred returns refused (1 problems): records come from more than one code state",
+    "missing_planned_evaluation": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: evaluations ['0.0'] are not the planned noise levels",
+    "nonfinite_return": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "pass": true,
+    "status_mismatch": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: status algorithmic_failure disagrees with its verified returns",
+    "target": "results/tuning_returns/continuous/bc_modern@0.0001/s9001.json",
+    "wrong_noise_level": "refused: tuning deferred returns refused (3 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001 noise 0.01: the record disag",
+    "wrong_seed": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "wrong_task": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it"
+   },
    "first_run": {
     "status": {
      "continuous/bc/s9002": "ok",
@@ -544,7 +558,7 @@
         }
        ],
        "fits": 8,
-       "seconds": 10.8
+       "seconds": 9.8
       },
       {
        "compilation": [
@@ -557,13 +571,13 @@
         }
        ],
        "fits": 8,
-       "seconds": 5.8
+       "seconds": 5.1
       }
      ],
-     "labels_seconds": 14.6,
-     "phase_seconds": 166.4,
-     "policies_and_evaluation_seconds": 134.1,
-     "prepare_and_fit_seconds": 17.7,
+     "labels_seconds": 13.2,
+     "phase_seconds": 143.6,
+     "policies_and_evaluation_seconds": 114.4,
+     "prepare_and_fit_seconds": 15.9,
      "train_groups": [
       {
        "compilation": [
@@ -576,7 +590,7 @@
         }
        ],
        "models": 14,
-       "seconds": 36.3
+       "seconds": 32.9
       },
       {
        "compilation": [
@@ -589,7 +603,7 @@
         }
        ],
        "models": 2,
-       "seconds": 87.4
+       "seconds": 71.6
       }
      ]
     },
@@ -647,7 +661,7 @@
         }
        ],
        "fits": 8,
-       "seconds": 6.8
+       "seconds": 18.3
       },
       {
        "compilation": [
@@ -660,13 +674,13 @@
         }
        ],
        "fits": 8,
-       "seconds": 4.7
+       "seconds": 13.9
       }
      ],
-     "labels_seconds": 14.4,
-     "phase_seconds": 133.0,
-     "policies_and_evaluation_seconds": 106.0,
-     "prepare_and_fit_seconds": 12.6,
+     "labels_seconds": 28.3,
+     "phase_seconds": 206.9,
+     "policies_and_evaluation_seconds": 144.8,
+     "prepare_and_fit_seconds": 33.7,
      "train_groups": [
       {
        "compilation": [
@@ -679,7 +693,7 @@
         }
        ],
        "models": 14,
-       "seconds": 28.4
+       "seconds": 50.9
       },
       {
        "compilation": [
@@ -692,7 +706,7 @@
         }
        ],
        "models": 2,
-       "seconds": 68.0
+       "seconds": 82.6
       }
      ]
     },
@@ -778,7 +792,7 @@
   }
  ],
  "environment": {
-  "code_commit": "ea3966279c833d0dd6f0a48c40b2a617d7cd5b5f",
+  "code_commit": "f2557816f6715932b09bf9ea1f75c0b2b1c886ef",
   "code_dirty": false,
   "platform": "macOS-26.6.2-arm64-arm-64bit",
   "python": "3.11.16"
