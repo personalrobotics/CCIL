@@ -166,6 +166,31 @@ uv run --group evidence --extra lerobot python tools/m4_overlay/check.py --out <
 For each supported release, the evidence checks three things: a stock load that sees exactly the source, a
 CCIL-aware load that sees every label and weight, and the temporal windows.
 
+## The round trip (#29)
+
+```bash
+uv run --group evidence --extra lerobot python tools/m4_roundtrip/check.py --out <new-dir>
+```
+
+**The fixture,** [`fixtures/lerobot-roundtrip/`](fixtures/lerobot-roundtrip/), was written by LeRobot 0.6.1.
+- **Contents:** a double integrator with a 2-d state, an 8×8 RGB image and a 1-d action, in four episodes of 12, 9,
+  15 and 6 frames.
+- **Safe to redistribute:** it is synthetic.
+- **Checked by hash:** LeRobot's own writes are not byte-deterministic (a random fingerprint in the Parquet
+  metadata, sampled image statistics), so the fixture is committed and checked by hash.
+
+**The pipeline:** the fixture is converted (with the image named in `ignore`), labelled with 5-step chunks,
+resolved and exported. It runs twice, and both runs must be identical. Then it runs once more with a support radius
+that accepts nothing.
+
+**Published** under [`fixtures/evidence/m4-roundtrip/`](fixtures/evidence/m4-roundtrip/):
+- the report;
+- the accepted and rejected tables, with every candidate's source frame, weight, reasons and measurements;
+- the quality report;
+- the transcripts of an unchanged LeRobot 0.6.1 consumer, which iterates the bundle and decodes its images.
+
+CCIL's training dataset sees every label with state-only keys, and refuses a policy that reads the image.
+
 ## Compatibility: an evidence-backed matrix
 
 A LeRobot release is listed as supported only when it passes **both
