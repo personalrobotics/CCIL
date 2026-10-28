@@ -309,6 +309,45 @@
    "refused": true
   },
   {
+   "case": "conversion_is_all_or_nothing",
+   "left_behind": [],
+   "moves": [
+    ".trajectories.npz.tmp-11714.npz",
+    "trajectories.npz",
+    "manifest.json"
+   ],
+   "pass": true
+  },
+  {
+   "case": "known_endings_are_not_silently_dropped",
+   "lossy_mode_reads_back_as": {
+    "rule": "no next.* feature is interpreted: every ending is unknown",
+    "terminated": 0,
+    "truncated": 0,
+    "unknown": 3
+   },
+   "pass": true,
+   "refusal": {
+    "message": "episode 0 ('0') records a known ending (terminated); LeRobot v3.0 has no field for it, so writing would lose it; pass drop_endings=True to write anyway (the lossy mode), and its reader will see an unknown ending",
+    "refused": true
+   }
+  },
+  {
+   "case": "episode_positional_construction_unchanged",
+   "fields": [
+    "episode_id",
+    "observations",
+    "actions",
+    "terminated",
+    "timestamps",
+    "task",
+    "action_chunks",
+    "action_chunk_mask",
+    "termination_known"
+   ],
+   "pass": true
+  },
+  {
    "base_commit": "e2e7e67af5ee8571efe79ad52912b44c8e3a264b",
    "case": "schema_1_1_read_by_the_1_0_reader",
    "file_without_the_field_version": "1.0",
@@ -365,7 +404,7 @@
   }
  ],
  "environment": {
-  "code_commit": "781e8964362d3daf9dbd0aca4b9f4cddaad5cf56",
+  "code_commit": "9d7c848ce6270d72beee347ec8c8299ad0304b34",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
