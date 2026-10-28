@@ -308,6 +308,7 @@
    "checks": {
     "batched_evaluation": true,
     "cli_reuses_every_stage": true,
+    "deferred_corruptions_refused": true,
     "first_run_verifies": true,
     "memory_exhaustion": true,
     "resume": true,
@@ -508,6 +509,19 @@
      "unit": "discontinuous/noise_bc/s9003"
     }
    ],
+   "deferred_corruptions": {
+    "clean": "accepted",
+    "clean_after_restore": "accepted",
+    "gate_mismatch": "refused: tuning deferred returns refused (1 problems): records come from more than one code state",
+    "missing_planned_evaluation": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: evaluations ['0.0'] are not the planned noise levels",
+    "nonfinite_return": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "pass": true,
+    "status_mismatch": "refused: tuning deferred returns refused (1 problems): continuous/bc_modern@0.0001/s9001: status algorithmic_failure disagrees with its verified returns",
+    "target": "results/tuning_returns/continuous/bc_modern@0.0001/s9001.json",
+    "wrong_noise_level": "refused: tuning deferred returns refused (3 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001 noise 0.01: the record disag",
+    "wrong_seed": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it",
+    "wrong_task": "refused: tuning deferred returns refused (2 problems): continuous/bc_modern@0.0001/s9001 noise 0.0: the record disagrees with its rollout's audit; continuous/bc_modern@0.0001/s9001: status ok disagrees with it"
+   },
    "first_run": {
     "status": {
      "continuous/bc/s9002": "ok",
@@ -535,25 +549,25 @@
      "fit_groups": [
       {
        "fits": 8,
-       "seconds": 9.7
+       "seconds": 9.5
       },
       {
        "fits": 8,
-       "seconds": 5.2
+       "seconds": 5.1
       }
      ],
-     "labels_seconds": 13.1,
-     "phase_seconds": 137.3,
-     "policies_and_evaluation_seconds": 108.3,
-     "prepare_and_fit_seconds": 15.8,
+     "labels_seconds": 13.3,
+     "phase_seconds": 133.0,
+     "policies_and_evaluation_seconds": 104.2,
+     "prepare_and_fit_seconds": 15.5,
      "train_groups": [
       {
        "models": 14,
-       "seconds": 32.8
+       "seconds": 31.8
       },
       {
        "models": 2,
-       "seconds": 65.9
+       "seconds": 63.0
       }
      ]
     },
@@ -606,21 +620,21 @@
       },
       {
        "fits": 8,
-       "seconds": 3.9
+       "seconds": 4.0
       }
      ],
-     "labels_seconds": 12.6,
-     "phase_seconds": 123.5,
-     "policies_and_evaluation_seconds": 100.3,
+     "labels_seconds": 12.4,
+     "phase_seconds": 125.3,
+     "policies_and_evaluation_seconds": 102.4,
      "prepare_and_fit_seconds": 10.5,
      "train_groups": [
       {
        "models": 14,
-       "seconds": 25.4
+       "seconds": 25.6
       },
       {
        "models": 2,
-       "seconds": 65.5
+       "seconds": 67.5
       }
      ]
     },
@@ -706,7 +720,7 @@
   }
  ],
  "environment": {
-  "code_commit": "b423b3e8d7807a7a7aa405ac34a6c0f998fd9c52",
+  "code_commit": "d66b6b95c6775f2f7e3b09837f7c8b4c18657ac4",
   "code_dirty": false,
   "platform": "macOS-26.6.2-arm64-arm-64bit",
   "python": "3.11.16"
