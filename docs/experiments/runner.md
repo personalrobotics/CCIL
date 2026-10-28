@@ -41,7 +41,11 @@ Tuned arms select by one of two rules:
   - `records.record_choice` writes the choice once (`tuning-choice.json`).
   - `runner.evaluate_deferred` then computes their tuning-seed returns into
     records that name the choice and their tuning records by SHA-256.
-  - `records.verify_deferred` refuses any that do not.
+  - `records.verify_deferred` refuses any that do not. It also makes
+    `verify_phase`'s checks: each record's path and phase, its gate and
+    code state (shared with the tuning records), exactly the planned noise
+    levels, each rollout's audited task, seed and noise level, and a status
+    consistent with finite returns.
 
 ## The runner
 

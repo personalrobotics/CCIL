@@ -29,7 +29,10 @@
      held-out episodes every 50 steps, a label model fitted on the train split) chooses, per task, the learning
      rate with the lowest selected-checkpoint validation loss. No return exists until the choice is recorded:
      the tuning records and rollouts have none, evaluating them earlier is refused, and the returns computed
-     afterwards verify against the choice's and their tuning records' SHA-256;
+     afterwards verify against the choice's and their tuning records' SHA-256. verify_deferred refuses (each
+     edit restored afterwards) a genuine rollout substituted from the wrong task, the wrong seed or the wrong
+     noise level, a missing planned evaluation, a gate from another code state, a NaN return, and a status
+     that disagrees with the returns;
    - `ccil policy train` with each trained record's overrides reuses every stage the runner wrote, in the same
      directories (the runner's stage identities are the CLI's);
    - a second run writes nothing; with two records removed, a run writes exactly those, trains nothing and
@@ -240,7 +243,7 @@ RUNNER_PLAN = {
                                         "policy.warmup_steps=20", "policy.step_budget=200", "policy.grad_clip_norm=1.0",
                                         "policy.ema_decay=0.99", "policy.checkpoint_selection=validation",
                                         "policy.validation_interval_steps=50", "transition_model.fit_episodes=train"],
-                           "tuned": "policy.learning_rate"}},
+                           "noise_levels": [0.0, 0.01], "tuned": "policy.learning_rate"}},
     "tuning": {"bc_modern": {"grid": [1.0e-4, 3.0e-3], "select": "lowest_mean_validation_loss"}},
 }
 GATE_DEV = {"ok": True, "real": False, "head": "check", "tooling": {}}
@@ -277,6 +280,54 @@ def _shard_main(root, device, i, n):
     study = plan.from_dict(RUNNER_PLAN)
     runner.run_phase(root, study, "study", PendulumSuite(root, study, smoke=True), gate=GATE_DEV, smoke=True,
                      device=device, shard=(i, n), log=lambda m: None)
+
+
+def _deferred_corruptions(root: Path, study) -> dict:
+    """Each edit substitutes or alters one deferred-return record in place; verify_deferred must refuse every one,
+    and accept the restored records. A substituted evaluation is a genuine rollout carried with its own SHA-256,
+    R and failed episodes, so only its audited identity (task, seed, noise level) can expose it."""
+    import shutil
+
+    from ccil.experiments import records
+    from pendulum_suite import PendulumSuite
+
+    def outcome():
+        try:
+            records.verify_deferred(root, study, "tuning", smoke=True, audit=PendulumSuite.audit, jobs=4)
+            return "accepted"
+        except records.RecordsRefused as e:
+            return f"refused: {str(e)[:200]}"
+    load = lambda q: json.loads(q.read_text())  # noqa: E731
+    files = sorted((root / "results" / "tuning_returns").rglob("s*.json"))
+    target = files[0]
+    t = load(target)
+    other_task = next(load(q) for q in files if load(q)["task"] != t["task"] and load(q)["value"] == t["value"])
+    other_seed = next(load(q) for q in sorted((root / "results" / "study").rglob("s*.json"))
+                      if load(q)["task"] == t["task"] and load(q)["seed"] != t["seed"] and "0.0" in load(q)["evaluations"])
+    ev = lambda d, src, n="0.0": {**d, "evaluations": {**d["evaluations"], n: src}}  # noqa: E731
+    edits = {
+        "wrong_task": lambda d: ev(d, other_task["evaluations"]["0.0"]),
+        "wrong_seed": lambda d: ev(d, other_seed["evaluations"]["0.0"]),
+        "wrong_noise_level": lambda d: {**d, "evaluations": {"0.0": d["evaluations"]["0.01"],
+                                                             "0.01": d["evaluations"]["0.0"]}},
+        "missing_planned_evaluation": lambda d: {**d, "evaluations": {"0.0": d["evaluations"]["0.0"]}},
+        "gate_mismatch": lambda d: {**d, "gate": {**d["gate"], "head": "another-commit"}},
+        "nonfinite_return": lambda d: ev(d, {**d["evaluations"]["0.0"], "R": float("nan")}),
+        "status_mismatch": lambda d: {**d, "status": "algorithmic_failure"},
+    }
+    res = {"target": str(target.relative_to(root)), "clean": outcome()}
+    for name, change in edits.items():
+        backup = target.with_name(target.name + ".bak")
+        shutil.copy2(target, backup)
+        try:
+            target.write_text(json.dumps(change(load(target)), indent=1))
+            res[name] = outcome()
+        finally:
+            shutil.move(backup, target)
+    res["clean_after_restore"] = outcome()
+    res["pass"] = (res["clean"] == res["clean_after_restore"] == "accepted"
+                   and all(res[k].startswith("refused") for k in edits))
+    return res
 
 
 def runner_check(out: Path, device: str) -> dict:
@@ -325,6 +376,7 @@ def runner_check(out: Path, device: str) -> dict:
     n_returns = runner.evaluate_deferred(root, study, "tuning", suite, gate=GATE_DEV, smoke=True, device=device,
                                          log=lambda m: None)
     returns = records.verify_deferred(root, study, "tuning", smoke=True, audit=PendulumSuite.audit)
+    res["deferred_corruptions"] = _deferred_corruptions(root, study)
     res["validation_loss_tuning"] = {"units": tun["units"], "losses": {f"{t}@{v}": x for (t, v), x in losses.items()},
                                      "choice": {t: choice[t]["bc_modern"]["value"] for t in study.tasks},
                                      "choice_sha256": choice_sha, "returns_refused_before_choice": early_refused,
@@ -448,7 +500,7 @@ def runner_check(out: Path, device: str) -> dict:
     res["sharded"] = {"exit_codes": [p.exitcode for p in procs], "records": len(recs4),
                       "status": sorted({r["status"] for r in recs4})}
     ok_sharded = [p.exitcode for p in procs] == [0, 0] and len(recs4) == 20 and all(r["status"] == "ok" for r in recs4)
-    res["checks"] = {"sharded": ok_sharded, "validation_loss_tuning": ok_tuning, "first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
+    res["checks"] = {"deferred_corruptions_refused": res["deferred_corruptions"]["pass"], "sharded": ok_sharded, "validation_loss_tuning": ok_tuning, "first_run_verifies": ok_first, "cli_reuses_every_stage": ok_cli, "resume": ok_resume,
                      "batched_evaluation": ok_eval, "memory_exhaustion": ok_oom}
     return {"pass": all(res["checks"].values()), **res}
 
