@@ -90,9 +90,13 @@ def main():
     extras = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Provides-Extra:"))
     core = [r for r in requires if "extra ==" not in r]
     optional = [r for r in requires if "extra ==" in r]
+    by_extra = {e: sorted(r for r in optional if f"extra == '{e}'" in r) for e in extras}
     record("metadata_declares_core_dependencies_only", core == ["numpy>=1.24", "pyyaml>=6.0"] and pyreq == [">=3.10"]
-           and extras == ["torch"] and len(optional) == 1 and optional[0].startswith("torch>=2.9.1")
-           and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", optional[0]) is not None
+           and extras == ["lerobot", "torch"] and len(optional) == 3
+           and len(by_extra["torch"]) == 1 and by_extra["torch"][0].startswith("torch>=2.9.1")
+           and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", by_extra["torch"][0]) is not None
+           and [r.split(" ;")[0] for r in by_extra["lerobot"]] == ["huggingface-hub>=1.0.0", "pyarrow>=21.0.0"]
+           and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", by_extra["lerobot"][0]) is not None
            and "ccil = ccil.__main__:main" in entry,
            requires_dist=requires, requires_python=pyreq, extras=extras, entry_points=entry.strip())
 

@@ -14,6 +14,10 @@ dependencies = [
 # Python 3.11+ only: torch needs filelock, whose fixed releases (>= 4.2.1)
 # require 3.11. ccil never unpickles checkpoints. See docs/security.md.
 torch = ["torch>=2.9.1; python_version >= '3.11'"]
+# CCIL's LeRobot Dataset v3.0 format bridge (#26): PyArrow reads and writes the tabular format, the Hub client
+# fetches it (Python 3.11+ only, for the reason torch is: see docs/security.md). It does not install the
+# LeRobot runtime. Tested LeRobot releases: docs/lerobot.md.
+lerobot = ["pyarrow>=21.0.0", "huggingface_hub>=1.0.0; python_version >= '3.11'"]
 
 [project.scripts]
 ccil = "ccil.__main__:main"
