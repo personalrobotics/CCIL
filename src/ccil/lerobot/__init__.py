@@ -12,8 +12,8 @@ evidence-backed matrix (docs/lerobot.md), not a version promise.
 """
 from __future__ import annotations
 
-from .v3 import (CODEBASE_VERSION, LeRobotFormatError, fetch, iter_episodes, read_dataset, read_info,
+from .v3 import (CODEBASE_VERSION, LeRobotFormatError, convert, fetch, iter_episodes, read_dataset, read_info,
                  read_stats, write_dataset)
 
-__all__ = ["CODEBASE_VERSION", "LeRobotFormatError", "fetch", "iter_episodes", "read_dataset", "read_info",
+__all__ = ["CODEBASE_VERSION", "LeRobotFormatError", "convert", "fetch", "iter_episodes", "read_dataset", "read_info",
            "read_stats", "write_dataset"]

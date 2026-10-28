@@ -15,7 +15,7 @@ import numpy as np
 from .fields import ArraySpec, Violations
 
 SCHEMA = "ccil.trajectories"
-VERSION = (1, 0)
+VERSION = (1, 1)  # 1.1 adds the optional per-episode termination_known (#27)
 
 MODALITY = re.compile(r"^(state|image)(\.[a-z0-9_]+)?$")
 STATE = ArraySpec("observations[state*]", "float", ("T", "D"), "task-defined",
@@ -36,7 +36,11 @@ EPISODE_FIELDS = [
     ("episode_id", "str", "Unique, non-empty identifier of the episode."),
     ("observations", "dict[str, array]", "Named modalities matching state, state.<name>, or image.<camera>."),
     ("actions", "array", ACTIONS.description),
-    ("terminated", "bool", "True if the episode ended in a terminal state; False if it was truncated."),
+    ("terminated", "bool", "True if the episode ended in a terminal state; False if it was truncated, or if its ending "
+                           "is unknown (termination_known False)."),
+    ("termination_known", "bool | None", "Whether the source records why the episode ended (1.1). False: unknown, "
+                                         "and terminated must be False; None: not recorded (1.0 files). Set for every "
+                                         "episode or for none."),
     ("timestamps", "array | None", TIMESTAMPS.description),
     ("task", "str | None", "Task identifier or instruction."),
     ("action_chunks", "array | None", CHUNKS.description),
@@ -51,6 +55,7 @@ class Episode:
     observations: dict
     actions: np.ndarray
     terminated: bool = False
+    termination_known: bool | None = None
     timestamps: np.ndarray | None = None
     task: str | None = None
     action_chunks: np.ndarray | None = None
@@ -74,6 +79,8 @@ class TrajectoryDataset:
             out.raise_if_any()
         if (action_low is None) != (action_high is None):
             raise ValueError("declare both action_low and action_high, or neither")
+        if len({ep.termination_known is None for ep in self.episodes if isinstance(ep, Episode)}) > 1:
+            out.add("termination", "dataset", "termination_known must be set for every episode or for none")
         seen, shared, bounds_reported = set(), {}, False
         modalities = None
         for e, ep in enumerate(self.episodes):
@@ -90,6 +97,11 @@ class TrajectoryDataset:
                 where = f"episode {e} ({ep.episode_id})"
             if type(ep.terminated) is not bool:
                 out.add("type", where, f"terminated must be bool, got {type(ep.terminated).__name__}")
+            if ep.termination_known is not None and type(ep.termination_known) is not bool:
+                out.add("type", where, f"termination_known must be bool or None, got {type(ep.termination_known).__name__}")
+            elif ep.termination_known is False and ep.terminated is True:
+                out.add("termination", where, "terminated is True but termination_known is False: an unknown ending "
+                                              "cannot be terminal")
             if ep.task is not None and not isinstance(ep.task, str):
                 out.add("type", where, f"task must be str or None, got {type(ep.task).__name__}")
             dims = {}
