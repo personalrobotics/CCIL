@@ -9,11 +9,11 @@
    "default_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "6aaf4893117b9d12df6e150e728999671bf8130a",
+     "git_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "6352372ac38a4dc99b4cbbe0fc14e6cc1532c2fdcf13bb94fd39d813831fa56b",
+     "config_hash": "1864977d88bcf64799665a19b0c4c278f2a09f5c1d3ad7b8c6764c340cf9da02",
      "path": "config.json"
     },
     "environment": {
@@ -29,8 +29,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "9c000e888a0a79a6200811dfd4760c77ccdee8d854d3086ec1c9ff2c093498f4",
-      "size": 10161,
+      "sha256": "dc253e1a4511f8165c5a7abee4c8d81f90539070bb515ab532fdc6d9df06dc27",
+      "size": 11371,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -56,7 +56,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "dccbbb1f9235433436d33198dd94729cf5e61f847606ec9f9fcb7f8012ecb6ce",
+      "sha256": "88fcf14999be1d386237bc83a5873edaf5571820f914bbfd32aef50bc44e6d6c",
       "size": 586
      }
     },
@@ -66,7 +66,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-662bc7fb00cd",
+    "run_id": "data-prepare-6bcfc3b529c8",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -75,7 +75,7 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "default_run": "data-prepare-662bc7fb00cd",
+   "default_run": "data-prepare-6bcfc3b529c8",
    "default_value_sources": {
     "certificate.demonstration_residual_bound": "default",
     "certificate.discrepancy_action_lipschitz": "default",
@@ -94,6 +94,7 @@
     "certificate.true_state_lipschitz": "default",
     "compute.deterministic": "default",
     "compute.device": "recipe:pendulum_cont",
+    "compute.jacobian_memory_mb": "default",
     "data.action_high": "default",
     "data.action_low": "default",
     "data.path": "recipe:pendulum_cont",
@@ -114,18 +115,27 @@
     "policy.action_scaler": "default",
     "policy.balance_noisy_labels": "recipe:pendulum_cont",
     "policy.batch_size": "recipe:pendulum_cont",
+    "policy.checkpoint_selection": "default",
     "policy.demonstration_weight": "default",
+    "policy.ema_decay": "default",
     "policy.epochs": "recipe:pendulum_cont",
     "policy.exclude_validation_episodes": "default",
+    "policy.grad_clip_norm": "default",
     "policy.hidden_layers": "default",
     "policy.learning_rate": "recipe:pendulum_cont",
+    "policy.lr_schedule": "default",
     "policy.method": "recipe:pendulum_cont",
     "policy.noise_mask_probability": "default",
     "policy.noise_model": "default",
     "policy.noise_scale": "default",
     "policy.observation_scaler": "default",
+    "policy.optimizer": "default",
+    "policy.step_budget": "default",
     "policy.trainer": "default",
     "policy.trainer_version": "default",
+    "policy.validation_interval_steps": "default",
+    "policy.warmup_steps": "default",
+    "policy.weight_decay": "default",
     "representation.dim": "default",
     "representation.kind": "default",
     "representation.modality": "default",
@@ -153,11 +163,11 @@
    "override_manifest": {
     "code": {
      "ccil_version": "0.1.0.dev0",
-     "git_commit": "6aaf4893117b9d12df6e150e728999671bf8130a",
+     "git_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
      "git_dirty": false
     },
     "config": {
-     "config_hash": "614f31fdbe0f7880a01d39f5d361403f96cfe897d14de7f9561aed0660b8722b",
+     "config_hash": "6af9dea8859b55956db1e166611d79d09b510cd911d3322bb843d8eedcecbe6f",
      "path": "config.json"
     },
     "environment": {
@@ -173,8 +183,8 @@
     "files": {
      "config.json": {
       "schema": "ccil.config",
-      "sha256": "d1322f80a572309547ca652f951c9836017d061f35e4d1b2a9ec7c0d02acdce8",
-      "size": 10144,
+      "sha256": "8e04081a4a3fcd1c7a44187fe02ed1887ab65c12c9aab9c1e93831c9bd8e3ae8",
+      "size": 11354,
       "version": "1"
      },
      "data/dataset.npz": {
@@ -200,7 +210,7 @@
       "version": "1.0"
      },
      "stage.json": {
-      "sha256": "284248f5dfc444d5272b6f6ec85bcccd8afd483a2f83cd82b8d5995e9dbe25c6",
+      "sha256": "db172f388b6c9a4fcceca317f0802405d90e9642022c980325f54b9909423e55",
       "size": 586
      }
     },
@@ -210,7 +220,7 @@
       "sha256": "72cf1878bf8af09d1e7c976209f5a5e89e4fb5075942aaff3a6978f15fd62c84"
      }
     },
-    "run_id": "data-prepare-670e1e206e5e",
+    "run_id": "data-prepare-5696a7ebd1c5",
     "schema": "ccil.run-manifest",
     "seeds": {
      "run.seed": 42
@@ -219,7 +229,7 @@
     "version": "2.0",
     "workflow": "data.prepare"
    },
-   "override_run": "data-prepare-670e1e206e5e",
+   "override_run": "data-prepare-5696a7ebd1c5",
    "override_source": "cli",
    "pass": true,
    "seed": 42,
@@ -231,22 +241,22 @@
   {
    "case": "replay_is_byte_identical",
    "files": {
-    "config.json": "9c000e888a0a79a6200811dfd4760c77ccdee8d854d3086ec1c9ff2c093498f4",
+    "config.json": "dc253e1a4511f8165c5a7abee4c8d81f90539070bb515ab532fdc6d9df06dc27",
     "data/dataset.npz": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
     "data/split.json": "327c2649a698c42b861cf724f3b9aa63496b06aea5ec917a2a79c1e3252c41bb",
     "logs/run.log": "1e104f9563641fa9f2f7d0e323c27c0c9ee0757418cf9af27294e11099b250fb",
-    "manifest.json": "6d6c48be154aabec5393d23382084d240d3f82c327a851f0288723beb20eeeac",
+    "manifest.json": "b6b8a758597fd27b27ef67566d32ef39ad2c2c3b42523dc06ca616ef2e21054b",
     "metrics.json": "df5eb6b3cfb6bc2a069a38b394db94387bcb13cb7caa746ef0414fe24a58a7ac",
-    "stage.json": "dccbbb1f9235433436d33198dd94729cf5e61f847606ec9f9fcb7f8012ecb6ce"
+    "stage.json": "88fcf14999be1d386237bc83a5873edaf5571820f914bbfd32aef50bc44e6d6c"
    },
    "pass": true,
-   "run_id": "data-prepare-662bc7fb00cd"
+   "run_id": "data-prepare-6bcfc3b529c8"
   },
   {
    "case": "existing_run_reused_then_replaced_atomically",
    "leftovers": [],
    "pass": true,
-   "rerun_stdout": "wrote runs/data-prepare-662bc7fb00cd"
+   "rerun_stdout": "wrote runs/data-prepare-6bcfc3b529c8"
   },
   {
    "case": "fails_before_output[misspelled_key]",
@@ -381,7 +391,7 @@
   }
  ],
  "environment": {
-  "code_commit": "6aaf4893117b9d12df6e150e728999671bf8130a",
+  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
