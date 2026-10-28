@@ -54,15 +54,17 @@ def tree(d: Path) -> dict:
 
 def source_dataset() -> TrajectoryDataset:
     """60 episodes of 150-249 frames, a 32-d state, a 16-d second state and an 8-d action: about 2.7 MB, so a 1 MB
-    shard cap gives several shards. Seeded, so the written dataset is byte-identical on a rerun."""
+    shard cap gives several shards. Actions are a fixed linear function of both states plus small noise, so the
+    training smoke test has something to learn. Seeded, so the written dataset is byte-identical on a rerun."""
     r = np.random.default_rng(26)
+    W = r.normal(size=(48, 8)) / np.sqrt(48)
     eps = []
     for i in range(60):
         T = int(r.integers(150, 250))
-        eps.append(Episode(str(i), {"state": r.normal(size=(T, 32)).astype(np.float32),
-                                    "state.env": r.normal(size=(T, 16)).astype(np.float32)},
-                           r.normal(size=(T, 8)).astype(np.float32), timestamps=None,
-                           task=["reach", "push"][i % 2]))
+        state, env = r.normal(size=(T, 32)), r.normal(size=(T, 16))
+        action = np.hstack([state, env]) @ W + 0.05 * r.normal(size=(T, 8))
+        eps.append(Episode(str(i), {"state": state.astype(np.float32), "state.env": env.astype(np.float32)},
+                           action.astype(np.float32), timestamps=None, task=["reach", "push"][i % 2]))
     return TrajectoryDataset(eps)
 
 
@@ -310,13 +312,16 @@ def hub(work: Path) -> dict:
     try:
         path, sha = fetch(HUB[0], revision="main", local_dir=work / "hub")
         info = read_info(path)
+        out = {"repo_id": HUB[0], "revision": sha, "features": sorted(info["features"])}
         try:
-            ds = read_dataset(path)
-            return {"repo_id": HUB[0], "revision": sha, "read": True, "episodes": len(ds.episodes),
-                    "frames": sum(ep.length for ep in ds.episodes), "feature_map": ds.meta["dataset"]["feature_map"]}
+            read_dataset(path)
+            out["read_as_is"] = True
         except LeRobotFormatError as e:
-            return {"repo_id": HUB[0], "revision": sha, "read": False, "refusal": str(e)[-400:],
-                    "features": sorted(info["features"])}
+            out["read_as_is"], out["refusal"] = False, str(e)[-400:]
+        ignore = sorted(f for f in info["features"] if f.startswith("next."))
+        ds = read_dataset(path, ignore=ignore)  # what a caller gets after naming the features it drops
+        return {**out, "ignored": ignore, "episodes": len(ds.episodes), "frames": sum(ep.length for ep in ds.episodes),
+                "feature_map": ds.meta["dataset"]["feature_map"]}
     except Exception as e:  # noqa: BLE001 - reported: network, or a dataset not in v3.0
         return {"repo_id": HUB[0], "read": False, "error": f"{type(e).__name__}: {e}"[-400:]}
 
@@ -384,7 +389,7 @@ def main():
         r = lerobot(python, "train", ccil_root, work / "train.json", cwd=work)
         if r.returncode == 0:
             t = json.loads((work / "train.json").read_text())
-            row["training"] = t["finite"] and t["loss_last"] < t["loss_first"]
+            row["training"] = t["finite"] and t["loss_last"] < 0.5 * t["loss_first"]
             row["training_detail"] = t
         else:
             row["training"], row["training_error"] = False, r.stderr[-800:]
@@ -405,7 +410,7 @@ def main():
     record("install_boundary", r.pop("pass"), **r)
     if a.hub:
         h = hub(out / "hub-work")
-        record("hub_dataset_reported", True, **h)
+        record("hub_dataset_read_with_named_ignores", h.get("episodes", 0) > 0 and h.get("read_as_is") is False, **h)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

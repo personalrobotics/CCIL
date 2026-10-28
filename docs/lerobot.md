@@ -115,5 +115,7 @@ uv run --extra lerobot python tools/m4_lerobot/check.py --out <new-dir> [--hub]
 
 [`fixtures/evidence/m4-lerobot/report.json`](fixtures/evidence/m4-lerobot/report.json)
 records the matrix and the installed versions of each environment. With
-`--hub`, it also fetches and reads `lerobot/pusht_keypoints` at a recorded
-revision.
+`--hub`, it also fetches `lerobot/pusht_keypoints` at a recorded revision.
+That dataset is refused as it is, because `next.reward`, `next.done` and
+`next.success` have no CCIL slot. It reads once the caller names them in
+`ignore`. Mapping terminal information is #27's job.
