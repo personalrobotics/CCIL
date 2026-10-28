@@ -31,7 +31,7 @@ schema metadata.
 | `timestamp` | `timestamps` |
 | an episode's task (`task_index` → `meta/tasks.parquet`) | `task` |
 | `index`, `frame_index`, `episode_index`, `task_index` | checked, not copied |
-| — | `terminated`: v3.0 records no terminal flag, so every episode reads as truncated, and the dataset's meta says so |
+| — | `termination_known=False`, `terminated=False`: an episode boundary says that recording stopped, not why (see below) |
 
 **How it reads and writes:**
 - **The path template.** It follows the templates and feature declarations in
@@ -55,6 +55,49 @@ schema metadata.
 LeRobot's own quantiles come from an approximate histogram estimator, so the
 two differ in quantiles only. The compatibility workflow reports the
 difference.
+
+### Ingestion: endings, dispositions and conversion manifests (#27)
+
+**Endings.** No `next.*` feature is ever interpreted by default. Every
+episode's ending is unknown: `termination_known=False`, `terminated=False`
+(trajectories schema 1.1). A 1.0 reader sees the same episodes as
+non-terminal, the conservative reading.
+
+A caller may declare `terminal_feature`, an exhaustive boolean terminal-state
+indicator:
+- The feature must exist and be stored as a boolean.
+- It may be true only on an episode's final frame.
+- A final true means terminated, and a final false means truncated.
+- A true value before the final frame refuses the episode.
+
+`next.done` gets no special treatment. In `lerobot/pusht_keypoints` it is true
+on the last two frames of every episode, so declaring it as the terminal
+feature is refused.
+
+**Dispositions.** Every source feature gets an explicit disposition, recorded
+in the dataset's meta and the conversion manifest:
+- **mapped** to a CCIL field;
+- **checked_index**, for the index columns;
+- **terminal_indicator**;
+- **ignored**, when the caller names it in `ignore`;
+- **preserved_as_source_metadata**, when the caller names it in `preserve`.
+  The manifest records its schema, a summary and a SHA-256 of its values, but
+  never copies the values into JSON.
+
+A feature with no disposition is refused.
+
+**Diagnostics.** Every refusal names the shard, row, episode and frame.
+- **Refused:** duplicate (episode, frame) identities and non-monotonic
+  indices.
+- **Not refused:** consecutive frames with identical values, which are
+  legitimate data.
+
+**Conversion.** `convert(source, out.npz, manifest.json, ...)` writes the
+trajectories file and the manifest atomically. The manifest holds the source
+file hashes, every feature's disposition, the episodes' ending classification,
+and the output hash. It is dataset metadata, kept apart from any algorithm
+parameter. The source is only read, and its hashes are checked before and
+after.
 
 ### What it refuses
 
@@ -120,6 +163,22 @@ compatibility with untested LeRobot commits, and we do not depend on private
 LeRobot APIs.
 
 ## Evidence
+
+```bash
+uv run --extra lerobot python tools/m4_ingest/check.py --out <new-dir> [--hub]
+```
+
+[`fixtures/evidence/m4-ingest/report.json`](fixtures/evidence/m4-ingest/report.json) covers ingestion (#27):
+- **Endings:** unknown by default; an explicit terminal and an explicit
+  truncation; an early terminal flag, a non-boolean feature and a missing
+  feature, each refused; the Push-T pattern.
+- **Dispositions, identity and conversion:** every feature's disposition; the
+  identity refusals and the identical-frames case; the conversion manifest,
+  with the source unchanged and nothing written on refusal.
+- **Compatibility:** a 1.1 file read by the 1.0 reader.
+- **With `--hub`:** the real Push-T data.
+
+The compatibility workflow for #26:
 
 ```bash
 uv run --extra lerobot python tools/m4_lerobot/check.py --out <new-dir> [--hub]
