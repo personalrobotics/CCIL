@@ -36,9 +36,9 @@
      "read_error": "Traceback (most recent call last):\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <module>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 100, in <lambda>\n    {\"load\": lambda: load(sys.argv[2], sys.argv[3]), \"write\": lambda: write(sys.argv[2]),\n                                                                      ^^^^^^^^^^^^^^^^^^\n  File \"<repo>/tools/m4_lerobot/lerobot_side.py\", line 60, in write\n    ds.add_frame({\"observation.state\": np.array([v, v + 0.25, -v], np.float32),\nTypeError: LeRobotDataset.add_frame() missing 1 required positional argument: 'task'\n",
      "supported": false,
      "training": false,
-     "training_error": "nvs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n",
+     "training_error": "s/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n",
      "write_direction": false,
-     "write_error": "nvs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n"
+     "write_error": "s/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1007, in _send_handling_auth\n    response = self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/httpx2/_client.py\", line 1040, in _send_handling_redirects\n    hook(request)\n  File \"<out>/envs/0.3.3/lib/python3.12/site-packages/huggingface_hub/utils/_http.py\", line 294, in hf_request_event_hook\n    raise OfflineModeIsEnabled(\nhuggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/datasets/ccil/compat/refs: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.\n"
     },
     "0.4.0": {
      "installed": {
@@ -801,6 +801,10 @@
   },
   {
    "case": "refusals",
+   "data_shard_symlink_escape": {
+    "message": "<out>/refusals/refuse-data_shard_symlink_escape: data shard 'data/chunk-000/file-000.parquet' resolves outside the dataset (through a symlink)",
+    "refused": true
+   },
    "depth_modality": {
     "message": "<out>/refusals/refuse-depth_modality: feature 'observation.depth' (float32) is an image, video, depth or audio modality: not supported until image CCIL (M5)",
     "refused": true
@@ -813,7 +817,15 @@
     "refused": true
    },
    "inconsistent_offsets": {
-    "message": "lerobot/runs/20261028T014456Z-130-m4_lerobot/refusals/refuse-inconsistent_offsets/meta/episodes: episode 0: offsets [1, 5) are not contiguous from 0 with length 5; episode 1: offsets [6, 12) are not contiguous from 5 with length 7; episode 2: offsets [13, 16) are not contiguous from 12 with length 4",
+    "message": "erobot/runs/20261028T034146Z-130b-m4_lerobot/refusals/refuse-inconsistent_offsets/meta/episodes: episode 0: offsets [1, 5) are not contiguous from 0 with length 5; episode 1: offsets [6, 12) are not contiguous from 5 with length 7; episode 2: offsets [13, 16) are not contiguous from 12 with length 4",
+    "refused": true
+   },
+   "malformed_path_format": {
+    "message": "<out>/refusals/refuse-malformed_path_format/meta/info.json: data_path 'data/chunk-{chunk_index:03q}/file-{file_index:03d}.parquet' cannot be formatted: Unknown format code 'q' for object of type 'int'",
+    "refused": true
+   },
+   "metadata_symlink_escape": {
+    "message": "<out>/refusals/refuse-metadata_symlink_escape: meta/tasks.parquet resolves outside the dataset (through a symlink)",
     "refused": true
    },
    "missing_fields": {
@@ -859,6 +871,10 @@
    },
    "write_off_rate_timestamps": {
     "message": "write: episode 0: timestamps do not advance by 1 / fps = 0.05 s (max error 0.02 s)",
+    "refused": true
+   },
+   "write_streamed_non_finite": {
+    "message": "ite at episode 0 (1), frame 2: actions has non-finite values\n  non_finite at episode 0 (1), frame 3: actions has non-finite values\n  non_finite at episode 0 (1), frame 4: actions has non-finite values",
     "refused": true
    }
   },
@@ -941,7 +957,7 @@
   }
  ],
  "environment": {
-  "code_commit": "fc78a4a27a3e414376bc1df25783b815cf99b0ba",
+  "code_commit": "06d98e04648c8a2913a9f36644cdc438687f28e9",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
