@@ -2,12 +2,20 @@
 """The corrected-demonstrator study's generation steps (docs/experiments/pendulum-corrected-demonstrator-predeclaration.md).
 
     R="uv run --with-requirements tools/vector_env/requirements.txt python tools/pendulum_eval/corrected_demos.py"
-    $R accept                      # the controller acceptance check (odd symmetry about upright)
-    $R generate --out DIR          # corrected datasets, transition replay, demonstrator report
-    $R replay --data DIR           # the transition replay of DIR's datasets on this host (cross-host check)
+    $R accept                                         # the controller acceptance check (odd symmetry about upright)
+    $R generate --out DIR [--report R] [--expect E]   # corrected datasets, transition replay, demonstrator report
+    $R replay --data DIR --expect E [--report R]      # replay DIR's datasets on this host against report E
 
-accept writes acceptance.json; generate refuses an existing DIR and, unless the acceptance check passes, does nothing.
-It writes DIR/pendulum_{cont,disc}_corrected.npz (ccil.trajectories 1.0) and generation.json, both reports under
+Every step fails closed: it exits 1 unless every one of its checks passes, and the report it writes says which failed.
+- accept writes acceptance.json.
+- generate refuses an existing DIR and does nothing unless the acceptance check passes. It writes
+  DIR/pendulum_{cont,disc}_corrected.npz (ccil.trajectories 1.0) and a report (default generation.json). It fails
+  unless every dataset reads back equal, keeps the historical initial states, and replays every transition exactly.
+  With --expect E (another host's generation report), it also fails unless each dataset's sha256 equals E's.
+- replay (the cross-host transition check) fails unless each dataset in DIR has the sha256 recorded in E and every
+  transition replays within CROSS_HOST_TOL.
+Every report records the commit and working-tree state of the process that wrote it, read inside the process; a
+step refuses to run when tracked files differ from that commit. Reports go under
 docs/fixtures/evidence/pendulum-corrected-demonstrator/. Datasets are recorded by sha256, not committed.
 
 Action data contract: the controller computes and clamps in float64 (tools/pendulum_eval/expert.py, the primary
@@ -19,6 +27,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -47,6 +56,18 @@ SWITCH_GUARD = 1e-9  # grid points this close to the 0.1 switch are left out: ei
 
 def sha(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def provenance() -> dict:
+    """The commit and working-tree state of this process's source, read here rather than by a launcher; refuses to
+    run when tracked files differ from the commit."""
+    def git(*a):
+        return subprocess.run(["git", "-C", str(REPO), *a], capture_output=True, text=True, check=True).stdout.strip()
+    changed = git("status", "--porcelain", "--untracked-files=no")
+    if changed:
+        raise SystemExit(f"refused: tracked files differ from HEAD:\n{changed}")
+    return {"commit": git("rev-parse", "HEAD"), "untracked": git("status", "--porcelain").splitlines(),
+            "numpy": np.__version__, "scipy": scipy.__version__}
 
 
 def inconsistent_act(states: np.ndarray) -> np.ndarray:
@@ -127,12 +148,12 @@ def demonstrator_report(hist_s, hist_a, corr_s, corr_a, disc: bool) -> dict:
             "paired_by_episode": paired}
 
 
-def generate(out: Path) -> dict:
+def generate(out: Path, expect: dict | None) -> dict:
     acc = accept()
     if not acc["pass"]:
         raise SystemExit("generation refused: the controller acceptance check failed")
     out.mkdir(parents=True)
-    report = {"acceptance_pass": True, "numpy": np.__version__, "scipy": scipy.__version__, "tasks": {}}
+    report = {"acceptance_pass": True, "tasks": {}}
     with tempfile.TemporaryDirectory() as tmp:
         conv = convert_pendulum(Path(tmp))
         for task, (name, rel, disc) in DATASETS.items():
@@ -168,8 +189,31 @@ def generate(out: Path) -> dict:
                 "demonstrator": demonstrator_report(hist_s, hist_a, corr_s, corr_a, disc)}
             t = report["tasks"][task]
             t["transition_replay_pass_generating_host"] = t["transition_replay_max_abs"] == 0.0
+            t["checks"] = {"read_back_equal": t["read_back_equal"],
+                           "initial_states_equal_historical": t["initial_states_equal_historical"],
+                           "transition_replay_exact": t["transition_replay_pass_generating_host"]}
+            if expect is not None:
+                t["expected_sha256"] = expect["tasks"][task]["sha256"]
+                t["checks"]["sha256_equals_expected"] = t["sha256"] == t["expected_sha256"]
             print(task, {k: v for k, v in t.items() if k != "demonstrator"}, flush=True)
+    report["all_pass"] = all(all(t["checks"].values()) for t in report["tasks"].values())
     return report
+
+
+def replay_check(data: Path, expect: dict) -> dict:
+    rep = {"tolerance": CROSS_HOST_TOL, "tasks": {}}
+    for task, (_, _, disc) in DATASETS.items():
+        digest = sha(data / NAMES[task])
+        ds = read_trajectories(data / NAMES[task])
+        s = np.stack([ep.observations["state"] for ep in ds.episodes])
+        a = np.stack([ep.actions for ep in ds.episodes])[..., 0]
+        worst = replay(s, a, disc)
+        rep["tasks"][task] = {"sha256": digest, "expected_sha256": expect["tasks"][task]["sha256"],
+                              "transition_replay_max_abs": worst,
+                              "checks": {"sha256_equals_expected": digest == expect["tasks"][task]["sha256"],
+                                         "transition_replay_within_tolerance": worst <= CROSS_HOST_TOL}}
+    rep["all_pass"] = all(all(t["checks"].values()) for t in rep["tasks"].values())
+    return rep
 
 
 def main() -> int:
@@ -177,29 +221,30 @@ def main() -> int:
     ap.add_argument("step", choices=("accept", "generate", "replay"))
     ap.add_argument("--out", type=Path)
     ap.add_argument("--data", type=Path)
+    ap.add_argument("--report", type=Path, help="report path (default: the step's report under the evidence folder)")
+    ap.add_argument("--expect", type=Path, help="the generating host's generation report")
     args = ap.parse_args()
-    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    prov = provenance()
+    expect = json.loads(args.expect.read_text()) if args.expect else None
     if args.step == "accept":
         rep, dest = accept(), EVIDENCE / "acceptance.json"
+        ok = rep["pass"]
     elif args.step == "generate":
         if args.out is None:
             ap.error("generate needs --out")
-        rep, dest = generate(args.out), EVIDENCE / "generation.json"
+        rep, dest = generate(args.out, expect), EVIDENCE / "generation.json"
+        ok = rep["all_pass"]
     else:
-        if args.data is None:
-            ap.error("replay needs --data")
-        rep = {"tolerance": CROSS_HOST_TOL, "numpy": np.__version__, "scipy": scipy.__version__, "tasks": {}}
-        for task, (_, _, disc) in DATASETS.items():
-            ds = read_trajectories(args.data / NAMES[task])
-            s = np.stack([ep.observations["state"] for ep in ds.episodes])
-            a = np.stack([ep.actions for ep in ds.episodes])[..., 0]
-            worst = replay(s, a, disc)
-            rep["tasks"][task] = {"sha256": sha(args.data / NAMES[task]), "transition_replay_max_abs": worst,
-                                  "pass": worst <= CROSS_HOST_TOL}
-        dest = EVIDENCE / "replay-cross-host.json"
+        if args.data is None or expect is None:
+            ap.error("replay needs --data and --expect")
+        rep, dest = replay_check(args.data, expect), EVIDENCE / "replay-cross-host.json"
+        ok = rep["all_pass"]
+    rep["provenance"] = prov
+    dest = args.report or dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(rep, indent=1, sort_keys=True) + "\n")
-    print(json.dumps(rep if args.step != "generate" else {"wrote": str(dest)}, indent=1))
-    return 0
+    print(json.dumps({"step": args.step, "pass": ok, "report": str(dest)}, indent=1))
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
