@@ -12,8 +12,8 @@ Per task it records raw differences and agreement counts:
 - state and action differences: maximum, quantiles, episodes identical, first differing step;
 - controller branch (LQR window or energy shaping) at every stored state;
 - saturation decision (whether the unclamped float64 action exceeds the bound) at every stored state;
-- discontinuity flips: whether each stored next state satisfies the flip condition (the condition depends on the
-  angle only, which the flip leaves unchanged);
+- discontinuity flips (discontinuous task only): whether each stored next state satisfies the flip condition (the
+  condition depends on the angle only, which the flip leaves unchanged);
 - per-episode upright occupancy and final hold under pendulum_swingup_v2.
 Writes docs/fixtures/evidence/pendulum-corrected-demonstrator/cross-host-comparison.json.
 """
@@ -34,6 +34,7 @@ for p in (REPO / "tools" / "pendulum_eval", REPO / "tools" / "vector_env", REPO 
 import expert  # noqa: E402
 import profiles  # noqa: E402
 from corrected_demos import EVIDENCE, NAMES  # noqa: E402
+from expert_alignment import DATASETS  # noqa: E402
 
 from ccil.schema.io import read_trajectories  # noqa: E402
 
@@ -103,7 +104,8 @@ def main() -> int:
                                      "max": max(first) if first else None},
             "controller_branch": agreement(dc["branch_lqr"], do["branch_lqr"]),
             "saturation_decision": agreement(dc["saturated"], do["saturated"]),
-            "discontinuity_flip": agreement(dc["flip_after_step"], do["flip_after_step"]),
+            "discontinuity_flip": agreement(dc["flip_after_step"], do["flip_after_step"]) if DATASETS[task][2]
+            else "not applicable: the continuous task has no discontinuity",
             "upright_occupancy": {"episodes_differing": int((pc["upright_occupancy"] != po["upright_occupancy"]).sum()),
                                   "max_abs_difference": float(np.abs(pc["upright_occupancy"]
                                                                      - po["upright_occupancy"]).max()),
