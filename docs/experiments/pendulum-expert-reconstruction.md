@@ -83,3 +83,7 @@ D(t) is the running maximum, over steps ≤ t and over those six replays, of the
 
 - `tools/pendulum_eval/expert_validation.py` runs both checks from the SHA-256-verified conversion boundary. It writes `docs/fixtures/evidence/pendulum-eval-v2/expert-reconstruction.json`, and its `--check` option compares a regeneration against the committed report.
 - The report's verdicts are recorded as outcomes, never as exit statuses.
+
+## Outcome (appended after the comparison; nothing above was changed)
+
+Check 1 failed for every declared variant on both tasks (`docs/fixtures/evidence/pendulum-eval-v2/expert-reconstruction.json`, commit 786d158), so check 2 was not run. The post hoc diagnosis is `tools/pendulum_eval/expert_diagnosis.py`. Revision 2 of `docs/experiments/pendulum-eval-v2-predeclaration.md` terminates the historical expert reconstruction. A corrected demonstrator is a separate study: `docs/experiments/pendulum-corrected-demonstrator-predeclaration.md`.
