@@ -13,7 +13,8 @@ Exploratory, run after revision 1 of the reconstruction failed as declared. It s
 4. descriptive only: which demonstrations visit the affected side of the window, and their v2 occupancy and final
    hold. The wrapping defect may contribute to the expert's occupancy shortfall; this does not establish that it does.
 
-Writes docs/fixtures/evidence/pendulum-eval-v2/expert-diagnosis.json; --check regenerates it and exits 1 if it differs.
+Writes docs/fixtures/evidence/pendulum-eval-v2/expert-diagnosis.json; --check regenerates it and exits 1 if it differs
+(floats to CHECK_RTOL).
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ for p in (REPO / "tools" / "pendulum_eval", REPO / "tools" / "vector_env", REPO 
 import expert  # noqa: E402
 import profiles  # noqa: E402
 from convert_pendulum import convert_pendulum  # noqa: E402
-from expert_alignment import DATASETS, same_report  # noqa: E402
+from expert_alignment import DATASETS  # noqa: E402
 from expert_validation import AMBIGUOUS_SWITCH, STORAGE_TOL, VARIANTS, per_state  # noqa: E402
 
 from ccil.schema.io import read_trajectories  # noqa: E402
@@ -40,6 +41,20 @@ from ccil.schema.io import read_trajectories  # noqa: E402
 OUT = REPO / "docs" / "fixtures" / "evidence" / "pendulum-eval-v2" / "expert-diagnosis.json"
 EPS32 = float(np.finfo(np.float32).eps)
 LARGE = 1e-3  # a disagreement larger than any rounding effect at |a| <= 3
+# The residual-over-float32-scale ratios divide residuals near 1e-7 by libm-computed scales, so they differ across hosts
+# (measured: 1.6e-9 relative between macOS and Linux). Every other value is identical. Floats are compared to this.
+CHECK_RTOL = 1e-6
+
+
+def same_report(a, b) -> bool:
+    """Equal structure and non-float values; floats within CHECK_RTOL."""
+    if isinstance(a, dict):
+        return isinstance(b, dict) and a.keys() == b.keys() and all(same_report(a[k], b[k]) for k in a)
+    if isinstance(a, list):
+        return isinstance(b, list) and len(a) == len(b) and all(same_report(x, y) for x, y in zip(a, b))
+    if isinstance(a, float) and isinstance(b, float):
+        return a == b or abs(a - b) <= CHECK_RTOL * max(abs(a), abs(b))
+    return a == b
 
 
 def diagnose(states: np.ndarray, stored: np.ndarray) -> dict:
