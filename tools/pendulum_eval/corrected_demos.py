@@ -12,6 +12,8 @@ Every step fails closed: it exits 1 unless every one of its checks passes, and t
   DIR/pendulum_{cont,disc}_corrected.npz (ccil.trajectories 1.0) and a report (default generation.json). It fails
   unless every dataset reads back equal, keeps the historical initial states, and replays every transition exactly.
   With --expect E (another host's generation report), it also fails unless each dataset's sha256 equals E's.
+- accept passes only when the corrected controller passes the symmetry check and the historical rule fails it.
+- --expect refuses a report that did not pass all its checks or was written at a different commit.
 - replay (the cross-host transition check) fails unless each dataset in DIR has the sha256 recorded in E and every
   transition replays within CROSS_HOST_TOL.
 Every report records the commit and working-tree state of the process that wrote it, read inside the process; a
@@ -91,7 +93,10 @@ def accept() -> dict:
         err = np.abs(f(plus) + f(minus))
         out[name] = {"max_asymmetry": float(err.max()), "violations": int((err > SYMMETRY_TOL).sum()),
                      "pass": bool((err <= SYMMETRY_TOL).all())}
-    out["pass"] = out["corrected"]["pass"]
+    # The test must discriminate: the corrected controller passes and the historical rule, which is asymmetric on the
+    # theta > pi side of the window, fails. A test that passes both is broken, not passed.
+    out["historical_rule_fails"] = not out["historical_rule"]["pass"]
+    out["pass"] = out["corrected"]["pass"] and out["historical_rule_fails"]
     return out
 
 
@@ -129,12 +134,14 @@ def demonstrator_report(hist_s, hist_a, corr_s, corr_a, disc: bool) -> dict:
     for name, s, a in (("historical", hist_s, hist_a), ("corrected", corr_s, corr_a), ("zero", zero_s, zero_a)):
         per[name], res[name] = summary(s, a)
     checks = {}
-    for cname, src, metric, op, thr in CHECKS:
-        if src == "zero":
-            continue
+    for cname, src, metric, op, thr in CHECKS:  # all six #143 checks; the zero checks are shared by both
         for demo in ("historical", "corrected"):
-            v = res[demo]["mean_normalized_height"] - res["zero"]["mean_normalized_height"] \
-                if src == "difference" else res[demo][metric]
+            if src == "zero":
+                v = res["zero"][metric]
+            elif src == "difference":
+                v = res[demo]["mean_normalized_height"] - res["zero"]["mean_normalized_height"]
+            else:
+                v = res[demo][metric]
             checks[f"{demo}/{cname}"] = {"value": v, "required": f"{op} {thr}",
                                          "pass": bool({"<=": v <= thr, ">=": v >= thr, "==": v == thr}[op])}
     paired = {}
@@ -226,6 +233,12 @@ def main() -> int:
     args = ap.parse_args()
     prov = provenance()
     expect = json.loads(args.expect.read_text()) if args.expect else None
+    if expect is not None:
+        if expect.get("all_pass") is not True:
+            raise SystemExit(f"refused: {args.expect} did not pass all its checks")
+        if (expect.get("provenance") or {}).get("commit") != prov["commit"]:
+            raise SystemExit(f"refused: {args.expect} was written at commit "
+                             f"{(expect.get('provenance') or {}).get('commit')}, not this commit {prov['commit']}")
     if args.step == "accept":
         rep, dest = accept(), EVIDENCE / "acceptance.json"
         ok = rep["pass"]
