@@ -174,11 +174,15 @@ predeclaration's History and are never mixed with version 6's.
   [`figures/`](figures/) equal a regeneration. The figures plot only values
   from `analysis.json`, the same input as the tables, whose per-seed values
   link to the records.
-- **Rerun the study.** Check out the frozen commit and run
-  `tools/m3_experiments/run_study.py` with the steps `tuning`, `choose`,
-  `returns`, `study` and `verify`, then `analyze_v6.py` (see
-  [`run/study.sh`](../fixtures/evidence/pendulum-study-v6/run/study.sh)). The
-  frozen-tooling gate refuses any other code state.
+- **Rerun the study.** Check out `d4ef5d1`, the commit the study ran from,
+  and run `tools/m3_experiments/run_study.py` with the steps `tuning`,
+  `choose`, `returns`, `study` and `verify`, then `analyze_v6.py` (see
+  [`run/study.sh`](../fixtures/evidence/pendulum-study-v6/run/study.sh)). It
+  needs a CUDA GPU.
+- **The gate.** `d4ef5d1` carries the freeze manifest, and its tooling equals
+  the frozen `6fbcce5`. The frozen-tooling gate refuses any code state whose
+  study tooling differs. That includes later commits on `main`: #140 changed
+  `tools/m3_experiments/freeze_evidence.sh`, which is a frozen path.
 
 ## Limitations
 
