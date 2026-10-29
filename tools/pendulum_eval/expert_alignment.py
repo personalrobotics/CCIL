@@ -11,7 +11,8 @@ until it has the same number of state frames. No learned policy is scored.
 
 Writes docs/fixtures/evidence/pendulum-eval-v2/expert-alignment.json: every metric, the six gate checks declared in
 #143 before outcomes were read, and a reconciliation of every value #143 states, at the precision it states. --check
-regenerates the report and exits 1 if it differs from the committed one or if any stated value does not reconcile.
+regenerates the report and exits 1 if it differs from the committed one (floats to CROSS_HOST_RTOL) or if any stated
+value does not reconcile.
 The gate's outcome (including a failed check) is reported, not turned into an exit status.
 """
 from __future__ import annotations
@@ -36,6 +37,9 @@ from convert_pendulum import convert_pendulum  # noqa: E402
 from ccil.schema.io import read_trajectories  # noqa: E402
 
 OUT = REPO / "docs" / "fixtures" / "evidence" / "pendulum-eval-v2" / "expert-alignment.json"
+# The batched integrator's zero-action states differ between macOS and Linux by at most 2 ulps (measured: 3.4e-16
+# relative in the derived metrics; the expert values are identical). Floats are compared to this relative tolerance.
+CROSS_HOST_RTOL = 1e-12
 DATASETS = {"continuous": ("pendulum_cont", "data/pendulum_cont_100.npz", False),
             "discontinuous": ("pendulum_disc", "data/pendulum_disc_500.npz", True)}
 
@@ -85,7 +89,19 @@ def reconciles(value, stated: str) -> bool:
     exp = d.as_tuple().exponent
     if exp >= -2:
         return abs(float(value) - float(d)) <= 1e-12
-    return abs(Decimal(repr(float(value))) - d) <= Decimal(1).scaleb(exp) / 2
+    tol = max(Decimal(1).scaleb(exp) / 2, abs(d) * Decimal(repr(CROSS_HOST_RTOL)))
+    return abs(Decimal(repr(float(value))) - d) <= tol
+
+
+def same_report(a, b) -> bool:
+    """Equal structure and non-float values; floats within CROSS_HOST_RTOL."""
+    if isinstance(a, dict):
+        return isinstance(b, dict) and a.keys() == b.keys() and all(same_report(a[k], b[k]) for k in a)
+    if isinstance(a, list):
+        return isinstance(b, list) and len(a) == len(b) and all(same_report(x, y) for x, y in zip(a, b))
+    if isinstance(a, float) and isinstance(b, float):
+        return abs(a - b) <= CROSS_HOST_RTOL * max(abs(a), abs(b)) or a == b
+    return a == b
 
 
 def zero_rollout(first: np.ndarray, frames: int, discontinuous: bool) -> np.ndarray:
@@ -179,7 +195,7 @@ def main() -> int:
             if r["status"] != "reconciles":
                 print(" ", r["status"], "|", r["what"], r["stated"], r["computed"])
     if ap.parse_args().check:
-        same = OUT.exists() and OUT.read_text() == text
+        same = OUT.exists() and same_report(json.loads(OUT.read_text()), json.loads(text))
         print("report matches" if same else f"{OUT} differs from a regeneration")
         return 0 if same and ok else 1
     OUT.parent.mkdir(parents=True, exist_ok=True)
