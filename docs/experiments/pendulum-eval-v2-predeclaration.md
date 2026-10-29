@@ -1,6 +1,6 @@
 # Pendulum evaluation v2: predeclaration of learned-policy scoring (#143)
 
-**Status: draft for review.** No learned-policy score has been computed under `pendulum_swingup_v2`. None may be computed until this document is merged. Whatever this document leaves open stays unscored until it is decided here, before any score is read.
+**Status: draft for review.** No learned-policy score has been computed under `pendulum_swingup_v2`. None may be computed until this document is merged. The decisions below were settled in review of PR #144, before any learned-policy score was computed.
 
 ## What has been seen
 
@@ -17,7 +17,10 @@
 - **Hold:** the final 100 steps (2 s).
 - **States scored:** the T pre-action states of each episode.
 - **Actions:** applied unclipped, as in v6. Commanded and applied out-of-range fractions are reported.
-- **Not used:** the legacy CCIL return and the Gymnasium Pendulum return are reported only as named historical metrics.
+- **Not used:** two named historical metrics, reported but never decided on:
+  - the legacy CCIL return;
+  - Gymnasium Pendulum-v1's cost formula on the CCIL trajectory. This is not a Gymnasium return: the trajectory follows CCIL's dynamics and may apply torques outside Gymnasium's ±2 limit, which the formula clips only inside the cost.
+- **Ingress:** states must be (E, T, 3), applied actions exactly (E, T, 1), and commanded actions, when recorded, the same shape. Episodes shorter than the 100-step hold window are refused.
 
 ## Part A: post hoc rescoring of v6 (descriptive)
 
@@ -26,7 +29,9 @@
 - **Labeled post hoc.** Every table carries "post hoc, v6 rollouts, not confirmatory". The v6 analysis and its decision are unchanged and are reported beside these scores, never replaced by them.
 - **Statistics:** the same paired union interval as v6, at 95%, descriptive. There is no decision and no multiplicity claim.
 
-## Part B: confirmatory comparison on fresh evaluation starts
+## Part B: predeclared fresh-start validation of CCIL versus BC
+
+**What this is.** Part B is prospective with respect to the evaluation starts (seeds 2201–2220), which have never been used. It is not an untouched original confirmatory test. The 0.3 rad behavioral diagnostics and the ended-upright differences listed above (close to final hold) were already seen, and they motivated this metric correction. Part B is a predeclared validation, or replication, of those observations on fresh starts under the corrected metric.
 
 **Question.** On each task, does CCIL change upright occupancy relative to BC, noise-free, under the paper's training settings?
 
@@ -37,13 +42,13 @@
 | BC, CCIL | yes | No return-based choice |
 | CCIL-filtered, CCIL-noLip, BC and CCIL at 10%, 25% and 50% | yes | No return-based choice |
 | BC-modern, CCIL-modern | yes | Learning rate chosen on validation loss only |
-| NoiseBC, CCIL-tuned | **excluded** | Noise scale and action noise were chosen on the legacy return. Retuning them under v2 would need training, and stays open (decision 2). |
+| NoiseBC, CCIL-tuned | **excluded** | Noise scale and action noise were chosen on the legacy return (decision 2) |
 
 **Evaluation starts.** Training seed s is evaluated on 100 fresh episodes. Their initial states come from `SeedSequence([s + 1000, 7])`, which gives evaluation seeds 2201–2220. These starts have never been used. They use the same distribution as v6: θ ~ U(−1, 1), θ̇ ~ U(−0.5, 0.5).
 
 **Evaluation.** The batched evaluator (`tools/vector_env/pendulum.py`) with v6's dynamics, horizon of 500 steps, action semantics and discontinuity.
 
-**Primary decision.**
+**Primary analysis.**
 - Per task: the paired difference CCIL − BC in upright occupancy, n = 20 training seeds.
 - The interval is the union of BCa and paired t, at c = 0.975 (Bonferroni over the two tasks), with v6's resampling settings.
 - The outcomes are "improves", "worse" and "no detectable difference", with v6's rules.
@@ -57,22 +62,31 @@
 - the data-size pairs;
 - the behavior diagnostics.
 
-**Zero action.** Zero action is scored on the same fresh starts, as a reference.
+**References.**
+- Zero action is scored on the same fresh starts.
+- The expert is scored on the same fresh starts only after its reconstruction passes both validations of decision 1. Until then, its demonstration-only scores are reported labeled "different starts".
 
 **Failures and exclusions.** As v6 §9: non-finite actions count as algorithmic failures. There are no other exclusions.
 
-**Noise.** It is not part of the decision. Robustness is reported descriptively, with observation noise and action noise as separate channels at v6's levels, from the same checkpoints and fresh starts. Whether the noise model itself (`o = (1 − n)·s + n·U(bounds)`) is a sensible perturbation is decision 3.
+**Noise.** It is not part of the decision. Robustness is reported descriptively, with observation-only and action-only perturbations as separate channels at v6's levels, from the same checkpoints and fresh starts (decision 3).
 
-## Open decisions (to settle in review, before any score)
+## Decisions (settled in review of PR #144, before any learned-policy score)
 
-1. **The expert on identical starts.**
-   - The demonstrations come from the paper's energy-shaping plus LQR controller, but the controller is not in the repository. Only its trajectories are. So the expert cannot be scored on the fresh starts, which #143's acceptance criteria require.
-   - Options:
-     - (a) Reconstruct the controller, validate it by replaying each demonstration from its first state, then score it on the fresh starts.
-     - (b) Report the demonstrations on their own starts, labeled as different starts.
-   - Recommended: (a). Until it is decided, the expert is reported as (b), labeled.
-2. **NoiseBC and CCIL-tuned.** Retune under v2 using validation-free selection on fresh tuning seeds (this needs training), or leave them excluded. Recommended: leave them excluded from Part B, and report Part A descriptively.
-3. **The noise model.** Keep v6's levels and model as a descriptive robustness report, or declare a physically scaled perturbation. Recommended: keep it descriptive in this round, with the two channels separated, and define a new noise model separately, before it is ever used for a decision.
+1. **Reconstruct the expert.**
+   - Use the paper's exact hybrid controller: energy shaping with an LQR balance controller, including its angle wrapping, its `|θ − π| < 0.1` switch, and the action-bound behavior that the stored data establishes.
+   - Validate it in two independent ways:
+     - **Per-state actions.** Evaluate the controller at every stored demonstration state, and compare its action directly with the stored action.
+     - **Closed-loop replay.** Replay from every demonstration's first state, and compare the complete state and action trace, including the discontinuous task's velocity flips.
+   - **Tolerances are frozen in a commit before either comparison is run.**
+   - Only after both checks pass is the expert evaluated on the fresh starts. Until then, its demonstration-only scores stay labeled "different starts".
+2. **NoiseBC and CCIL-tuned are excluded from Part B.**
+   - Their settings were selected on the defective legacy return.
+   - Their frozen v6 rollouts are rescored in Part A as descriptive evidence only.
+   - No compute is spent retuning them for this comparison. A later study may retune every compared method under a valid, common selection rule.
+3. **Robustness stays descriptive, with the channels separated.**
+   - Observation-only and action-only perturbations are reported independently, and neither enters a decision.
+   - The current observation mixture, `o = (1 − n)·s + n·U(bounds)`, is not a physically justified sensor model.
+   - A physically scaled noise model is defined and predeclared in separate work before robustness is used for any scientific decision.
 
 ## Artifacts
 
