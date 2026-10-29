@@ -484,7 +484,11 @@ def smoke(work: Path, data: Path, v6_root: Path, device: str, workers: int) -> d
     ident = json.loads((corrupt / "root.json").read_text())
     (corrupt / "root.json").write_text(json.dumps({**ident, "root": str(corrupt)}, indent=1, sort_keys=True))
     victim = next(corrupt.glob("stages/study/*/s*/policy-train-*/checkpoints/policy.npz"))
-    victim.write_bytes(victim.read_bytes()[:-1] + b"\0")
+    before = victim.read_bytes()
+    mid = len(before) // 2
+    victim.write_bytes(before[:mid] + bytes([before[mid] ^ 0xFF]) + before[mid + 1:])  # invert one byte
+    if victim.read_bytes() == before:
+        raise SystemExit("smoke harness error: the corruption did not change the file")
     rc = audit(corrupt, v6_root)
     out["refusals"]["audit_corrupted_stage"] = {"refused": not rc["all_pass"], "corrupted": str(victim.relative_to(work))}
     rep = evaluate(root, work / "eval", device)
