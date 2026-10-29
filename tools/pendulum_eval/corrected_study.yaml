@@ -1,0 +1,12 @@
+# The corrected-demonstrator study (docs/experiments/pendulum-corrected-demonstrator-predeclaration.md): BC and CCIL
+# only, v6's paper-settings arms and shared settings unchanged, study seeds 1201-1220, no tuning.
+study: pendulum-corrected-demonstrator
+version: 1
+tasks: [continuous, discontinuous]
+settings: [transition_model.trainer_version=2, policy.trainer_version=2,
+           transition_model.lipschitz_coordinates=model_normalized, policy.exclude_validation_episodes=false]
+phases:
+  study: {seeds: {from: 1201, to: 1220}, arms: all}
+arms:
+  bc: {settings: [policy.method=bc, policy.balance_noisy_labels=false]}
+  ccil: {settings: [policy.method=ccil]}

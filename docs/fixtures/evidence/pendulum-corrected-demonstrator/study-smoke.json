@@ -1,0 +1,93 @@
+{
+ "all_pass": true,
+ "known_answer_cases": {
+  "algorithmic_failure_in_ccil": {
+   "expected": "inconclusive",
+   "got": "inconclusive",
+   "n": 19,
+   "pass": true,
+   "reasons": [
+    "algorithmic failure in ccil"
+   ]
+  },
+  "all_ok_positive": {
+   "expected": "increases",
+   "got": "increases",
+   "n": 20,
+   "pass": true,
+   "reasons": []
+  },
+  "fifteen_paired_seeds": {
+   "expected": "inconclusive",
+   "got": "inconclusive",
+   "n": 15,
+   "pass": true,
+   "reasons": [
+    "more than 2 infrastructure exclusions in ccil",
+    "15 paired seeds (< 16)"
+   ]
+  },
+  "three_infrastructure_exclusions": {
+   "expected": "inconclusive",
+   "got": "inconclusive",
+   "n": 17,
+   "pass": true,
+   "reasons": [
+    "more than 2 infrastructure exclusions in bc"
+   ]
+  },
+  "two_infrastructure_exclusions": {
+   "expected": "increases",
+   "got": "increases",
+   "n": 18,
+   "pass": true,
+   "reasons": []
+  }
+ },
+ "process": {
+  "commit": "13db9f42d0d11e71f2765ab96b66d1aef3214f84",
+  "dirty": []
+ },
+ "refusals": {
+  "audit_corrupted_stage": {
+   "corrupted": "root-corrupt/stages/study/continuous/s9202/policy-train-ed827adeb872/checkpoints/policy.npz",
+   "refused": true
+  },
+  "audit_empty_v6_root": {
+   "message": "refused: /home/siddh/code/CCIL/runs/20261029T190313Z-corrected-smoke/empty-v6 is not the v6 study root: ['continuous/bc/s1201', 'continuous/bc/s1202', 'continuous/bc/s1203', 'continuous/bc/s1204', 'continuous/bc/s1205'] (80 problems)",
+   "refused": true
+  },
+  "evaluate_before_audit": {
+   "message": "refused: evaluate needs a passing audit report in /home/siddh/code/CCIL/runs/20261029T190313Z-corrected-smoke/root/reports",
+   "refused": true
+  },
+  "preflight_empty_v6_root": {
+   "message": "refused: /home/siddh/code/CCIL/runs/20261029T190313Z-corrected-smoke/empty-v6 is not the v6 study root: ['continuous/bc/s1201', 'continuous/bc/s1202', 'continuous/bc/s1203', 'continuous/bc/s1204', 'continuous/bc/s1205'] (80 problems)",
+   "refused": true
+  },
+  "preflight_wrong_dataset": {
+   "message": "refused: /home/siddh/code/CCIL/runs/20261029T190313Z-corrected-smoke/wrong-data/pendulum_cont_corrected.npz is not the canonical continuous dataset 59c332bc829db9c9da40d9c1bd9ebbf808965aca6a167be48dc0f2ade52cf43c",
+   "refused": true
+  },
+  "train_without_preflight": {
+   "message": "refused: /home/siddh/code/CCIL/runs/20261029T190313Z-corrected-smoke/r-nopre has no root.json; run preflight first",
+   "refused": true
+  }
+ },
+ "smoke_primary_outcomes": {
+  "continuous": {
+   "change_in_ccil_minus_bc": "inconclusive",
+   "corrected_ccil_minus_bc": "inconclusive"
+  },
+  "discontinuous": {
+   "change_in_ccil_minus_bc": "inconclusive",
+   "corrected_ccil_minus_bc": "inconclusive"
+  }
+ },
+ "steps": {
+  "audit": true,
+  "evaluate": true,
+  "preflight": true,
+  "train": true
+ }
+}
