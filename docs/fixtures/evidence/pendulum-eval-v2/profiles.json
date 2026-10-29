@@ -81,6 +81,33 @@
     "pass": true
    }
   ],
+  "malformed_inputs": [
+   {
+    "check": "refused: actions without the action axis (E, T)",
+    "observed": "expected applied actions of shape (1, 500, 1), got (1, 500)",
+    "pass": true
+   },
+   {
+    "check": "refused: two action dimensions (E, T, 2)",
+    "observed": "expected applied actions of shape (1, 500, 1), got (1, 500, 2)",
+    "pass": true
+   },
+   {
+    "check": "refused: actions one step short",
+    "observed": "expected applied actions of shape (1, 500, 1), got (1, 499, 1)",
+    "pass": true
+   },
+   {
+    "check": "refused: commanded shape differs from applied",
+    "observed": "expected commanded actions of shape (1, 500, 1), got (1, 500)",
+    "pass": true
+   },
+   {
+    "check": "refused: episode shorter than the 100-step hold window",
+    "observed": "episodes of 99 steps are shorter than the 100-step hold window",
+    "pass": true
+   }
+  ],
   "ordering": [
    {
     "check": "occupancy and height rank upright > swing-up-hold > swing-up-fall > down",
@@ -118,7 +145,7 @@
     "pass": true
    },
    {
-    "check": "Gymnasium return clips the torque to 2",
+    "check": "Gymnasium-v1 cost formula on the CCIL trajectory clips the torque to 2 inside the cost",
     "observed": -2.000000000000001,
     "pass": true
    }

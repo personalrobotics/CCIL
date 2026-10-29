@@ -51,7 +51,7 @@ CHECKS = (("zero_upright_occupancy", "zero", "upright_occupancy", "<=", 0.01),
           ("expert_minus_zero_height", "difference", "mean_normalized_height", ">=", 0.50),
           ("expert_upright_occupancy", "expert", "upright_occupancy", ">=", 0.50))
 
-# Every value #143 states, as written there (strings keep the stated precision).
+# Every value #143 states, as written there (strings keep the stated precision; None is #143's "not reached").
 STATED = {
     "continuous": {"dataset_sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
                    "pickle_sha256": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc",
@@ -64,6 +64,7 @@ STATED = {
                    "zero": {"episodes": "100", "steps_per_episode": "500",
                             "mean_normalized_height": "0.0444867223162392", "upright_occupancy": "0",
                             "reaches_upright": "0", "final_two_second_hold": "0",
+                            "median_time_to_first_upright_s": None,
                             "rms_angular_velocity_rad_s": "1.299136169418363", "mean_normalized_effort": "0"},
                    "expert_minus_zero_height": "0.6937410896714036"},
     "discontinuous": {"dataset_sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
@@ -77,14 +78,17 @@ STATED = {
                       "zero": {"episodes": "500", "steps_per_episode": "500",
                                "mean_normalized_height": "0.0458344462915480", "upright_occupancy": "0",
                                "reaches_upright": "0", "final_two_second_hold": "0",
+                               "median_time_to_first_upright_s": None,
                                "rms_angular_velocity_rad_s": "1.224300654218390", "mean_normalized_effort": "0"},
                       "expert_minus_zero_height": "0.6878440394380930"}}
 
 
-def reconciles(value, stated: str) -> bool:
-    """value equals the stated number. Values stated with at most two decimals (counts, rates over 100 or 500
+def reconciles(value, stated: str | None) -> bool:
+    """value equals the stated number, or is None where #143 states "not reached". Values stated with at most two decimals (counts, rates over 100 or 500
     episodes, times in 0.02 s steps) are exact and must match up to float rounding of the decimal (1e-12); longer ones
     must match to half a unit in their last stated place."""
+    if stated is None or value is None:
+        return stated is None and value is None
     d = Decimal(stated)
     exp = d.as_tuple().exponent
     if exp >= -2:

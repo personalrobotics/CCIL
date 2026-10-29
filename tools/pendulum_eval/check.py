@@ -5,8 +5,8 @@
 
 Each case is a 500-step trajectory with a known answer derived from its construction, not from the implementation:
 always down, always upright, a fast crossing, swing-up then hold, swing-up then fall, and out-of-range actions. The
-v2 ordering of the cases, scoring an episode alone against scoring it in a batch, and a stored-rollout round trip
-through the batched evaluator are checked too. Writes docs/fixtures/evidence/pendulum-eval-v2/profiles.json; exits
+v2 ordering of the cases, scoring an episode alone against scoring it in a batch, refusal of malformed inputs, and a
+stored-rollout round trip through the batched evaluator are checked too. Writes docs/fixtures/evidence/pendulum-eval-v2/profiles.json; exits
 1 if any check fails.
 """
 from __future__ import annotations
@@ -109,8 +109,9 @@ def expect(name: str, theta: np.ndarray, m: dict) -> list[tuple[str, bool, objec
         chk("commanded out-of-range fraction 1", g["commanded_out_of_range_fraction"] == 1.0,
             g["commanded_out_of_range_fraction"])
         chk("effort (5/3)^2, unclipped", abs(g["normalized_effort"] - (5 / 3) ** 2) < 1e-12, g["normalized_effort"])
-        chk("Gymnasium return clips the torque to 2", abs(g["gymnasium_pendulum_v1_return"] + 0.001 * 4 * T) < 1e-9,
-            g["gymnasium_pendulum_v1_return"])
+        chk("Gymnasium-v1 cost formula on the CCIL trajectory clips the torque to 2 inside the cost",
+            abs(g["gymnasium_v1_cost_formula_on_ccil_trajectory"] + 0.001 * 4 * T) < 1e-9,
+            g["gymnasium_v1_cost_formula_on_ccil_trajectory"])
     return c
 
 
@@ -137,6 +138,20 @@ def main() -> int:
                             "pass": bool(all(x > y for x, y in zip(occ, occ[1:])) and
                                          all(x > y for x, y in zip(hgt, hgt[1:]))),
                             "observed": {"occupancy": [float(x) for x in occ], "height": [float(x) for x in hgt]}}]
+    s, a = traj(np.full(T, np.pi))
+    malformed = {"actions without the action axis (E, T)": (s, a[..., 0], None),
+                 "two action dimensions (E, T, 2)": (s, np.concatenate([a, a], axis=-1), None),
+                 "actions one step short": (s, a[:, :-1], None),
+                 "commanded shape differs from applied": (s, a, a[..., 0]),
+                 "episode shorter than the 100-step hold window": (s[:, :99], a[:, :99], None)}
+    results["malformed_inputs"] = []
+    for what, (ms, ma, mc) in malformed.items():
+        try:
+            profiles.pendulum_swingup_v2(ms, ma, commanded=mc)
+            refused, msg = False, "accepted"
+        except ValueError as e:
+            refused, msg = True, str(e)
+        results["malformed_inputs"].append({"check": f"refused: {what}", "pass": refused, "observed": msg})
     zero = vector.rollout(lambda obs: np.zeros((len(obs), 1)), "continuous", 1201)  # not a learned policy
     sc = profiles.score_rollout(zero)
     results["stored_rollout"] = [{"check": "a batched-evaluator zero-action rollout: the legacy profile reads its stored "

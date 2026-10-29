@@ -13,8 +13,10 @@ under the profile that produced it. No existing artifact is reinterpreted under 
       normalized height   mean over steps of (1 + v) / 2            (0 hanging down, 1 upright)
       final hold          upright on every one of the last 100 steps (2 s)
   plus behavior diagnostics (first upright time, upright time, longest upright run, falls after first upright,
-  RMS angular velocity, normalized effort mean((a / 3)^2)) and the Gymnasium Pendulum-v1 return as a second named
-  historical metric. Episode scores are means over steps, so their scale does not depend on the horizon.
+  RMS angular velocity, normalized effort mean((a / 3)^2)) and, as a second named historical metric, Gymnasium
+  Pendulum-v1's cost formula applied to the CCIL trajectory. That is not a Gymnasium return: the trajectory comes from
+  CCIL's dynamics and may apply torques outside Gymnasium's limit, which the formula clips only inside the cost.
+  Episode scores are means over steps, so their scale does not depend on the horizon.
 
 Coordinates: states are (sin theta, cos theta, theta_dot) with theta = 0 hanging down and theta = pi upright. Scores
 use the T pre-action states of an episode (a rollout's states[:, :T]; a dataset episode's T stored frames), the same
@@ -22,6 +24,9 @@ states the legacy reward is computed on.
 
 Actions: the environment applies actions unclipped (v6 semantics). The declared action range [-3, 3] is checked,
 not enforced: commanded and applied out-of-range fractions are reported.
+
+Ingress: states must be (E, T, 3), applied actions exactly (E, T, 1), commanded actions (when given) the same shape as
+the applied ones, and T at least the 100-step hold window; anything else is refused rather than broadcast.
 """
 from __future__ import annotations
 
@@ -32,7 +37,7 @@ VERSION = "pendulum_eval.profiles/1"
 DT, ACTION_BOUND = 0.02, 3.0
 UPRIGHT_DEG, HOLD_STEPS = 8.0, 100
 UPRIGHT_COS = float(np.cos(np.deg2rad(UPRIGHT_DEG)))
-GYM_MAX_TORQUE = 2.0  # Gymnasium Pendulum-v1 clips the torque before its cost
+GYM_MAX_TORQUE = 2.0  # Gymnasium Pendulum-v1's cost formula clips the torque
 
 
 def vertical(states: np.ndarray) -> np.ndarray:
@@ -80,9 +85,10 @@ def legacy_ccil_v1(states: np.ndarray, actions: np.ndarray) -> np.ndarray:
     return r.sum(axis=-1)
 
 
-def gymnasium_pendulum_v1(states: np.ndarray, actions: np.ndarray) -> np.ndarray:
-    """Per-episode return under Gymnasium Pendulum-v1's cost formula, applied to these trajectories (its dynamics
-    differ): -(angle_normalize(theta_gym)^2 + 0.1 theta_dot^2 + 0.001 u^2), theta_gym = 0 upright, u clipped to +-2."""
+def gymnasium_v1_cost_formula(states: np.ndarray, actions: np.ndarray) -> np.ndarray:
+    """Per episode, minus the sum over steps of Gymnasium Pendulum-v1's cost formula evaluated on this CCIL trajectory:
+    angle_normalize(theta_gym)^2 + 0.1 theta_dot^2 + 0.001 u^2, theta_gym = 0 upright, u the applied action clipped to
+    +-2 inside the cost only. Not a Gymnasium return: the dynamics and applied torques are CCIL's."""
     e = np.arctan2(states[..., 0], states[..., 1]) - np.pi
     e = (e + np.pi) % (2 * np.pi) - np.pi
     u = np.clip(actions[..., 0], -GYM_MAX_TORQUE, GYM_MAX_TORQUE)
@@ -92,8 +98,14 @@ def gymnasium_pendulum_v1(states: np.ndarray, actions: np.ndarray) -> np.ndarray
 def pendulum_swingup_v2(states: np.ndarray, actions: np.ndarray, commanded: np.ndarray | None = None) -> dict:
     """Per-episode arrays from (E, T, 3) pre-action states and (E, T, 1) applied actions; commanded actions, when the
     source records them separately (rollouts do, demonstrations do not), are checked against the action range."""
-    if states.ndim != 3 or states.shape[-1] != 3 or actions.shape[:2] != states.shape[:2]:
-        raise ValueError(f"expected (E, T, 3) states and (E, T, 1) actions, got {states.shape} and {actions.shape}")
+    if states.ndim != 3 or states.shape[-1] != 3:
+        raise ValueError(f"expected (E, T, 3) states, got {states.shape}")
+    if actions.shape != states.shape[:2] + (1,):
+        raise ValueError(f"expected applied actions of shape {states.shape[:2] + (1,)}, got {actions.shape}")
+    if commanded is not None and commanded.shape != actions.shape:
+        raise ValueError(f"expected commanded actions of shape {actions.shape}, got {commanded.shape}")
+    if states.shape[1] < HOLD_STEPS:
+        raise ValueError(f"episodes of {states.shape[1]} steps are shorter than the {HOLD_STEPS}-step hold window")
     v = vertical(states)
     up = v >= UPRIGHT_COS
     reached = up.any(axis=1)
@@ -112,7 +124,7 @@ def pendulum_swingup_v2(states: np.ndarray, actions: np.ndarray, commanded: np.n
            "normalized_effort": ((a / ACTION_BOUND) ** 2).mean(axis=1),
            "applied_out_of_range_fraction": (np.abs(a) > ACTION_BOUND).mean(axis=1),
            "legacy_ccil_v1_return": legacy_ccil_v1(states, actions),
-           "gymnasium_pendulum_v1_return": gymnasium_pendulum_v1(states, actions)}
+           "gymnasium_v1_cost_formula_on_ccil_trajectory": gymnasium_v1_cost_formula(states, actions)}
     if commanded is not None:
         out["commanded_out_of_range_fraction"] = (np.abs(commanded[..., 0]) > ACTION_BOUND).mean(axis=1)
     return out
@@ -138,7 +150,8 @@ def summarize(per_episode: dict, states: np.ndarray, actions: np.ndarray) -> dic
            "mean_normalized_effort": float(((actions[..., 0] / ACTION_BOUND) ** 2).mean()),
            "applied_out_of_range_fraction": float(per_episode["applied_out_of_range_fraction"].mean()),
            "historical": {"legacy_ccil_v1_mean_return": float(per_episode["legacy_ccil_v1_return"].mean()),
-                          "gymnasium_pendulum_v1_mean_return": float(per_episode["gymnasium_pendulum_v1_return"].mean())}}
+                          "gymnasium_v1_cost_formula_on_ccil_trajectory_mean":
+                              float(per_episode["gymnasium_v1_cost_formula_on_ccil_trajectory"].mean())}}
     if "commanded_out_of_range_fraction" in per_episode:
         out["commanded_out_of_range_fraction"] = float(per_episode["commanded_out_of_range_fraction"].mean())
     return out
