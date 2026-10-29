@@ -1,6 +1,6 @@
 # Pendulum evaluation v2: predeclaration of learned-policy scoring (#143)
 
-**Status: draft for review.** No learned-policy score has been computed under `pendulum_swingup_v2`. None may be computed until this document is merged. The decisions below were settled in review of PR #144, before any learned-policy score was computed.
+**Status: final predeclaration, binding when merged.** No learned-policy score has been computed under `pendulum_swingup_v2`. None may be computed until this document is merged. The decisions below were settled in review of PR #144, before any learned-policy score was computed.
 
 ## What has been seen
 
@@ -20,7 +20,7 @@
 - **Not used:** two named historical metrics, reported but never decided on:
   - the legacy CCIL return;
   - Gymnasium Pendulum-v1's cost formula on the CCIL trajectory. This is not a Gymnasium return: the trajectory follows CCIL's dynamics and may apply torques outside Gymnasium's ±2 limit, which the formula clips only inside the cost.
-- **Ingress:** states must be (E, T, 3), applied actions exactly (E, T, 1), and commanded actions, when recorded, the same shape. Episodes shorter than the 100-step hold window are refused.
+- **Ingress:** states must be (E, T, 3), applied actions exactly (E, T, 1), and commanded actions, when recorded, the same shape. Episodes shorter than the 100-step hold window, and any non-finite state or action, are refused. A non-finite rollout is recorded as an algorithmic failure (see Failures and exclusions), never scored.
 
 ## Part A: post hoc rescoring of v6 (descriptive)
 
