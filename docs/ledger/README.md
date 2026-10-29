@@ -50,10 +50,10 @@ Statuses and targets follow the
 
 | Entry | Claim | Status | Target |
 |---|---|---|---|
-| `sim-pendulum-cont` | Fig. 4(c) | out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is tested by the #24 efficacy study. | M3 (#24, #25) |
-| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | out-of-scope as a legacy reproduction. The claim is tested by the #24 efficacy study. | M3 (#24, #25, #3) |
+| `sim-pendulum-cont` | Fig. 4(c) | out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim was tested by the #24 efficacy study: CCIL improves on BC ([report](../experiments/pendulum-ccil-study-results.md)). | M3 (#24, #25) |
+| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | out-of-scope as a legacy reproduction. The claim was tested by the #24 efficacy study: CCIL improves on BC ([report](../experiments/pendulum-ccil-study-results.md)). | M3 (#24, #25, #3) |
 | `sim-pendulum-label-bound` | Sec. 5.1 error bound | blocked: procedure unrecorded | M3 |
-| `internal-label-filtering-configs` | label-filtering configs | blocked: no linked result | M3, resolved through #3 and #25 |
+| `internal-label-filtering-configs` | label-filtering configs | out-of-scope: #25 records that the configuration behind Fig. 4(c) is unknown | none |
 | `internal-action-chunking-labels` | Sec. 6, App. C.3 | blocked: real-robot data | M3, capability ported in #22 |
 | `sim-hopper`, `-walker2d`, `-ant`, `-halfcheetah` | Table 1 | out-of-scope: re-baselined on Minari in M7 | none |
 | `sim-coffee-pull`, `-button`, `-coffee-push`, `-drawer-close` | Table 1 | out-of-scope: re-baselined on Meta-World v3 in M7 | none |

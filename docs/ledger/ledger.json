@@ -70,14 +70,18 @@
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
       "status": "out-of-scope",
-      "evidence": [],
+      "evidence": [
+        "docs/experiments/pendulum-ccil-study-results.md",
+        "docs/experiments/pendulum-ccil-study-tables.md",
+        "docs/fixtures/evidence/pendulum-study-v6/analysis.json"
+      ],
       "blockers": [],
       "discrepancies": [
         "Paper Table 2 lists 50 pendulum demonstrations; the dataset file is pendulum_cont_100.pkl.",
         "pendulum.sh uses seeds 41-50; every other suite uses 40-49.",
         "pendulum.sh also trains CCIL with lipschitz_type none, which no figure reports.",
         "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
-        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness-cpu.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
+        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness-cpu.json. The #24 study runs the corrected implementation; these corrections are properties of the implementation under test, not deviations measured against legacy."
       ],
       "inventory_capabilities": [
         "dynamics-model",
@@ -99,7 +103,7 @@
       ],
       "target_milestone": "M3",
       "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25.",
-      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
+      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published. The claim that CCIL improves Pendulum return over BC was tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md, version 6) and published in #25. Predeclared primary outcome, continuous: CCIL improves on BC, +482 [274, 690] (CCIL − BC, noise-free, 20 paired seeds, 97.5% union interval)."
     },
     {
       "id": "sim-pendulum-disc",
@@ -167,13 +171,17 @@
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
       "status": "out-of-scope",
-      "evidence": [],
+      "evidence": [
+        "docs/experiments/pendulum-ccil-study-results.md",
+        "docs/experiments/pendulum-ccil-study-tables.md",
+        "docs/fixtures/evidence/pendulum-study-v6/analysis.json"
+      ],
       "blockers": [],
       "discrepancies": [
         "label-filtering changes this config from noisy_action (epsilon 0.01) to backward_euler_fast with label_err_quantile 0.3; which produced Fig. 4(c) is unknown.",
         "Issue #3 reports this result as unstable across reruns; its maintainer contract governs closure.",
         "NoiseBC injects noise_cov * U[0,1) (non-negative) on half of each batch; the paper describes a small disturbance (Ke et al.).",
-        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness-cpu.json. The parity run (#24) compares against legacy and, if it reproduces, sets reproduced-with-correctness-change."
+        "The ccil port (#21) corrects four legacy dynamics defects; two affect this entry's soft_sampling labels: prediction now runs in eval mode (legacy spectral-norm models updated power-iteration buffers on every prediction), and the soft_sampling penalty is the paper's finite-difference Lipschitz ratio of the residual model (legacy compared the normalized residual with the next-state prediction and divided by the unscaled noise). soft_jac and soft_sampling_slack are corrected too (docs/migration/vector-dynamics.md). Evidence: docs/fixtures/evidence/m3-dynamics/correctness-cpu.json. The #24 study runs the corrected implementation; these corrections are properties of the implementation under test, not deviations measured against legacy."
       ],
       "inventory_capabilities": [
         "dynamics-model",
@@ -195,7 +203,7 @@
       ],
       "target_milestone": "M3",
       "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25; #3 governs sim-pendulum-disc.",
-      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
+      "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published. The claim that CCIL improves Pendulum return over BC was tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md, version 6) and published in #25. Predeclared primary outcome, discontinuous: CCIL improves on BC, +286 [8, 563] (CCIL − BC, noise-free, 20 paired seeds, 97.5% union interval)."
     },
     {
       "id": "sim-pendulum-label-bound",
@@ -2033,15 +2041,9 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "knowledge",
-          "detail": "No reported result is tied to these configs; they may back the IROS submission or the unified preprint.",
-          "next_action": "Ask the authors which result these configs produced; record the answer here before reconciling with main's configs."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "F1 eval on this branch loads policies from /home/prl/dev/CCIL."
       ],
@@ -2054,7 +2056,8 @@
         "repo-hygiene"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "Terminal when #25 records which config produced Fig. 4(c) (via #3) or records that it is unknown; then out-of-scope."
+      "terminal_rule": "Terminal when #25 records which config produced Fig. 4(c) (via #3) or records that it is unknown; then out-of-scope.",
+      "exclusion_rationale": "#25 records that it is unknown which configuration produced the paper's Fig. 4(c) Pendulum values: no record ties the label-filtering configs, or main's, to the figure (docs/experiments/pendulum-ccil-study-results.md, Paper comparison). Label filtering itself is tested on the modern stack as the CCIL-filtered arm of the #24 study."
     },
     {
       "id": "internal-data-ablation",
