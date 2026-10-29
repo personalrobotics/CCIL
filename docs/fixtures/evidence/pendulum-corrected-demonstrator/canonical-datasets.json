@@ -1,0 +1,39 @@
+{
+ "datasets": {
+  "continuous": {
+   "asset": "pendulum_cont_corrected-sha256-59c332bc829db9c9da40d9c1bd9ebbf808965aca6a167be48dc0f2ade52cf43c.npz",
+   "bytes": 1404834,
+   "format": "ccil.trajectories 1.0",
+   "local_name": "pendulum_cont_corrected.npz",
+   "sha256": "59c332bc829db9c9da40d9c1bd9ebbf808965aca6a167be48dc0f2ade52cf43c",
+   "url": "https://github.com/personalrobotics/CCIL/releases/download/data/pendulum-corrected-demonstrator-v1/pendulum_cont_corrected-sha256-59c332bc829db9c9da40d9c1bd9ebbf808965aca6a167be48dc0f2ade52cf43c.npz"
+  },
+  "discontinuous": {
+   "asset": "pendulum_disc_corrected-sha256-a24d9adb0ee08911cadd76252534e114535e77b0ae264abb0a6c61c0c15af021.npz",
+   "bytes": 7013634,
+   "format": "ccil.trajectories 1.0",
+   "local_name": "pendulum_disc_corrected.npz",
+   "sha256": "a24d9adb0ee08911cadd76252534e114535e77b0ae264abb0a6c61c0c15af021",
+   "url": "https://github.com/personalrobotics/CCIL/releases/download/data/pendulum-corrected-demonstrator-v1/pendulum_disc_corrected-sha256-a24d9adb0ee08911cadd76252534e114535e77b0ae264abb0a6c61c0c15af021.npz"
+  }
+ },
+ "description": "Canonical datasets of the Pendulum corrected-demonstrator study (#143). Every downstream stage must consume exactly these bytes, verified by sha256 before use.",
+ "generated_by": {
+  "command": "tools/pendulum_eval/corrected_demos.py generate",
+  "commit": "1849ebb76ca51570df9322d2440ac9174ce2e639",
+  "host": "siddh (Linux)",
+  "report": "docs/fixtures/evidence/pendulum-corrected-demonstrator/generation.json",
+  "run_log": "runs/20261029T174632Z-corrected-demos.log (siddh)"
+ },
+ "not_canonical": {
+  "macOS regeneration": {
+   "continuous_sha256": "dc6b5a81e0e3c473084cef91a48b45a55611e8bb9df0401cd9f400e763f49ae1",
+   "discontinuous_sha256": "b09525d7c801e97ffedb5566780400a91f3236a58171f2085ccba4fd33c24f50",
+   "note": "descriptive only (cross-host-comparison.json); never used and not preserved"
+  }
+ },
+ "release_tag": "data/pendulum-corrected-demonstrator-v1",
+ "release_tag_commit": "1849ebb76ca51570df9322d2440ac9174ce2e639",
+ "schema_version": 1,
+ "verify": "gh release download data/pendulum-corrected-demonstrator-v1 -R personalrobotics/CCIL && shasum -a 256 *.npz (each must equal its sha256 above)"
+}
