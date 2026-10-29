@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Diagnostic 2 of docs/experiments/pendulum-v6-diagnostics.md: zero action against the learned policies.
 
-    uv run --group evidence python tools/pendulum_diagnostics/behavior.py --root RUN_ROOT --out OUT_DIR
+    uv run --group evidence --with-requirements tools/vector_env/requirements.txt \
+        python tools/pendulum_diagnostics/behavior.py --root RUN_ROOT --out OUT_DIR
 
 Reads the stored noise-free rollouts of the zero, bc, ccil, noise_bc and ccil_tuned arms (both tasks, all study seeds)
 and writes OUT_DIR/behavior.json and figures. Nothing is re-run.
