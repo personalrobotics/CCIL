@@ -1,0 +1,344 @@
+{
+ "acceptance_pass": true,
+ "all_pass": true,
+ "provenance": {
+  "commit": "1849ebb76ca51570df9322d2440ac9174ce2e639",
+  "numpy": "2.4.6",
+  "scipy": "1.16.3",
+  "untracked": [
+   "?? docs/fixtures/evidence/pendulum-corrected-demonstrator/"
+  ]
+ },
+ "tasks": {
+  "continuous": {
+   "checks": {
+    "initial_states_equal_historical": true,
+    "read_back_equal": true,
+    "transition_replay_exact": true
+   },
+   "dataset": "pendulum_cont_corrected.npz",
+   "demonstrator": {
+    "gate_checks": {
+     "corrected/expert_final_hold": {
+      "pass": true,
+      "required": ">= 0.9",
+      "value": 1.0
+     },
+     "corrected/expert_minus_zero_height": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.7224430652042093
+     },
+     "corrected/expert_reaches_upright": {
+      "pass": true,
+      "required": ">= 0.95",
+      "value": 1.0
+     },
+     "corrected/expert_upright_occupancy": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.59348
+     },
+     "corrected/zero_final_hold": {
+      "pass": true,
+      "required": "== 0.0",
+      "value": 0.0
+     },
+     "corrected/zero_upright_occupancy": {
+      "pass": true,
+      "required": "<= 0.01",
+      "value": 0.0
+     },
+     "historical/expert_final_hold": {
+      "pass": true,
+      "required": ">= 0.9",
+      "value": 0.95
+     },
+     "historical/expert_minus_zero_height": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.6937410896714036
+     },
+     "historical/expert_reaches_upright": {
+      "pass": true,
+      "required": ">= 0.95",
+      "value": 1.0
+     },
+     "historical/expert_upright_occupancy": {
+      "pass": false,
+      "required": ">= 0.5",
+      "value": 0.49738
+     },
+     "historical/zero_final_hold": {
+      "pass": true,
+      "required": "== 0.0",
+      "value": 0.0
+     },
+     "historical/zero_upright_occupancy": {
+      "pass": true,
+      "required": "<= 0.01",
+      "value": 0.0
+     }
+    },
+    "label": "descriptive; same starts; not gating",
+    "paired_by_episode": {
+     "final_hold": {
+      "gained": 5,
+      "lost": 0
+     },
+     "normalized_height": {
+      "episodes_equal": 0,
+      "episodes_higher": 89,
+      "episodes_lower": 11,
+      "mean_difference": 0.028701975532805755
+     },
+     "upright_occupancy": {
+      "episodes_equal": 55,
+      "episodes_higher": 45,
+      "episodes_lower": 0,
+      "mean_difference": 0.09609999999999999
+     }
+    },
+    "summaries": {
+     "corrected": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 100,
+      "final_two_second_hold": 1.0,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -973.2874574207001,
+       "legacy_ccil_v1_mean_return": -1803.8458866245596
+      },
+      "mean_falls_after_first_upright": 0.04,
+      "mean_longest_upright_s": 5.920000000000001,
+      "mean_normalized_effort": 0.24254654153569172,
+      "mean_normalized_height": 0.7669297875204485,
+      "mean_upright_time_s": 5.934800000000001,
+      "median_time_to_first_upright_s": 3.95,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 1.0,
+      "rms_angular_velocity_rad_s": 1.8519924767145735,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.59348
+     },
+     "historical": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 100,
+      "final_two_second_hold": 0.95,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -1118.5278222497175,
+       "legacy_ccil_v1_mean_return": -2147.114566384099
+      },
+      "mean_falls_after_first_upright": 0.49,
+      "mean_longest_upright_s": 4.789000000000001,
+      "mean_normalized_effort": 0.250144611385355,
+      "mean_normalized_height": 0.7382278119876428,
+      "mean_upright_time_s": 4.973800000000001,
+      "median_time_to_first_upright_s": 3.95,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 1.0,
+      "rms_angular_velocity_rad_s": 2.134668817349325,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.49738
+     },
+     "zero": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 100,
+      "final_two_second_hold": 0.0,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -4040.584198173485,
+       "legacy_ccil_v1_mean_return": -2400.0369260922216
+      },
+      "mean_falls_after_first_upright": 0.0,
+      "mean_longest_upright_s": 0.0,
+      "mean_normalized_effort": 0.0,
+      "mean_normalized_height": 0.04448672231623921,
+      "mean_upright_time_s": 0.0,
+      "median_time_to_first_upright_s": null,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 0.0,
+      "rms_angular_velocity_rad_s": 1.2991361694183636,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.0
+     }
+    }
+   },
+   "episodes": 100,
+   "frames": 500,
+   "historical_sha256": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+   "initial_states_equal_historical": true,
+   "precast_minus_applied_max_abs": 1.1882749184621844e-07,
+   "read_back_equal": true,
+   "sha256": "59c332bc829db9c9da40d9c1bd9ebbf808965aca6a167be48dc0f2ade52cf43c",
+   "transition_replay_max_abs": 0.0,
+   "transition_replay_pass_generating_host": true
+  },
+  "discontinuous": {
+   "checks": {
+    "initial_states_equal_historical": true,
+    "read_back_equal": true,
+    "transition_replay_exact": true
+   },
+   "dataset": "pendulum_disc_corrected.npz",
+   "demonstrator": {
+    "gate_checks": {
+     "corrected/expert_final_hold": {
+      "pass": true,
+      "required": ">= 0.9",
+      "value": 1.0
+     },
+     "corrected/expert_minus_zero_height": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.7210143356640932
+     },
+     "corrected/expert_reaches_upright": {
+      "pass": true,
+      "required": ">= 0.95",
+      "value": 1.0
+     },
+     "corrected/expert_upright_occupancy": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.600792
+     },
+     "corrected/zero_final_hold": {
+      "pass": true,
+      "required": "== 0.0",
+      "value": 0.0
+     },
+     "corrected/zero_upright_occupancy": {
+      "pass": true,
+      "required": "<= 0.01",
+      "value": 0.0
+     },
+     "historical/expert_final_hold": {
+      "pass": true,
+      "required": ">= 0.9",
+      "value": 0.95
+     },
+     "historical/expert_minus_zero_height": {
+      "pass": true,
+      "required": ">= 0.5",
+      "value": 0.687844039438093
+     },
+     "historical/expert_reaches_upright": {
+      "pass": true,
+      "required": ">= 0.95",
+      "value": 1.0
+     },
+     "historical/expert_upright_occupancy": {
+      "pass": false,
+      "required": ">= 0.5",
+      "value": 0.490256
+     },
+     "historical/zero_final_hold": {
+      "pass": true,
+      "required": "== 0.0",
+      "value": 0.0
+     },
+     "historical/zero_upright_occupancy": {
+      "pass": true,
+      "required": "<= 0.01",
+      "value": 0.0
+     }
+    },
+    "label": "descriptive; same starts; not gating",
+    "paired_by_episode": {
+     "final_hold": {
+      "gained": 25,
+      "lost": 0
+     },
+     "normalized_height": {
+      "episodes_equal": 0,
+      "episodes_higher": 455,
+      "episodes_lower": 45,
+      "mean_difference": 0.03317029622600048
+     },
+     "upright_occupancy": {
+      "episodes_equal": 247,
+      "episodes_higher": 253,
+      "episodes_lower": 0,
+      "mean_difference": 0.110536
+     }
+    },
+    "summaries": {
+     "corrected": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 500,
+      "final_two_second_hold": 1.0,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -983.2947573562379,
+       "legacy_ccil_v1_mean_return": -1824.3100889610225
+      },
+      "mean_falls_after_first_upright": 0.028,
+      "mean_longest_upright_s": 5.99776,
+      "mean_normalized_effort": 0.2409557990676647,
+      "mean_normalized_height": 0.7668487819556412,
+      "mean_upright_time_s": 6.00792,
+      "median_time_to_first_upright_s": 3.8000000000000003,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 1.0,
+      "rms_angular_velocity_rad_s": 1.8746975355032687,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.600792
+     },
+     "historical": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 500,
+      "final_two_second_hold": 0.95,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -1151.3555424559468,
+       "legacy_ccil_v1_mean_return": -2221.587408048383
+      },
+      "mean_falls_after_first_upright": 0.544,
+      "mean_longest_upright_s": 4.70028,
+      "mean_normalized_effort": 0.24993417995603004,
+      "mean_normalized_height": 0.733678485729641,
+      "mean_upright_time_s": 4.90256,
+      "median_time_to_first_upright_s": 3.8000000000000003,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 1.0,
+      "rms_angular_velocity_rad_s": 2.194756308477789,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.490256
+     },
+     "zero": {
+      "applied_out_of_range_fraction": 0.0,
+      "episodes": 500,
+      "final_two_second_hold": 0.0,
+      "historical": {
+       "gymnasium_v1_cost_formula_on_ccil_trajectory_mean": -3998.6411250138067,
+       "legacy_ccil_v1_mean_return": -2336.5757831888086
+      },
+      "mean_falls_after_first_upright": 0.0,
+      "mean_longest_upright_s": 0.0,
+      "mean_normalized_effort": 0.0,
+      "mean_normalized_height": 0.04583444629154797,
+      "mean_upright_time_s": 0.0,
+      "median_time_to_first_upright_s": null,
+      "profile": "pendulum_swingup_v2",
+      "profile_version": "pendulum_eval.profiles/1",
+      "reaches_upright": 0.0,
+      "rms_angular_velocity_rad_s": 1.2243006542183905,
+      "steps_per_episode": 500,
+      "upright_occupancy": 0.0
+     }
+    }
+   },
+   "episodes": 500,
+   "frames": 500,
+   "historical_sha256": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+   "initial_states_equal_historical": true,
+   "precast_minus_applied_max_abs": 1.1919386277980948e-07,
+   "read_back_equal": true,
+   "sha256": "a24d9adb0ee08911cadd76252534e114535e77b0ae264abb0a6c61c0c15af021",
+   "transition_replay_max_abs": 0.0,
+   "transition_replay_pass_generating_host": true
+  }
+ }
+}
