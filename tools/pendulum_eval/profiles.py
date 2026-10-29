@@ -26,7 +26,9 @@ Actions: the environment applies actions unclipped (v6 semantics). The declared 
 not enforced: commanded and applied out-of-range fractions are reported.
 
 Ingress: states must be (E, T, 3), applied actions exactly (E, T, 1), commanded actions (when given) the same shape as
-the applied ones, and T at least the 100-step hold window; anything else is refused rather than broadcast.
+the applied ones, T at least the 100-step hold window, and every value finite; anything else is refused rather than
+broadcast or turned into NaN metrics. A rollout with non-finite values is an algorithmic failure, recorded by the caller
+before scoring, never scored.
 """
 from __future__ import annotations
 
@@ -106,6 +108,10 @@ def pendulum_swingup_v2(states: np.ndarray, actions: np.ndarray, commanded: np.n
         raise ValueError(f"expected commanded actions of shape {actions.shape}, got {commanded.shape}")
     if states.shape[1] < HOLD_STEPS:
         raise ValueError(f"episodes of {states.shape[1]} steps are shorter than the {HOLD_STEPS}-step hold window")
+    for name, x in (("states", states), ("applied actions", actions), ("commanded actions", commanded)):
+        if x is not None and not np.isfinite(x).all():
+            raise ValueError(f"{name} contain non-finite values; a non-finite rollout is an algorithmic failure, "
+                             "not a scored episode")
     v = vertical(states)
     up = v >= UPRIGHT_COS
     reached = up.any(axis=1)

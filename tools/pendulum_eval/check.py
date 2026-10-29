@@ -144,6 +144,12 @@ def main() -> int:
                  "actions one step short": (s, a[:, :-1], None),
                  "commanded shape differs from applied": (s, a, a[..., 0]),
                  "episode shorter than the 100-step hold window": (s[:, :99], a[:, :99], None)}
+    for what, bad in (("NaN", np.nan), ("+inf", np.inf)):
+        bs, ba, bc = s.copy(), a.copy(), a.copy()
+        bs[0, 250, 2], ba[0, 250, 0], bc[0, 250, 0] = bad, bad, bad
+        malformed[f"{what} in states"] = (bs, a, None)
+        malformed[f"{what} in applied actions"] = (s, ba, None)
+        malformed[f"{what} in commanded actions"] = (s, a, bc)
     results["malformed_inputs"] = []
     for what, (ms, ma, mc) in malformed.items():
         try:
