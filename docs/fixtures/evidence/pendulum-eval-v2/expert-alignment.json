@@ -1,0 +1,487 @@
+{
+ "hold_steps": 100,
+ "issue": "#143",
+ "numpy": "2.4.6",
+ "profile": "pendulum_swingup_v2",
+ "profile_version": "pendulum_eval.profiles/1",
+ "tasks": {
+  "continuous": {
+   "all_checks_pass": false,
+   "all_stated_values_reconcile": true,
+   "checks": {
+    "expert_final_hold": {
+     "pass": true,
+     "required": ">= 0.9",
+     "value": 0.95
+    },
+    "expert_minus_zero_height": {
+     "pass": true,
+     "required": ">= 0.5",
+     "value": 0.6937410896714036
+    },
+    "expert_reaches_upright": {
+     "pass": true,
+     "required": ">= 0.95",
+     "value": 1.0
+    },
+    "expert_upright_occupancy": {
+     "pass": false,
+     "required": ">= 0.5",
+     "value": 0.49738
+    },
+    "zero_final_hold": {
+     "pass": true,
+     "required": "== 0.0",
+     "value": 0.0
+    },
+    "zero_upright_occupancy": {
+     "pass": true,
+     "required": "<= 0.01",
+     "value": 0.0
+    }
+   },
+   "expert": {
+    "applied_out_of_range_fraction": 0.0,
+    "episodes": 100,
+    "final_two_second_hold": 0.95,
+    "historical": {
+     "gymnasium_pendulum_v1_mean_return": -1118.5278222497175,
+     "legacy_ccil_v1_mean_return": -2147.114566384099
+    },
+    "mean_falls_after_first_upright": 0.49,
+    "mean_longest_upright_s": 4.789000000000001,
+    "mean_normalized_effort": 0.250144611385355,
+    "mean_normalized_height": 0.7382278119876428,
+    "mean_upright_time_s": 4.973800000000001,
+    "median_time_to_first_upright_s": 3.95,
+    "profile": "pendulum_swingup_v2",
+    "profile_version": "pendulum_eval.profiles/1",
+    "reaches_upright": 1.0,
+    "rms_angular_velocity_rad_s": 2.134668817349325,
+    "steps_per_episode": 500,
+    "upright_occupancy": 0.49738
+   },
+   "expert_effort_in_stored_dtype": {
+    "dtype": "float32",
+    "value": 0.2501446008682251
+   },
+   "expert_minus_zero_height": 0.6937410896714036,
+   "inputs": {
+    "dataset": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+    "pickle": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc"
+   },
+   "reconciliation": [
+    {
+     "computed": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+     "reconciles": true,
+     "stated": "a417269b62c3c5b444f9ac71aca5407fef18cf2c04f59a60df73f3234122f962",
+     "status": "reconciles",
+     "what": "converted dataset sha256"
+    },
+    {
+     "computed": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc",
+     "reconciles": true,
+     "stated": "ca9ee2f2f51b969d7d59ee26abd31fb6e537d379bd90dd645ba5e209a1f281fc",
+     "status": "reconciles",
+     "what": "retained pickle sha256"
+    },
+    {
+     "computed": 100,
+     "reconciles": true,
+     "stated": "100",
+     "status": "reconciles",
+     "what": "expert episodes"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "expert steps_per_episode"
+    },
+    {
+     "computed": 0.7382278119876428,
+     "reconciles": true,
+     "stated": "0.7382278119876428",
+     "status": "reconciles",
+     "what": "expert mean_normalized_height"
+    },
+    {
+     "computed": 0.49738,
+     "reconciles": true,
+     "stated": "0.497380",
+     "status": "reconciles",
+     "what": "expert upright_occupancy"
+    },
+    {
+     "computed": 1.0,
+     "reconciles": true,
+     "stated": "1.0",
+     "status": "reconciles",
+     "what": "expert reaches_upright"
+    },
+    {
+     "computed": 0.95,
+     "reconciles": true,
+     "stated": "0.95",
+     "status": "reconciles",
+     "what": "expert final_two_second_hold"
+    },
+    {
+     "computed": 3.95,
+     "reconciles": true,
+     "stated": "3.95",
+     "status": "reconciles",
+     "what": "expert median_time_to_first_upright_s"
+    },
+    {
+     "computed": 2.134668817349325,
+     "reconciles": true,
+     "stated": "2.134668817349325",
+     "status": "reconciles",
+     "what": "expert rms_angular_velocity_rad_s"
+    },
+    {
+     "computed": 0.250144611385355,
+     "difference": 1.0517129889198173e-08,
+     "reconciles": false,
+     "stated": "0.2501446008682251",
+     "status": "explained: #143 computed it in float32; the float32 recomputation reconciles",
+     "what": "expert mean_normalized_effort"
+    },
+    {
+     "computed": 100,
+     "reconciles": true,
+     "stated": "100",
+     "status": "reconciles",
+     "what": "zero episodes"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "zero steps_per_episode"
+    },
+    {
+     "computed": 0.0444867223162392,
+     "reconciles": true,
+     "stated": "0.0444867223162392",
+     "status": "reconciles",
+     "what": "zero mean_normalized_height"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero upright_occupancy"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero reaches_upright"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero final_two_second_hold"
+    },
+    {
+     "computed": 1.2991361694183632,
+     "reconciles": true,
+     "stated": "1.299136169418363",
+     "status": "reconciles",
+     "what": "zero rms_angular_velocity_rad_s"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero mean_normalized_effort"
+    },
+    {
+     "computed": 0.2501446008682251,
+     "note": "the canonical float64 value differs from it by float32 rounding",
+     "reconciles": true,
+     "stated": "0.2501446008682251",
+     "status": "reconciles",
+     "what": "expert mean_normalized_effort, recomputed in the stored float32 dtype"
+    },
+    {
+     "computed": 0.6937410896714036,
+     "reconciles": true,
+     "stated": "0.6937410896714036",
+     "status": "reconciles",
+     "what": "expert minus zero mean height"
+    }
+   ],
+   "zero": {
+    "applied_out_of_range_fraction": 0.0,
+    "episodes": 100,
+    "final_two_second_hold": 0.0,
+    "historical": {
+     "gymnasium_pendulum_v1_mean_return": -4040.584198173485,
+     "legacy_ccil_v1_mean_return": -2400.0369260922216
+    },
+    "mean_falls_after_first_upright": 0.0,
+    "mean_longest_upright_s": 0.0,
+    "mean_normalized_effort": 0.0,
+    "mean_normalized_height": 0.0444867223162392,
+    "mean_upright_time_s": 0.0,
+    "median_time_to_first_upright_s": null,
+    "profile": "pendulum_swingup_v2",
+    "profile_version": "pendulum_eval.profiles/1",
+    "reaches_upright": 0.0,
+    "rms_angular_velocity_rad_s": 1.2991361694183632,
+    "steps_per_episode": 500,
+    "upright_occupancy": 0.0
+   }
+  },
+  "discontinuous": {
+   "all_checks_pass": false,
+   "all_stated_values_reconcile": true,
+   "checks": {
+    "expert_final_hold": {
+     "pass": true,
+     "required": ">= 0.9",
+     "value": 0.95
+    },
+    "expert_minus_zero_height": {
+     "pass": true,
+     "required": ">= 0.5",
+     "value": 0.687844039438093
+    },
+    "expert_reaches_upright": {
+     "pass": true,
+     "required": ">= 0.95",
+     "value": 1.0
+    },
+    "expert_upright_occupancy": {
+     "pass": false,
+     "required": ">= 0.5",
+     "value": 0.490256
+    },
+    "zero_final_hold": {
+     "pass": true,
+     "required": "== 0.0",
+     "value": 0.0
+    },
+    "zero_upright_occupancy": {
+     "pass": true,
+     "required": "<= 0.01",
+     "value": 0.0
+    }
+   },
+   "expert": {
+    "applied_out_of_range_fraction": 0.0,
+    "episodes": 500,
+    "final_two_second_hold": 0.95,
+    "historical": {
+     "gymnasium_pendulum_v1_mean_return": -1151.3555424559468,
+     "legacy_ccil_v1_mean_return": -2221.587408048383
+    },
+    "mean_falls_after_first_upright": 0.544,
+    "mean_longest_upright_s": 4.70028,
+    "mean_normalized_effort": 0.24993417995603004,
+    "mean_normalized_height": 0.733678485729641,
+    "mean_upright_time_s": 4.90256,
+    "median_time_to_first_upright_s": 3.8000000000000003,
+    "profile": "pendulum_swingup_v2",
+    "profile_version": "pendulum_eval.profiles/1",
+    "reaches_upright": 1.0,
+    "rms_angular_velocity_rad_s": 2.194756308477789,
+    "steps_per_episode": 500,
+    "upright_occupancy": 0.490256
+   },
+   "expert_effort_in_stored_dtype": {
+    "dtype": "float32",
+    "value": 0.24993416666984558
+   },
+   "expert_minus_zero_height": 0.687844039438093,
+   "inputs": {
+    "dataset": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+    "pickle": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8"
+   },
+   "reconciliation": [
+    {
+     "computed": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+     "reconciles": true,
+     "stated": "b30cb074f77fdf094edc1fd91b6de9a1be28776740f630d33da1e24234c43b8e",
+     "status": "reconciles",
+     "what": "converted dataset sha256"
+    },
+    {
+     "computed": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8",
+     "reconciles": true,
+     "stated": "05c46cc52d6c8295e346709feca795f95956742bc1ab4f3924b4d838216549c8",
+     "status": "reconciles",
+     "what": "retained pickle sha256"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "expert episodes"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "expert steps_per_episode"
+    },
+    {
+     "computed": 0.733678485729641,
+     "reconciles": true,
+     "stated": "0.7336784857296410",
+     "status": "reconciles",
+     "what": "expert mean_normalized_height"
+    },
+    {
+     "computed": 0.490256,
+     "reconciles": true,
+     "stated": "0.490256",
+     "status": "reconciles",
+     "what": "expert upright_occupancy"
+    },
+    {
+     "computed": 1.0,
+     "reconciles": true,
+     "stated": "1.0",
+     "status": "reconciles",
+     "what": "expert reaches_upright"
+    },
+    {
+     "computed": 0.95,
+     "reconciles": true,
+     "stated": "0.95",
+     "status": "reconciles",
+     "what": "expert final_two_second_hold"
+    },
+    {
+     "computed": 3.8000000000000003,
+     "reconciles": true,
+     "stated": "3.80",
+     "status": "reconciles",
+     "what": "expert median_time_to_first_upright_s"
+    },
+    {
+     "computed": 2.194756308477789,
+     "reconciles": true,
+     "stated": "2.194756308477789",
+     "status": "reconciles",
+     "what": "expert rms_angular_velocity_rad_s"
+    },
+    {
+     "computed": 0.24993417995603004,
+     "difference": 1.3286184430416625e-08,
+     "reconciles": false,
+     "stated": "0.2499341666698456",
+     "status": "explained: #143 computed it in float32; the float32 recomputation reconciles",
+     "what": "expert mean_normalized_effort"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "zero episodes"
+    },
+    {
+     "computed": 500,
+     "reconciles": true,
+     "stated": "500",
+     "status": "reconciles",
+     "what": "zero steps_per_episode"
+    },
+    {
+     "computed": 0.04583444629154797,
+     "reconciles": true,
+     "stated": "0.0458344462915480",
+     "status": "reconciles",
+     "what": "zero mean_normalized_height"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero upright_occupancy"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero reaches_upright"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero final_two_second_hold"
+    },
+    {
+     "computed": 1.2243006542183903,
+     "reconciles": true,
+     "stated": "1.224300654218390",
+     "status": "reconciles",
+     "what": "zero rms_angular_velocity_rad_s"
+    },
+    {
+     "computed": 0.0,
+     "reconciles": true,
+     "stated": "0",
+     "status": "reconciles",
+     "what": "zero mean_normalized_effort"
+    },
+    {
+     "computed": 0.24993416666984558,
+     "note": "the canonical float64 value differs from it by float32 rounding",
+     "reconciles": true,
+     "stated": "0.2499341666698456",
+     "status": "reconciles",
+     "what": "expert mean_normalized_effort, recomputed in the stored float32 dtype"
+    },
+    {
+     "computed": 0.687844039438093,
+     "reconciles": true,
+     "stated": "0.6878440394380930",
+     "status": "reconciles",
+     "what": "expert minus zero mean height"
+    }
+   ],
+   "zero": {
+    "applied_out_of_range_fraction": 0.0,
+    "episodes": 500,
+    "final_two_second_hold": 0.0,
+    "historical": {
+     "gymnasium_pendulum_v1_mean_return": -3998.6411250138067,
+     "legacy_ccil_v1_mean_return": -2336.5757831888086
+    },
+    "mean_falls_after_first_upright": 0.0,
+    "mean_longest_upright_s": 0.0,
+    "mean_normalized_effort": 0.0,
+    "mean_normalized_height": 0.04583444629154797,
+    "mean_upright_time_s": 0.0,
+    "median_time_to_first_upright_s": null,
+    "profile": "pendulum_swingup_v2",
+    "profile_version": "pendulum_eval.profiles/1",
+    "reaches_upright": 0.0,
+    "rms_angular_velocity_rad_s": 1.2243006542183903,
+    "steps_per_episode": 500,
+    "upright_occupancy": 0.0
+   }
+  }
+ },
+ "upright_threshold_deg": 8.0,
+ "zero_action": "same-start, tools/vector_env/pendulum.step with the task's discontinuity"
+}
