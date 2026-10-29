@@ -1,0 +1,181 @@
+{
+ "all_pass": true,
+ "cases": {
+  "always_down": [
+   {
+    "check": "height 0",
+    "observed": 0.0,
+    "pass": true
+   },
+   {
+    "check": "occupancy 0",
+    "observed": 0.0,
+    "pass": true
+   },
+   {
+    "check": "never reaches upright, no hold, no falls",
+    "observed": [
+     false,
+     false
+    ],
+    "pass": true
+   },
+   {
+    "check": "legacy return -0.5 pi^2 per step",
+    "observed": -2467.40110027234,
+    "pass": true
+   }
+  ],
+  "always_upright": [
+   {
+    "check": "height 1, occupancy 1",
+    "observed": [
+     1.0,
+     1.0
+    ],
+    "pass": true
+   },
+   {
+    "check": "final hold; first upright at 0 s; longest run 10 s",
+    "observed": [
+     0.0,
+     10.0
+    ],
+    "pass": true
+   }
+  ],
+  "batch_equals_single": [
+   {
+    "check": "scoring the six episodes as one batch equals scoring each alone",
+    "observed": true,
+    "pass": true
+   }
+  ],
+  "fast_crossing": [
+   {
+    "check": "occupancy near the upright arc's share 16/360 (+-0.01)",
+    "observed": 0.042,
+    "pass": true
+   },
+   {
+    "check": "height near 0.5 (+-0.02)",
+    "observed": 0.5024545425826921,
+    "pass": true
+   },
+   {
+    "check": "reaches upright, no final hold",
+    "observed": [
+     true,
+     false
+    ],
+    "pass": true
+   },
+   {
+    "check": "falls about once per turn after the first upright (turns 15.9)",
+    "observed": 16,
+    "pass": true
+   },
+   {
+    "check": "RMS angular velocity 10 rad/s",
+    "observed": 10.000000000000002,
+    "pass": true
+   }
+  ],
+  "ordering": [
+   {
+    "check": "occupancy and height rank upright > swing-up-hold > swing-up-fall > down",
+    "observed": {
+     "height": [
+      1.0,
+      0.799,
+      0.5,
+      0.0
+     ],
+     "occupancy": [
+      1.0,
+      0.616,
+      0.226,
+      0.0
+     ]
+    },
+    "pass": true
+   }
+  ],
+  "out_of_range_actions": [
+   {
+    "check": "applied out-of-range fraction 1",
+    "observed": 1.0,
+    "pass": true
+   },
+   {
+    "check": "commanded out-of-range fraction 1",
+    "observed": 1.0,
+    "pass": true
+   },
+   {
+    "check": "effort (5/3)^2, unclipped",
+    "observed": 2.7777777777777777,
+    "pass": true
+   },
+   {
+    "check": "Gymnasium return clips the torque to 2",
+    "observed": -2.000000000000001,
+    "pass": true
+   }
+  ],
+  "stored_rollout": [
+   {
+    "check": "a batched-evaluator zero-action rollout: the legacy profile reads its stored returns, and v2 scores it as never upright",
+    "observed": {
+     "legacy_R": -2410.773293551458,
+     "v2_occupancy": 0.0
+    },
+    "pass": true
+   }
+  ],
+  "swing_up_then_fall": [
+   {
+    "check": "reaches upright, one fall, no final hold",
+    "observed": [
+     1,
+     false
+    ],
+    "pass": true
+   },
+   {
+    "check": "longest run spans the constructed upright interval",
+    "observed": [
+     2.2600000000000002,
+     2.2600000000000002
+    ],
+    "pass": true
+   }
+  ],
+  "swing_up_then_hold": [
+   {
+    "check": "first upright at the constructed step",
+    "observed": [
+     3.84,
+     3.84
+    ],
+    "pass": true
+   },
+   {
+    "check": "occupancy (T - k) / T",
+    "observed": 0.616,
+    "pass": true
+   },
+   {
+    "check": "final hold, no falls",
+    "observed": [
+     true,
+     0
+    ],
+    "pass": true
+   }
+  ]
+ },
+ "issue": "#143",
+ "profile_version": "pendulum_eval.profiles/1",
+ "upright_threshold_deg": 8.0
+}
