@@ -127,14 +127,16 @@ def _feistel(x, key, a, b):
 
 def permute(pos: torch.Tensor, key: torch.Tensor, n: torch.Tensor) -> torch.Tensor:
     """A keyed pseudo-random permutation of [0, n_m) applied to pos (M, K): Feistel over 2^ceil(log2 n) with
-    cycle-walking (re-applied only to positions still outside [0, n)); the walk ends when all are in range."""
+    cycle-walking (re-applied only to positions still outside [0, n)); the walk ends when all are in range.
+    key is one key per model (M,) or one per position (M, K)."""
     k = torch.clamp(torch.ceil(torch.log2(n.double())).long(), min=2)[:, None]
     a, b = k // 2, k - k // 2
-    n_, key_ = n[:, None], key[:, None]
+    n_ = n[:, None]
+    key_ = key[:, None].expand_as(pos) if key.dim() == 1 else key
     x = _feistel(pos, key_, a, b)
     rows, cols = torch.nonzero(x >= n_, as_tuple=True)
     while len(rows):  # walk only the positions still outside [0, n): the domain is < 2n, so the set halves each pass
-        y = _feistel(x[rows, cols], key[rows], a[rows, 0], b[rows, 0])
+        y = _feistel(x[rows, cols], key_[rows, cols], a[rows, 0], b[rows, 0])
         x[rows, cols] = y
         keep = y >= n[rows]
         rows, cols = rows[keep], cols[keep]
@@ -298,6 +300,45 @@ class _Streams:
         perm = permute(pos, key, self.n)
         seg = torch.searchsorted(self.cum, perm, right=True) - 1
         return (self.starts.gather(1, seg) + perm - self.cum.gather(1, seg)).view(M, n_steps, bs)
+
+
+_SYNTHETIC_STREAM = _s64(0x5D3C_A11B_7E5E_ED01)  # domain separation of the synthetic stream's keys
+
+
+class _MixedStreams:
+    """Per-model streams at a fixed synthetic fraction: every minibatch is b_d demonstration rows then b_s =
+    round(synthetic_fraction * B) synthetic rows. An epoch is one pass over the demonstrations (v1's shuffle, keyed
+    by (seed, epoch)); the synthetic rows run as their own stream of passes, each a fresh keyed permutation, so
+    every synthetic row is drawn once before any is drawn again."""
+
+    def __init__(self, job_blocks, seeds, bs, fraction, device):
+        self.b_s = round(float(fraction) * bs)
+        self.b_d = bs - self.b_s
+        if not 1 <= self.b_s <= bs - 1:
+            raise TrainingError(f"synthetic_fraction {fraction} leaves no demonstration or no synthetic row in a "
+                                f"minibatch of {bs}")
+        for blocks in job_blocks:
+            if "demonstration" not in blocks or "synthetic" not in blocks:
+                raise TrainingError("synthetic_fraction needs demonstrations and synthetic rows in every job")
+        t = lambda part, j: torch.tensor([b[part][j] for b in job_blocks], device=device)
+        self.d_start, self.n_d, self.s_start, self.n_s = t("demonstration", 0), t("demonstration", 1), \
+            t("synthetic", 0), t("synthetic", 1)
+        self.n = self.n_d + self.n_s
+        self.steps = self.n_d // self.b_d
+        base = _mix(torch.tensor([_s64(int(s) & _M64) for s in seeds], device=device) ^ _SHUFFLE)
+        self.syn_base = _mix(base ^ _SYNTHETIC_STREAM)
+        self.seeds, self.bs, self.device = seeds, bs, device
+
+    def chunk(self, epoch: int, step0: int, n_steps: int) -> torch.Tensor:
+        M, b_d, b_s = len(self.seeds), self.b_d, self.b_s
+        key = torch.tensor([shuffle_key(s, epoch) for s in self.seeds], device=self.device)
+        pos = step0 * b_d + torch.arange(n_steps * b_d, device=self.device)
+        pos = torch.minimum(pos[None, :].expand(M, -1), (self.steps * b_d - 1)[:, None])
+        demo = self.d_start[:, None] + permute(pos, key, self.n_d)
+        g = (epoch * self.steps + step0)[:, None] * b_s + torch.arange(n_steps * b_s, device=self.device)[None, :]
+        passes, local = g // self.n_s[:, None], g % self.n_s[:, None]
+        syn = self.s_start[:, None] + permute(local, _mix(self.syn_base[:, None] ^ passes), self.n_s)
+        return torch.cat([demo.view(M, n_steps, b_d), syn.view(M, n_steps, b_s)], dim=2)
 
 
 def parameters_sha256(policy) -> str:
@@ -599,7 +640,9 @@ def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
 
 RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant", "warmup_steps": 0,
                    "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
-                   "validation_interval_steps": None}
+                   "validation_interval_steps": None, "patience": None, "min_delta": 0.0, "synthetic_fraction": None}
+# Recipe keys that steer the loop on the host, not the compiled step (they never enter its static arguments).
+HOST_KEYS = ("step_budget", "checkpoint_selection", "patience", "min_delta", "synthetic_fraction")
 
 
 def recipe_of(settings: dict) -> dict:
@@ -621,6 +664,16 @@ def recipe_of(settings: dict) -> dict:
     if r["validation_interval_steps"] is not None and (r["checkpoint_selection"] != "validation"
                                                        or int(r["validation_interval_steps"]) < 1):
         raise TrainingError("validation_interval_steps is a positive step count, for checkpoint_selection validation")
+    if r["patience"] is not None and (isinstance(r["patience"], bool) or int(r["patience"]) != r["patience"]
+                                      or int(r["patience"]) < 1 or r["checkpoint_selection"] != "validation"):
+        raise TrainingError("patience is a positive count of validation evaluations, for checkpoint_selection "
+                            "validation")
+    if not (np.isfinite(float(r["min_delta"])) and float(r["min_delta"]) >= 0):
+        raise TrainingError("min_delta must be finite and >= 0")
+    if float(r["min_delta"]) > 0 and r["patience"] is None:
+        raise TrainingError("min_delta defines an improvement for patience; it needs patience")
+    if r["synthetic_fraction"] is not None and not 0 < float(r["synthetic_fraction"]) < 1:
+        raise TrainingError("synthetic_fraction must be in (0, 1)")
     return r
 
 
@@ -657,6 +710,10 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     recipe = recipe_of(settings)
     if recipe["checkpoint_selection"] == "validation" and any(j.validation is None for j in jobs):
         raise TrainingError("checkpoint_selection validation needs every job's held-out validation supervision")
+    fraction = recipe["synthetic_fraction"]
+    if fraction is not None and balance:
+        raise TrainingError("synthetic_fraction sets the mixture directly; it excludes balance_labels")
+    patience, min_delta = recipe["patience"], float(recipe["min_delta"])
     t_setup = time.time()
 
     n_real = len(jobs)
@@ -665,7 +722,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     real = torch.tensor([i < n_real for i in range(M)], device=device)
 
     table, job_blocks = _table(padded)
-    segments = [_segments(b, balance) for b in job_blocks]
+    segments = [_segments(b, balance) for b in job_blocks]  # with synthetic_fraction: each row once (the scalers)
     epochs = [int(settings["epochs"]) // int(balance) if balance else int(settings["epochs"]) for _ in padded]
     R = len(table["w"])
     D, A = table["obs"].shape[1], table["act"].shape[1]
@@ -677,7 +734,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         data_mode = "resident" if table_bytes <= memory_budget_fraction * free else "streaming"
     if data_mode == "streaming":  # bound a chunk of gathered rows, whatever the row width
         chunk_steps = max(1, min(chunk_steps, stream_chunk_bytes // (M * bs * row_bytes)))
-    streams = _Streams(segments, [j.seed for j in padded], bs, device)  # index math needs only the segments
+    streams = (_MixedStreams(job_blocks, [j.seed for j in padded], bs, fraction, device) if fraction is not None
+               else _Streams(segments, [j.seed for j in padded], bs, device))  # index math needs only the segments
     steps = streams.steps.tolist()
     budget = recipe["step_budget"]
     if budget:  # a step budget replaces epochs: as many epochs as it takes, the last one cut at the budget
@@ -735,7 +793,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     elif device.type == "cuda":
         host = {k: v.pin_memory() for k, v in host.items()}
     lr = float(settings["learning_rate"])
-    recipe_key = tuple(sorted((k, v) for k, v in recipe.items() if k not in ("step_budget", "checkpoint_selection")))
+    recipe_key = tuple(sorted((k, v) for k, v in recipe.items() if k not in HOST_KEYS))
     statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "recipe": recipe_key}
     validation = (_validation_rows(padded, D, A, stream_chunk_bytes) if recipe["checkpoint_selection"] == "validation"
                   else None)
@@ -813,6 +871,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     ema = {k: v.clone() for k, v in params.items()} if recipe["ema_decay"] is not None else None
     best, best_loss, best_at, val_history = None, None, [None] * M, [[] for _ in jobs]
     interval = recipe["validation_interval_steps"]
+    stale, stopped, stop_step = [0] * n_real, [False] * M, [None] * n_real  # patience state, per real model
+    stopped_dev = torch.zeros(M, dtype=torch.bool, device=device)
 
     def select(due: list, epoch: int, at: list):
         """Validate the models in due (host booleans) and keep each one's best weights so far: the EMA weights
@@ -821,7 +881,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         weights = ema if ema is not None else params
         vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act, device)
         due_t = torch.tensor(due + [False] * (M - len(due)), device=device)
-        better = due_t & (vl < best_loss) if best_loss is not None else due_t.clone()
+        better = due_t & (vl < best_loss - min_delta) if best_loss is not None else due_t.clone()
         best = ({k: v.clone() for k, v in weights.items()} if best is None else
                 {k: torch.where(better.view((M,) + (1,) * (v.dim() - 1)), weights[k], v) for k, v in best.items()})
         best_loss = torch.where(better, vl, best_loss) if best_loss is not None else torch.where(due_t, vl, float("inf"))
@@ -829,6 +889,11 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
             if i < n_real and due[i]:
                 val_history[i].append({"step": at[i], "epoch": epoch, "loss": v})
                 best_at[i] = len(val_history[i]) - 1 if bt else best_at[i]
+                stale[i] = 0 if bt else stale[i] + 1
+                if patience is not None and stale[i] >= int(patience):  # no improvement in `patience` evaluations
+                    stopped[i], stop_step[i] = True, at[i]
+        if patience is not None:
+            stopped_dev.copy_(torch.tensor(stopped, device=device))
     t = torch.zeros(M, device=device)
     S_dev = torch.tensor(steps, device=device)
     budget_dev = torch.tensor(total_steps, device=device)
@@ -845,43 +910,59 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                 loss_sum = torch.zeros(M, device=device)
                 n_steps = torch.zeros(M, device=device)
                 seen_syn = torch.zeros(M, device=device)
+                taken = torch.zeros(M, device=device)  # steps each model took (fewer than scheduled once stopped)
+                mass = {"demonstration": torch.zeros(M, dtype=torch.float64, device=device),
+                        "synthetic": torch.zeros(M, dtype=torch.float64, device=device)}
                 for s0, idx, rows in chunks(epoch):
                     for j in range(idx.shape[0]):
                         b = s0 + j
                         gstep = (epoch * S_dev + b)[:, None]  # model m's optimizer step as v1 counts it (NoiseBC key)
-                        active = live & (b < S_dev) & (gstep[:, 0] < budget_dev)
+                        active = live & (b < S_dev) & (gstep[:, 0] < budget_dev) & ~stopped_dev
                         if rows is None:
                             out = step_fn(params, m1, m2, t, ema, dev["x"], dev["y"], dev["w"], dev["words"],
                                           idx[j], active, gstep, c, **statics)
-                            syn_j = dev["syn"][idx[j]]
+                            syn_j, w_j = dev["syn"][idx[j]], dev["w"][idx[j]]
                         else:
                             out = step_fn(params, m1, m2, t, ema, rows["x"][j], rows["y"][j], rows["w"][j],
                                           rows["words"][j] if noisy else None, active, gstep, c, **statics)
-                            syn_j = rows["syn"][j]
+                            syn_j, w_j = rows["syn"][j], rows["w"][j]
                         params, m1, m2, t, ema, loss, upd = (_own(out) if CUDA_GRAPHS and step_fn.state.startswith("compiled")
                                                              else out)
                         loss_sum += loss
                         n_steps += upd.to(n_steps.dtype)
                         seen_syn += torch.where(active, syn_j.sum(dim=1).to(seen_syn.dtype), 0.0)
+                        taken += active.to(taken.dtype)
+                        w64 = w_j.to(torch.float64)
+                        mass["synthetic"] += torch.where(active, (w64 * syn_j).sum(dim=1), 0.0)
+                        mass["demonstration"] += torch.where(active, (w64 * ~syn_j).sum(dim=1), 0.0)
                         if validation is not None and interval:  # a fixed step cadence, plus each model's last step
                             at = [epoch * steps[i] + b + 1 for i in range(n_real)]
-                            due = [epoch < epochs[i] and b < steps[i] and at[i] <= total_steps[i]
+                            due = [epoch < epochs[i] and b < steps[i] and at[i] <= total_steps[i] and not stopped[i]
                                    and (at[i] % int(interval) == 0 or at[i] == total_steps[i]) for i in range(n_real)]
                             if any(due):
                                 select(due, epoch, at)
+                        if patience is not None and all(stopped[:n_real]):
+                            break
+                    if patience is not None and all(stopped[:n_real]):
+                        break
                 ls, ns, sy = loss_sum.tolist(), n_steps.tolist(), seen_syn.tolist()  # one host read per epoch
+                tk, md, ms = taken.tolist(), mass["demonstration"].tolist(), mass["synthetic"].tolist()
                 if validation is not None and not interval:  # once per epoch, after its last step
-                    select([epoch < epochs[i] for i in range(n_real)], epoch,
-                           [min(total_steps[i], (epoch + 1) * steps[i]) for i in range(n_real)])
+                    due = [epoch < epochs[i] and not stopped[i] for i in range(n_real)]
+                    if any(due):
+                        select(due, epoch, [min(total_steps[i], (epoch + 1) * steps[i]) for i in range(n_real)])
                 epoch_seconds.append(time.time() - t_epoch)
                 for i in range(n_real):
-                    if epoch < epochs[i]:
-                        k = epoch_steps(epoch, i)
+                    if epoch < epochs[i] and tk[i] > 0:
+                        k = int(tk[i])
                         epoch_records[i].append({"epoch": epoch, "steps": k, "optimizer_steps": int(ns[i]),
                                                  "mean_loss": ls[i] / ns[i] if ns[i] else None,
                                                  "rows_seen": {"demonstration": int(k * bs - sy[i]),
                                                                "synthetic": int(sy[i])},
+                                                 "weight_mass": {"demonstration": md[i], "synthetic": ms[i]},
                                                  "zero_weight_steps": int(k - ns[i])})
+                if patience is not None and all(stopped[:n_real]):
+                    break
     finally:
         torch.use_deterministic_algorithms(previous)
     if device.type == "cuda":
@@ -912,6 +993,25 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         policy.net.eval()
         n_demo = sum(ln for (st, ln) in segments[i] if job_blocks[i].get("demonstration") == (st, ln))
         ident = training_identity_v2(job.supervision, settings, job.seed, job.noise, job.validation)
+        ran = sum(e["steps"] for e in epoch_records[i])
+        if patience is None:
+            stopping = {"rule": "schedule", "outcome": "schedule", "steps": ran}
+        else:  # the schedule (epochs or step budget) is only a ceiling: reaching it means the rule never fired
+            stopping = {"rule": "patience", "patience": int(patience), "min_delta": min_delta,
+                        "outcome": "patience" if stopped[i] else "incomplete_fit", "stopped_at_step": stop_step[i],
+                        "steps": ran, "ceiling_steps": total_steps[i]}
+        rows_seen = {p_: sum(e["rows_seen"][p_] for e in epoch_records[i]) for p_ in ("demonstration", "synthetic")}
+        mass_seen = {p_: sum(e["weight_mass"][p_] for e in epoch_records[i]) for p_ in ("demonstration", "synthetic")}
+        n_rows, total_mass = sum(rows_seen.values()), sum(mass_seen.values())
+        exposure = {"requested_synthetic_fraction": None if fraction is None else float(fraction),
+                    "per_minibatch": None if fraction is None else {"demonstration": streams.b_d,
+                                                                    "synthetic": streams.b_s},
+                    "rows": rows_seen, "weight_mass": mass_seen,
+                    "realized_synthetic_row_fraction": rows_seen["synthetic"] / n_rows if n_rows else None,
+                    "realized_synthetic_mass_fraction": mass_seen["synthetic"] / total_mass if total_mass else None}
+        if fraction is not None:  # the row fraction is fixed per minibatch; its only error is rounding b_s
+            exposure["tolerance"] = 1 / (2 * bs)
+            exposure["within_tolerance"] = abs(exposure["realized_synthetic_row_fraction"] - float(fraction)) <= 1 / (2 * bs)
         record = {"trainer": "vector_mlp", "version": policy.version, "trainer_version": TRAINER_VERSION,
                   "training_identity_sha256": ident["sha256"], "parameters_sha256": parameters_sha256(policy),
                   "seed": int(job.seed),
@@ -919,7 +1019,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                                 "engine": step_fn.state, "compilation": compilation, "data_mode": data_mode},
                   "settings": {**settings, "hidden_layers": list(settings["hidden_layers"])},
                   "device": str(device), "rows": int(streams.n[i]), "steps_per_epoch": steps[i],
-                  "rows_dropped_per_epoch": int(streams.n[i]) % bs, "epochs_run": epochs[i],
+                  "rows_dropped_per_epoch": (int(streams.n_d[i]) % streams.b_d if fraction is not None
+                                             else int(streams.n[i]) % bs), "epochs_run": len(epoch_records[i]),
                   "balance_labels": balance or None,
                   "row_sources": {"demonstration": int(n_demo), "synthetic": int(streams.n[i]) - int(n_demo)},
                   "epochs": epoch_records[i], "group": group,
@@ -938,6 +1039,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                       "selected_step": None if best_at[i] is None else val_history[i][best_at[i]]["step"],
                       "selected_loss": None if best_at[i] is None else val_history[i][best_at[i]]["loss"],
                       "rows": int(validation["n"][i])},
+                  "stopping": stopping, "exposure": exposure,
                   "noise_bc": None if job.noise is None else job.noise.descriptor()}
         out.append((policy, json.loads(json.dumps(record, default=str))))
     return out

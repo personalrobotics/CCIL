@@ -61,8 +61,8 @@ its `distance` measured.
 | Transition model | `LinearTransitionModel(A, B, c)` | f = Az + Ba + c, exact or fitted by least squares. |
 | Generator | `BackwardEuler` | z − f(z, a) |
 | Generator | `ExactPreimage` | Newton solve of z_G + f(z_G, a) = z, row by row: each row stops at its own tolerance, so results are batch-invariant. A singular Newton system, a non-finite iterate, or non-convergence marks only that row `failed`. Convergence is judged on the returned iterate, which avoids the legacy stale-residual pattern. |
-| Generator | `NoisyAction(k, σ)` | z' − f(z', a + δ). It records `action_noise_norm` and `state_displacement_norm`. |
-| Generator | `NoisyActionPreimage(k, σ)` | Newton solve of z_G + f(z_G, a + δ) = z', from z. It records `action_noise_norm`, `state_displacement_norm` and `solver_residual`. A failed proposal is rejected, never refilled. |
+| Generator | `NoisyAction(k, σ)` | z' − f(z', a + δ). It records `action_noise_norm`, `state_displacement_norm` and `draw_index`. |
+| Generator | `NoisyActionPreimage(k, σ)` | Newton solve of z_G + f(z_G, a + δ) = z', from z. It records `action_noise_norm`, `state_displacement_norm`, `solver_residual` and `draw_index`. A failed proposal is rejected, never refilled. |
 | Validators | `Finite`, `GenerationFailed`, `SupportRadius(ε)`, `ActionBounds`, `ModelResidual`, `ModelMisfit(τ)` | `SupportRadius` uses the legacy rule `distance < ε`. `ModelResidual` only measures. `ModelMisfit` measures each anchor's one-step model error, and rejects the candidates of anchors with error ≥ τ. Label-error estimates, bounds and filters are certificates, a separate layer after generation: see [certificates.md](certificates.md) (#88). |
 | Weighting | `Uniform` | 1 for accepted rows, 0 for rejected. |
 | Transition model | `ccil.models.mlp.MLPTransitionModel` (`kind="mlp"`, needs `ccil[torch]`) | The legacy `WorldModel` with every Lipschitz regularizer (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |

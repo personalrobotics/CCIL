@@ -407,6 +407,168 @@ def _zero_weight(sup):
     return dataclasses.replace(sup, weights=np.zeros_like(np.asarray(sup.weights)))
 
 
+def contract(device) -> dict:
+    """The shared-harness training contract (il-supervision-benchmarks#11): patience termination on the validation
+    history, a fixed synthetic sampling fraction with realized exposure, and nested-K candidate views."""
+    from ccil.core import (Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel, NoisyAction,
+                           SupportRadius, generate_labels, nested_view)
+    from ccil.schema import Episode, TrajectoryDataset
+    out = {}
+
+    def labelled(n, seed, noise):  # as recipe(): a small, noisily labelled set overfits, so validation turns
+        r = np.random.default_rng(seed)
+        o = r.normal(size=(n, 3))
+        a_ = np.tanh(o @ np.array([[0.5], [-0.3], [0.2]]) + noise * r.normal(size=(n, 1)))
+        src = np.full(n, "demonstration")
+        return Supervision(o, a_, np.ones(n), src, np.array([str(i // 50) for i in range(n)]), np.arange(n) % 50,
+                           np.full(n, -1), src, {"method": "bc", "inputs": {}})
+    train, held = labelled(128, 3, 1.0), labelled(2048, 4, 0.0)
+
+    # (a) Patience: the stop event and the selected checkpoint recompute from the saved validation history, and the
+    # returned weights are the weights a plain run cut at the selected step returns (same seed, same shuffle).
+    st = {**SETTINGS, "batch_size": 32, "epochs": 1, "learning_rate": 3e-3, "step_budget": 4000,
+          "checkpoint_selection": "validation", "validation_interval_steps": 10, "patience": 8, "min_delta": 1e-4}
+    [(p, r)] = v2.train_group([v2.Job(train, 5, validation=held)], st, device=device, compile=False)
+    hist = r["validation"]["evaluations"]
+    best, sel, stale, stop = float("inf"), None, 0, None
+    for i, e in enumerate(hist):
+        if e["loss"] < best - st["min_delta"]:
+            best, sel, stale = e["loss"], i, 0
+        else:
+            stale += 1
+        if stale >= st["patience"]:
+            stop = e["step"]
+            break
+    [(p_cut, _)] = v2.train_group([v2.Job(train, 5)], {**SETTINGS, "batch_size": 32, "epochs": 1, "learning_rate": 3e-3,
+                                                      "step_budget": hist[sel]["step"]}, device=device, compile=False)
+    s_ = r["stopping"]
+    out["patience_recomputes"] = {
+        "pass": s_["outcome"] == "patience" and s_["stopped_at_step"] == stop == hist[-1]["step"]
+        and r["validation"]["selected"] == sel and s_["steps"] == stop < st["step_budget"]
+        and v2.parameters_sha256(p) == v2.parameters_sha256(p_cut),
+        "stopped_at_step": s_["stopped_at_step"], "recomputed_stop": stop, "selected": r["validation"]["selected"],
+        "recomputed_selected": sel, "evaluations": len(hist), "ceiling": st["step_budget"],
+        "returned_equals_cut_run": v2.parameters_sha256(p) == v2.parameters_sha256(p_cut)}
+    [(_, r2)] = v2.train_group([v2.Job(train, 5, validation=held)], {**st, "step_budget": 60, "patience": 1000},
+                               device=device, compile=False)
+    out["ceiling_is_incomplete_fit"] = {"pass": r2["stopping"]["outcome"] == "incomplete_fit"
+                                        and r2["stopping"]["stopped_at_step"] is None and r2["stopping"]["steps"] == 60,
+                                        "stopping": r2["stopping"]}
+
+    # (b) Synthetic fraction: every minibatch carries exactly b_s synthetic rows; the record's rows and weight mass
+    # equal a host replay of the index stream; demonstrations are each drawn at most once per epoch and the
+    # synthetic stream draws every row once before any repeats.
+    wts = np.random.default_rng(11).uniform(0.2, 2.0, size=500 + 1700)
+    sup = synthetic(500, 1700, 12, weights=wts)
+    frac_cases = {}
+    for frac in (0.5, 0.3):
+        stf = {**SETTINGS, "epochs": 3, "synthetic_fraction": frac}
+        [(_, rf)] = v2.train_group([v2.Job(sup, 21)], stf, device=device, compile=False)
+        table, blocks = v2._table([v2.Job(sup, 21)])
+        ms = v2._MixedStreams(blocks, [21], SETTINGS["batch_size"], frac, torch.device("cpu"))
+        steps = int(ms.steps[0])
+        idx = torch.cat([ms.chunk(e, 0, steps)[0] for e in range(3)]).numpy()  # (3 * steps, B)
+        syn_flag, w_tab = table["synthetic"], table["w"].astype(np.float64)
+        demo_ok = all(len(np.unique(idx[e * steps:(e + 1) * steps, :ms.b_d])) == steps * ms.b_d for e in range(3))
+        syn_draws = idx[:, ms.b_d:].reshape(-1)
+        n_s = int(ms.n_s[0])
+        first_pass_ok = len(np.unique(syn_draws[:n_s])) == n_s if len(syn_draws) >= n_s else \
+            len(np.unique(syn_draws)) == len(syn_draws)
+        ex = rf["exposure"]
+        replay_rows = {"demonstration": int((~syn_flag[idx]).sum()), "synthetic": int(syn_flag[idx].sum())}
+        replay_mass = {"demonstration": float(w_tab[idx][~syn_flag[idx]].sum()),
+                       "synthetic": float(w_tab[idx][syn_flag[idx]].sum())}
+        frac_cases[str(frac)] = {
+            "ok": ex["rows"] == replay_rows and ex["per_minibatch"]["synthetic"] == ms.b_s == round(frac * 64)
+            and all(abs(ex["weight_mass"][k] - replay_mass[k]) <= 1e-6 * replay_mass[k] for k in replay_mass)
+            and ex["within_tolerance"] and demo_ok and first_pass_ok and syn_flag[idx[:, ms.b_d:]].all()
+            and not syn_flag[idx[:, :ms.b_d]].any(),
+            "realized_row_fraction": ex["realized_synthetic_row_fraction"],
+            "realized_mass_fraction": ex["realized_synthetic_mass_fraction"], "tolerance": ex["tolerance"],
+            "rows": ex["rows"], "replayed_rows": replay_rows}
+    out["synthetic_fraction_exposure"] = {"pass": all(c_["ok"] for c_ in frac_cases.values()), "cases": frac_cases}
+
+    # (c) Nested K: a view at k of a k_max file equals a direct generation at k, array for array.
+    rng = np.random.default_rng(31)
+    A_, B_ = np.array([[1.0, 0.02], [-0.2, 0.98]]), np.array([[0.0], [0.02]])
+    eps = []
+    for e in range(4):
+        s = [rng.normal(size=2)]
+        acts = rng.normal(size=(30, 1))
+        for t in range(30):
+            s.append(A_ @ s[-1] + B_ @ acts[t])
+        eps.append(Episode(f"e{e}", {"state": np.array(s, np.float32)},
+                           np.vstack([acts, np.zeros((1, 1))]).astype(np.float32)))
+    ds = TrajectoryDataset(eps).validate()
+    model, rep = LinearTransitionModel(A_, B_), IdentityRepresentation("state")
+    vals = [Finite(), SupportRadius(1.4)]  # about half the candidates are in support (median displacement 1.35)
+    full = generate_labels(ds, rep, model, NoisyAction(20, 0.5), vals, run_id="kmax", seed=7)
+    eq = {}
+    for k in (1, 4, 20):
+        direct = generate_labels(ds, rep, model, NoisyAction(k, 0.5), vals, run_id="direct", seed=7)
+        view = nested_view(full, k, "0" * 64)
+        eq[str(k)] = bool(
+            all(np.array_equal(getattr(view, f), getattr(direct, f)) for f in
+                ("source_episode_id", "source_frame", "actions", "accepted", "reasons", "weight"))
+            and all(np.array_equal(view.observations[m], direct.observations[m]) for m in direct.observations)
+            and all(np.array_equal(view.target_observations[m], direct.target_observations[m])
+                    for m in direct.target_observations)
+            and all(np.array_equal(view.measurements[m], direct.measurements[m]) for m in direct.measurements)
+            and view.generator["params"] == direct.generator["params"] and 0 < view.accepted.sum() < len(view.accepted))
+    out["nested_view_equals_direct_generation"] = {"pass": all(eq.values()), "k_max": 20, "cases": eq,
+                                                   "accepted_fraction_k_max": float(full.accepted.mean())}
+
+    # (d) Refusals.
+    import dataclasses
+    refusals = {}
+    train_cases = {
+        "fraction_with_balance": ([v2.Job(sup, 1)], {**SETTINGS, "synthetic_fraction": 0.5, "balance_labels": 2}),
+        "fraction_without_synthetic_rows": ([v2.Job(synthetic(300, 0, 1, "bc"), 1)],
+                                            {**SETTINGS, "synthetic_fraction": 0.5}),
+        "fraction_out_of_range": ([v2.Job(sup, 1)], {**SETTINGS, "synthetic_fraction": 1.0}),
+        "patience_without_validation": ([v2.Job(train, 5)], {**SETTINGS, "patience": 5}),
+        "min_delta_without_patience": ([v2.Job(train, 5, validation=held)],
+                                       {**SETTINGS, "checkpoint_selection": "validation", "min_delta": 0.1}),
+    }
+    for name, (jobs_, st_) in train_cases.items():
+        try:
+            v2.train_group(jobs_, st_, device=device, compile=False)
+            refusals[name] = False
+        except v2.TrainingError:
+            refusals[name] = True
+    perm = np.random.default_rng(0).permutation(len(full.actions))
+    shuffled = dataclasses.replace(full, source_episode_id=full.source_episode_id[perm],
+                                   source_frame=full.source_frame[perm])
+    # Every column of each transition's rows reversed together: a file whose draws are reordered within their
+    # transitions, which a position-based view would silently turn into a different smaller-K view.
+    within = (np.arange(len(full.actions)).reshape(-1, 20)[:, ::-1]).reshape(-1)
+    reordered = dataclasses.replace(
+        full, observations={m: v[within] for m, v in full.observations.items()}, actions=full.actions[within],
+        target_observations={m: v[within] for m, v in full.target_observations.items()},
+        accepted=full.accepted[within], reasons=full.reasons[within], weight=full.weight[within],
+        measurements={m: v[within] for m, v in full.measurements.items()})
+    no_ordinal = dataclasses.replace(full, measurements={m: v for m, v in full.measurements.items()
+                                                         if m != "generator.draw_index"},
+                                     measurement_specs={m: v for m, v in full.measurement_specs.items()
+                                                        if m != "generator.draw_index"})
+    view_cases = {"k_above_k_max": (full, 21), "k_zero": (full, 0),
+                  "rows_not_grouped_by_transition": (shuffled, 4),
+                  "draws_reordered_within_transition": (reordered, 4),
+                  "no_draw_ordinal": (no_ordinal, 4),
+                  "population_weighting": (dataclasses.replace(full, weighting={"name": "inverse_density",
+                                                                                "version": "1", "params": {}}), 4),
+                  "generator_without_nested_draws": (dataclasses.replace(full, generator={**full.generator,
+                                                                                          "name": "backward_euler"}), 1)}
+    for name, (c_, k) in view_cases.items():
+        try:
+            nested_view(c_, k, "0" * 64)
+            refusals[name] = False
+        except InterfaceError:
+            refusals[name] = True
+    out["refusals"] = {"pass": all(refusals.values()), **refusals}
+    return out
+
+
 def modes_and_determinism(device) -> dict:
     jobs = [v2.Job(synthetic(800, 1500 + 50 * s, s), s) for s in (1, 2, 3)]
     nb = [v2.Job(synthetic(800, 0, s, "noise_bc"), s, NoiseBC("symmetric_uniform_half_batch", 0.1, seed=s)) for s in (1, 2)]
@@ -416,11 +578,15 @@ def modes_and_determinism(device) -> dict:
 
     def same(a, b):
         return all(torch.equal(x[k], y[k]) for x, y in zip(a, b) for k in x)
+    held = synthetic(600, 0, 9, "bc")
+    fj = [v2.Job(synthetic(800, 1500 + 50 * s, s), s, validation=held) for s in (1, 2, 3)]
+    fst = {**SETTINGS, "epochs": 1, "step_budget": 300, "synthetic_fraction": 0.5, "checkpoint_selection": "validation",
+           "validation_interval_steps": 10, "patience": 3}  # the shared-harness contract, on the default engine
     res = {}
-    for name, js in (("ccil", jobs), ("noise_bc", nb)):
-        a = params(v2.train_group(js, SETTINGS, device=device, data_mode="resident"))
-        b = params(v2.train_group(js, SETTINGS, device=device, data_mode="streaming", chunk_steps=5))
-        c = params(v2.train_group(js, SETTINGS, device=device, data_mode="resident"))
+    for name, js, st in (("ccil", jobs, SETTINGS), ("noise_bc", nb, SETTINGS), ("ccil_fraction_patience", fj, fst)):
+        a = params(v2.train_group(js, st, device=device, data_mode="resident"))
+        b = params(v2.train_group(js, st, device=device, data_mode="streaming", chunk_steps=5))
+        c = params(v2.train_group(js, st, device=device, data_mode="resident"))
         res[name] = {"resident_equals_streaming": same(a, b), "rerun_identical": same(a, c)}
     return {"pass": all(v for r in res.values() for v in r.values()), "device": str(device), "cases": res}
 
@@ -433,8 +599,8 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "robustness", "recipe", "modes", "equivalence",
-                                                          "realworkload", "scaling"]
+    parts = a.parts.split(",") if a.parts != "all" else ["correctness", "robustness", "recipe", "contract", "modes",
+                                                          "equivalence", "realworkload", "scaling"]
     cases = []
 
     def record(name, ok, **detail):
@@ -449,6 +615,9 @@ def main():
     if "recipe" in parts:
         for name, r in recipe(a.device).items():
             record(f"recipe_{name}", r.pop("pass"), **r)
+    if "contract" in parts:
+        for name, r in contract(a.device).items():
+            record(f"contract_{name}", r.pop("pass"), **r)
     if "modes" in parts:
         r = modes_and_determinism(a.device)
         record("modes_and_determinism", r.pop("pass"), **r)

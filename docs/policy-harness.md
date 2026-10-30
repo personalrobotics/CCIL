@@ -282,6 +282,31 @@ the model's last step. AdamW uses β = (0.9, 0.999) and ε = 1e-8, as
 
 **Trainer v1** refuses every recipe key.
 
+### Stopping and exposure for the shared harness (il-supervision-benchmarks#11)
+
+Three more `train_group` settings serve the shared study harness. They are library settings, not configuration keys. Unset, they leave training and every training identity unchanged.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `patience` | null | With `checkpoint_selection: validation`: stop a model after this many validations without improvement. The step budget or epochs become only a ceiling. |
+| `min_delta` | 0 | The improvement a validation must make (loss below the best minus `min_delta`) to count, both for patience and for the selected checkpoint. Needs `patience`. |
+| `synthetic_fraction` | null | Every minibatch carries `round(fraction × B)` synthetic rows and the rest demonstrations. Excludes `balance_labels`. |
+
+**Patience.**
+- **Stopping:** a model that stops takes no further step, and the rest of its group continues.
+- **Record:** `stopping` gives the rule, the step at which it fired, and the steps run.
+- **Ceiling reached first:** `stopping.outcome` is `incomplete_fit`, never convergence.
+- **Recomputable:** the stop and the selected checkpoint follow from the saved validation history alone. A run cut at the selected step returns the same weights.
+
+**Synthetic fraction.**
+- **Epoch:** one pass over the demonstrations, shuffled as before.
+- **Synthetic stream:** synthetic rows run as their own stream of keyed permutations, so each is drawn once before any repeats.
+- **Record:** `exposure` gives the requested fraction, the rows and weight mass actually consumed per source, and the realized row and mass fractions.
+- **Tolerance:** the realized row fraction is within the rounding tolerance 1/(2B).
+- **Epoch records:** they also carry `weight_mass`.
+
+Evidence: the `contract` part of `tools/m3_trainer_v2/check.py`.
+
 ## Checkpoint and records
 
 Checkpoints contain no executable serialization. `meta.checkpoint_kind` says
