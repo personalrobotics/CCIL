@@ -51,7 +51,7 @@ Statuses and targets follow the
 | Entry | Claim | Status | Target |
 |---|---|---|---|
 | `sim-pendulum-cont` | Fig. 4(c) | out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered in the [M3 closeout](../experiments/pendulum-m3-closeout.md). | M3 (#24, #25) |
-| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | out-of-scope as a legacy reproduction. The claim and #3 are answered in the [M3 closeout](../experiments/pendulum-m3-closeout.md). | M3 (#24, #25, #3) |
+| `sim-pendulum-disc` | Fig. 4(c), tracked in #3 | out-of-scope as a legacy reproduction. The claim, and the question raised in #3, are addressed in the [M3 closeout](../experiments/pendulum-m3-closeout.md). | M3 (#24, #25, #3) |
 | `sim-pendulum-label-bound` | Sec. 5.1 error bound | blocked: procedure unrecorded; measured with the Pendulum oracle (#145) | M7 |
 | `internal-label-filtering-configs` | label-filtering configs | out-of-scope: the configuration behind Fig. 4(c) is unknown (#25) | M3 |
 | `internal-action-chunking-labels` | Sec. 6, App. C.3 | out-of-scope: capability ported with fixture evidence in #22; real-robot claim cited as published | M3 |
