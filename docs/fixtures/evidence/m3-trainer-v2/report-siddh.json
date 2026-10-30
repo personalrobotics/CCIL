@@ -38,7 +38,7 @@
    "case": "robustness_producer_failure_raises_promptly",
    "error": "the streaming producer failed: MemoryError: injected producer failure",
    "pass": true,
-   "seconds": 0.46
+   "seconds": 0.45
   },
   {
    "case": "robustness_identical_blocks_keep_their_source",
@@ -213,9 +213,96 @@
    "zero_weight_validation": true
   },
   {
+   "case": "contract_patience_recomputes",
+   "ceiling": 4000,
+   "evaluations": 10,
+   "pass": true,
+   "recomputed_selected": 1,
+   "recomputed_stop": 100,
+   "returned_equals_cut_run": true,
+   "selected": 1,
+   "stopped_at_step": 100
+  },
+  {
+   "case": "contract_ceiling_is_incomplete_fit",
+   "pass": true,
+   "stopping": {
+    "ceiling_steps": 60,
+    "min_delta": 0.0001,
+    "outcome": "incomplete_fit",
+    "patience": 1000,
+    "rule": "patience",
+    "steps": 60,
+    "stopped_at_step": null
+   }
+  },
+  {
+   "case": "contract_synthetic_fraction_exposure",
+   "cases": {
+    "0.3": {
+     "ok": true,
+     "realized_mass_fraction": 0.3021145625674506,
+     "realized_row_fraction": 0.296875,
+     "replayed_rows": {
+      "demonstration": 1485,
+      "synthetic": 627
+     },
+     "rows": {
+      "demonstration": 1485,
+      "synthetic": 627
+     },
+     "tolerance": 0.0078125
+    },
+    "0.5": {
+     "ok": true,
+     "realized_mass_fraction": 0.5049541079020847,
+     "realized_row_fraction": 0.5,
+     "replayed_rows": {
+      "demonstration": 1440,
+      "synthetic": 1440
+     },
+     "rows": {
+      "demonstration": 1440,
+      "synthetic": 1440
+     },
+     "tolerance": 0.0078125
+    }
+   },
+   "pass": true
+  },
+  {
+   "accepted_fraction_k_max": 0.5175,
+   "case": "contract_nested_view_equals_direct_generation",
+   "cases": {
+    "1": true,
+    "20": true,
+    "4": true
+   },
+   "k_max": 20,
+   "pass": true
+  },
+  {
+   "case": "contract_refusals",
+   "fraction_out_of_range": true,
+   "fraction_with_balance": true,
+   "fraction_without_synthetic_rows": true,
+   "generator_without_nested_draws": true,
+   "k_above_k_max": true,
+   "k_zero": true,
+   "min_delta_without_patience": true,
+   "pass": true,
+   "patience_without_validation": true,
+   "population_weighting": true,
+   "rows_not_grouped_by_transition": true
+  },
+  {
    "case": "modes_and_determinism",
    "cases": {
     "ccil": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    },
+    "ccil_fraction_patience": {
      "rerun_identical": true,
      "resident_equals_streaming": true
     },
@@ -229,7 +316,7 @@
   }
  ],
  "environment": {
-  "code_commit": "4cb8ef3d349eaefa2d7095c1e65ede690327ca7f",
+  "code_commit": "22d91ac21bbed51beb83310a2e547abfc63f049f",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
