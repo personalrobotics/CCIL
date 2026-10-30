@@ -564,11 +564,15 @@ def modes_and_determinism(device) -> dict:
 
     def same(a, b):
         return all(torch.equal(x[k], y[k]) for x, y in zip(a, b) for k in x)
+    held = synthetic(600, 0, 9, "bc")
+    fj = [v2.Job(synthetic(800, 1500 + 50 * s, s), s, validation=held) for s in (1, 2, 3)]
+    fst = {**SETTINGS, "epochs": 1, "step_budget": 300, "synthetic_fraction": 0.5, "checkpoint_selection": "validation",
+           "validation_interval_steps": 10, "patience": 3}  # the shared-harness contract, on the default engine
     res = {}
-    for name, js in (("ccil", jobs), ("noise_bc", nb)):
-        a = params(v2.train_group(js, SETTINGS, device=device, data_mode="resident"))
-        b = params(v2.train_group(js, SETTINGS, device=device, data_mode="streaming", chunk_steps=5))
-        c = params(v2.train_group(js, SETTINGS, device=device, data_mode="resident"))
+    for name, js, st in (("ccil", jobs, SETTINGS), ("noise_bc", nb, SETTINGS), ("ccil_fraction_patience", fj, fst)):
+        a = params(v2.train_group(js, st, device=device, data_mode="resident"))
+        b = params(v2.train_group(js, st, device=device, data_mode="streaming", chunk_steps=5))
+        c = params(v2.train_group(js, st, device=device, data_mode="resident"))
         res[name] = {"resident_equals_streaming": same(a, b), "rerun_identical": same(a, c)}
     return {"pass": all(v for r in res.values() for v in r.values()), "device": str(device), "cases": res}
 
