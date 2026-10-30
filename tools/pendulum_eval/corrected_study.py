@@ -36,6 +36,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dataclasses import dataclass
+
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
@@ -64,6 +66,17 @@ class Refused(SystemExit):
     pass
 
 
+@dataclass(frozen=True)
+class Spec:
+    """What distinguishes one study run by this driver: its plan, freeze manifest and evidence folder."""
+    plan: Path
+    freeze: str
+    evidence: Path
+
+
+CORRECTED = Spec(PLAN, FREEZE, EVIDENCE)
+
+
 def sha(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -82,39 +95,39 @@ def canonical() -> dict:
     return json.loads(CANONICAL.read_text())["datasets"]
 
 
-def study_plan(smoke: bool):
+def study_plan(smoke: bool, spec: Spec = CORRECTED):
     import yaml
 
     from ccil.experiments import plan
-    spec = yaml.safe_load(PLAN.read_text())
+    d = yaml.safe_load(spec.plan.read_text())
     if smoke:
-        spec["phases"]["study"]["seeds"] = list(SMOKE_SEEDS)
-    return plan.from_dict(spec)
+        d["phases"]["study"]["seeds"] = list(SMOKE_SEEDS)
+    return plan.from_dict(d)
 
 
-def gate_state(smoke: bool) -> dict:
+def gate_state(smoke: bool, spec: Spec = CORRECTED) -> dict:
     from ccil.experiments import gate
-    return gate.require(REPO, gate.Freeze(ccil_commit=V6_CCIL_COMMIT, tooling_paths=TOOLING_PATHS, manifest=FREEZE),
-                        real=not smoke)
+    return gate.require(REPO, gate.Freeze(ccil_commit=V6_CCIL_COMMIT, tooling_paths=TOOLING_PATHS,
+                                          manifest=spec.freeze), real=not smoke)
 
 
 # --- root identity and step order -------------------------------------------------------------------------------------
-def identity(smoke: bool) -> dict:
-    return {"plan_sha256": sha(PLAN), "canonical_manifest_sha256": sha(CANONICAL), "smoke": smoke,
+def identity(smoke: bool, spec: Spec = CORRECTED) -> dict:
+    return {"plan_sha256": sha(spec.plan), "canonical_manifest_sha256": sha(CANONICAL), "smoke": smoke,
             "seeds": list(SMOKE_SEEDS if smoke else STUDY_SEEDS),
             "datasets": {t: c["sha256"] for t, c in canonical().items()}}
 
 
-def require_order(root: Path, step: str) -> tuple[dict, dict]:
+def require_order(root: Path, step: str, spec: Spec = CORRECTED) -> tuple[dict, dict]:
     """The root's identity, the gate, and the predecessor's passing report under the same frozen tooling."""
     ident_path = root / "root.json"
     if not ident_path.exists():
         raise Refused(f"refused: {root} has no root.json; run preflight first")
     ident = json.loads(ident_path.read_text())
     smoke = ident.get("smoke") is True
-    if {k: v for k, v in ident.items() if k != "root"} != identity(smoke) or ident.get("root") != str(root):
+    if {k: v for k, v in ident.items() if k != "root"} != identity(smoke, spec) or ident.get("root") != str(root):
         raise Refused(f"refused: {root} was created for a different plan, dataset, seeds or path")
-    state = gate_state(smoke)
+    state = gate_state(smoke, spec)
     prev = root / "reports" / f"{NEXT[step]}.json"
     if not prev.exists():
         raise Refused(f"refused: {step} needs a passing {NEXT[step]} report in {root / 'reports'}")
@@ -124,7 +137,7 @@ def require_order(root: Path, step: str) -> tuple[dict, dict]:
     if rep["gate"]["tooling"].get("tooling_commit") != state["tooling"].get("tooling_commit"):
         raise Refused(f"refused: the {NEXT[step]} report was written under different frozen tooling")
     if not smoke and step in COMMITTED_PREREQ:
-        committed = EVIDENCE / f"study-{COMMITTED_PREREQ[step]}.json"
+        committed = spec.evidence / f"study-{COMMITTED_PREREQ[step]}.json"
         if not committed.exists() or committed.read_bytes() != prev.read_bytes():
             raise Refused(f"refused: {step} needs the {NEXT[step]} report committed as {committed.name}, unchanged")
     return ident, state
@@ -207,9 +220,9 @@ def v6_inventory(v6: Path) -> dict:
     return {"run_ids": ids, "npz": npz}
 
 
-def check_stages(root: Path, v6: dict) -> dict:
-    """Every stage directory under root: complete; its recorded inputs are the canonical dataset or artifacts of other
-    stages in this root; no run ID or .npz artifact hash appears in v6."""
+def check_stages(root: Path, v6: dict, datasets: set | None = None) -> dict:
+    """Every stage directory under root: complete; its recorded inputs are the study's datasets (by default the
+    canonical datasets) or artifacts of other stages in this root; no run ID or .npz artifact hash appears in v6."""
     from ccil.runs import validate_run
     stages = sorted(d for d in (root / "stages").glob("*/*/s*/*") if d.is_dir())
     produced, info = {}, {}
@@ -218,7 +231,7 @@ def check_stages(root: Path, v6: dict) -> dict:
         files = json.loads((d / "manifest.json").read_text())["files"] if status == "complete" else {}
         produced.update({f["sha256"]: d.name for f in files.values()})
         info[d] = (status, files)
-    can = {c["sha256"] for c in canonical().values()}
+    can = datasets if datasets is not None else {c["sha256"] for c in canonical().values()}
     out, ok = {}, bool(stages)
     for d in stages:
         status, files = info[d]
@@ -236,35 +249,48 @@ def check_stages(root: Path, v6: dict) -> dict:
 
 
 # --- steps ------------------------------------------------------------------------------------------------------------
-def preflight(root: Path, data: Path, v6_root: Path, smoke: bool, device: str) -> dict:
+def preflight(root: Path, data: Path, v6_root: Path, smoke: bool, device: str, spec: Spec = CORRECTED,
+              prior: tuple = (), datasets=None) -> dict:
+    """datasets(root) gives the study's dataset hashes for check_stages once the root's inputs exist (default: the
+    canonical datasets); prior lists earlier study roots whose run IDs and .npz artifacts must not reappear."""
     from ccil.data.prepare import prepare_stage
     if root.exists():
         raise Refused(f"refused: {root} exists; the corrected run root must be new")
-    state = gate_state(smoke)
-    v6 = v6_inventory(v6_root)
-    study = study_plan(smoke)
+    state = gate_state(smoke, spec)
+    v6 = inventory(v6_root, prior)
+    study = study_plan(smoke, spec)
     root.mkdir(parents=True)
-    (root / "root.json").write_text(json.dumps({**identity(smoke), "root": str(root)}, indent=1, sort_keys=True))
+    (root / "root.json").write_text(json.dumps({**identity(smoke, spec), "root": str(root)}, indent=1,
+                                               sort_keys=True))
     suite = make_suite(root, study, data, smoke)
     for task, arm, seed, value in study.units("study"):
-        cfg, _ = suite.config("study", task, seed, study.unit_settings(arm, value), None, device,
-                              root / "stages" / "study" / task / f"s{seed}")
+        cfg, _ = suite.config("study", task, seed, study.unit_settings(arm, value), study.arms[arm].data_fraction,
+                              device, root / "stages" / "study" / task / f"s{seed}")
         prepare_stage(cfg)
-    checks = check_stages(root, v6)
+    checks = check_stages(root, v6, datasets(root) if datasets else None)
     return {"step": "preflight", "gate": state, "smoke": smoke, **checks}
 
 
-def train(root: Path, data: Path, device: str, workers: int) -> dict:
+def inventory(v6_root: Path, prior: tuple = ()) -> dict:
+    """v6's inventory, joined with each prior study root's (each must pass the same completeness checks)."""
+    out = v6_inventory(v6_root)
+    for p in prior:
+        more = v6_inventory(p)
+        out = {k: out[k] | more[k] for k in out}
+    return out
+
+
+def train(root: Path, data: Path, device: str, workers: int, spec: Spec = CORRECTED) -> dict:
     import time
 
     from ccil.experiments import gate, runner
-    ident, state = require_order(root, "train")
+    ident, state = require_order(root, "train", spec)
     smoke = ident["smoke"]
-    study = study_plan(smoke)
+    study = study_plan(smoke, spec)
     suite = make_suite(root, study, data, smoke)
 
     def recheck():
-        now = gate_state(smoke)
+        now = gate_state(smoke, spec)
         if now["head"] != state["head"]:
             raise gate.GateRefused(f"code-state gate refused: HEAD moved from {state['head']} to {now['head']}")
 

@@ -1,0 +1,13 @@
+# The demonstration-count study (docs/experiments/pendulum-demonstration-count-predeclaration.md): the corrected study's
+# BC and CCIL arms and shared settings unchanged, discontinuous only, each seed's 100-of-500 subset (v6's subset rule at
+# fraction 0.2, shared by BC and CCIL at that seed), study seeds 1201-1220, no tuning.
+study: pendulum-demonstration-count
+version: 1
+tasks: [discontinuous]
+settings: [transition_model.trainer_version=2, policy.trainer_version=2,
+           transition_model.lipschitz_coordinates=model_normalized, policy.exclude_validation_episodes=false]
+phases:
+  study: {seeds: {from: 1201, to: 1220}, arms: all}
+arms:
+  bc_100: {settings: [policy.method=bc, policy.balance_noisy_labels=false], data_fraction: 0.2}
+  ccil_100: {settings: [policy.method=ccil], data_fraction: 0.2}
