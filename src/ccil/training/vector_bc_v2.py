@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import queue
 import threading
 import time
@@ -372,8 +373,9 @@ def _mlp(p: dict, x: torch.Tensor, layers: int) -> torch.Tensor:
 
 def _lr_at(t: torch.Tensor, lr: torch.Tensor, r: dict, total: torch.Tensor) -> torch.Tensor:
     """The learning rate at each model's step count t (after this step): constant, or linear warm-up to lr then
-    cosine decay to 0 at the model's total steps. lr is a tensor (M,), so the rate is not a compile-time constant."""
-    if r["lr_schedule"] == "constant":
+    cosine decay to 0 at the model's total steps. lr is a tensor (M,), so the rate is not a compile-time constant;
+    the plateau schedule lowers it on the host between steps."""
+    if r["lr_schedule"] in ("constant", "plateau"):
         return lr
     warm = float(max(1, int(r["warmup_steps"])))
     progress = ((t - warm) / (total - warm).clamp_min(1.0)).clamp(0.0, 1.0)
@@ -640,9 +642,12 @@ def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
 
 RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant", "warmup_steps": 0,
                    "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
-                   "validation_interval_steps": None, "patience": None, "min_delta": 0.0, "synthetic_fraction": None}
+                   "validation_interval_steps": None, "patience": None, "min_delta": 0.0, "synthetic_fraction": None,
+                   "lr_factor": None, "lr_patience": None, "min_lr": None, "extend_after_stop": None}
 # Recipe keys that steer the loop on the host, not the compiled step (they never enter its static arguments).
-HOST_KEYS = ("step_budget", "checkpoint_selection", "patience", "min_delta", "synthetic_fraction")
+HOST_KEYS = ("step_budget", "checkpoint_selection", "patience", "min_delta", "synthetic_fraction", "lr_factor",
+             "lr_patience", "min_lr", "extend_after_stop")
+PLATEAU_KEYS = ("lr_factor", "lr_patience", "min_lr")
 
 
 def recipe_of(settings: dict) -> dict:
@@ -653,8 +658,21 @@ def recipe_of(settings: dict) -> dict:
         raise TrainingError(f"optimizer {r['optimizer']!r} is not adam or adamw")
     if r["optimizer"] == "adam" and r["weight_decay"]:
         raise TrainingError("weight decay with adam would be L2 in the gradient, not the declared protocol; use adamw")
-    if r["lr_schedule"] not in ("constant", "cosine"):
-        raise TrainingError(f"lr_schedule {r['lr_schedule']!r} is not constant or cosine")
+    if r["lr_schedule"] not in ("constant", "cosine", "plateau"):
+        raise TrainingError(f"lr_schedule {r['lr_schedule']!r} is not constant, cosine or plateau")
+    if r["lr_schedule"] == "plateau":
+        if r["patience"] is None or any(r[k] is None for k in PLATEAU_KEYS):
+            raise TrainingError("the plateau schedule needs lr_factor, lr_patience, min_lr and the stopping patience")
+        if not 0 < float(r["lr_factor"]) < 1:
+            raise TrainingError("lr_factor must be in (0, 1)")
+        if isinstance(r["lr_patience"], bool) or int(r["lr_patience"]) != r["lr_patience"] or int(r["lr_patience"]) < 1:
+            raise TrainingError("lr_patience is a positive count of validation evaluations")
+        if not (np.isfinite(float(r["min_lr"])) and float(r["min_lr"]) > 0):
+            raise TrainingError("min_lr must be finite and > 0")
+    elif any(r[k] is not None for k in PLATEAU_KEYS):
+        raise TrainingError("lr_factor, lr_patience and min_lr belong to the plateau schedule")
+    if r["extend_after_stop"] is not None and (r["patience"] is None or not float(r["extend_after_stop"]) > 1):
+        raise TrainingError("extend_after_stop is a factor > 1 on the stop step, for a run with patience")
     if r["lr_schedule"] == "constant" and int(r["warmup_steps"] or 0) > 0:
         raise TrainingError("warmup_steps applies to the cosine schedule; a constant schedule has no warm-up")
     if r["checkpoint_selection"] not in ("last", "validation"):
@@ -714,6 +732,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     if fraction is not None and balance:
         raise TrainingError("synthetic_fraction sets the mixture directly; it excludes balance_labels")
     patience, min_delta = recipe["patience"], float(recipe["min_delta"])
+    plateau, extend = recipe["lr_schedule"] == "plateau", recipe["extend_after_stop"]
+    if plateau and not float(recipe["min_lr"]) < float(settings["learning_rate"]):
+        raise TrainingError("min_lr must be below the learning rate, so the plateau schedule can lower it")
     t_setup = time.time()
 
     n_real = len(jobs)
@@ -873,11 +894,16 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     interval = recipe["validation_interval_steps"]
     stale, stopped, stop_step = [0] * n_real, [False] * M, [None] * n_real  # patience state, per real model
     stopped_dev = torch.zeros(M, dtype=torch.bool, device=device)
+    # The rule fires at stop_step; with extend_after_stop the model trains on to until[i] (an evaluation at or after
+    # extend x the stop step) and returns the checkpoint selected when the rule fired (kept).
+    fired, until, kept = [False] * n_real, [None] * n_real, None
+    at_stop = [None] * n_real  # (selected evaluation, its loss) when the rule fired
+    cur_lr, reductions = [float(settings["learning_rate"])] * n_real, [[] for _ in jobs]
 
     def select(due: list, epoch: int, at: list):
         """Validate the models in due (host booleans) and keep each one's best weights so far: the EMA weights
         when EMA is on (they are the policy), else the parameters."""
-        nonlocal best, best_loss
+        nonlocal best, best_loss, kept
         weights = ema if ema is not None else params
         vl = _validation_loss(weights, validation, c, layers, scale_obs, scale_act, device)
         due_t = torch.tensor(due + [False] * (M - len(due)), device=device)
@@ -885,13 +911,34 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         best = ({k: v.clone() for k, v in weights.items()} if best is None else
                 {k: torch.where(better.view((M,) + (1,) * (v.dim() - 1)), weights[k], v) for k, v in best.items()})
         best_loss = torch.where(better, vl, best_loss) if best_loss is not None else torch.where(due_t, vl, float("inf"))
+        newly = []
         for i, (bt, v) in enumerate(zip(better.tolist(), vl.tolist())):
             if i < n_real and due[i]:
-                val_history[i].append({"step": at[i], "epoch": epoch, "loss": v})
+                val_history[i].append({"step": at[i], "epoch": epoch, "loss": v, "lr": cur_lr[i]})
                 best_at[i] = len(val_history[i]) - 1 if bt else best_at[i]
                 stale[i] = 0 if bt else stale[i] + 1
-                if patience is not None and stale[i] >= int(patience):  # no improvement in `patience` evaluations
-                    stopped[i], stop_step[i] = True, at[i]
+                if fired[i]:  # extending: halt at the first evaluation at or after until[i]
+                    stopped[i] = at[i] >= until[i]
+                    continue
+                if plateau and stale[i] >= int(recipe["lr_patience"]) and cur_lr[i] > float(recipe["min_lr"]):
+                    cur_lr[i] = max(cur_lr[i] * float(recipe["lr_factor"]), float(recipe["min_lr"]))
+                    reductions[i].append({"step": at[i], "lr": cur_lr[i]})
+                    stale[i] = 0  # the stopping window restarts at each reduction
+                if stale[i] >= int(patience or 0) > 0 and (not plateau or cur_lr[i] <= float(recipe["min_lr"])):
+                    fired[i], stop_step[i] = True, at[i]  # no improvement in `patience` evaluations (at the floor)
+                    at_stop[i] = (best_at[i], val_history[i][best_at[i]]["loss"])
+                    if extend:
+                        until[i] = min(total_steps[i], int(math.ceil(float(extend) * at[i])))
+                        stopped[i] = at[i] >= until[i]
+                        newly.append(i)
+                    else:
+                        stopped[i] = True
+        if newly:
+            mask = torch.tensor([i in newly for i in range(M)], device=device)
+            kept = {k: torch.where(mask.view((M,) + (1,) * (v.dim() - 1)), v, kept[k] if kept is not None else v)
+                    for k, v in best.items()}
+        if plateau:
+            c["lr"].copy_(torch.tensor(cur_lr + [float(settings["learning_rate"])] * (M - n_real), device=device))
         if patience is not None:
             stopped_dev.copy_(torch.tensor(stopped, device=device))
     t = torch.zeros(M, device=device)
@@ -987,6 +1034,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
              "validation": None if validation is None else {"distinct_sets": validation["blocks"],
                                                              "rows_per_chunk": validation["rows"]}}
     final = best if best is not None else (ema if ema is not None else params)
+    if kept is not None:  # extended models return the checkpoint selected when their rule fired
+        mask = torch.tensor([i < n_real and until[i] is not None for i in range(M)], device=device)
+        final = {k: torch.where(mask.view((M,) + (1,) * (v.dim() - 1)), kept[k], v) for k, v in final.items()}
     out = []
     for i, (job, policy) in enumerate(zip(jobs, policies)):
         policy.net.load_state_dict({k: v[i].detach().cpu() for k, v in final.items()})
@@ -997,9 +1047,18 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
         if patience is None:
             stopping = {"rule": "schedule", "outcome": "schedule", "steps": ran}
         else:  # the schedule (epochs or step budget) is only a ceiling: reaching it means the rule never fired
-            stopping = {"rule": "patience", "patience": int(patience), "min_delta": min_delta,
-                        "outcome": "patience" if stopped[i] else "incomplete_fit", "stopped_at_step": stop_step[i],
+            stopping = {"rule": "plateau" if plateau else "patience", "patience": int(patience), "min_delta": min_delta,
+                        "outcome": "patience" if fired[i] else "incomplete_fit", "stopped_at_step": stop_step[i],
                         "steps": ran, "ceiling_steps": total_steps[i]}
+            if plateau:
+                stopping.update({k: recipe[k] for k in PLATEAU_KEYS}, lr_reductions=reductions[i], final_lr=cur_lr[i])
+            if extend:  # a convergence check: what training on past the stop would have gained
+                ext_best = min(e["loss"] for e in val_history[i]) if val_history[i] else None
+                stopping["extension"] = None if not fired[i] else {
+                    "factor": float(extend), "until_step": until[i], "trained_to_step": val_history[i][-1]["step"],
+                    "selected_loss_at_stop": at_stop[i][1], "best_loss_extended": ext_best,
+                    "relative_gain": (at_stop[i][1] - ext_best) / at_stop[i][1]}
+        sel_i = at_stop[i][0] if extend and fired[i] else best_at[i]
         rows_seen = {p_: sum(e["rows_seen"][p_] for e in epoch_records[i]) for p_ in ("demonstration", "synthetic")}
         mass_seen = {p_: sum(e["weight_mass"][p_] for e in epoch_records[i]) for p_ in ("demonstration", "synthetic")}
         n_rows, total_mass = sum(rows_seen.values()), sum(mass_seen.values())
@@ -1035,9 +1094,9 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                       "cadence": f"every {interval} steps and the last" if interval else "every epoch",
                       "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i over the held-out demonstrations, "
                               "scaled action space, of the weights returned (EMA when on)",
-                      "evaluations": val_history[i], "selected": best_at[i],
-                      "selected_step": None if best_at[i] is None else val_history[i][best_at[i]]["step"],
-                      "selected_loss": None if best_at[i] is None else val_history[i][best_at[i]]["loss"],
+                      "evaluations": val_history[i], "selected": sel_i,
+                      "selected_step": None if sel_i is None else val_history[i][sel_i]["step"],
+                      "selected_loss": None if sel_i is None else val_history[i][sel_i]["loss"],
                       "rows": int(validation["n"][i])},
                   "stopping": stopping, "exposure": exposure,
                   "noise_bc": None if job.noise is None else job.noise.descriptor()}

@@ -455,6 +455,38 @@ def contract(device) -> dict:
                                         and r2["stopping"]["stopped_at_step"] is None and r2["stopping"]["steps"] == 60,
                                         "stopping": r2["stopping"]}
 
+    # (a') The plateau schedule: the learning-rate reductions, the stop at the floor and the selected checkpoint
+    # recompute from the saved history; a run extended past its stop returns the same weights and records the gain.
+    sp = {**st, "patience": 4, "min_delta": 0.0, "lr_schedule": "plateau", "lr_factor": 0.5, "lr_patience": 3,
+          "min_lr": 3e-4}
+    [(pp, rp)] = v2.train_group([v2.Job(train, 5, validation=held)], sp, device=device, compile=False)
+    hist = rp["validation"]["evaluations"]
+    lr_, best, sel, stale, stop, cuts, lrs = sp["learning_rate"], float("inf"), None, 0, None, [], []
+    for i, e in enumerate(hist):
+        lrs.append(lr_)
+        if e["loss"] < best:
+            best, sel, stale = e["loss"], i, 0
+        else:
+            stale += 1
+        if stale >= sp["lr_patience"] and lr_ > sp["min_lr"]:
+            lr_, stale = max(lr_ * sp["lr_factor"], sp["min_lr"]), 0
+            cuts.append({"step": e["step"], "lr": lr_})
+        if stale >= sp["patience"] and lr_ <= sp["min_lr"]:
+            stop = e["step"]
+            break
+    [(pe, re_)] = v2.train_group([v2.Job(train, 5, validation=held)], {**sp, "extend_after_stop": 3}, device=device,
+                                 compile=False)
+    s_, x_ = rp["stopping"], re_["stopping"]["extension"]
+    out["plateau_recomputes"] = {
+        "pass": s_["outcome"] == "patience" and s_["stopped_at_step"] == stop == hist[-1]["step"]
+        and s_["lr_reductions"] == cuts and len(cuts) >= 2 and [e["lr"] for e in hist] == lrs
+        and rp["validation"]["selected"] == sel and re_["validation"]["selected"] == sel
+        and v2.parameters_sha256(pp) == v2.parameters_sha256(pe) and x_["trained_to_step"] >= 3 * stop
+        and x_["best_loss_extended"] == min(e["loss"] for e in re_["validation"]["evaluations"]),
+        "stopped_at_step": s_["stopped_at_step"], "recomputed_stop": stop, "lr_reductions": s_["lr_reductions"],
+        "recomputed_reductions": cuts, "selected": rp["validation"]["selected"], "recomputed_selected": sel,
+        "extension": x_, "extended_returns_stop_checkpoint": v2.parameters_sha256(pp) == v2.parameters_sha256(pe)}
+
     # (b) Synthetic fraction: every minibatch carries exactly b_s synthetic rows; the record's rows and weight mass
     # equal a host replay of the index stream; demonstrations are each drawn at most once per epoch and the
     # synthetic stream draws every row once before any repeats.
@@ -550,6 +582,12 @@ def contract(device) -> dict:
         "patience_without_validation": ([v2.Job(train, 5)], {**SETTINGS, "patience": 5}),
         "min_delta_without_patience": ([v2.Job(train, 5, validation=held)],
                                        {**SETTINGS, "checkpoint_selection": "validation", "min_delta": 0.1}),
+        "plateau_without_patience": ([v2.Job(train, 5, validation=held)],
+                                     {**sp, "patience": None}),
+        "plateau_keys_without_plateau": ([v2.Job(train, 5, validation=held)], {**sp, "lr_schedule": "constant"}),
+        "min_lr_not_below_learning_rate": ([v2.Job(train, 5, validation=held)], {**sp, "min_lr": sp["learning_rate"]}),
+        "extension_without_patience": ([v2.Job(train, 5, validation=held)],
+                                       {**SETTINGS, "checkpoint_selection": "validation", "extend_after_stop": 2}),
     }
     for name, (jobs_, st_) in train_cases.items():
         try:
@@ -611,8 +649,11 @@ def modes_and_determinism(device) -> dict:
     fj = [v2.Job(synthetic(800, 1500 + 50 * s, s), s, validation=held) for s in (1, 2, 3)]
     fst = {**SETTINGS, "epochs": 1, "step_budget": 300, "synthetic_fraction": 0.5, "checkpoint_selection": "validation",
            "validation_interval_steps": 10, "patience": 3}  # the shared-harness contract, on the default engine
+    pst = {**fst, "step_budget": 600, "lr_schedule": "plateau", "lr_factor": 0.5, "lr_patience": 2, "min_lr": 2.5e-4,
+           "extend_after_stop": 1.5}  # host-side reductions reach the compiled step identically in every mode
     res = {}
-    for name, js, st in (("ccil", jobs, SETTINGS), ("noise_bc", nb, SETTINGS), ("ccil_fraction_patience", fj, fst)):
+    for name, js, st in (("ccil", jobs, SETTINGS), ("noise_bc", nb, SETTINGS), ("ccil_fraction_patience", fj, fst),
+                         ("ccil_fraction_plateau", fj, pst)):
         a = params(v2.train_group(js, st, device=device, data_mode="resident"))
         b = params(v2.train_group(js, st, device=device, data_mode="streaming", chunk_steps=5))
         c = params(v2.train_group(js, st, device=device, data_mode="resident"))

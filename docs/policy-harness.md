@@ -284,19 +284,23 @@ the model's last step. AdamW uses β = (0.9, 0.999) and ε = 1e-8, as
 
 ### Stopping and exposure for the shared harness (il-supervision-benchmarks#11)
 
-Three more `train_group` settings serve the shared study harness. They are library settings, not configuration keys. Unset, they leave training and every training identity unchanged.
+More `train_group` settings serve the shared study harness. They are library settings, not configuration keys. Unset, they leave training and every training identity unchanged.
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `patience` | null | With `checkpoint_selection: validation`: stop a model after this many validations without improvement. The step budget or epochs become only a ceiling. |
 | `min_delta` | 0 | The improvement a validation must make (loss below the best minus `min_delta`) to count, both for patience and for the selected checkpoint. Needs `patience`. |
 | `synthetic_fraction` | null | Every minibatch carries `round(fraction × B)` synthetic rows and the rest demonstrations. Excludes `balance_labels`. |
+| `lr_schedule: plateau` | | Lower the learning rate by `lr_factor` after `lr_patience` validations without improvement, never below `min_lr`; the model stops only at `min_lr`, after `patience` more validations without improvement. Needs `patience`, `lr_factor`, `lr_patience` and `min_lr` (below the learning rate). |
+| `extend_after_stop` | null | A convergence check: a model whose rule fires at step s trains on to the first validation at or after `factor × s` (within the ceiling), then returns the checkpoint selected at s. Needs `patience`. |
 
 **Patience.**
 - **Stopping:** a model that stops takes no further step, and the rest of its group continues.
 - **Record:** `stopping` gives the rule, the step at which it fired, and the steps run.
 - **Ceiling reached first:** `stopping.outcome` is `incomplete_fit`, never convergence.
 - **Recomputable:** the stop and the selected checkpoint follow from the saved validation history alone. A run cut at the selected step returns the same weights.
+- **Plateau:** each validation records the learning rate it trained under, and `stopping` lists the reductions, so the reductions, the stop and the selection recompute from the history. Each reduction restarts the stopping window.
+- **Extension:** `stopping.extension` gives the loss selected at the stop, the best loss up to the extended step, and the relative gain. The returned weights are those of the same run without the extension.
 
 **Synthetic fraction.**
 - **Epoch:** one pass over the demonstrations, shuffled as before.
