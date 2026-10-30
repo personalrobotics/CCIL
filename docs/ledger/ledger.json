@@ -70,7 +70,10 @@
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
       "status": "out-of-scope",
-      "evidence": [],
+      "evidence": [
+        "docs/experiments/pendulum-m3-closeout.md",
+        "docs/experiments/pendulum-m3-tables.md"
+      ],
       "blockers": [],
       "discrepancies": [
         "Paper Table 2 lists 50 pendulum demonstrations; the dataset file is pendulum_cont_100.pkl.",
@@ -98,7 +101,7 @@
         "policy-evaluation"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25.",
+      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim was tested on the modern stack and is answered in docs/experiments/pendulum-m3-closeout.md (#25).",
       "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
     },
     {
@@ -167,7 +170,10 @@
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
       "status": "out-of-scope",
-      "evidence": [],
+      "evidence": [
+        "docs/experiments/pendulum-m3-closeout.md",
+        "docs/experiments/pendulum-m3-tables.md"
+      ],
       "blockers": [],
       "discrepancies": [
         "label-filtering changes this config from noisy_action (epsilon 0.01) to backward_euler_fast with label_err_quantile 0.3; which produced Fig. 4(c) is unknown.",
@@ -194,7 +200,7 @@
         "policy-evaluation"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim is answered by the #24 efficacy study's predeclared outcome, published in #25; #3 governs sim-pendulum-disc.",
+      "terminal_rule": "Terminal: out-of-scope as a legacy reproduction (contract §5 amendment, 2026-10-26). The claim was tested on the modern stack and is answered in docs/experiments/pendulum-m3-closeout.md (#25); the question raised in #3 is addressed there.",
       "exclusion_rationale": "Legacy reproduction withdrawn before any run by the migration contract amendment of 2026-10-26 (§5): the legacy stack is not rebuilt. The paper's Fig. 4(c) values are cited as published, and the claim that CCIL improves Pendulum return over BC is tested on the modern stack by the predeclared efficacy study (#24, docs/experiments/pendulum-ccil-study-predeclaration.md), reported in #25."
     },
     {
@@ -245,7 +251,7 @@
         {
           "missing": "knowledge",
           "detail": "The only measurement code is a commented-out block in utils.load_demo_for_policy; the seed, label type, and K1/K2 values behind 0.065 are not recorded.",
-          "next_action": "Reconstruct the procedure from the commented block and Eq. 7, then confirm with the authors."
+          "next_action": "Measure label error against exact dynamics with the Pendulum oracle (#145); reconstruct the 0.065 bound's procedure from the commented block and Eq. 7 if the authors can confirm it."
         }
       ],
       "discrepancies": [],
@@ -253,7 +259,7 @@
         "env-pendulum",
         "corrective-labels"
       ],
-      "target_milestone": "M3",
+      "target_milestone": "M7",
       "terminal_rule": "reproduced once the procedure is reconstructed on the M1 analytic fixture (#10), else out-of-scope with the reconstruction attempt as evidence."
     },
     {
@@ -2033,15 +2039,9 @@
         "parity": "statistical",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
+      "status": "out-of-scope",
       "evidence": [],
-      "blockers": [
-        {
-          "missing": "knowledge",
-          "detail": "No reported result is tied to these configs; they may back the IROS submission or the unified preprint.",
-          "next_action": "Ask the authors which result these configs produced; record the answer here before reconciling with main's configs."
-        }
-      ],
+      "blockers": [],
       "discrepancies": [
         "F1 eval on this branch loads policies from /home/prl/dev/CCIL."
       ],
@@ -2054,7 +2054,8 @@
         "repo-hygiene"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "Terminal when #25 records which config produced Fig. 4(c) (via #3) or records that it is unknown; then out-of-scope."
+      "terminal_rule": "Terminal: #25 records that the configuration behind Fig. 4(c) is unknown (docs/experiments/pendulum-m3-closeout.md); out-of-scope.",
+      "exclusion_rationale": "Which configuration produced Fig. 4(c) is unknown: no record ties these configs, or main's, to the reported figure. The modern studies use the #23 corrected configuration (docs/experiments/pendulum-m3-closeout.md)."
     },
     {
       "id": "internal-data-ablation",
@@ -2155,15 +2156,12 @@
         "parity": "qualitative",
         "note": "Command shape is provisional until the migration contract (#9) ratifies the unified CLI."
       },
-      "status": "blocked",
-      "evidence": [],
-      "blockers": [
-        {
-          "missing": "artifact",
-          "detail": "Only real-robot data exercised this path, and that data is absent.",
-          "next_action": "Resolve with real-dp-ccil."
-        }
+      "status": "out-of-scope",
+      "evidence": [
+        "docs/migration/label-methods.md",
+        "docs/fixtures/evidence/m3-labels/report.json"
       ],
+      "blockers": [],
       "discrepancies": [
         "The chunk_size condition is inverted, so a configured value is ignored."
       ],
@@ -2171,7 +2169,8 @@
         "action-chunking-labels"
       ],
       "target_milestone": "M3",
-      "terminal_rule": "Terminal when #22 ports chunked labels with an analytic-fixture artifact; the real-robot claim itself is out-of-scope."
+      "terminal_rule": "Terminal: #22 ported chunked labels with fixture evidence; the real-robot claim is out-of-scope.",
+      "exclusion_rationale": "Chunked labels were ported with analytic-fixture evidence in #22 (docs/migration/label-methods.md, Action chunks; docs/fixtures/evidence/m3-labels/report.json). The real-robot result itself is cited as published; its data is absent."
     },
     {
       "id": "deferred-image-pendulum",

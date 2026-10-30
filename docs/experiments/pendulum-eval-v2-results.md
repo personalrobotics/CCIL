@@ -22,7 +22,7 @@ This is CCIL − BC in upright occupancy: the union of BCa and paired t at c = 0
 | Task | Mean | Interval | Outcome | Positive control BC − BC 10% |
 |---|---|---|---|---|
 | Continuous | +0.158 | [0.107, 0.209] | CCIL improves on BC | +0.029 [0.003, 0.055], passes |
-| Discontinuous | +0.078 | [0.020, 0.135] | CCIL improves on BC | +0.101 [0.051, 0.158], passes |
+| Discontinuous | +0.077 | [0.020, 0.135] | CCIL improves on BC | +0.101 [0.051, 0.158], passes |
 
 **Noise-free arms** (means over seeds):
 

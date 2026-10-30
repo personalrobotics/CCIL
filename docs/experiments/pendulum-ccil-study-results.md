@@ -1,5 +1,7 @@
 # Pendulum CCIL efficacy study: results (#25)
 
+> **Read with the M3 closeout.** These results use the legacy quadratic return, which is a defective measure of swing-up (zero action outscores most learned policies). The task-aligned rescoring, the historical demonstrator defect and the later studies are summarized in [`pendulum-m3-closeout.md`](pendulum-m3-closeout.md).
+
 This reports the study predeclared in
 [`pendulum-ccil-study-predeclaration.md`](pendulum-ccil-study-predeclaration.md),
 version 6, exactly as predeclared. Every number below comes from the tables in
