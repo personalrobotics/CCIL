@@ -144,6 +144,9 @@ def main() -> int:
     audit["rollouts"] = {"checked": len(expected), "hash_mismatches": bad_hash, "invalid": problems}
     checks["hashes"] = not bad_hash
     checks["rollouts_valid"] = not problems
+    if bad_hash:  # the report cannot be reconstructed from rollouts it does not describe
+        checks["recomputation"] = False
+        return finish(audit, checks, {"not_attempted": "rollouts failed the hash check"})
 
     # Recompute the report's sections.
     def diff(t, m, key="0.0"):
@@ -187,15 +190,18 @@ def main() -> int:
         "per_seed": {f"{t}/{a}/{n}/s{s}": {m: v[m] for m in h.METRICS} for (t, a, n, s), v in scores.items()}}
     recomputed = json.loads(json.dumps(recomputed, sort_keys=True, default=str))
     same = {k: recomputed[k] == committed[k] for k in recomputed}
-    audit["recomputation"] = {"sections_equal": same,
-                              "outcomes": {t: {k: v["outcome"] for k, v in primary[t].items()} for t in cs.TASKS}}
     checks["recomputation"] = all(same.values())
+    return finish(audit, checks, {"sections_equal": same, "outcomes": {
+        t: {k: v["outcome"] for k, v in primary[t].items()} for t in cs.TASKS}})
 
+
+def finish(audit: dict, checks: dict, recomputation: dict) -> int:
+    audit["recomputation"] = recomputation
     audit["checks"] = checks
     audit["all_pass"] = all(checks.values())
     OUT.write_text(json.dumps(audit, indent=1, sort_keys=True) + "\n")
     print(json.dumps({"report_sha256": audit["report_sha256"], "checks": checks,
-                      "outcomes": audit["recomputation"]["outcomes"]}, indent=1))
+                      "recomputation": recomputation.get("outcomes", recomputation)}, indent=1))
     return 0 if audit["all_pass"] else 1
 
 
