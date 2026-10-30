@@ -53,7 +53,7 @@ def _declared_specs(producer, measured: set, where: str) -> dict:
 # uniform weighting act row by row, so a row filter of a k_max file is the file a direct generation at k writes.
 # The view selects by each row's recorded draw ordinal, never by its position in the file.
 NESTED_GENERATORS = ("noisy_action", "noisy_action_preimage")
-DRAW_INDEX = "generator.draw_index"
+DRAW_INDEX, ATTEMPT_INDEX = "generator.draw_index", "generator.attempt_index"
 ROW_LOCAL_REASONS = (*REASON_CODES, "label_filter.model_misfit")
 
 
@@ -94,6 +94,9 @@ def nested_view(cands: CandidateSet, k: int, parent_sha256: str) -> CandidateSet
                 problems.append(f"rows are not {k_max} consecutive draws of one transition each")
             elif not (draw == np.arange(k_max)).all():
                 problems.append(f"draw ordinals are not 0..{k_max - 1} in order within every transition")
+            elif ATTEMPT_INDEX in cands.measurements and not (
+                    np.diff(np.asarray(cands.measurements[ATTEMPT_INDEX]).reshape(-1, k_max), axis=1) > 0).all():
+                problems.append("attempt indices do not increase within every transition")
     if problems:
         raise InterfaceError("nested_view: " + "; ".join(problems))
     keep = np.asarray(cands.measurements[DRAW_INDEX]) < k

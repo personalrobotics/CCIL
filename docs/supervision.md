@@ -121,7 +121,7 @@ Construction fails unless the counts close.
 A study that varies the synthetic dose K generates one candidate set at K_max and derives smaller doses from it. `ccil.core.nested_view(candidates, k, parent_sha256)` returns the rows a direct generation at `labels_per_transition = k` would produce: the rows whose recorded draw ordinal (`generator.draw_index`) is below k.
 
 **Why the views are exact.**
-- The `noisy_action` generators draw each transition's actions from that transition's own stream, so its first k draws are the same at any K. Each row records its ordinal in that stream as the measurement `draw_index`, so a view selects draws by identity, not by file position.
+- The `noisy_action` generators draw each transition's actions from that transition's own stream, so its first k draws are the same at any K. Each row records its ordinal in that stream as the measurement `draw_index`, so a view selects draws by identity, not by file position. With action bounds, the stream skips proposals outside the bounds; the k draws are the first k feasible proposals, `attempt_index` records where each fell in the raw stream, and a view refuses attempt indices that do not increase within a transition.
 - Every built-in validator and the uniform weighting act row by row.
 
 **Refused:**

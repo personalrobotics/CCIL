@@ -151,23 +151,77 @@ SPEC_NOISE = {"definition": "||a_G - a_t||: norm of the sampled action perturbat
               "units": "action units"}
 SPEC_DRAW = {"definition": "ordinal j of the draw within its transition's stream (0 <= j < k); the first k of a "
                            "k_max generation are a generation at k", "norm": None, "units": "draw index"}
+SPEC_ATTEMPT = {"definition": "raw index of the proposal in its transition's stream; with action bounds, proposals "
+                              "whose stored action leaves the bounds are skipped, so the k draws are the first k "
+                              "feasible proposals", "norm": None, "units": "attempt index"}
+PROPOSAL_BLOCK = 64  # bounded proposals are drawn in fixed blocks, so a stream's prefix is the same at every k
+MAX_ATTEMPTS = 1 << 20
 
 
-def _noisy_actions(batch, seed, k, sigma):
+def _bounds(action_bounds):
+    if action_bounds is None:
+        return None
+    low, high = (np.asarray(b, np.float64).reshape(-1) for b in action_bounds)
+    if low.shape != high.shape or not (np.isfinite(low).all() and np.isfinite(high).all() and (low < high).all()):
+        raise ValueError("action_bounds must be finite (low, high) with low < high in every dimension")
+    return low, high
+
+
+def _noisy_actions(batch, seed, k, sigma, bounds=None):
     """k draws a~ = a + N(0, sigma^2 I) per transition, from transition_rng.
 
-    Returns (source, draw ordinal, a~ in the action dtype, ||a~ - a||) with the
-    norm taken on the stored a~, so it is the perturbation the candidate actually
-    carries (which rounding can shrink, even to zero, at large action magnitudes).
+    With bounds (low, high), the k draws are the first k proposals of the stream whose stored a~ lies inside the
+    bounds: a Gaussian truncated to the actuator range, so at a saturated action the perturbations point inward.
+    Returns (source, draw ordinal, attempt index or None, a~ in the action dtype, ||a~ - a||) with the norm taken
+    on the stored a~, so it is the perturbation the candidate actually carries (which rounding can shrink, even to
+    zero, at large action magnitudes).
     """
     A = batch.a.shape[1]
-    noise = np.concatenate([transition_rng(seed, e, f).normal(0.0, sigma, size=(k, A))
-                            for e, f in zip(batch.episode_id, batch.frame)]) if len(batch) else np.zeros((0, A))
     source = np.repeat(np.arange(len(batch)), k)
     draw = np.tile(np.arange(k, dtype=np.float64), len(batch))
-    a_tilde = (batch.a[source] + noise).astype(batch.a.dtype)
+    if bounds is None:
+        noise = np.concatenate([transition_rng(seed, e, f).normal(0.0, sigma, size=(k, A))
+                                for e, f in zip(batch.episode_id, batch.frame)]) if len(batch) else np.zeros((0, A))
+        a_tilde = (batch.a[source] + noise).astype(batch.a.dtype)
+        attempt = None
+    else:
+        low, high = bounds
+        a64 = batch.a.astype(np.float64)
+        if ((a64 < low) | (a64 > high)).any():
+            raise ValueError("a demonstration action lies outside action_bounds, so no proposal around it is feasible")
+        rows, attempts = [], []
+        for i, (e, f) in enumerate(zip(batch.episode_id, batch.frame)):
+            rng, got, idx, n = transition_rng(seed, e, f), [], [], 0
+            while sum(map(len, got)) < k:
+                if n >= MAX_ATTEMPTS:
+                    raise ValueError(f"fewer than {k} feasible proposals in {MAX_ATTEMPTS} attempts at transition "
+                                     f"({e}, {f}); sigma is far too large for the action bounds")
+                cand = (a64[i] + rng.normal(0.0, sigma, size=(PROPOSAL_BLOCK, A))).astype(batch.a.dtype)
+                ok = ((cand >= low) & (cand <= high)).all(axis=1)
+                got.append(cand[ok])
+                idx.append(n + np.flatnonzero(ok))
+                n += PROPOSAL_BLOCK
+            rows.append(np.concatenate(got)[:k])
+            attempts.append(np.concatenate(idx)[:k])
+        a_tilde = np.concatenate(rows) if rows else np.zeros((0, A), batch.a.dtype)
+        attempt = np.concatenate(attempts).astype(np.float64) if attempts else np.zeros(0)
     stored_noise = a_tilde.astype(np.float64) - batch.a[source].astype(np.float64)
-    return source, draw, a_tilde, np.linalg.norm(stored_noise, axis=1)
+    return source, draw, attempt, a_tilde, np.linalg.norm(stored_noise, axis=1)
+
+
+def _noise_params(k, sigma, action_bounds):
+    params = {"labels_per_transition": int(k), "action_noise_std": float(sigma),
+              "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
+    if action_bounds is not None:
+        low, high = _bounds(action_bounds)
+        params |= {"action_bounds": [low.tolist(), high.tolist()],
+                   "action_noise": "normal(0, action_noise_std^2) per action dimension, action units, truncated to "
+                                   "action_bounds by skipping proposals outside them"}
+    return params
+
+
+def _noise_measurements(attempt, **m):
+    return m if attempt is None else {**m, "attempt_index": attempt}
 
 
 def _displacement(z, origin):
@@ -182,18 +236,20 @@ class NoisyAction:
     measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT,
                          "draw_index": SPEC_DRAW}
 
-    def __init__(self, labels_per_transition: int, action_noise_std: float):
-        self.params = {"labels_per_transition": int(labels_per_transition), "action_noise_std": float(action_noise_std),
-                       "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
+    def __init__(self, labels_per_transition: int, action_noise_std: float, action_bounds=None):
+        self.params = _noise_params(labels_per_transition, action_noise_std, action_bounds)
+        if action_bounds is not None:
+            self.measurement_specs = {**type(self).measurement_specs, "attempt_index": SPEC_ATTEMPT}
 
     def generate(self, batch, model, seed):
-        source, draw, a_tilde, noise_norm = _noisy_actions(batch, seed, self.params["labels_per_transition"],
-                                                           self.params["action_noise_std"])
+        p = self.params
+        source, draw, attempt, a_tilde, noise_norm = _noisy_actions(
+            batch, seed, p["labels_per_transition"], p["action_noise_std"], _bounds(p.get("action_bounds")))
         target = batch.z_next[source]
         z = target - model.delta(target, a_tilde)
         return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=np.zeros(len(source), bool),
-                              measurements={"action_noise_norm": noise_norm, "draw_index": draw,
-                                            "state_displacement_norm": _displacement(z, batch.z[source])})
+                              measurements=_noise_measurements(attempt, action_noise_norm=noise_norm, draw_index=draw,
+                                                               state_displacement_norm=_displacement(z, batch.z[source])))
 
 
 class NoisyActionPreimage:
@@ -210,19 +266,20 @@ class NoisyActionPreimage:
                          "solver_residual": SPEC_SOLVER, "draw_index": SPEC_DRAW}
 
     def __init__(self, labels_per_transition: int, action_noise_std: float, max_iterations: int = 50,
-                 tolerance: float = 1e-4):
-        self.params = {"labels_per_transition": int(labels_per_transition), "action_noise_std": float(action_noise_std),
-                       "action_noise": "normal(0, action_noise_std^2) per action dimension, action units",
+                 tolerance: float = 1e-4, action_bounds=None):
+        self.params = {**_noise_params(labels_per_transition, action_noise_std, action_bounds),
                        "max_iterations": int(max_iterations), "tolerance": float(tolerance)}
+        if action_bounds is not None:
+            self.measurement_specs = {**type(self).measurement_specs, "attempt_index": SPEC_ATTEMPT}
 
     def generate(self, batch, model, seed):
         p = self.params
-        source, draw, a_tilde, noise_norm = _noisy_actions(batch, seed, p["labels_per_transition"],
-                                                           p["action_noise_std"])
+        source, draw, attempt, a_tilde, noise_norm = _noisy_actions(
+            batch, seed, p["labels_per_transition"], p["action_noise_std"], _bounds(p.get("action_bounds")))
         target = batch.z_next[source]
         z, failed, resid = newton_preimage(model, target, a_tilde, batch.z[source], p["max_iterations"], p["tolerance"],
                                            out_dtype=batch.z.dtype)
         return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=failed,
-                              measurements={"action_noise_norm": noise_norm, "draw_index": draw,
-                                            "state_displacement_norm": _displacement(z, batch.z[source]),
-                                            "solver_residual": resid})
+                              measurements=_noise_measurements(attempt, action_noise_norm=noise_norm, draw_index=draw,
+                                                               state_displacement_norm=_displacement(z, batch.z[source]),
+                                                               solver_residual=resid))
