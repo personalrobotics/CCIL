@@ -12,6 +12,8 @@ On the corrected demonstrations (`docs/fixtures/evidence/pendulum-corrected-demo
 
 This study varies only the number of demonstrations on one task, so it tests the hypothesis directly. It does not isolate the discontinuity (see "Not concluded").
 
+**A prospective follow-up to an observed result.** The new data (the 100-demonstration units) are prospective. But the hypothesis was formed after seeing the 500-demonstration result, and the second primary analysis reuses that result. Its interval does not undo that: the study is conditional on the observed 500-demonstration outcome, and it is reported as such.
+
 ## What has been seen
 
 - **Everything in the corrected-demonstrator study,** including both of its primary outcomes and every per-seed value. The hypothesis was formed after seeing them.
@@ -53,13 +55,15 @@ This study varies only the number of demonstrations on one task, so it tests the
 
 The interval is v6's union of BCa and paired t, with v6's resampling settings, over n = 20 training seeds, paired by seed. There are two primary analyses, so c = 1 − 0.05/2 = 0.975.
 
+**Estimand.** Each seed draws both a 100-episode subset and the training randomness, so each quantity averages jointly over random subset selection and training randomness. The study does not separate subset variability from optimizer variability.
+
 1. **(CCIL − BC)₁₀₀** in upright occupancy.
 2. **(CCIL − BC)₁₀₀ − (CCIL − BC)₅₀₀,** paired by training seed. This is the test of the hypothesis: the hypothesis predicts a positive value.
 
 **Outcomes** use v6's rules: "increases" when the lower endpoint is > 0, "decreases" when the upper endpoint is < 0, and otherwise "no detectable difference". A null outcome is reported with its interval, and it makes no claim that the difference is absent or unchanged.
 
 **Failures and exclusions:** as v6 §9, applied to `bc_100` and `ccil_100`.
-- An algorithmic failure (non-finite actions) makes the analysis inconclusive.
+- An algorithmic failure makes the analysis inconclusive. As in v6 §9, an algorithmic failure is a non-finite loss in training, a crash inside the algorithm, or a non-finite return; non-finite actions on the fresh starts count as well.
 - More than two infrastructure exclusions in an arm makes it inconclusive.
 - Fewer than 16 paired seeds makes it inconclusive.
 - The 500-demonstration units are all `ok`.
