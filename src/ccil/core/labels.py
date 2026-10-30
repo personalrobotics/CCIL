@@ -51,17 +51,20 @@ def _declared_specs(producer, measured: set, where: str) -> dict:
 # Generators whose k draws per transition come from that transition's own stream (generators._noisy_actions), so
 # the first k of k_max draws are the k draws a direct generation at k makes; every built-in validator and the
 # uniform weighting act row by row, so a row filter of a k_max file is the file a direct generation at k writes.
+# The view selects by each row's recorded draw ordinal, never by its position in the file.
 NESTED_GENERATORS = ("noisy_action", "noisy_action_preimage")
+DRAW_INDEX = "generator.draw_index"
 ROW_LOCAL_REASONS = (*REASON_CODES, "label_filter.model_misfit")
 
 
 def nested_view(cands: CandidateSet, k: int, parent_sha256: str) -> CandidateSet:
     """The candidates a generation at labels_per_transition=k makes, as a row filter of a k_max candidate set.
 
-    Refuses a set whose rows are not k_max consecutive draws per transition, a generator without nested draws, a
-    validator or weighting that is not known to act row by row (a population rule such as a quantile would change
-    under a view), and k outside [1, k_max]. Certificates are not views: certify the view itself. parent_sha256 is
-    the k_max file's hash, recorded as the view's input.
+    Rows are selected by their recorded draw ordinal (generator.draw_index < k). Refuses a set without draw
+    ordinals, one whose transitions do not each carry the ordinals 0..k_max-1 exactly once in order, a generator
+    without nested draws, a validator or weighting that is not known to act row by row (a population rule such as a
+    quantile would change under a view), and k outside [1, k_max]. Certificates are not views: certify the view
+    itself. parent_sha256 is the k_max file's hash, recorded as the view's input.
     """
     g = cands.generator
     k_max = (g.get("params") or {}).get("labels_per_transition")
@@ -76,18 +79,24 @@ def nested_view(cands: CandidateSet, k: int, parent_sha256: str) -> CandidateSet
     if not set(cands.reason_codes) <= set(ROW_LOCAL_REASONS):
         problems.append(f"reason codes {sorted(set(cands.reason_codes) - set(ROW_LOCAL_REASONS))} are not known to be "
                         "row-local")
+    if DRAW_INDEX not in cands.measurements:
+        problems.append(f"no per-row draw ordinal (measurement {DRAW_INDEX!r}); regenerate with a generator that "
+                        "records it")
     if not problems:
         if n % k_max:
             problems.append(f"{n} rows are not a whole number of {k_max}-draw transitions")
         else:
             ep = np.asarray(cands.source_episode_id).astype(str).reshape(-1, k_max)
             fr = np.asarray(cands.source_frame).reshape(-1, k_max)
+            draw = np.asarray(cands.measurements[DRAW_INDEX]).reshape(-1, k_max)
             keys = list(zip(ep[:, 0], fr[:, 0]))
             if not ((ep == ep[:, :1]).all() and (fr == fr[:, :1]).all()) or len(set(keys)) != len(keys):
                 problems.append(f"rows are not {k_max} consecutive draws of one transition each")
+            elif not (draw == np.arange(k_max)).all():
+                problems.append(f"draw ordinals are not 0..{k_max - 1} in order within every transition")
     if problems:
         raise InterfaceError("nested_view: " + "; ".join(problems))
-    keep = (np.arange(n) % k_max) < k
+    keep = np.asarray(cands.measurements[DRAW_INDEX]) < k
 
     def rows(x):
         return None if x is None else x[keep]

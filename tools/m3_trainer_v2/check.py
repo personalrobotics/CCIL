@@ -539,8 +539,22 @@ def contract(device) -> dict:
     perm = np.random.default_rng(0).permutation(len(full.actions))
     shuffled = dataclasses.replace(full, source_episode_id=full.source_episode_id[perm],
                                    source_frame=full.source_frame[perm])
+    # Every column of each transition's rows reversed together: a file whose draws are reordered within their
+    # transitions, which a position-based view would silently turn into a different smaller-K view.
+    within = (np.arange(len(full.actions)).reshape(-1, 20)[:, ::-1]).reshape(-1)
+    reordered = dataclasses.replace(
+        full, observations={m: v[within] for m, v in full.observations.items()}, actions=full.actions[within],
+        target_observations={m: v[within] for m, v in full.target_observations.items()},
+        accepted=full.accepted[within], reasons=full.reasons[within], weight=full.weight[within],
+        measurements={m: v[within] for m, v in full.measurements.items()})
+    no_ordinal = dataclasses.replace(full, measurements={m: v for m, v in full.measurements.items()
+                                                         if m != "generator.draw_index"},
+                                     measurement_specs={m: v for m, v in full.measurement_specs.items()
+                                                        if m != "generator.draw_index"})
     view_cases = {"k_above_k_max": (full, 21), "k_zero": (full, 0),
                   "rows_not_grouped_by_transition": (shuffled, 4),
+                  "draws_reordered_within_transition": (reordered, 4),
+                  "no_draw_ordinal": (no_ordinal, 4),
                   "population_weighting": (dataclasses.replace(full, weighting={"name": "inverse_density",
                                                                                 "version": "1", "params": {}}), 4),
                   "generator_without_nested_draws": (dataclasses.replace(full, generator={**full.generator,

@@ -149,22 +149,25 @@ def _solve_rows(J, r):
 
 SPEC_NOISE = {"definition": "||a_G - a_t||: norm of the sampled action perturbation", "norm": "l2",
               "units": "action units"}
+SPEC_DRAW = {"definition": "ordinal j of the draw within its transition's stream (0 <= j < k); the first k of a "
+                           "k_max generation are a generation at k", "norm": None, "units": "draw index"}
 
 
 def _noisy_actions(batch, seed, k, sigma):
     """k draws a~ = a + N(0, sigma^2 I) per transition, from transition_rng.
 
-    Returns (source, a~ in the action dtype, ||a~ - a||) with the norm taken on
-    the stored a~, so it is the perturbation the candidate actually carries
-    (which rounding can shrink, even to zero, at large action magnitudes).
+    Returns (source, draw ordinal, a~ in the action dtype, ||a~ - a||) with the
+    norm taken on the stored a~, so it is the perturbation the candidate actually
+    carries (which rounding can shrink, even to zero, at large action magnitudes).
     """
     A = batch.a.shape[1]
     noise = np.concatenate([transition_rng(seed, e, f).normal(0.0, sigma, size=(k, A))
                             for e, f in zip(batch.episode_id, batch.frame)]) if len(batch) else np.zeros((0, A))
     source = np.repeat(np.arange(len(batch)), k)
+    draw = np.tile(np.arange(k, dtype=np.float64), len(batch))
     a_tilde = (batch.a[source] + noise).astype(batch.a.dtype)
     stored_noise = a_tilde.astype(np.float64) - batch.a[source].astype(np.float64)
-    return source, a_tilde, np.linalg.norm(stored_noise, axis=1)
+    return source, draw, a_tilde, np.linalg.norm(stored_noise, axis=1)
 
 
 def _displacement(z, origin):
@@ -174,21 +177,22 @@ def _displacement(z, origin):
 class NoisyAction:
     """For k draws a~ = a + N(0, sigma^2): z_G = z_next - f(z_next, a~), targeting z_next."""
 
-    name, version = "noisy_action", "2"
+    name, version = "noisy_action", "3"
     label_error_profile = "disturbed_action"  # Ke et al., Def. 4.6
-    measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT}
+    measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT,
+                         "draw_index": SPEC_DRAW}
 
     def __init__(self, labels_per_transition: int, action_noise_std: float):
         self.params = {"labels_per_transition": int(labels_per_transition), "action_noise_std": float(action_noise_std),
                        "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
 
     def generate(self, batch, model, seed):
-        source, a_tilde, noise_norm = _noisy_actions(batch, seed, self.params["labels_per_transition"],
-                                                     self.params["action_noise_std"])
+        source, draw, a_tilde, noise_norm = _noisy_actions(batch, seed, self.params["labels_per_transition"],
+                                                           self.params["action_noise_std"])
         target = batch.z_next[source]
         z = target - model.delta(target, a_tilde)
         return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=np.zeros(len(source), bool),
-                              measurements={"action_noise_norm": noise_norm,
+                              measurements={"action_noise_norm": noise_norm, "draw_index": draw,
                                             "state_displacement_norm": _displacement(z, batch.z[source])})
 
 
@@ -200,10 +204,10 @@ class NoisyActionPreimage:
     per transition are never refilled to reach a count.
     """
 
-    name, version = "noisy_action_preimage", "1"
+    name, version = "noisy_action_preimage", "2"
     label_error_profile = "disturbed_action"  # Ke et al., Def. 4.6
     measurement_specs = {"action_noise_norm": SPEC_NOISE, "state_displacement_norm": SPEC_DISPLACEMENT,
-                         "solver_residual": SPEC_SOLVER}
+                         "solver_residual": SPEC_SOLVER, "draw_index": SPEC_DRAW}
 
     def __init__(self, labels_per_transition: int, action_noise_std: float, max_iterations: int = 50,
                  tolerance: float = 1e-4):
@@ -213,11 +217,12 @@ class NoisyActionPreimage:
 
     def generate(self, batch, model, seed):
         p = self.params
-        source, a_tilde, noise_norm = _noisy_actions(batch, seed, p["labels_per_transition"], p["action_noise_std"])
+        source, draw, a_tilde, noise_norm = _noisy_actions(batch, seed, p["labels_per_transition"],
+                                                           p["action_noise_std"])
         target = batch.z_next[source]
         z, failed, resid = newton_preimage(model, target, a_tilde, batch.z[source], p["max_iterations"], p["tolerance"],
                                            out_dtype=batch.z.dtype)
         return CandidateBatch(source=source, z=z, a=a_tilde, target=target.copy(), failed=failed,
-                              measurements={"action_noise_norm": noise_norm,
+                              measurements={"action_noise_norm": noise_norm, "draw_index": draw,
                                             "state_displacement_norm": _displacement(z, batch.z[source]),
                                             "solver_residual": resid})
