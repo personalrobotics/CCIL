@@ -116,6 +116,24 @@ Only position 0 of a label's chunk carries its one-step CCIL claim.
 
 Construction fails unless the counts close.
 
+## Nested-K views
+
+A study that varies the synthetic dose K generates one candidate set at K_max and derives smaller doses from it. `ccil.core.nested_view(candidates, k, parent_sha256)` returns the rows a direct generation at `labels_per_transition = k` would produce: the first k of each transition's K_max draws.
+
+**Why the views are exact.**
+- The `noisy_action` generators draw each transition's actions from that transition's own stream, so its first k draws are the same at any K.
+- Every built-in validator and the uniform weighting act row by row.
+
+**Refused:**
+- rows that are not K_max consecutive draws per transition;
+- a generator without nested draws;
+- a validator or weighting not known to be row-local, because a population rule would change under a view;
+- k outside [1, K_max].
+
+**Certificates are not views.** Certify each view itself, because a quantile selection depends on the population.
+
+**Recorded:** the view records the K_max file's hash as the input `nested_view_of`.
+
 ## Without `ccil`: the recipe
 
 An independent consumer needs the two label files and the split. The

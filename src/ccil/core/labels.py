@@ -48,6 +48,64 @@ def _declared_specs(producer, measured: set, where: str) -> dict:
     return specs
 
 
+# Generators whose k draws per transition come from that transition's own stream (generators._noisy_actions), so
+# the first k of k_max draws are the k draws a direct generation at k makes; every built-in validator and the
+# uniform weighting act row by row, so a row filter of a k_max file is the file a direct generation at k writes.
+NESTED_GENERATORS = ("noisy_action", "noisy_action_preimage")
+ROW_LOCAL_REASONS = (*REASON_CODES, "label_filter.model_misfit")
+
+
+def nested_view(cands: CandidateSet, k: int, parent_sha256: str) -> CandidateSet:
+    """The candidates a generation at labels_per_transition=k makes, as a row filter of a k_max candidate set.
+
+    Refuses a set whose rows are not k_max consecutive draws per transition, a generator without nested draws, a
+    validator or weighting that is not known to act row by row (a population rule such as a quantile would change
+    under a view), and k outside [1, k_max]. Certificates are not views: certify the view itself. parent_sha256 is
+    the k_max file's hash, recorded as the view's input.
+    """
+    g = cands.generator
+    k_max = (g.get("params") or {}).get("labels_per_transition")
+    n = len(cands.actions)
+    problems = []
+    if g.get("name") not in NESTED_GENERATORS:
+        problems.append(f"generator {g.get('name')!r} has no nested draws (allowed: {list(NESTED_GENERATORS)})")
+    if isinstance(k, bool) or not isinstance(k, int) or not isinstance(k_max, int) or not 1 <= k <= k_max:
+        problems.append(f"k must be an integer in [1, labels_per_transition={k_max!r}], got {k!r}")
+    if cands.weighting.get("name") != Uniform.name:
+        problems.append(f"weighting {cands.weighting.get('name')!r} is not known to be row-local")
+    if not set(cands.reason_codes) <= set(ROW_LOCAL_REASONS):
+        problems.append(f"reason codes {sorted(set(cands.reason_codes) - set(ROW_LOCAL_REASONS))} are not known to be "
+                        "row-local")
+    if not problems:
+        if n % k_max:
+            problems.append(f"{n} rows are not a whole number of {k_max}-draw transitions")
+        else:
+            ep = np.asarray(cands.source_episode_id).astype(str).reshape(-1, k_max)
+            fr = np.asarray(cands.source_frame).reshape(-1, k_max)
+            keys = list(zip(ep[:, 0], fr[:, 0]))
+            if not ((ep == ep[:, :1]).all() and (fr == fr[:, :1]).all()) or len(set(keys)) != len(keys):
+                problems.append(f"rows are not {k_max} consecutive draws of one transition each")
+    if problems:
+        raise InterfaceError("nested_view: " + "; ".join(problems))
+    keep = (np.arange(n) % k_max) < k
+
+    def rows(x):
+        return None if x is None else x[keep]
+    view_hash = hashlib.sha256(f"{g['params_hash']}|nested_view|k={k}".encode()).hexdigest()[:16]
+    return CandidateSet(
+        run_id=f"{cands.run_id}.k{k}",
+        generator={**g, "params": {**g["params"], "labels_per_transition": k}, "params_hash": view_hash},
+        source_episode_id=cands.source_episode_id[keep], source_frame=cands.source_frame[keep],
+        observations={m: v[keep] for m, v in cands.observations.items()}, actions=cands.actions[keep],
+        target_observations={m: v[keep] for m, v in cands.target_observations.items()},
+        accepted=cands.accepted[keep], reasons=cands.reasons[keep], weight=cands.weight[keep], seed=cands.seed,
+        inputs={**cands.inputs, "nested_view_of": parent_sha256}, weighting=dict(cands.weighting),
+        reason_codes=tuple(cands.reason_codes), measurements={m: v[keep] for m, v in cands.measurements.items()},
+        measurement_specs=cands.measurement_specs, action_chunks=rows(cands.action_chunks),
+        action_chunk_mask=rows(cands.action_chunk_mask), action_chunk_spec=cands.action_chunk_spec,
+    ).validate()
+
+
 def checkpoint_sha256(model) -> str:
     """SHA-256 of the checkpoint model.save() writes; checkpoints are byte-deterministic."""
     with tempfile.TemporaryDirectory() as d:
