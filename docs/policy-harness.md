@@ -292,6 +292,7 @@ More `train_group` settings serve the shared study harness. They are library set
 | `min_delta` | 0 | The improvement a validation must make (loss below the best minus `min_delta`) to count, both for patience and for the selected checkpoint. Needs `patience`. |
 | `synthetic_fraction` | null | Every minibatch carries `round(fraction × B)` synthetic rows and the rest demonstrations. Excludes `balance_labels`. |
 | `lr_schedule: plateau` | | Lower the learning rate by `lr_factor` after `lr_patience` validations without improvement, never below `min_lr`; the model stops only at `min_lr`, after `patience` more validations without improvement. Needs `patience`, `lr_factor`, `lr_patience` and `min_lr` (below the learning rate). |
+| `validation_interval_epochs`, `validation_min_steps` | null | An exposure-aware cadence instead of `validation_interval_steps`: each model validates every max(S_min, E × its steps per epoch) steps, so patience counts roughly epochs on large datasets and a minimum of steps on small ones. An epoch is the trainer's pass over the demonstrations. Set together. |
 | `extend_after_stop` | null | A convergence check: a model whose rule fires at step s trains on to the first validation at or after `factor × s` (within the ceiling), then returns the checkpoint selected at s. Needs `patience`. |
 
 **Patience.**

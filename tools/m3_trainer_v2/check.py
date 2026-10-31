@@ -487,6 +487,25 @@ def contract(device) -> dict:
         "recomputed_reductions": cuts, "selected": rp["validation"]["selected"], "recomputed_selected": sel,
         "extension": x_, "extended_returns_stop_checkpoint": v2.parameters_sha256(pp) == v2.parameters_sha256(pe)}
 
+    # (a'') The exposure-aware cadence: each model of a group validates every max(S_min, E x its steps per epoch)
+    # steps, so a small and a large dataset in one group get their own intervals.
+    small, large = labelled(64, 6, 1.0), labelled(1024, 7, 1.0)
+    se = {**sp, "validation_interval_steps": None, "validation_interval_epochs": 2, "validation_min_steps": 10,
+          "step_budget": 300, "patience": 1000, "lr_schedule": "constant"}
+    for k in ("lr_factor", "lr_patience", "min_lr"):
+        se.pop(k)
+    res = v2.train_group([v2.Job(small, 5, validation=held), v2.Job(large, 6, validation=held)], se, device=device,
+                         compile=False)
+    cad = {}
+    for name, (_, r_) in zip(("small", "large"), res):
+        want = max(10, 2 * r_["steps_per_epoch"])
+        got = [e["step"] for e in r_["validation"]["evaluations"]]
+        cad[name] = {"steps_per_epoch": r_["steps_per_epoch"], "interval": r_["validation"]["interval_steps"],
+                     "expected": want, "pass": r_["validation"]["interval_steps"] == want
+                     and got == [*range(want, 301, want)] + ([300] if 300 % want else [])}
+    out["exposure_aware_cadence"] = {"pass": all(c["pass"] for c in cad.values())
+                                     and cad["small"]["interval"] != cad["large"]["interval"], **cad}
+
     # (b) Synthetic fraction: every minibatch carries exactly b_s synthetic rows; the record's rows and weight mass
     # equal a host replay of the index stream; demonstrations are each drawn at most once per epoch and the
     # synthetic stream draws every row once before any repeats.
@@ -586,6 +605,11 @@ def contract(device) -> dict:
                                      {**sp, "patience": None}),
         "plateau_keys_without_plateau": ([v2.Job(train, 5, validation=held)], {**sp, "lr_schedule": "constant"}),
         "min_lr_not_below_learning_rate": ([v2.Job(train, 5, validation=held)], {**sp, "min_lr": sp["learning_rate"]}),
+        "interval_epochs_without_min_steps": ([v2.Job(train, 5, validation=held)],
+                                              {**st, "validation_interval_steps": None,
+                                               "validation_interval_epochs": 1}),
+        "interval_epochs_with_interval_steps": ([v2.Job(train, 5, validation=held)],
+                                                {**st, "validation_interval_epochs": 1, "validation_min_steps": 10}),
         "extension_without_patience": ([v2.Job(train, 5, validation=held)],
                                        {**SETTINGS, "checkpoint_selection": "validation", "extend_after_stop": 2}),
     }

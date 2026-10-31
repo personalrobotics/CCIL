@@ -643,10 +643,11 @@ def _put(q: queue.Queue, item, stop: threading.Event) -> bool:
 RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "constant", "warmup_steps": 0,
                    "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
                    "validation_interval_steps": None, "patience": None, "min_delta": 0.0, "synthetic_fraction": None,
-                   "lr_factor": None, "lr_patience": None, "min_lr": None, "extend_after_stop": None}
+                   "lr_factor": None, "lr_patience": None, "min_lr": None, "extend_after_stop": None,
+                   "validation_interval_epochs": None, "validation_min_steps": None}
 # Recipe keys that steer the loop on the host, not the compiled step (they never enter its static arguments).
 HOST_KEYS = ("step_budget", "checkpoint_selection", "patience", "min_delta", "synthetic_fraction", "lr_factor",
-             "lr_patience", "min_lr", "extend_after_stop")
+             "lr_patience", "min_lr", "extend_after_stop", "validation_interval_epochs", "validation_min_steps")
 PLATEAU_KEYS = ("lr_factor", "lr_patience", "min_lr")
 
 
@@ -682,6 +683,12 @@ def recipe_of(settings: dict) -> dict:
     if r["validation_interval_steps"] is not None and (r["checkpoint_selection"] != "validation"
                                                        or int(r["validation_interval_steps"]) < 1):
         raise TrainingError("validation_interval_steps is a positive step count, for checkpoint_selection validation")
+    exposure = (r["validation_interval_epochs"], r["validation_min_steps"])
+    if any(v is not None for v in exposure):
+        if (any(isinstance(v, bool) or v is None or int(v) != v or int(v) < 1 for v in exposure)
+                or r["validation_interval_steps"] is not None or r["checkpoint_selection"] != "validation"):
+            raise TrainingError("validation_interval_epochs and validation_min_steps are positive counts, set "
+                                "together, for checkpoint_selection validation, instead of validation_interval_steps")
     if r["patience"] is not None and (isinstance(r["patience"], bool) or int(r["patience"]) != r["patience"]
                                       or int(r["patience"]) < 1 or r["checkpoint_selection"] != "validation"):
         raise TrainingError("patience is a positive count of validation evaluations, for checkpoint_selection "
@@ -891,7 +898,15 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     m2 = {k: torch.zeros_like(v) for k, v in params.items()}
     ema = {k: v.clone() for k, v in params.items()} if recipe["ema_decay"] is not None else None
     best, best_loss, best_at, val_history = None, None, [None] * M, [[] for _ in jobs]
+    # The cadence in steps, per model: fixed, or exposure-aware (every E epochs, at least S_min steps apart), so
+    # patience counts roughly epochs on large datasets and keeps a minimum of optimization on small ones.
     interval = recipe["validation_interval_steps"]
+    if recipe["validation_interval_epochs"] is not None:
+        intervals = [max(int(recipe["validation_min_steps"]), int(recipe["validation_interval_epochs"]) * n)
+                     for n in steps[:n_real]]
+    else:
+        intervals = [interval] * n_real
+    interval = interval or recipe["validation_interval_epochs"]
     stale, stopped, stop_step = [0] * n_real, [False] * M, [None] * n_real  # patience state, per real model
     stopped_dev = torch.zeros(M, dtype=torch.bool, device=device)
     # The rule fires at stop_step; with extend_after_stop the model trains on to until[i] (an evaluation at or after
@@ -985,7 +1000,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                         if validation is not None and interval:  # a fixed step cadence, plus each model's last step
                             at = [epoch * steps[i] + b + 1 for i in range(n_real)]
                             due = [epoch < epochs[i] and b < steps[i] and at[i] <= total_steps[i] and not stopped[i]
-                                   and (at[i] % int(interval) == 0 or at[i] == total_steps[i]) for i in range(n_real)]
+                                   and (at[i] % intervals[i] == 0 or at[i] == total_steps[i]) for i in range(n_real)]
                             if any(due):
                                 select(due, epoch, at)
                         if patience is not None and all(stopped[:n_real]):
@@ -1091,7 +1106,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                              "weights_returned": ("best validation checkpoint" if best is not None else
                                                   "EMA" if ema is not None else "last")},
                   "validation": None if validation is None else {
-                      "cadence": f"every {interval} steps and the last" if interval else "every epoch",
+                      "cadence": (f"every {intervals[i]} steps and the last" if interval else "every epoch"),
+                      "interval_steps": intervals[i] if interval else steps[i],
                       "loss": "sum_i w_i mean_j (pi(s_i) - a_i)_j^2 / sum_i w_i over the held-out demonstrations, "
                               "scaled action space, of the weights returned (EMA when on)",
                       "evaluations": val_history[i], "selected": sel_i,
