@@ -237,6 +237,95 @@
    }
   },
   {
+   "case": "contract_plateau_recomputes",
+   "extended_returns_stop_checkpoint": true,
+   "extension": {
+    "best_loss_extended": 0.03017685003578663,
+    "factor": 3.0,
+    "relative_gain": 0.0,
+    "selected_loss_at_stop": 0.03017685003578663,
+    "trained_to_step": 540,
+    "until_step": 540
+   },
+   "lr_reductions": [
+    {
+     "lr": 0.0015,
+     "step": 50
+    },
+    {
+     "lr": 0.00075,
+     "step": 80
+    },
+    {
+     "lr": 0.000375,
+     "step": 110
+    },
+    {
+     "lr": 0.0003,
+     "step": 140
+    }
+   ],
+   "pass": true,
+   "recomputed_reductions": [
+    {
+     "lr": 0.0015,
+     "step": 50
+    },
+    {
+     "lr": 0.00075,
+     "step": 80
+    },
+    {
+     "lr": 0.000375,
+     "step": 110
+    },
+    {
+     "lr": 0.0003,
+     "step": 140
+    }
+   ],
+   "recomputed_selected": 1,
+   "recomputed_stop": 180,
+   "selected": 1,
+   "stopped_at_step": 180
+  },
+  {
+   "case": "contract_exposure_aware_cadence",
+   "large": {
+    "demonstration_epoch_steps": 32,
+    "expected": 64,
+    "interval": 64,
+    "pass": true
+   },
+   "pass": true,
+   "small": {
+    "demonstration_epoch_steps": 2,
+    "expected": 10,
+    "interval": 10,
+    "pass": true
+   }
+  },
+  {
+   "case": "contract_synthetic_coverage_before_stop",
+   "coverage_step": 375,
+   "demonstration_epoch_steps": 19,
+   "pass": true,
+   "recorded": {
+    "all_rows_drawn": true,
+    "distinct_rows": 6000,
+    "draws": 6080,
+    "draws_per_row_max": 2,
+    "draws_per_row_min": 1,
+    "steps": 380
+   },
+   "replayed_draws_per_row": [
+    1,
+    2
+   ],
+   "stopped_at_step": 380,
+   "ungated_stopped_at_step": 57
+  },
+  {
    "case": "contract_synthetic_fraction_exposure",
    "cases": {
     "0.3": {
@@ -296,18 +385,25 @@
   {
    "attempts_not_increasing": true,
    "case": "contract_refusals",
+   "coverage_without_fraction": true,
    "demonstration_action_outside_bounds": true,
    "draws_reordered_within_transition": true,
+   "extension_without_patience": true,
    "fraction_out_of_range": true,
    "fraction_with_balance": true,
    "fraction_without_synthetic_rows": true,
    "generator_without_nested_draws": true,
+   "interval_epochs_with_interval_steps": true,
+   "interval_epochs_without_min_steps": true,
    "k_above_k_max": true,
    "k_zero": true,
    "min_delta_without_patience": true,
+   "min_lr_not_below_learning_rate": true,
    "no_draw_ordinal": true,
    "pass": true,
    "patience_without_validation": true,
+   "plateau_keys_without_plateau": true,
+   "plateau_without_patience": true,
    "population_weighting": true,
    "rows_not_grouped_by_transition": true
   },
@@ -322,6 +418,10 @@
      "rerun_identical": true,
      "resident_equals_streaming": true
     },
+    "ccil_fraction_plateau": {
+     "rerun_identical": true,
+     "resident_equals_streaming": true
+    },
     "noise_bc": {
      "rerun_identical": true,
      "resident_equals_streaming": true
@@ -332,7 +432,7 @@
   }
  ],
  "environment": {
-  "code_commit": "a7f02cc81762fc98fb64b3db978b2f18aa348809",
+  "code_commit": "85be062217f06eb4b123ee43ccc40b4f2f21932f",
   "code_dirty": false,
   "device": "cpu",
   "gpu": null,
