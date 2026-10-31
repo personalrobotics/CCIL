@@ -644,10 +644,12 @@ RECIPE_DEFAULTS = {"optimizer": "adam", "weight_decay": 0.0, "lr_schedule": "con
                    "step_budget": None, "grad_clip_norm": None, "ema_decay": None, "checkpoint_selection": "last",
                    "validation_interval_steps": None, "patience": None, "min_delta": 0.0, "synthetic_fraction": None,
                    "lr_factor": None, "lr_patience": None, "min_lr": None, "extend_after_stop": None,
-                   "validation_interval_epochs": None, "validation_min_steps": None}
+                   "validation_interval_epochs": None, "validation_min_steps": None,
+                   "synthetic_coverage_before_stop": None}
 # Recipe keys that steer the loop on the host, not the compiled step (they never enter its static arguments).
 HOST_KEYS = ("step_budget", "checkpoint_selection", "patience", "min_delta", "synthetic_fraction", "lr_factor",
-             "lr_patience", "min_lr", "extend_after_stop", "validation_interval_epochs", "validation_min_steps")
+             "lr_patience", "min_lr", "extend_after_stop", "validation_interval_epochs", "validation_min_steps",
+             "synthetic_coverage_before_stop")
 PLATEAU_KEYS = ("lr_factor", "lr_patience", "min_lr")
 
 
@@ -672,6 +674,9 @@ def recipe_of(settings: dict) -> dict:
             raise TrainingError("min_lr must be finite and > 0")
     elif any(r[k] is not None for k in PLATEAU_KEYS):
         raise TrainingError("lr_factor, lr_patience and min_lr belong to the plateau schedule")
+    if r["synthetic_coverage_before_stop"] and (r["synthetic_fraction"] is None or r["patience"] is None):
+        raise TrainingError("synthetic_coverage_before_stop gates the stopping rule on the synthetic stream; it needs "
+                            "synthetic_fraction and patience")
     if r["extend_after_stop"] is not None and (r["patience"] is None or not float(r["extend_after_stop"]) > 1):
         raise TrainingError("extend_after_stop is a factor > 1 on the stop step, for a run with patience")
     if r["lr_schedule"] == "constant" and int(r["warmup_steps"] or 0) > 0:
@@ -898,12 +903,20 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     m2 = {k: torch.zeros_like(v) for k, v in params.items()}
     ema = {k: v.clone() for k, v in params.items()} if recipe["ema_decay"] is not None else None
     best, best_loss, best_at, val_history = None, None, [None] * M, [[] for _ in jobs]
-    # The cadence in steps, per model: fixed, or exposure-aware (every E epochs, at least S_min steps apart), so
-    # patience counts roughly epochs on large datasets and keeps a minimum of optimization on small ones.
+    # The cadence in steps, per model: fixed, or exposure-aware: every E demonstration-equivalent epochs
+    # (ceil(N_demo / b_d) steps, b_d the demonstrations per minibatch, so the clock is independent of the synthetic
+    # rows) and at least S_min steps apart. Patience then counts roughly epochs on large datasets and keeps a
+    # minimum of optimization on small ones.
+    demo_epoch = ([-(-int(n) // streams.b_d) for n in streams.n_d.tolist()] if fraction is not None
+                  else [-(-int(n) // bs) for n in streams.n.tolist()])
+    # With synthetic_coverage_before_stop, the rule may fire only once every synthetic row has been drawn: the
+    # synthetic stream is one counter over keyed permutations, so that is ceil(N_syn / b_s) steps.
+    cover = ([-(-int(n) // streams.b_s) for n in streams.n_s.tolist()] if recipe["synthetic_coverage_before_stop"]
+             else [0] * M)
     interval = recipe["validation_interval_steps"]
     if recipe["validation_interval_epochs"] is not None:
         intervals = [max(int(recipe["validation_min_steps"]), int(recipe["validation_interval_epochs"]) * n)
-                     for n in steps[:n_real]]
+                     for n in demo_epoch[:n_real]]
     else:
         intervals = [interval] * n_real
     interval = interval or recipe["validation_interval_epochs"]
@@ -939,7 +952,8 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                     cur_lr[i] = max(cur_lr[i] * float(recipe["lr_factor"]), float(recipe["min_lr"]))
                     reductions[i].append({"step": at[i], "lr": cur_lr[i]})
                     stale[i] = 0  # the stopping window restarts at each reduction
-                if stale[i] >= int(patience or 0) > 0 and (not plateau or cur_lr[i] <= float(recipe["min_lr"])):
+                if (stale[i] >= int(patience or 0) > 0 and (not plateau or cur_lr[i] <= float(recipe["min_lr"]))
+                        and at[i] >= cover[i]):
                     fired[i], stop_step[i] = True, at[i]  # no improvement in `patience` evaluations (at the floor)
                     at_stop[i] = (best_at[i], val_history[i][best_at[i]]["loss"])
                     if extend:
@@ -1083,6 +1097,20 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
                     "rows": rows_seen, "weight_mass": mass_seen,
                     "realized_synthetic_row_fraction": rows_seen["synthetic"] / n_rows if n_rows else None,
                     "realized_synthetic_mass_fraction": mass_seen["synthetic"] / total_mass if total_mass else None}
+        if fraction is not None:  # the synthetic stream's consumption, from its counter: draws [0, steps x b_s)
+            n_s = int(streams.n_s[i])
+
+            def consumed(t):
+                d = t * streams.b_s
+                return {"steps": t, "draws": d, "distinct_rows": min(d, n_s), "all_rows_drawn": d >= n_s,
+                        "draws_per_row_min": d // n_s, "draws_per_row_max": -(-d // n_s)}
+            exposure["synthetic_coverage"] = {
+                "rows": n_s, "per_minibatch": streams.b_s, "coverage_step": -(-n_s // streams.b_s),
+                "required_before_stop": bool(recipe["synthetic_coverage_before_stop"]), "trained": consumed(ran),
+                "at_stop": None if stop_step[i] is None else consumed(stop_step[i])}
+        exposure["demonstration_epoch_steps"] = demo_epoch[i]
+        exposure["demonstration_epochs"] = (ran * (streams.b_d if fraction is not None else bs)
+                                            / int(streams.n_d[i] if fraction is not None else streams.n[i]))
         if fraction is not None:  # the row fraction is fixed per minibatch; its only error is rounding b_s
             exposure["tolerance"] = 1 / (2 * bs)
             exposure["within_tolerance"] = abs(exposure["realized_synthetic_row_fraction"] - float(fraction)) <= 1 / (2 * bs)

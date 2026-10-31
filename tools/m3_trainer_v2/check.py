@@ -487,7 +487,7 @@ def contract(device) -> dict:
         "recomputed_reductions": cuts, "selected": rp["validation"]["selected"], "recomputed_selected": sel,
         "extension": x_, "extended_returns_stop_checkpoint": v2.parameters_sha256(pp) == v2.parameters_sha256(pe)}
 
-    # (a'') The exposure-aware cadence: each model of a group validates every max(S_min, E x its steps per epoch)
+    # (a'') The exposure-aware cadence: each model of a group validates every max(S_min, E x ceil(N_demo / B))
     # steps, so a small and a large dataset in one group get their own intervals.
     small, large = labelled(64, 6, 1.0), labelled(1024, 7, 1.0)
     se = {**sp, "validation_interval_steps": None, "validation_interval_epochs": 2, "validation_min_steps": 10,
@@ -498,13 +498,45 @@ def contract(device) -> dict:
                          compile=False)
     cad = {}
     for name, (_, r_) in zip(("small", "large"), res):
-        want = max(10, 2 * r_["steps_per_epoch"])
+        n_ = len(np.asarray(small.actions if name == "small" else large.actions))
+        want = max(10, 2 * -(-n_ // se["batch_size"]))
         got = [e["step"] for e in r_["validation"]["evaluations"]]
-        cad[name] = {"steps_per_epoch": r_["steps_per_epoch"], "interval": r_["validation"]["interval_steps"],
+        cad[name] = {"demonstration_epoch_steps": r_["exposure"]["demonstration_epoch_steps"], "interval": r_["validation"]["interval_steps"],
                      "expected": want, "pass": r_["validation"]["interval_steps"] == want
                      and got == [*range(want, 301, want)] + ([300] if 300 % want else [])}
     out["exposure_aware_cadence"] = {"pass": all(c["pass"] for c in cad.values())
                                      and cad["small"]["interval"] != cad["large"]["interval"], **cad}
+
+    # (a''') The demonstration-equivalent clock and synthetic coverage. With synthetic_fraction, the epoch is
+    # ceil(N_demo / b_d) steps whatever the synthetic rows; with synthetic_coverage_before_stop the rule fires only
+    # once every synthetic row has been drawn, which a host replay of the index stream confirms, with the recorded
+    # per-row consumption. Without the gate the same run stops before coverage, so the gate binds.
+    big = synthetic(300, 6000, 13)
+    sc = {**SETTINGS, "batch_size": 32, "epochs": 1, "step_budget": 3000, "synthetic_fraction": 0.5,
+          "checkpoint_selection": "validation", "validation_interval_epochs": 1, "validation_min_steps": 5,
+          "patience": 2}
+    hv = synthetic(400, 0, 14, "bc")
+    [(_, rg)] = v2.train_group([v2.Job(big, 31, validation=hv)], {**sc, "synthetic_coverage_before_stop": True},
+                               device=device, compile=False)
+    [(_, rn)] = v2.train_group([v2.Job(big, 31, validation=hv)], sc, device=device, compile=False)
+    table, blocks = v2._table([v2.Job(big, 31)])
+    ms = v2._MixedStreams(blocks, [31], 32, 0.5, torch.device("cpu"))
+    stop = rg["stopping"]["stopped_at_step"]
+    steps_e = int(ms.steps[0])
+    idx = torch.cat([ms.chunk(e, 0, steps_e)[0] for e in range(-(-stop // steps_e))]).numpy()[:stop]
+    syn = idx[:, ms.b_d:].reshape(-1) - int(ms.s_start[0])
+    counts = np.bincount(syn, minlength=6000)
+    cov = rg["exposure"]["synthetic_coverage"]
+    out["synthetic_coverage_before_stop"] = {
+        "pass": rg["stopping"]["outcome"] == "patience" and stop >= cov["coverage_step"] == -(-6000 // ms.b_s)
+        and counts.min() >= 1 and cov["at_stop"]["draws_per_row_min"] == counts.min()
+        and cov["at_stop"]["draws_per_row_max"] == counts.max() and cov["at_stop"]["all_rows_drawn"]
+        and rg["exposure"]["demonstration_epoch_steps"] == -(-300 // ms.b_d)
+        and rn["stopping"]["stopped_at_step"] < cov["coverage_step"],
+        "coverage_step": cov["coverage_step"], "stopped_at_step": stop,
+        "ungated_stopped_at_step": rn["stopping"]["stopped_at_step"],
+        "replayed_draws_per_row": [int(counts.min()), int(counts.max())], "recorded": cov["at_stop"],
+        "demonstration_epoch_steps": rg["exposure"]["demonstration_epoch_steps"]}
 
     # (b) Synthetic fraction: every minibatch carries exactly b_s synthetic rows; the record's rows and weight mass
     # equal a host replay of the index stream; demonstrations are each drawn at most once per epoch and the
@@ -610,6 +642,8 @@ def contract(device) -> dict:
                                                "validation_interval_epochs": 1}),
         "interval_epochs_with_interval_steps": ([v2.Job(train, 5, validation=held)],
                                                 {**st, "validation_interval_epochs": 1, "validation_min_steps": 10}),
+        "coverage_without_fraction": ([v2.Job(train, 5, validation=held)],
+                                      {**st, "synthetic_coverage_before_stop": True}),
         "extension_without_patience": ([v2.Job(train, 5, validation=held)],
                                        {**SETTINGS, "checkpoint_selection": "validation", "extend_after_stop": 2}),
     }
