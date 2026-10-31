@@ -410,8 +410,8 @@ def _zero_weight(sup):
 def contract(device) -> dict:
     """The shared-harness training contract (il-supervision-benchmarks#11): patience termination on the validation
     history, a fixed synthetic sampling fraction with realized exposure, and nested-K candidate views."""
-    from ccil.core import (Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel, NoisyAction,
-                           SupportRadius, generate_labels, nested_view)
+    from ccil.core import (ActionBounds, Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel,
+                           NoisyAction, SupportRadius, generate_labels, nested_view)
     from ccil.schema import Episode, TrajectoryDataset
     out = {}
 
@@ -518,6 +518,27 @@ def contract(device) -> dict:
     out["nested_view_equals_direct_generation"] = {"pass": all(eq.values()), "k_max": 20, "cases": eq,
                                                    "accepted_fraction_k_max": float(full.accepted.mean())}
 
+    # (c2) Bounded proposals: on demonstrations saturated at the bound, the first k feasible proposals of each stream.
+    bnd = ([-0.5], [0.5])
+    sat = TrajectoryDataset([Episode(e.episode_id, e.observations, np.clip(e.actions, -0.5, 0.5)) for e in eps]
+                            ).validate()
+    bvals = [Finite(), ActionBounds(*bnd)]
+    bfull = generate_labels(sat, rep, model, NoisyAction(20, 0.3, action_bounds=bnd), bvals, run_id="kmax", seed=7)
+    beq = {}
+    for k in (1, 4, 20):
+        direct = generate_labels(sat, rep, model, NoisyAction(k, 0.3, action_bounds=bnd), bvals, run_id="d", seed=7)
+        view = nested_view(bfull, k, "0" * 64)
+        beq[str(k)] = bool(np.array_equal(view.actions, direct.actions)
+                           and all(np.array_equal(view.measurements[m], direct.measurements[m])
+                                   for m in direct.measurements))
+    att = bfull.measurements["generator.attempt_index"]
+    out["bounded_proposals"] = {
+        "pass": all(beq.values()) and bool(bfull.accepted.all()) and float(np.abs(bfull.actions).max()) <= 0.5
+        and bool((att > bfull.measurements["generator.draw_index"]).any()),
+        "views_equal_direct_generation": beq, "saturated_demonstration_fraction":
+        float(np.mean([np.isclose(np.abs(e.actions[:-1]), 0.5).mean() for e in sat.episodes])),
+        "accepted_fraction": float(bfull.accepted.mean()), "skipped_proposals": int(att.max() + 1 - 20)}
+
     # (d) Refusals.
     import dataclasses
     refusals = {}
@@ -551,7 +572,10 @@ def contract(device) -> dict:
                                                          if m != "generator.draw_index"},
                                      measurement_specs={m: v for m, v in full.measurement_specs.items()
                                                         if m != "generator.draw_index"})
+    wrong_order = dataclasses.replace(bfull, measurements={**bfull.measurements, "generator.attempt_index":
+                                                           bfull.measurements["generator.attempt_index"][::-1].copy()})
     view_cases = {"k_above_k_max": (full, 21), "k_zero": (full, 0),
+                  "attempts_not_increasing": (wrong_order, 4),
                   "rows_not_grouped_by_transition": (shuffled, 4),
                   "draws_reordered_within_transition": (reordered, 4),
                   "no_draw_ordinal": (no_ordinal, 4),
@@ -565,6 +589,11 @@ def contract(device) -> dict:
             refusals[name] = False
         except InterfaceError:
             refusals[name] = True
+    try:
+        generate_labels(ds, rep, model, NoisyAction(4, 0.3, action_bounds=bnd), bvals, run_id="x", seed=7)
+        refusals["demonstration_action_outside_bounds"] = False
+    except ValueError:
+        refusals["demonstration_action_outside_bounds"] = True
     out["refusals"] = {"pass": all(refusals.values()), **refusals}
     return out
 

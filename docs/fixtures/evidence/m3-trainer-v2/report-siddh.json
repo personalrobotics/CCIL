@@ -38,7 +38,7 @@
    "case": "robustness_producer_failure_raises_promptly",
    "error": "the streaming producer failed: MemoryError: injected producer failure",
    "pass": true,
-   "seconds": 0.45
+   "seconds": 0.48
   },
   {
    "case": "robustness_identical_blocks_keep_their_source",
@@ -282,7 +282,21 @@
    "pass": true
   },
   {
+   "accepted_fraction": 1.0,
+   "case": "contract_bounded_proposals",
+   "pass": true,
+   "saturated_demonstration_fraction": 0.6083333333333334,
+   "skipped_proposals": 45,
+   "views_equal_direct_generation": {
+    "1": true,
+    "20": true,
+    "4": true
+   }
+  },
+  {
+   "attempts_not_increasing": true,
    "case": "contract_refusals",
+   "demonstration_action_outside_bounds": true,
    "draws_reordered_within_transition": true,
    "fraction_out_of_range": true,
    "fraction_with_balance": true,
@@ -318,7 +332,7 @@
   }
  ],
  "environment": {
-  "code_commit": "a6f8b06754e9efb5445e2d69a9ebb42b9a412c66",
+  "code_commit": "a7f02cc81762fc98fb64b3db978b2f18aa348809",
   "code_dirty": false,
   "device": "cuda",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
