@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the predeclared Pendulum DP-oracle checks (docs/experiments/pendulum-oracle.md, version 4).
+"""Run the predeclared Pendulum DP-oracle checks (docs/experiments/pendulum-oracle.md, version 5).
 
     R="uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_oracle/check.py"
     $R --data pendulum_cont_corrected.npz --out DIR [--workers N]
@@ -82,10 +82,82 @@ def _vi_job(args):
                                          g["infb"][beta])
 
 
-def improper_report(grid, imp: dict) -> dict:
+def fixed_point_operator(grid, T, L, Y):
+    """One application of the almost-sure-reachability operator to Y, as version 3's sweeps compute it."""
+    idx, wts, inside = grid.weights(T["e"], T["w"])
+    hit = O.in_terminal(L, T["e"], T["w"])
+    term = O.in_terminal(L, grid.E, grid.W)
+    support = np.where(wts > 0, idx, -1)
+    live = inside | hit
+    inY = np.where(support >= 0, (Y | term)[np.maximum(support, 0)], True).all(-1)
+    safe = live & (hit | inY)
+    X = term.copy()
+    while True:
+        pos = np.where(support >= 0, X[np.maximum(support, 0)], False).any(-1)
+        grow = Y & ~X & (safe & (hit | pos)).any(1)
+        if not grow.any():
+            return X
+        X |= grow
+
+
+def verify_improper(grid, T, L, imp: dict) -> dict:
+    """Independent checks of the improper set and its certificate; any failure stops the run.
+
+    - fixed point: the operator maps the retained set Y to itself;
+    - retained: each node of Y off Omega_c has a witness action that is in the domain, safe for Y, and enters
+      Omega_c or puts weight on a support node of rank one lower (so the witness policy stays in Y and reaches
+      Omega_c with probability 1: no retained component can cycle forever under it);
+    - removed: every action of a removed node is out of the domain, or has a support node removed in an earlier
+      batch, or (unreachable batches only) is live with its whole support in its own batch, so no policy from a
+      removed node reaches Omega_c with probability 1;
+    - positive cost: no node on e = 0 off Omega_c has a zero-cost (u = 0) action whose support stays on e = 0, so a
+      run that never reaches Omega_c accumulates unbounded cost.
+    """
+    c = imp["certificate"]
+    idx, wts, inside = grid.weights(T["e"], T["w"])
+    hit = O.in_terminal(L, T["e"], T["w"])
+    term = O.in_terminal(L, grid.E, grid.W)
+    support = np.where(wts > 0, idx, -1)
+    live = inside | hit
+    Y = ~imp["improper"]
+    fixed = bool((fixed_point_operator(grid, T, L, Y) == Y).all())
+    ret = np.flatnonzero(Y & ~term)
+    w = c["witness"][ret]
+    sw = support[ret, np.maximum(w, 0)]
+    wsafe = np.where(sw >= 0, Y[np.maximum(sw, 0)], True).all(-1)
+    succ = c["witness_succ"][ret]
+    progress = hit[ret, np.maximum(w, 0)] | (
+        (succ >= 0) & (sw == succ[:, None]).any(-1) & (c["rank"][np.maximum(succ, 0)] == c["rank"][ret] - 1))
+    retained_ok = bool((c["rank"][term] == 0).all() and (c["seq"][Y] == -1).all()
+                       and ((w >= 0) & live[ret, np.maximum(w, 0)] & (hit[ret, np.maximum(w, 0)] | wsafe)
+                            & progress & (c["rank"][ret] >= 1)).all())
+    rem = np.flatnonzero(~Y)
+    why, s = c["why"][rem], c["seq"][rem]
+    sp = support[rem]
+    out_dom = (why == -1) & ~live[rem]
+    k = np.maximum(why, 0)
+    earlier = ((why >= 0) & live[rem] & ~hit[rem] & (sp == why[..., None]).any(-1)
+               & (c["seq"][k] >= 0) & (c["seq"][k] < s[:, None]))
+    own = (c["seq"][np.maximum(sp, 0)] == s[:, None, None]) & (c["phase"][np.maximum(sp, 0)] == 1)
+    trapped = ((why == -2) & live[rem] & ~hit[rem] & (c["phase"][rem] == 1)[:, None]
+               & np.where(sp >= 0, own, True).all(-1))
+    removed_ok = bool(((s >= 0) & ~term[rem]).all() and (out_dom | earlier | trapped).all())
+    zero = np.isclose(grid.E, 0.0, atol=1e-12) & ~term
+    u0 = int(np.argmin(np.abs(grid.u)))
+    s0 = support[zero, u0]
+    stays = live[zero, u0] & ~hit[zero, u0] & np.where(s0 >= 0, np.isclose(grid.E[np.maximum(s0, 0)], 0.0,
+                                                                            atol=1e-12), True).all(-1)
+    out = {"fixed_point": fixed, "retained_certified": retained_ok, "removed_certified": removed_ok,
+           "zero_cost_closed_actions": int(stays.sum()), "retained": int(Y.sum()), "removed": int(rem.size),
+           "max_rank": int(c["rank"].max()), "alternations": imp["alternations"], "batches": imp["batches"]}
+    out["pass"] = bool(fixed and retained_ok and removed_ok and out["zero_cost_closed_actions"] == 0)
+    return out
+
+
+def improper_report(grid, imp: dict, verified: dict) -> dict:
     """Improper, pure-self-loop and dead nodes, by the reported region and its pumping (H < 0) / overshoot part."""
     R, H = grid.reported(), O.energy(grid.E, grid.W)
-    out = {"rounds": imp["rounds"]}
+    out = {"verification": verified}
     for key in ("improper", "self_loop", "no_live_action"):
         m = imp[key]
         out[key] = {"total": int(m.sum()), "R": int((m & R).sum()), "R_pumping": int((m & R & (H < 0)).sum()),
@@ -93,16 +165,33 @@ def improper_report(grid, imp: dict) -> dict:
     return out
 
 
-def solve_level(name: str, Ls: dict, workers: int | None) -> dict:
-    """One level. It stops before any value iteration when a beta > 0 has an improper node in R."""
+def save_certificate(path: Path, imp: dict):
+    np.savez_compressed(path, **{f"beta{b:g}/{k}": v for b, d in imp.items()
+                                 for k, v in ({"improper": d["improper"]} | d["certificate"]).items()})
+
+
+def solve_level(name: str, Ls: dict, workers: int | None, out_dir: Path) -> dict:
+    """One level. It stops before any value iteration when a beta > 0 has an improper node in R, or when an
+    improper analysis fails its verification."""
     grid, gridb = O.Grid.level(name), O.Grid.level(name, wmax=O.OMEGA_MAX_CHECK)
     log(name, "transitions", len(grid.E), "nodes x", len(grid.u), "actions; boundary grid", len(gridb.E))
     T, Tb = O.transitions(grid, workers), O.transitions(gridb, workers)
     imp = {b: O.improper(grid, T, Ls[b]) for b in ALL_BETAS}
     impb = {b: O.improper(gridb, Tb, Ls[b]) for b in ALL_BETAS}
-    diag = {str(b): improper_report(grid, imp[b]) for b in ALL_BETAS}
+    save_certificate(out_dir / f"improper-{name}.npz", imp)
+    save_certificate(out_dir / f"improper-{name}-boundary.npz", impb)
+    ver = {b: verify_improper(grid, T, Ls[b], imp[b]) for b in ALL_BETAS}
+    verb = {b: verify_improper(gridb, Tb, Ls[b], impb[b]) for b in ALL_BETAS}
+    diag = {str(b): improper_report(grid, imp[b], ver[b]) for b in ALL_BETAS}
     log(name, "improper", json.dumps({b: d["improper"] for b, d in diag.items()}))
-    out = {"grid": grid, "improper": diag, "betas": {}}
+    log(name, "improper verification", json.dumps({str(b): ver[b] for b in ALL_BETAS}))
+    log(name, "boundary-grid improper verification", json.dumps({str(b): verb[b] for b in ALL_BETAS}))
+    out = {"grid": grid, "improper": diag, "boundary_improper_verification": {str(b): verb[b] for b in ALL_BETAS},
+           "betas": {}}
+    unverified = [b for b in ALL_BETAS if not (ver[b]["pass"] and verb[b]["pass"])]
+    if unverified:
+        out["stop"] = f"{name}: the improper analysis fails its verification for beta {unverified}"
+        return out
     bad = improper_stop(diag)
     if bad:
         out["stop"] = f"{name}: improper nodes in the reported region for beta {bad}"
@@ -432,7 +521,7 @@ def regions(level: dict, L: dict, beta: float) -> dict:
 
 
 def provenance(A, B, t0) -> dict:
-    return {"predeclaration": "docs/experiments/pendulum-oracle.md (version 4)",
+    return {"predeclaration": "docs/experiments/pendulum-oracle.md (version 5)",
             "environment": {"code_commit": git("rev-parse", "HEAD"),
                             "code_dirty": bool(git("status", "--porcelain", "--untracked-files=all")),
                             "numpy": np.__version__, "scipy": __import__("scipy").__version__,
@@ -461,6 +550,7 @@ def main() -> int:
         doc = {**provenance(A, B, t0), "status": "stopped", "reason": reason, "all_pass": False,
                "levels_run": list(levels), "convergence": rules,
                "levels": {n: {"improper": lv["improper"], "stop": lv.get("stop"),
+                              "boundary_improper_verification": lv["boundary_improper_verification"],
                               "checks": {str(b): v["checks"] for b, v in lv["betas"].items()}}
                           for n, lv in levels.items()},
                "terminal_sets": {str(b): {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in L.items()}
@@ -485,14 +575,14 @@ def main() -> int:
     log("terminal sets", {b: {k: Ls[b][k] for k in ("c", "binding", "accuracy_ratio_min", "accuracy_ratio_max")}
                           for b in O.BETAS})
     for name in ("L1", "L2"):
-        levels[name] = solve_level(name, Ls, a.workers)
+        levels[name] = solve_level(name, Ls, a.workers, a.out)
         if why := failure(name):
             return stop(why)
     rules["L1-L2"] = convergence(levels["L1"], levels["L2"], Ls)
     log("convergence L1-L2", rules["L1-L2"]["pass"])
     oracle_level, coarser = "L2", "L1"
     if not rule_passes("L1-L2", rules["L1-L2"]):
-        levels["L3"] = solve_level("L3", Ls, a.workers)
+        levels["L3"] = solve_level("L3", Ls, a.workers, a.out)
         if why := failure("L3"):
             return stop(why)
         rules["L2-L3"] = convergence(levels["L2"], levels["L3"], Ls)

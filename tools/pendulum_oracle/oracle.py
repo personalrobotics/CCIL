@@ -293,36 +293,101 @@ def improper(grid: Grid, T: dict, L: dict) -> dict:
 
     A node is proper when some policy reaches Omega_c from it with probability 1; elsewhere the discrete problem's
     value is +inf (every running cost off upright is positive, so any recurrent loop accumulates without bound).
-    The nested fixed point: Y starts as every node; each round keeps the nodes that reach Omega_c with positive
-    probability using only actions whose whole support lies in Y; it stops when Y no longer shrinks. Also counts the
-    nodes with a pure self-loop action (support exactly the node itself) and the nodes with no in-domain action.
+    The nested fixed point Y = nu Y. mu X. term | {x in Y : some action is safe for Y (it enters Omega_c, or its whole
+    support lies in Y) and enters Omega_c or puts positive weight on X}. Event-driven, so each support edge is
+    touched once per phase instead of once per sweep:
+    - safety cascade: an action becomes unsafe when a support node leaves Y; a node with no safe action leaves Y and
+      its predecessors' actions are revisited, until the queue is empty;
+    - attractor: breadth-first from Omega_c over the safe actions' predecessor edges; nodes of Y it does not reach
+      leave Y, which restarts the cascade. It ends when an attractor pass reaches all of Y.
+    Every removal only deletes nodes outside the greatest fixed point, and the end state is a fixed point, so the
+    result is that fixed point (the version-3 sweeps compute the same set).
+
+    The certificate: per node, the removal batch "seq" (-1 if retained) and "phase" (0 safety, 1 unreachable); per
+    action, "why": -1 not in the domain, s >= 0 the support node whose earlier removal made it unsafe, -2 live but its
+    whole support was removed in the same unreachable batch, -3 not invalidated; and per retained non-terminal node,
+    its attractor "rank", a "witness" action and the "witness_succ" support node of rank - 1 (-1 when it enters
+    Omega_c directly). Also counts the nodes with a pure self-loop action (support exactly the node itself) and the
+    nodes with no in-domain action.
     """
     idx, wts, inside = grid.weights(T["e"], T["w"])
     hit = in_terminal(L, T["e"], T["w"])
     term = in_terminal(L, grid.E, grid.W)
-    n = len(grid.E)
+    n, nu = hit.shape
     support = np.where(wts > 0, idx, -1)  # (N, U, 4); -1 marks a zero-weight corner
     live = inside | hit
-    Y = np.ones(n, bool)
-    rounds = 0
+    sup = support.reshape(n * nu, 4)
+    edge = (sup >= 0) & (live & ~hit).reshape(-1)[:, None]  # only these actions depend on their support
+    ea, _ = np.nonzero(edge)
+    es = sup[edge]
+    order = np.argsort(es, kind="stable")
+    ptr = np.concatenate([[0], np.cumsum(np.bincount(es, minlength=n))])
+
+    def preds(nodes):
+        lo, cnt = ptr[nodes], ptr[nodes + 1] - ptr[nodes]
+        start = np.cumsum(cnt) - cnt
+        p = order[np.repeat(lo - start, cnt) + np.arange(cnt.sum())]
+        return ea[p], es[p]
+
+    safe = live.reshape(-1).copy()
+    why = np.where(safe, -3, -1)
+    nsafe = live.sum(1)
+    inY = np.ones(n, bool)
+    seq, phase = np.full(n, -1), np.full(n, -1)
+    batch, alternations = 0, 0
+
+    def cascade(D):
+        nonlocal batch
+        while D.size:
+            a, s = preds(D)
+            keep = safe[a] & inY[a // nu]
+            a, first = np.unique(a[keep], return_index=True)
+            safe[a], why[a] = False, s[keep][first]
+            nd = a // nu
+            nsafe[:] -= np.bincount(nd, minlength=n)
+            D = np.unique(nd[nsafe[nd] == 0])
+            D = D[~term[D]]
+            if D.size:
+                batch += 1
+                inY[D], seq[D], phase[D] = False, batch, 0
+
+    D = np.flatnonzero(~term & (nsafe == 0))
+    inY[D], seq[D], phase[D] = False, 0, 0
+    cascade(D)
     while True:
-        rounds += 1
-        inY = np.where(support >= 0, (Y | term)[np.maximum(support, 0)], True).all(-1)
-        safe = live & (hit | inY)  # actions whose whole support stays in Y (or that enter Omega_c)
+        alternations += 1
         X = term.copy()
-        while True:
-            pos = np.where(support >= 0, X[np.maximum(support, 0)], False).any(-1)
-            grow = Y & ~X & (safe & (hit | pos)).any(1)
-            if not grow.any():
-                break
-            X |= grow
-        if (X == Y).all():
+        rank, witness, witness_succ = np.where(term, 0, -1), np.full(n, -1), np.full(n, -1)
+        direct = inY & ~term & hit.any(1)
+        X[direct], rank[direct] = True, 1
+        witness[direct] = np.argmax(hit[direct], 1)
+        F, r = np.flatnonzero(term), 0
+        while F.size or r == 0:
+            r += 1
+            a, s = preds(F)
+            nd = a // nu
+            keep = safe[a] & inY[nd] & ~X[nd]
+            nd, first = np.unique(nd[keep], return_index=True)
+            X[nd], rank[nd] = True, r
+            witness[nd], witness_succ[nd] = a[keep][first] % nu, s[keep][first]
+            F = np.concatenate([nd, np.flatnonzero(direct)]) if r == 1 else nd
+        C = np.flatnonzero(inY & ~X)
+        if not C.size:
             break
-        Y = X
+        batch += 1
+        inY[C], seq[C], phase[C] = False, batch, 1
+        rows = (C[:, None] * nu + np.arange(nu)).ravel()
+        trapped = rows[safe[rows]]
+        why[trapped], safe[trapped] = -2, False
+        cascade(C)
     node = np.arange(n)[:, None, None]
     pure_self = ((support == node) | (support < 0)).all(-1) & (support == node).any(-1) & inside & ~hit
-    return {"improper": ~Y & ~term, "self_loop": pure_self.any(1) & ~term, "no_live_action": ~live.any(1) & ~term,
-            "rounds": rounds}
+    retained = inY & ~term
+    return {"improper": ~inY & ~term, "self_loop": pure_self.any(1) & ~term, "no_live_action": ~live.any(1) & ~term,
+            "alternations": alternations, "batches": batch + 1,
+            "certificate": {"seq": seq, "phase": phase, "why": why.reshape(n, nu), "rank": np.where(inY, rank, -1),
+                            "witness": np.where(retained, witness, -1),
+                            "witness_succ": np.where(retained, witness_succ, -1)}}
 
 
 def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, infinite: np.ndarray,

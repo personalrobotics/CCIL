@@ -1,6 +1,6 @@
-# Pendulum discrete DP oracle: predeclaration, version 4 (#145)
+# Pendulum discrete DP oracle: predeclaration, version 5 (#145)
 
-**Status: version 4, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
+**Status: version 5, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
 ## Why
 
@@ -67,7 +67,14 @@ Each run stops when the largest change over finite nodes is ≤ 1e-10, with a ca
 
 **Improper states, found before any value iteration.**
 - **Why they matter:** every running cost off upright is positive. A grid node from which no policy reaches Ω_c with probability 1 therefore has no finite solution, because a positive-cost loop gives V(x) = ℓ(x, u) + V(x).
-- **Detection:** these nodes are found exactly on the grid's Markov chain (bilinear weights as transition probabilities), by the nested fixed point of almost-sure reachability (`oracle.py`, `improper`).
+- **Detection:** these nodes are found exactly on the grid's Markov chain (bilinear weights as transition probabilities), by the nested fixed point of almost-sure reachability (`oracle.py`, `improper`). The fixed point is computed event-driven (a predecessor queue run until it is empty), not by repeated sweeps; the set is the same (version 5).
+- **What "proper" means here:** almost-sure arrival at Ω_c, which is stronger than safety under the interpolation support and stronger than reaching Ω_c with positive probability. A retained node off Ω_c needs an action that keeps its whole support in the retained set and makes progress toward Ω_c. So a retained component that could only cycle forever is rejected.
+- **Verification, which stops the run if it fails** (`check.py`, `verify_improper`, independent of the solver):
+  - the version-3 operator, applied once to the retained set, returns it unchanged;
+  - every retained node has a witness action that is safe for the retained set and either enters Ω_c or puts weight on a node of lower attractor rank;
+  - every action of every removed node is invalidated: it leaves the domain, or touches a node removed in an earlier batch, or its whole support lies in its own unreachable batch;
+  - no zero-cost action (e = 0, u = 0) can stay on e = 0 indefinitely, so a run that never arrives accumulates unbounded cost.
+- **Certificate,** written per level whether the run continues or stops (`improper-<level>.npz`, and `improper-<level>-boundary.npz` for the boundary grid). Per β it holds each node's removal batch and phase (safety or unreachable), the invalidating successor of each action of each removed node, and each retained node's attractor rank, witness action and witness successor.
 - **Report:** per β and level, the count of improper nodes, of nodes with a pure self-loop action, and of nodes with no in-domain action. Each is split into inside R (pumping, H < 0, and overshoot, H ≥ 0) and outside R.
 - **Outside R:** improper nodes hold +∞, their exact value, in both value iterations.
 - **Inside R:** any improper node, for any β > 0, stops the run before value iteration.
@@ -192,6 +199,7 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
   - energy contours, the saturation region, the target and Ω_c;
   - the demonstrations, and the demonstrator's action field as a separate panel.
 - **Axis contract** for every later phase portrait: e ∈ [−π, π) horizontal and periodic, ω ∈ [−8, 8] vertical, one orientation, shared color scales, and the named starts marked.
+- **Improper certificates:** `improper-<level>.npz` and `improper-<level>-boundary.npz` per level run ("The DP", improper states), written for a stopped run too.
 - **Regeneration:** `tools/pendulum_oracle/check.py --check` regenerates the evidence and compares it with the committed copy.
 
 ## Version history
@@ -201,6 +209,12 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
 **Why.** Version 1's domain could not contain the motions that start in its own reported region. A state in R at |ω| = 6.5 near upright has H ≈ 21. Swinging down through the bottom, it reaches |ω| of about 9.0 even under full braking, since braking removes at most 3π of energy over half a turn. That exceeds ω_max = 8, so the greedy-reachability and boundary checks would have failed by construction, not by any property of the oracle. From R the bound is |ω| ≤ √(2(21.1 + 2g)) ≈ 9.03 without braking, which ω_max = 12 contains with margin.
 
 **How it was found.** A development probe of the implementation: L1, β = 1e-2, lower value iteration only, run before any check reported here. It found 42 unreachable nodes in R, all at |ω| = 6.5 with H ≈ 19–21. The probe also showed that the implementation let a finite sentinel leak through interpolation. That was fixed so that +∞ propagates as declared. The probe's values are not reported or used.
+
+**Version 5** (a performance-only amendment to the improper-state analysis; nothing in the definition changes):
+- **What changes:** the implementation of the improper-state fixed point. The repeated full sweeps are replaced by an event-driven predecessor queue. Interpolation supports, boundary semantics, tolerances and the definition of improper are unchanged.
+- **What is added:** an independent verification of each improper set, which stops the run if it fails, and a per-node removal certificate (both under "The DP").
+- **Equivalence evidence:** on every smoke grid (40×49 to 160×193 nodes, 7–25 actions; ω_max 12 and 14; all five β), the new and version-3 implementations return identical improper, self-loop and no-live-action sets, and every verification passes.
+- **Why:** the first official run, `runs/20261101T020624Z-dp-oracle` on siddh from 698262f, spent 3 h 19 min in the version-3 sweeps of its first L1 improper analysis, on one core. A local timing of the same L1 computation showed each outer round taking about 1.5 s and removing about 30 nodes. The run was stopped on the user's instruction. It had logged only the terminal sets, which are reported unchanged, and no improper count, value function, check, β selection or figure. Its log is preserved beside an `ABORTED.md` note. That run is excluded, and the run under version 5 is the official one.
 
 **Version 4** (terminal-set rule; before the official run):
 - **The rule it replaces:** in versions 1–3, c was the largest value in (0, c_sat] for which a seeded sample satisfied |Kx| ≤ 3 and strict decrease of xᵀPx under the exact closed loop.
