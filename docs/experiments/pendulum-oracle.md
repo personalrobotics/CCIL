@@ -1,6 +1,6 @@
-# Pendulum discrete DP oracle: predeclaration, version 1 (#145)
+# Pendulum discrete DP oracle: predeclaration, version 2 (#145)
 
-**Status: version 1, pushed before any oracle value, policy or field was computed.** The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
+**Status: version 2, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
 ## Why
 
@@ -36,13 +36,13 @@ It is a **discrete Bellman (dynamic-programming) oracle**: it optimizes the exac
 
 ## The DP
 
-**Grids.** The grid is periodic in e, with N_e nodes spaced 2π/N_e and one node at e = 0. In ω it spans [−ω_max, ω_max] with N_ω nodes, ω_max = 8. Actions are N_u uniform points on [−3, 3], including 0 and ±3.
+**Grids.** The grid is periodic in e, with N_e nodes spaced 2π/N_e and one node at e = 0. In ω it spans [−ω_max, ω_max] with N_ω nodes, ω_max = 12. Actions are N_u uniform points on [−3, 3], including 0 and ±3.
 
 | Level | N_e × N_ω | N_u |
 |---|---|---|
-| L1 | 200 × 161 | 31 |
-| L2 | 400 × 321 | 61 |
-| L3 | 800 × 641 | 121 |
+| L1 | 200 × 241 | 31 |
+| L2 | 400 × 481 | 61 |
+| L3 | 800 × 961 | 121 |
 
 **Running order.** L1 and L2 always run. L3 runs only if the convergence rule fails between L1 and L2.
 
@@ -66,7 +66,7 @@ Each run stops when the largest change over finite nodes is ≤ 1e-10, with a ca
 1. **Both runs stop** before the cap. The lower run is monotone, and the Bellman residual of the result is ≤ 1e-9 on R.
 2. **Initialization gap:** the two runs' values differ by at most 1e-6 on R.
 3. **Greedy reachability:** the greedy policy (the argmin over the action grid with interpolated V), simulated through the exact map from every grid node of R, reaches Ω_c within 500 steps.
-4. **No boundary dependence:** the level rerun with ω_max = 10, at the same spacing, changes V on R by at most 1e-3 · max(1, V).
+4. **No boundary dependence:** the level rerun with ω_max = 14, at the same spacing, changes V on R by at most 1e-3 · max(1, V).
 
 **Convergence rule between levels** (L_k against L_{k+1}). Compare at L_k's nodes in R outside Ω_c, interpolating L_{k+1}. All three must hold:
 - **Named starts:** at the 8 named starts, |ΔV| ≤ 0.02·V + 0.01.
@@ -172,6 +172,14 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
   - the demonstrations, and the demonstrator's action field as a separate panel.
 - **Axis contract** for every later phase portrait: e ∈ [−π, π) horizontal and periodic, ω ∈ [−8, 8] vertical, one orientation, shared color scales, and the named starts marked.
 - **Regeneration:** `tools/pendulum_oracle/check.py --check` regenerates the evidence and compares it with the committed copy.
+
+## Version history
+
+**Version 2** changes only the ω domain: ω_max goes from 8 to 12, and the boundary check from ω_max = 10 to 14. The grid spacing, R and every tolerance are unchanged.
+
+**Why.** Version 1's domain could not contain the motions that start in its own reported region. A state in R at |ω| = 6.5 near upright has H ≈ 21. Swinging down through the bottom, it reaches |ω| of about 9.0 even under full braking, since braking removes at most 3π of energy over half a turn. That exceeds ω_max = 8, so the greedy-reachability and boundary checks would have failed by construction, not by any property of the oracle. From R the bound is |ω| ≤ √(2(21.1 + 2g)) ≈ 9.03 without braking, which ω_max = 12 contains with margin.
+
+**How it was found.** A development probe of the implementation: L1, β = 1e-2, lower value iteration only, run before any check reported here. It found 42 unreachable nodes in R, all at |ω| = 6.5 with H ≈ 19–21. The probe also showed that the implementation let a finite sentinel leak through interpolation. That was fixed so that +∞ propagates as declared. The probe's values are not reported or used.
 
 ## Not covered
 
