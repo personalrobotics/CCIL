@@ -29,6 +29,8 @@ BETA0_TERMINAL = 1e-3  # beta = 0 (descriptive) exits to this beta's terminal se
 BIG = 1e6  # a cost no capture reaches; values >= BIG / 2 are reported as unreachable
 LEVELS = {"L1": (200, 241, 31), "L2": (400, 481, 61), "L3": (800, 961, 121)}
 OMEGA_MAX, OMEGA_MAX_CHECK, OMEGA_REPORT = 12.0, 14.0, 6.5
+OMEGA_SAFE = OMEGA_MAX - 2.0  # every reported trajectory stays within |omega| <= 10: a 2 rad/s margin
+CONTINUATION_STEPS = 2000  # the demonstrator's horizon when it continues a transition that leaves the grid
 UPRIGHT_COS = float(np.cos(np.deg2rad(8.0)))
 CHUNK = 50_000
 
@@ -271,7 +273,8 @@ class Grid:
 
 
 def blend(V, idx, wts, inside):
-    """Bilinear V, with +inf semantics: outside the grid, or touching an unreachable corner, is unreachable (BIG)."""
+    """Bilinear V, with +inf arithmetic: touching an unreachable (BIG) corner is unreachable. Outside the grid it is
+    BIG here; callers replace that by the boundary continuation (continuation, boundary_values)."""
     corner = V[idx]
     unreachable = ~inside | ((corner >= BIG / 2) & (wts > 0)).any(-1)
     return np.where(unreachable, BIG, (np.minimum(corner, BIG) * wts).sum(-1))
@@ -286,115 +289,51 @@ def transitions(grid: Grid, workers: int | None = None) -> dict:
     return {"e": e1.reshape(n, nu), "w": w1.reshape(n, nu)}
 
 
+# ---- the boundary continuation ----
+
+def continuation(e, w, L: dict, beta: float) -> np.ndarray:
+    """The corrected demonstrator's first-exit cost from continuous states, through the exact map, for up to
+    CONTINUATION_STEPS steps: a finite admissible upper bound where it reaches Omega_c, else BIG (unsupported)."""
+    if not len(e):
+        return np.zeros(0)
+    _, J, _, _ = entry_rollout(s3_of(e, w), L, beta, CONTINUATION_STEPS, demonstrator)
+    return J
+
+
+def lookahead_continuation(e, w, L: dict, beta: float, actions: np.ndarray) -> np.ndarray:
+    """min over the given first actions of c(x, u) plus the terminal value or the demonstrator's continuation from the
+    exact successor: the cost of a feasible policy, so an admissible upper bound (BIG if no first action recovers)."""
+    n, nu = len(e), len(actions)
+    s1 = step3(np.repeat(s3_of(e, w), nu, axis=0), np.tile(actions, n))
+    e1, w1 = ew_of(s1)
+    hit = in_terminal(L, e1, w1)
+    nxt = np.where(hit, terminal_value(L, e1, w1), 0.0)
+    nxt[~hit] = continuation(e1[~hit], w1[~hit], L, beta)
+    q = cost(np.repeat(e, nu), np.tile(actions, n), beta) + np.minimum(nxt, BIG)
+    return np.minimum(q.reshape(n, nu).min(1), BIG)
+
+
+def boundary_values(grid: Grid, T: dict, L: dict, beta: float, workers: int | None = None):
+    """The continuation value of every transition that leaves the grid without entering Omega_c (N, N_u; NaN for
+    the others), and where the demonstrator fails to recover (unsupported, BIG)."""
+    _, _, inside = grid.weights(T["e"], T["w"])
+    exits = ~inside & ~in_terminal(L, T["e"], T["w"])
+    cont = np.full(exits.shape, np.nan)
+    if exits.any():
+        _, J, _, _ = first_entry(T["e"][exits], T["w"][exits], L, beta, CONTINUATION_STEPS, "demonstrator",
+                                 workers=workers)
+        cont[exits] = J
+    return cont
+
+
 # ---- value iteration ----
 
-def improper(grid: Grid, T: dict, L: dict) -> dict:
-    """Exact almost-sure reachability of Omega_c on the grid's Markov chain (bilinear weights as probabilities).
-
-    A node is proper when some policy reaches Omega_c from it with probability 1; elsewhere the discrete problem's
-    value is +inf (every running cost off upright is positive, so any recurrent loop accumulates without bound).
-    The nested fixed point Y = nu Y. mu X. term | {x in Y : some action is safe for Y (it enters Omega_c, or its whole
-    support lies in Y) and enters Omega_c or puts positive weight on X}. Event-driven, so each support edge is
-    touched once per phase instead of once per sweep:
-    - safety cascade: an action becomes unsafe when a support node leaves Y; a node with no safe action leaves Y and
-      its predecessors' actions are revisited, until the queue is empty;
-    - attractor: breadth-first from Omega_c over the safe actions' predecessor edges; nodes of Y it does not reach
-      leave Y, which restarts the cascade. It ends when an attractor pass reaches all of Y.
-    Every removal only deletes nodes outside the greatest fixed point, and the end state is a fixed point, so the
-    result is that fixed point (the version-3 sweeps compute the same set).
-
-    The certificate: per node, the removal batch "seq" (-1 if retained) and "phase" (0 safety, 1 unreachable); per
-    action, "why": -1 not in the domain, s >= 0 the support node whose earlier removal made it unsafe, -2 live but its
-    whole support was removed in the same unreachable batch, -3 not invalidated; and per retained non-terminal node,
-    its attractor "rank", a "witness" action and the "witness_succ" support node of rank - 1 (-1 when it enters
-    Omega_c directly). Also counts the nodes with a pure self-loop action (support exactly the node itself) and the
-    nodes with no in-domain action.
-    """
-    idx, wts, inside = grid.weights(T["e"], T["w"])
-    hit = in_terminal(L, T["e"], T["w"])
-    term = in_terminal(L, grid.E, grid.W)
-    n, nu = hit.shape
-    support = np.where(wts > 0, idx, -1)  # (N, U, 4); -1 marks a zero-weight corner
-    live = inside | hit
-    sup = support.reshape(n * nu, 4)
-    edge = (sup >= 0) & (live & ~hit).reshape(-1)[:, None]  # only these actions depend on their support
-    ea, _ = np.nonzero(edge)
-    es = sup[edge]
-    order = np.argsort(es, kind="stable")
-    ptr = np.concatenate([[0], np.cumsum(np.bincount(es, minlength=n))])
-
-    def preds(nodes):
-        lo, cnt = ptr[nodes], ptr[nodes + 1] - ptr[nodes]
-        start = np.cumsum(cnt) - cnt
-        p = order[np.repeat(lo - start, cnt) + np.arange(cnt.sum())]
-        return ea[p], es[p]
-
-    safe = live.reshape(-1).copy()
-    why = np.where(safe, -3, -1)
-    nsafe = live.sum(1)
-    inY = np.ones(n, bool)
-    seq, phase = np.full(n, -1), np.full(n, -1)
-    batch, alternations = 0, 0
-
-    def cascade(D):
-        nonlocal batch
-        while D.size:
-            a, s = preds(D)
-            keep = safe[a] & inY[a // nu]
-            a, first = np.unique(a[keep], return_index=True)
-            safe[a], why[a] = False, s[keep][first]
-            nd = a // nu
-            nsafe[:] -= np.bincount(nd, minlength=n)
-            D = np.unique(nd[nsafe[nd] == 0])
-            D = D[~term[D]]
-            if D.size:
-                batch += 1
-                inY[D], seq[D], phase[D] = False, batch, 0
-
-    D = np.flatnonzero(~term & (nsafe == 0))
-    inY[D], seq[D], phase[D] = False, 0, 0
-    cascade(D)
-    while True:
-        alternations += 1
-        X = term.copy()
-        rank, witness, witness_succ = np.where(term, 0, -1), np.full(n, -1), np.full(n, -1)
-        direct = inY & ~term & hit.any(1)
-        X[direct], rank[direct] = True, 1
-        witness[direct] = np.argmax(hit[direct], 1)
-        F, r = np.flatnonzero(term), 0
-        while F.size or r == 0:
-            r += 1
-            a, s = preds(F)
-            nd = a // nu
-            keep = safe[a] & inY[nd] & ~X[nd]
-            nd, first = np.unique(nd[keep], return_index=True)
-            X[nd], rank[nd] = True, r
-            witness[nd], witness_succ[nd] = a[keep][first] % nu, s[keep][first]
-            F = np.concatenate([nd, np.flatnonzero(direct)]) if r == 1 else nd
-        C = np.flatnonzero(inY & ~X)
-        if not C.size:
-            break
-        batch += 1
-        inY[C], seq[C], phase[C] = False, batch, 1
-        rows = (C[:, None] * nu + np.arange(nu)).ravel()
-        trapped = rows[safe[rows]]
-        why[trapped], safe[trapped] = -2, False
-        cascade(C)
-    node = np.arange(n)[:, None, None]
-    pure_self = ((support == node) | (support < 0)).all(-1) & (support == node).any(-1) & inside & ~hit
-    retained = inY & ~term
-    return {"improper": ~inY & ~term, "self_loop": pure_self.any(1) & ~term, "no_live_action": ~live.any(1) & ~term,
-            "alternations": alternations, "batches": batch + 1,
-            "certificate": {"seq": seq, "phase": phase, "why": why.reshape(n, nu), "rank": np.where(inY, rank, -1),
-                            "witness": np.where(retained, witness, -1),
-                            "witness_succ": np.where(retained, witness_succ, -1)}}
-
-
-def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, infinite: np.ndarray,
+def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, cont: np.ndarray,
                     tol: float = 1e-10, cap: int = 20_000, check_monotone: bool = False) -> dict:
     """Jacobi value iteration of the first-exit problem from V0, capped at cap iterations.
 
-    Terminal nodes hold the terminal value; improper nodes (improper()) hold +inf, their exact value.
+    Terminal nodes hold the terminal value. A transition into Omega_c takes the terminal value; one inside the grid
+    takes bilinear V; one leaving the grid takes its boundary continuation cont (boundary_values), a fixed number.
     """
     idx, wts, inside = grid.weights(T["e"], T["w"])
     hit = in_terminal(L, T["e"], T["w"])
@@ -403,13 +342,11 @@ def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, i
     term = in_terminal(L, grid.E, grid.W)
     V = np.minimum(np.asarray(V0, np.float64).copy(), BIG)
     V[term] = terminal_value(L, grid.E[term], grid.W[term])
-    V[infinite] = BIG
     monotone, worst_drop, it, change = True, 0.0, 0, np.inf
     for it in range(1, cap + 1):
-        nxt = np.where(hit, hit_value, blend(V, idx, wts, inside))
+        nxt = np.where(hit, hit_value, np.where(inside, blend(V, idx, wts, inside), cont))
         Vn = np.minimum((c + nxt).min(axis=1), BIG)
         Vn[term] = V[term]
-        Vn[infinite] = BIG
         d = Vn - V
         if check_monotone:
             drop = float(d.min())
@@ -420,7 +357,7 @@ def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, i
         V = Vn
         if change <= tol:
             break
-    nxt = np.where(hit, hit_value, blend(V, idx, wts, inside))
+    nxt = np.where(hit, hit_value, np.where(inside, blend(V, idx, wts, inside), cont))
     Q = c + nxt
     resid = np.abs(np.minimum(Q.min(axis=1), BIG) - V)
     resid[term] = 0.0
@@ -429,6 +366,16 @@ def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, i
 
 
 # ---- policies and rollouts ----
+
+def next_value(grid: Grid, V: np.ndarray, L: dict, beta: float, e1, w1) -> np.ndarray:
+    """V at continuous successors: the terminal value in Omega_c, bilinear V on the grid, and the boundary
+    continuation (computed here, from the exact successor) off it."""
+    hit = in_terminal(L, e1, w1)
+    out = np.where(hit, terminal_value(L, e1, w1), grid.interp(V, e1, w1))
+    off = ~hit & (np.abs(w1) > grid.wmax)
+    out[off] = continuation(e1[off], w1[off], L, beta)
+    return out
+
 
 def oracle_policy(grid: Grid, V: np.ndarray, L: dict, beta: float):
     """Greedy over the action grid with interpolated V (exact terminal value on entry); -Kx inside Omega_c."""
@@ -442,7 +389,7 @@ def oracle_policy(grid: Grid, V: np.ndarray, L: dict, beta: float):
         rest = np.flatnonzero(~inside)
         if len(rest):
             e1, w1 = ew_of(step3(np.repeat(s3[rest], nu, axis=0), np.tile(grid.u, len(rest))))
-            nxt = np.where(in_terminal(L, e1, w1), terminal_value(L, e1, w1), grid.interp(V, e1, w1))
+            nxt = next_value(grid, V, L, beta, e1, w1)
             q = (cost(np.repeat(e[rest], nu), np.tile(grid.u, len(rest)), beta) + nxt).reshape(len(rest), nu)
             out[rest] = grid.u[q.argmin(axis=1)]
         return out
@@ -453,8 +400,7 @@ def q_continuous(grid: Grid, V: np.ndarray, L: dict, beta: float, s3: np.ndarray
     """Q*(z, a) at the given continuous actions, through the exact map; never snapped to the action grid."""
     e, _ = ew_of(s3)
     e1, w1 = ew_of(step3(s3, a))
-    nxt = np.where(in_terminal(L, e1, w1), terminal_value(L, e1, w1), grid.interp(V, e1, w1))
-    return cost(e, np.clip(a, -U_MAX, U_MAX), beta) + nxt
+    return cost(e, np.clip(a, -U_MAX, U_MAX), beta) + next_value(grid, V, L, beta, e1, w1)
 
 
 def rollout(policy, s0: np.ndarray, steps: int):
@@ -468,20 +414,22 @@ def rollout(policy, s0: np.ndarray, steps: int):
     return s, u
 
 
-def _first_entry_chunk(args):
-    lo, hi, steps, kind, beta = args
-    g = _SHARED
-    s = s3_of(g["E"][lo:hi], g["W"][lo:hi])
-    L = g["L"]
-    policy = demonstrator if kind == "demonstrator" else g["policy"]
-    n = hi - lo
+def entry_rollout(s: np.ndarray, L: dict, beta: float, steps: int, policy, history: bool = False):
+    """From s3 rows, until first entry into Omega_c or steps: (entry step or -1, first-exit cost or BIG, the largest
+    |omega| on the way, and for rows that never enter, the least physical-metric distance from the final state to an
+    earlier one (a recurrence diagnostic; NaN for rows that enter, or without history))."""
+    s = np.array(s, np.float64)
+    n = len(s)
     entry = np.full(n, -1, np.int64)
-    acc = np.zeros(n)
-    final = np.zeros(n)
+    acc, final = np.zeros(n), np.zeros(n)
     active = np.ones(n, bool)
     e, w = ew_of(s)
+    wmax = np.abs(w)
     hit = in_terminal(L, e, w)
     entry[hit], final[hit], active[hit] = 0, terminal_value(L, e[hit], w[hit]), False
+    path = np.full((n, steps + 1, 2), np.nan) if history else None
+    if history:
+        path[:, 0] = np.stack([e, w], 1)
     for t in range(steps):
         a = np.flatnonzero(active)
         if not len(a):
@@ -490,21 +438,38 @@ def _first_entry_chunk(args):
         acc[a] += cost(ew_of(s[a])[0], u, beta)
         s[a] = step3(s[a], u)
         e, w = ew_of(s[a])
+        wmax[a] = np.maximum(wmax[a], np.abs(w))
+        if history:
+            path[a, t + 1] = np.stack([e, w], 1)
         hit = in_terminal(L, e, w)
         h = a[hit]
         entry[h], final[h], active[h] = t + 1, terminal_value(L, e[hit], w[hit]), False
-    return entry, np.where(entry >= 0, acc + final, BIG)
+    recur = np.full(n, np.nan)
+    if history:
+        for i in np.flatnonzero(entry < 0):
+            de = wrap(path[i, :-2, 0] - path[i, -1, 0])
+            dw = (path[i, :-2, 1] - path[i, -1, 1]) / OMEGA0
+            recur[i] = float(np.sqrt(de * de + dw * dw).min())
+    return entry, np.where(entry >= 0, acc + final, BIG), wmax, recur
+
+
+def _first_entry_chunk(args):
+    lo, hi, steps, kind, beta = args
+    g = _SHARED
+    policy = demonstrator if kind == "demonstrator" else g["policy"]
+    return entry_rollout(s3_of(g["E"][lo:hi], g["W"][lo:hi]), g["L"], beta, steps, policy,
+                         history=kind == "oracle")
 
 
 def first_entry(E, W, L: dict, beta: float, steps: int, kind: str, policy=None, workers: int | None = None):
-    """(entry step or -1, first-exit cost or BIG) from every (E, W) under the demonstrator or a given policy."""
+    """entry_rollout from every (E, W) under the demonstrator or a given ("oracle") policy, in parallel chunks."""
     _SHARED.update(E=np.asarray(E), W=np.asarray(W), L=L, policy=policy)
     n = len(E)
     size = max(1, min(CHUNK // 10, -(-n // (os.cpu_count() or 1))))
     jobs = [(lo, min(n, lo + size), steps, kind, beta) for lo in range(0, n, size)]
     with _pool(workers) as p:
         parts = p.map(_first_entry_chunk, jobs)
-    return np.concatenate([a for a, _ in parts]), np.concatenate([b for _, b in parts])
+    return tuple(np.concatenate([part[k] for part in parts]) for k in range(4))
 
 
 # ---- the canonical scorer ----

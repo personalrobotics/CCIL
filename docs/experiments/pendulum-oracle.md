@@ -1,6 +1,6 @@
-# Pendulum discrete DP oracle: predeclaration, version 5 (#145)
+# Pendulum discrete DP oracle: predeclaration, version 6 (#145)
 
-**Status: version 5, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
+**Status: version 6, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
 ## Why
 
@@ -54,33 +54,30 @@ It is a **discrete Bellman (dynamic-programming) oracle**: it optimizes the exac
 **Problem.** A stationary first-exit shortest path:
 - V(x) = xᵀPx on Ω_c;
 - elsewhere, V(x) = min_u [c(x, u) + V(F(x, u))];
-- V(F(x, u)) is bilinear on the grid, periodic in e;
-- a transition with |ω′| > ω_max gets V = +∞.
+- the transition is the deterministic exact map, x⁺ = F(x, u). Interpolation only approximates V(x⁺); its weights are numerical coefficients, never transition probabilities (version 6);
+- V(x⁺) is bilinear on the grid, periodic in e, when |ω⁺| ≤ ω_max;
+- a transition with |ω⁺| > ω_max is not clamped. Its V(x⁺) is the **boundary continuation**: the corrected demonstrator is rolled out through the exact map from the exact continuous successor x⁺ for up to 2,000 steps, and its first-exit cost (running cost plus terminal value at entry) is used. That is a finite admissible upper bound;
+- a continuation that does not reach Ω_c marks that transition **unsupported**, with V = +∞. Unsupported transitions are counted per β and level, with the smallest |ω| of a node that has one. The domain is not expanded within a run.
 
 **Transitions** are computed once per (level, ω_max) through the exact map and shared by every β.
 
 **Value iteration** runs from two initializations:
 - **Lower:** V₀ = 0 off Ω_c. Its iterates must be monotone non-decreasing.
-- **Upper:** V₀ = the corrected demonstrator's own cost-to-go. It is evaluated by simulating `tools/pendulum_eval/expert.py:act` (primary variant) through the exact map for up to 2,000 steps, and is +∞ where the demonstrator does not reach Ω_c.
+- **Upper:** V₀ = the corrected demonstrator's own cost-to-go. It is evaluated by simulating `tools/pendulum_eval/expert.py:act` (primary variant) through the exact map for up to 2,000 steps. Where the demonstrator alone does not reach Ω_c, V₀ is the best one-step lookahead: the minimum over the action grid of c(x, u) plus the demonstrator's continuation from the exact successor, or the terminal value there (version 6). That is still a feasible policy's cost. V₀ = +∞ only where no first action recovers.
 
 Each run stops when the largest change over finite nodes is ≤ 1e-10, with a cap of 20,000 iterations.
 
-**Improper states, found before any value iteration.**
-- **Why they matter:** every running cost off upright is positive. A grid node from which no policy reaches Ω_c with probability 1 therefore has no finite solution, because a positive-cost loop gives V(x) = ℓ(x, u) + V(x).
-- **Detection:** these nodes are found exactly on the grid's Markov chain (bilinear weights as transition probabilities), by the nested fixed point of almost-sure reachability (`oracle.py`, `improper`). The fixed point is computed event-driven (a predecessor queue run until it is empty), not by repeated sweeps; the set is the same (version 5).
-- **What "proper" means here:** almost-sure arrival at Ω_c, which is stronger than safety under the interpolation support and stronger than reaching Ω_c with positive probability. A retained node off Ω_c needs an action that keeps its whole support in the retained set and makes progress toward Ω_c. So a retained component that could only cycle forever is rejected.
-- **Verification, which stops the run if it fails** (`check.py`, `verify_improper`, independent of the solver):
-  - the version-3 operator, applied once to the retained set, returns it unchanged;
-  - every retained node has a witness action that is safe for the retained set and either enters Ω_c or puts weight on a node of lower attractor rank;
-  - every action of every removed node is invalidated: it leaves the domain, or touches a node removed in an earlier batch, or its whole support lies in its own unreachable batch;
-  - no zero-cost action (e = 0, u = 0) can stay on e = 0 indefinitely, so a run that never arrives accumulates unbounded cost.
-- **Certificate,** written per level whether the run continues or stops (`improper-<level>.npz`, and `improper-<level>-boundary.npz` for the boundary grid). Per β it holds each node's removal batch and phase (safety or unreachable), the invalidating successor of each action of each removed node, and each retained node's attractor rank, witness action and witness successor.
-- **Report:** per β and level, the count of improper nodes, of nodes with a pure self-loop action, and of nodes with no in-domain action. Each is split into inside R (pumping, H < 0, and overshoot, H ≥ 0) and outside R.
-- **Outside R:** improper nodes hold +∞, their exact value, in both value iterations.
-- **Inside R:** any improper node, for any β > 0, stops the run before value iteration.
+**Behavioral properness** (version 6). Properness is established by rollouts through the exact deterministic map, not by reading the interpolation as a Markov chain. From every grid node in R, for every β > 0, each level requires all of:
+- **Arrival:** the greedy policy enters Ω_c within 500 steps.
+- **No domain exit and a margin:** along every reported trajectory, |ω| ≤ 10, that is ω_max − 2 rad/s. The reported trajectories are the greedy rollouts under both the ω_max = 12 and the ω_max = 14 fields, and the corrected demonstrator's rollouts (up to 2,000 steps), the policy behind the upper initialization and the continuation. The physical bound |ω| ≲ 9.03 from R is not assumed; it is checked on these trajectories.
+- **No nonterminal cycle:** with a deterministic map and a stationary policy, a trajectory that revisits a state repeats forever and never enters Ω_c, so arrival within the horizon excludes it. For a trajectory that does not arrive, the least physical-metric distance from its final state to its earlier states is reported, to separate a cycle from slow progress.
+- **Agreement between ω_max = 12 and 14,** at the same spacing:
+  - **values:** |ΔV| ≤ 1e-3 · max(1, V), with the same finite/unreachable status, on R;
+  - **action sets:** on R outside Ω_c, each field's greedy action is within 1e-3 · max(1, V) of the other field's minimum Q;
+  - **trajectories:** the ω_max = 14 greedy policy also arrives and keeps the margin from every node of R, and the two rollout costs agree within 1e-2 · max(1, J).
 
 **Strict hierarchy, and what a failure produces.**
-1. **L1, then L2.** Each level runs its improper analysis, then its value iterations and the checks below. Any stop, or any failed check for a β > 0, ends the run at that level.
+1. **L1, then L2.** Each level runs its boundary continuations, its value iterations, the behavioral properness gates and the checks below. Any failed check for a β > 0 ends the run at that level; L2 runs only if L1 passes.
 2. **Comparisons:** only on converged, finite fields, which is what the convergence rule below compares.
 3. **L3:** runs only when the L1–L2 rule fails. It never rescues a level that stopped or failed its checks.
 
@@ -93,8 +90,8 @@ Every end of a run writes `oracle.json`. A stopped run records `"status": "stopp
 **Convergence argument.** The operator is not a contraction, so a level is valid only if all of the following hold:
 1. **Both runs stop** before the cap. The lower run is monotone, and the Bellman residual of the result is ≤ 1e-9 on R.
 2. **Initialization gap:** the two runs' values differ by at most 1e-6 on R.
-3. **Greedy reachability:** the greedy policy (the argmin over the action grid with interpolated V), simulated through the exact map from every grid node of R, reaches Ω_c within 500 steps.
-4. **No boundary dependence:** the level rerun with ω_max = 14, at the same spacing, changes V on R by at most 1e-3 · max(1, V).
+3. **Behavioral properness,** as above: arrival, the margin, and no cycle. The greedy policy is the argmin over the action grid of c(x, u) + V(x⁺), with V(x⁺) as in "Problem".
+4. **No boundary dependence:** the level rerun with ω_max = 14, at the same spacing, agrees in values, action sets and trajectories, as above.
 
 **Convergence rule between levels** (L_k against L_{k+1}). Compare at L_k's nodes in R outside Ω_c, interpolating L_{k+1}. All three must hold:
 - **Named starts:** at the 8 named starts, |ΔV| ≤ 0.02·V + 0.01.
@@ -199,7 +196,6 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
   - energy contours, the saturation region, the target and Ω_c;
   - the demonstrations, and the demonstrator's action field as a separate panel.
 - **Axis contract** for every later phase portrait: e ∈ [−π, π) horizontal and periodic, ω ∈ [−8, 8] vertical, one orientation, shared color scales, and the named starts marked.
-- **Improper certificates:** `improper-<level>.npz` and `improper-<level>-boundary.npz` per level run ("The DP", improper states), written for a stopped run too.
 - **Regeneration:** `tools/pendulum_oracle/check.py --check` regenerates the evidence and compares it with the committed copy.
 
 ## Version history
@@ -209,6 +205,19 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
 **Why.** Version 1's domain could not contain the motions that start in its own reported region. A state in R at |ω| = 6.5 near upright has H ≈ 21. Swinging down through the bottom, it reaches |ω| of about 9.0 even under full braking, since braking removes at most 3π of energy over half a turn. That exceeds ω_max = 8, so the greedy-reachability and boundary checks would have failed by construction, not by any property of the oracle. From R the bound is |ω| ≤ √(2(21.1 + 2g)) ≈ 9.03 without braking, which ω_max = 12 contains with margin.
 
 **How it was found.** A development probe of the implementation: L1, β = 1e-2, lower value iteration only, run before any check reported here. It found 42 unreachable nodes in R, all at |ω| = 6.5 with H ≈ 19–21. The probe also showed that the implementation let a finite sentinel leak through interpolation. That was fixed so that +∞ propagates as declared. The probe's values are not reported or used.
+
+**Version 6** (boundary semantics and properness; before any value iteration of an official run):
+- **What version 5 showed:** under version 5's own definition, almost every L1 node was improper (official run `runs/20261101T062610Z-dp-oracle`, `docs/fixtures/evidence/pendulum-oracle/oracle.json`; all verifications passed).
+  - **The mechanism:** a safety cascade from the 238 nodes at |ω| ≥ 11.9 with no in-domain action, inward over 1,193 removal batches (`improper-cascade-L1.svg`).
+  - **Why it is not a pendulum fact:** reading every positive interpolation weight as a possible transition turns grid interpolation into adversarial process noise. That is a property of the declared numerical abstraction, not of the pendulum. It does not show that the states in R are improper, and the interpolation-as-stochastic-process reading is inappropriate for this deterministic oracle.
+- **What changes:**
+  - transitions stay the deterministic exact map, and interpolation only approximates V(x⁺);
+  - exits are valued by the demonstrator's boundary continuation from the exact successor. They are not clamped, which would hide the modeling error and add artificial dissipation at the boundary;
+  - the Markov-chain improper analysis, its stop rule and its certificate are removed. Properness is behavioral (arrival, margin, no cycle) and is checked for agreement between ω_max = 12 and 14.
+- **Upper initialization where the demonstrator stalls:** the best one-step lookahead followed by the demonstrator, as above.
+  - **Why:** the corrected demonstrator never leaves exact hanging rest, where energy shaping applies u = 0. So version 5's +∞ initialization there was absorbing: every action's interpolation includes that node, and +∞ is a fixed point of the operator. That made the initialization gap infinite by construction.
+  - **How it was found:** in the version 6 smoke test on the coarse smoke grids, where 1 node of R stayed unreached. No declared level had been run under version 6.
+- **Unchanged:** grids, levels, tolerances, the terminal sets, the convergence rule, the consistency checks, the references and β selection.
 
 **Version 5** (a performance-only amendment to the improper-state analysis; nothing in the definition changes):
 - **What changes:** the implementation of the improper-state fixed point. The repeated full sweeps are replaced by an event-driven predecessor queue. Interpolation supports, boundary semantics, tolerances and the definition of improper are unchanged.
