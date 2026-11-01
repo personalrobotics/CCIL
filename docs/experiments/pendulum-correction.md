@@ -30,7 +30,10 @@ No task regret, value, or optimal action is reported, and no figure here is an o
   - validators `Finite`, `GenerationFailed`, `SupportRadius(1.0)` and `ActionBounds(±3)`, through `ccil.core.generate_labels`;
   - representation (sin θ, cos θ, θ̇), and Newton starts at the source state.
 - **σ grid (normalized; action-noise std = 3σ):** 1e-5, 1e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.3 and 1. It includes every σ PR #16 selected. Draws depend only on (seed, episode, frame), so the r < 1 rows are exactly the r = 1 rows of their episodes, and one generation per σ serves all three r.
-- **Solver b (manifold-constrained Newton in (θ, ω)):** run only for a cell where more than 1% of solver (a)'s accepted rows are off the manifold. Otherwise it is not needed and is reported as not run.
+- **Solver b (manifold-constrained Newton in (θ, ω)):** run only for a σ where, at some r, more than 1% of solver (a)'s accepted training rows are off the manifold. Otherwise it is not needed and is reported as not run.
+  - It reuses solver (a)'s draws: the same source, target and ã per row.
+  - Newton runs in (θ, ω) from the source state, with central-difference Jacobians and the residual in the physical metric below. The tolerance is 1e-4 and the cap is 30 iterations.
+  - Every row is on the manifold by construction. It is checked with the same four validators' rules.
 
 ## Coordinates and metric
 
