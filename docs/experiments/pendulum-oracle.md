@@ -2,6 +2,16 @@
 
 **Status: version 6.1, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
+## Result (version 6.1: run 20261101T191213Z from `e7e9f95`)
+
+The oracle stopped at L3, as declared, because the L2-L3 convergence rule fails. It is not used. `docs/fixtures/evidence/pendulum-oracle/oracle.json` is the failure artifact.
+
+- **Established:** the deterministic formulation is behaviorally proper. At L1, L2 and L3, for every β, the greedy policy arrives at Ω_c from every node of R within the horizon and keeps the |ω| ≤ 10 margin, and the bracketing gap and Bellman residual are within tolerance.
+- **Established:** the domain and boundary treatment are stable. Values, action sets and greedy trajectories agree between ω_max = 12 and 14, and no boundary transition is unsupported.
+- **Not established:** continuum accuracy. The 95th-percentile relative change in V is 0.12–0.14 from L1 to L2 and 0.047–0.078 from L2 to L3, against 0.05. It passes only at β = 1. The value from hanging rest (S1) still changes by about 3% from L2 to L3.
+- **Consequence:** task-optimal regret is unavailable. Downstream work uses construction validity and demonstrator consistency, and reports task-optimality as unsupported (`docs/experiments/pendulum-correction.md`). No objective is selected, and β = 1 is not adopted after the fact.
+- **Not pursued now:** a version 7. Higher-order interpolation can break the monotonicity that makes the bracketed scheme trustworthy, and refining selected starts repairs neither the phase field nor per-label regret. If the causal ladder later shows an effect to explain, a version 7 would target those fixed states, for example multi-start trajectory optimization with explicit numerical uncertainty.
+
 ## Why
 
 il-supervision-benchmarks#12 (Stage A) needs a task oracle in order to describe CCIL's synthetic labels by their correction geometry and their action quality, before any policy is trained. This document defines that oracle for the regime of the canonical continuous dataset.
