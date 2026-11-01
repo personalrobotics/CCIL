@@ -1,6 +1,6 @@
-# Pendulum discrete DP oracle: predeclaration, version 2 (#145)
+# Pendulum discrete DP oracle: predeclaration, version 4 (#145)
 
-**Status: version 2, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
+**Status: version 4, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
 ## Why
 
@@ -29,10 +29,15 @@ It is a **discrete Bellman (dynamic-programming) oracle**: it optimizes the exac
 
 - **Linearization:** A and B are the exact one-step map's Jacobians at upright in x = (e, ω), by central differences with step 1e-6.
 - **LQR solution:** P is the DARE solution (`scipy.linalg.solve_discrete_are`) with Q = dt·diag(1/4, 0) and R = dt·λ/9.81², and K = (R + BᵀPB)⁻¹BᵀPA.
-- **Ω_c** = {x : xᵀPx ≤ c}.
-  - **Search:** c is the largest value, found by bisection to a relative 1e-3 over (0, c_sat] with c_sat = 9 / (K P⁻¹ Kᵀ), such that every point of a fixed sample satisfies |Kx| ≤ 3, F_cl(x) ∈ Ω_c and V(F_cl(x)) < V(x) for x ≠ 0.
-  - **Sample:** 20,000 points uniform in Ω_c plus 2,000 on its boundary, seed 1451.
+- **Ω_c** = {x : xᵀPx ≤ c}, with c = min(c_input, c_decrease, c_accuracy) (version 4):
+  - **c_input** = 9 / (K P⁻¹ Kᵀ), so that |Kx| ≤ 3 on all of Ω_c.
+  - **c_decrease** is the largest c, by bisection to a relative 1e-3 over (0, c_input], such that every point of a fixed sample satisfies V(F_cl(x)) < V(x) for x ≠ 0, and so F_cl(x) ∈ Ω_c. The sample is 20,000 points uniform in Ω_c plus 2,000 on its boundary, seed 1451.
+  - **c_accuracy** is the largest c, by the same bisection, for which xᵀPx is a valid terminal value. At deterministic points on four radial shells inside Ω_c (xᵀPx = s²c for s ∈ {0.25, 0.5, 0.75, 1}, 64 equally spaced angles each), the exact closed-loop cost must be within 5% of x₀ᵀPx₀.
+    - **Closed-loop cost:** the running cost under u = −Kx until first entry into the inner ellipsoid xᵀPx ≤ 1e-4·c, plus xᵀPx there for the negligible tail.
+    - **Failure to enter:** a point that does not enter the inner ellipsoid within 2,000 steps fails the test.
+  - **No positive c:** if none passes, that β fails, and so does the run. It is never dropped silently.
   - **Closed-loop map:** F_cl is the exact map under u = −Kx.
+  - **The 8-point LQR reference behavior below is unchanged.** It stays an independent check, with its own points and its looser 10% tolerance.
 
 ## The DP
 
@@ -59,6 +64,22 @@ It is a **discrete Bellman (dynamic-programming) oracle**: it optimizes the exac
 - **Upper:** V₀ = the corrected demonstrator's own cost-to-go. It is evaluated by simulating `tools/pendulum_eval/expert.py:act` (primary variant) through the exact map for up to 2,000 steps, and is +∞ where the demonstrator does not reach Ω_c.
 
 Each run stops when the largest change over finite nodes is ≤ 1e-10, with a cap of 20,000 iterations.
+
+**Improper states, found before any value iteration.**
+- **Why they matter:** every running cost off upright is positive. A grid node from which no policy reaches Ω_c with probability 1 therefore has no finite solution, because a positive-cost loop gives V(x) = ℓ(x, u) + V(x).
+- **Detection:** these nodes are found exactly on the grid's Markov chain (bilinear weights as transition probabilities), by the nested fixed point of almost-sure reachability (`oracle.py`, `improper`).
+- **Report:** per β and level, the count of improper nodes, of nodes with a pure self-loop action, and of nodes with no in-domain action. Each is split into inside R (pumping, H < 0, and overshoot, H ≥ 0) and outside R.
+- **Outside R:** improper nodes hold +∞, their exact value, in both value iterations.
+- **Inside R:** any improper node, for any β > 0, stops the run before value iteration.
+
+**Strict hierarchy, and what a failure produces.**
+1. **L1, then L2.** Each level runs its improper analysis, then its value iterations and the checks below. Any stop, or any failed check for a β > 0, ends the run at that level.
+2. **Comparisons:** only on converged, finite fields, which is what the convergence rule below compares.
+3. **L3:** runs only when the L1–L2 rule fails. It never rescues a level that stopped or failed its checks.
+
+Every end of a run writes `oracle.json`. A stopped run records `"status": "stopped"`, the reason, every diagnostic computed so far and the reference behaviors. It writes no fields, makes no β selection and publishes no figure. The figure script refuses any run that did not pass every check.
+
+β = 0 is descriptive: its diagnostics are reported, and it never stops the run.
 
 **Reported region R:** every e with |ω| ≤ 6.5. It contains every state of the dataset, whose largest |ω| is 6.26.
 
@@ -180,6 +201,20 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
 **Why.** Version 1's domain could not contain the motions that start in its own reported region. A state in R at |ω| = 6.5 near upright has H ≈ 21. Swinging down through the bottom, it reaches |ω| of about 9.0 even under full braking, since braking removes at most 3π of energy over half a turn. That exceeds ω_max = 8, so the greedy-reachability and boundary checks would have failed by construction, not by any property of the oracle. From R the bound is |ω| ≤ √(2(21.1 + 2g)) ≈ 9.03 without braking, which ω_max = 12 contains with margin.
 
 **How it was found.** A development probe of the implementation: L1, β = 1e-2, lower value iteration only, run before any check reported here. It found 42 unreachable nodes in R, all at |ω| = 6.5 with H ≈ 19–21. The probe also showed that the implementation let a finite sentinel leak through interpolation. That was fixed so that +∞ propagates as declared. The probe's values are not reported or used.
+
+**Version 4** (terminal-set rule; before the official run):
+- **The rule it replaces:** in versions 1–3, c was the largest value in (0, c_sat] for which a seeded sample satisfied |Kx| ≤ 3 and strict decrease of xᵀPx under the exact closed loop.
+- **Why it failed:** stability and invariance alone do not make xᵀPx a valid terminal value. At β = 1 that rule gave c = 0.061, below c_sat = 0.169. There, the declared 8-point LQR reference, which is unchanged, failed: the closed-loop cost plus the final xᵀPx ranged from 0.74 to 1.53 of x₀ᵀPx₀, against a 10% tolerance.
+- **How it was found:** in the version 3 smoke test. The reference behaviors do not depend on the grid.
+- **The new rule:** adds c_accuracy as above. Under it, β ≤ 0.1 is unchanged: c_input, c_decrease and c_accuracy coincide. At β = 1, c_accuracy is binding.
+
+**Version 3** (safeguards before the official run; no tolerance changed):
+- adds the exact improper-state analysis, its report, and its stop rule;
+- makes the level hierarchy strict;
+- requires a failure artifact for every stop;
+- gates β selection and the figure on a fully passing run.
+
+It was prompted by a smoke test of the implementation on deliberately coarse grids (40×49 to 160×193 nodes, 7–25 actions; not a declared level, and nothing from it is reported). There, the lower value iteration ran to its iteration cap because some nodes have only positive-cost self-loops.
 
 ## Not covered
 
