@@ -2,6 +2,19 @@
 
 **Status: version 1, pushed before any candidate in this document is generated.** If the gate fails, the failure is reported, no learner is trained from this treatment, and any change is made as a new version.
 
+## Result (version 1: run 20261101T222500Z from `d36fc58`)
+
+**No treatment at any r.** No σ passes, so no learner is trained from this treatment. The evidence:
+- the summary, `docs/fixtures/evidence/pendulum-correction/correction.json`;
+- the per-condition funnel, `funnel.log`;
+- the portrait, `docs/experiments/figures/pendulum-correction-geometry.svg`.
+
+- **Construction validity is not the problem.** Every accepted row is on the manifold at every σ, so solver b was never needed. For moved rows, the exact map reaches the target within 1e-3.
+- **Near-identity at small σ:** every accepted row at σ ≤ 1e-4 is returned at initialization, as are 90% at 1e-3. That reproduces PR #16. The fraction falls to 42% at 3e-3 and to 4% or less from 3e-2.
+- **Demonstrator consistency falls as σ grows:** the median |ã − π_D(z̃)| is 0.18 at σ = 0.1, 0.53 at 0.3 and 1.25 at 1.
+- **The binding condition is coverage.** At every σ and every r, no accepted training row lies τ_demo from the training demonstrations.
+- **This is structural, not a σ choice.** A one-step preimage and its source both reach z_next with actions at most 6 rad/s² apart, so over dt = 0.02 their ω differ by at most 0.12 rad/s, and d_source ≤ 0.12/√g = 0.0383. At σ = 1 the observed maximum is exactly 0.0383. The source is itself a training-demonstration state, so d_demo ≤ d_source ≤ 0.0383. That is below τ_demo at every r: 0.116, 0.088 and 0.053. No σ, K or data fraction of this generator can pass this gate at this timestep and torque bound.
+
 ## Why
 
 il-supervision-benchmarks#12 can test whether CCIL's synthetic supervision helps a learner only if CCIL first produces a real treatment: labeled states that are physically valid, meaningfully outside the demonstrations, in places where a policy needs recovery, with actions that a known-good controller would endorse. PR #16 did not have one. Its σ was chosen by validation loss, and at σ ≤ 1e-4 every exact-dynamics row was returned unmoved.
