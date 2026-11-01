@@ -10,6 +10,8 @@ from __future__ import annotations
 import multiprocessing as mp
 import os
 import sys
+import time
+from concurrent.futures import FIRST_EXCEPTION, ProcessPoolExecutor, wait
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +35,8 @@ OMEGA_SAFE = OMEGA_MAX - 2.0  # every reported trajectory stays within |omega| <
 CONTINUATION_STEPS = 2000  # the demonstrator's horizon when it continues a transition that leaves the grid
 UPRIGHT_COS = float(np.cos(np.deg2rad(8.0)))
 CHUNK = 50_000
+VI_ROWS = 20_000  # value iteration works in blocks of nodes: bounded temporaries, the same arithmetic per node
+PROGRESS_SECONDS = 300  # long stages log flushed progress at least this often
 
 
 def lam(beta: float) -> float:
@@ -74,13 +78,30 @@ def demonstrator(s3: np.ndarray) -> np.ndarray:
     return expert.act(s3)
 
 
+def log(*a):
+    print(time.strftime("%H:%M:%S"), *a, flush=True)
+
+
 # ---- parallel helpers (fork: workers inherit the module globals set before the pool starts) ----
 
 _SHARED: dict = {}
 
 
-def _pool(workers: int | None):
-    return mp.get_context("fork").Pool(workers or os.cpu_count())
+def pmap(fn, jobs: list, workers: int | None = None, label: str | None = None) -> list:
+    """fn over jobs in forked worker processes, results in job order. A worker that dies (e.g. killed for memory)
+    raises BrokenProcessPool rather than hanging; while jobs run, progress is logged every PROGRESS_SECONDS."""
+    t0 = time.time()
+    with ProcessPoolExecutor(min(len(jobs), workers or os.cpu_count()), mp_context=mp.get_context("fork")) as ex:
+        futures = [ex.submit(fn, j) for j in jobs]
+        pending = set(futures)
+        while pending:
+            done, pending = wait(pending, timeout=PROGRESS_SECONDS, return_when=FIRST_EXCEPTION)
+            if any(f.exception() for f in done):
+                break
+            if pending:
+                log(label or fn.__name__, f"{len(jobs) - len(pending)}/{len(jobs)} jobs done,",
+                    f"{time.time() - t0:.0f} s")
+        return [f.result() for f in futures]
 
 
 def _map_rows(args):
@@ -93,8 +114,7 @@ def step_many(s3: np.ndarray, u: np.ndarray, workers: int | None = None) -> np.n
     if len(s3) <= CHUNK:
         return step3(s3, u)
     parts = [(s3[i:i + CHUNK], u[i:i + CHUNK]) for i in range(0, len(s3), CHUNK)]
-    with _pool(workers) as p:
-        return np.concatenate(p.map(_map_rows, parts))
+    return np.concatenate(pmap(_map_rows, parts, workers, "exact map"))
 
 
 # ---- local LQR terminal set ----
@@ -328,24 +348,53 @@ def boundary_values(grid: Grid, T: dict, L: dict, beta: float, workers: int | No
 
 # ---- value iteration ----
 
-def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, cont: np.ndarray,
-                    tol: float = 1e-10, cap: int = 20_000, check_monotone: bool = False) -> dict:
-    """Jacobi value iteration of the first-exit problem from V0, capped at cap iterations.
-
-    Terminal nodes hold the terminal value. A transition into Omega_c takes the terminal value; one inside the grid
-    takes bilinear V; one leaving the grid takes its boundary continuation cont (boundary_values), a fixed number.
-    """
-    idx, wts, inside = grid.weights(T["e"], T["w"])
+def bellman_parts(grid: Grid, T: dict, L: dict, beta: float, cont: np.ndarray, weights=None) -> dict:
+    """What a Bellman application needs. A transition into Omega_c takes the terminal value, one leaving the grid its
+    boundary continuation cont (boundary_values), a fixed number either way; one inside the grid takes bilinear V.
+    weights, grid.weights of the transitions, is shared by every beta (pass it to avoid recomputing it)."""
+    idx, wts, inside = weights if weights is not None else grid.weights(T["e"], T["w"])
     hit = in_terminal(L, T["e"], T["w"])
-    hit_value = terminal_value(L, T["e"], T["w"])
-    c = cost(grid.E[:, None], grid.u[None, :], beta)
     term = in_terminal(L, grid.E, grid.W)
+    return {"idx": idx, "wts": wts, "inside": inside, "interp": ~hit & inside,
+            "fixed": np.where(hit, terminal_value(L, T["e"], T["w"]), cont),
+            "c": cost(grid.E[:, None], grid.u[None, :], beta), "term": term,
+            "term_value": terminal_value(L, grid.E[term], grid.W[term])}
+
+
+def bellman_q(p: dict, V: np.ndarray, rows: slice) -> np.ndarray:
+    """Q at the nodes in rows: stage cost plus the successor's value."""
+    nxt = np.where(p["interp"][rows], blend(V, p["idx"][rows], p["wts"][rows], p["inside"][rows]), p["fixed"][rows])
+    return p["c"][rows] + nxt
+
+
+def bellman_finish(p: dict, V: np.ndarray):
+    """Q at every node and the Bellman residual of V."""
+    Q = np.empty(p["c"].shape)
+    for i in range(0, len(V), VI_ROWS):
+        Q[i:i + VI_ROWS] = bellman_q(p, V, slice(i, i + VI_ROWS))
+    resid = np.abs(np.minimum(Q.min(axis=1), BIG) - V)
+    resid[p["term"]] = 0.0
+    return Q, resid
+
+
+def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, cont: np.ndarray,
+                    tol: float = 1e-10, cap: int = 20_000, check_monotone: bool = False, weights=None,
+                    label: str | None = None) -> dict:
+    """Jacobi value iteration of the first-exit problem from V0, capped at cap iterations (bellman_parts).
+
+    Terminal nodes hold the terminal value. Nodes are updated in blocks of VI_ROWS from the previous iterate, so the
+    result does not depend on the blocking. With a label, progress is logged every PROGRESS_SECONDS.
+    """
+    p = bellman_parts(grid, T, L, beta, cont, weights)
+    term = p["term"]
     V = np.minimum(np.asarray(V0, np.float64).copy(), BIG)
-    V[term] = terminal_value(L, grid.E[term], grid.W[term])
+    V[term] = p["term_value"]
     monotone, worst_drop, it, change = True, 0.0, 0, np.inf
+    t0 = last = time.time()
     for it in range(1, cap + 1):
-        nxt = np.where(hit, hit_value, np.where(inside, blend(V, idx, wts, inside), cont))
-        Vn = np.minimum((c + nxt).min(axis=1), BIG)
+        Vn = np.empty_like(V)
+        for i in range(0, len(V), VI_ROWS):
+            Vn[i:i + VI_ROWS] = np.minimum(bellman_q(p, V, slice(i, i + VI_ROWS)).min(axis=1), BIG)
         Vn[term] = V[term]
         d = Vn - V
         if check_monotone:
@@ -357,10 +406,10 @@ def value_iteration(grid: Grid, T: dict, L: dict, beta: float, V0: np.ndarray, c
         V = Vn
         if change <= tol:
             break
-    nxt = np.where(hit, hit_value, np.where(inside, blend(V, idx, wts, inside), cont))
-    Q = c + nxt
-    resid = np.abs(np.minimum(Q.min(axis=1), BIG) - V)
-    resid[term] = 0.0
+        if label and time.time() - last >= PROGRESS_SECONDS:
+            log(label, "iteration", it, "change", f"{change:.3e}", f"{time.time() - t0:.0f} s")
+            last = time.time()
+    Q, resid = bellman_finish(p, V)
     return {"V": V, "Q": Q, "iterations": it, "converged": change <= tol, "last_change": change,
             "monotone": bool(monotone), "worst_drop": worst_drop, "residual": resid}
 
@@ -467,8 +516,7 @@ def first_entry(E, W, L: dict, beta: float, steps: int, kind: str, policy=None, 
     n = len(E)
     size = max(1, min(CHUNK // 10, -(-n // (os.cpu_count() or 1))))
     jobs = [(lo, min(n, lo + size), steps, kind, beta) for lo in range(0, n, size)]
-    with _pool(workers) as p:
-        parts = p.map(_first_entry_chunk, jobs)
+    parts = pmap(_first_entry_chunk, jobs, workers, f"{kind} rollouts beta {beta}")
     return tuple(np.concatenate([part[k] for part in parts]) for k in range(4))
 
 

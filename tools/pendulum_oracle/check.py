@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Run the predeclared Pendulum DP-oracle checks (docs/experiments/pendulum-oracle.md, version 6).
+"""Run the predeclared Pendulum DP-oracle checks (docs/experiments/pendulum-oracle.md, version 6.1).
 
     R="uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_oracle/check.py"
-    $R --data pendulum_cont_corrected.npz --out DIR [--workers N]
+    $R --data pendulum_cont_corrected.npz --out DIR [--workers N] [--resume]
 
 DIR must not exist. It receives fields.npz (the oracle level's fields per beta, the release asset) and oracle.json
 (every check, pass or fail, with the reference scores, the beta table, hashes and the code state). Levels run in
 the declared order: L1 and L2, and L3 only if the L1-L2 convergence rule fails. Exit 1 unless every check passes.
+
+Until oracle.json is written the run is incomplete. Each value iteration's result is checkpointed, atomically, in
+DIR/checkpoints; --resume continues an incomplete DIR from them at the same code commit (anything else is refused)
+and recomputes everything else, which is deterministic. Progress is logged at least every O.PROGRESS_SECONDS.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import multiprocessing as mp
+import os
 import subprocess
 import sys
 import time
@@ -33,8 +37,7 @@ HORIZON, DEMO_STEPS, CAPTURE_STEPS = 500, 2000, 25
 GAP_TOL, RESID_TOL, BOUNDARY_REL, TRAJ_REL = 1e-6, 1e-9, 1e-3, 1e-2
 
 
-def log(*a):
-    print(time.strftime("%H:%M:%S"), *a, flush=True)
+log = O.log
 
 
 def git(*args) -> str:
@@ -65,16 +68,33 @@ def rule_passes(name: str, rule: dict) -> bool:
 
 # ---- one level ----
 
+VI_SCALARS = ("iterations", "converged", "last_change", "monotone", "worst_drop")
+
+
 def _vi_job(args):
+    """One value iteration, or its checkpoint: V is stored and Q and the residual are recomputed from it."""
     kind, beta = args
     g = O._SHARED
-    if kind == "lower":
-        return kind, beta, O.value_iteration(g["grid"], g["T"], g["L"][beta], beta, np.zeros(len(g["grid"].E)),
-                                             g["cont"][beta], check_monotone=True)
-    if kind == "upper":
-        return kind, beta, O.value_iteration(g["grid"], g["T"], g["L"][beta], beta, g["U0"][beta], g["cont"][beta])
-    return kind, beta, O.value_iteration(g["gridb"], g["Tb"], g["L"][beta], beta, np.zeros(len(g["gridb"].E)),
-                                         g["contb"][beta])
+    grid, T, wgt, cont = ((g["gridb"], g["Tb"], g["wgtb"], g["contb"][beta]) if kind == "boundary"
+                          else (g["grid"], g["T"], g["wgt"], g["cont"][beta]))
+    L = g["L"][beta]
+    path = g["checkpoints"] / f"{g['name']}-{kind}-beta{beta:g}.npz"
+    key = json.dumps({"commit": g["commit"], "level": g["name"], "kind": kind, "beta": beta,
+                      "nodes": len(grid.E), "actions": len(grid.u), "wmax": grid.wmax})
+    if path.exists():
+        ck = np.load(path)
+        if str(ck["key"]) != key:
+            raise RuntimeError(f"checkpoint {path} is from a different run: {ck['key']}")
+        Q, resid = O.bellman_finish(O.bellman_parts(grid, T, L, beta, cont, wgt), ck["V"])
+        log(g["name"], kind, "beta", beta, "value iteration resumed from", path.name)
+        return kind, beta, {"V": ck["V"], "Q": Q, "residual": resid, **json.loads(str(ck["scalars"]))}
+    V0 = g["U0"][beta] if kind == "upper" else np.zeros(len(grid.E))
+    r = O.value_iteration(grid, T, L, beta, V0, cont, check_monotone=kind == "lower", weights=wgt,
+                          label=f"{g['name']} {kind} beta {beta}")
+    tmp = path.with_suffix(".tmp.npz")
+    np.savez(tmp, V=r["V"], key=key, scalars=json.dumps({k: r[k] for k in VI_SCALARS}))
+    os.replace(tmp, path)
+    return kind, beta, r
 
 
 def continuation_report(grid, T, cont) -> dict:
@@ -95,7 +115,7 @@ def action_mismatch(Qa, Qb, V, keep) -> int:
     return int((bad & keep).sum())
 
 
-def solve_level(name: str, Ls: dict, workers: int | None) -> dict:
+def solve_level(name: str, Ls: dict, workers: int | None, checkpoints: Path) -> dict:
     """One level: boundary continuations, the bracketed value iterations, and the behavioral properness gates."""
     grid, gridb = O.Grid.level(name), O.Grid.level(name, wmax=O.OMEGA_MAX_CHECK)
     log(name, "transitions", len(grid.E), "nodes x", len(grid.u), "actions; boundary grid", len(gridb.E))
@@ -118,10 +138,13 @@ def solve_level(name: str, Ls: dict, workers: int | None) -> dict:
                       "margin_violations_R": int((R & (dmax > O.OMEGA_SAFE)).sum()),
                       "max_abs_omega_R": float(dmax[R].max())}
         log(name, "beta", beta, "demonstrator from R", json.dumps(demo[beta]))
-    O._SHARED.update(grid=grid, gridb=gridb, T=T, Tb=Tb, L=Ls, U0=U0, cont=cont, contb=contb)
+    O._SHARED.update(grid=grid, gridb=gridb, T=T, Tb=Tb, L=Ls, U0=U0, cont=cont, contb=contb, name=name,
+                     wgt=grid.weights(T["e"], T["w"]), wgtb=gridb.weights(Tb["e"], Tb["w"]),
+                     checkpoints=checkpoints, commit=git("rev-parse", "HEAD"))
     jobs = [(k, b) for b in ALL_BETAS for k in ("lower", "upper", "boundary")]
-    with mp.get_context("fork").Pool(min(len(jobs), workers or mp.cpu_count())) as p:
-        res = {(k, b): r for k, b, r in p.map(_vi_job, jobs)}
+    res = {(k, b): r for k, b, r in O.pmap(_vi_job, jobs, workers, f"{name} value iterations")}
+    for k in ("wgt", "wgtb"):
+        del O._SHARED[k]
     offset = (gridb.nw - grid.nw) // 2
     ii, jj = np.divmod(np.arange(len(grid.E)), grid.nw)
     inner = ii * gridb.nw + jj + offset  # each grid node in the boundary grid
@@ -352,8 +375,7 @@ def shooting(grid, V, L, beta, eps, workers=None):
                    float(shoot_costs(seg_mean[None], s0, L, beta)[0]))
         for p0 in (seg_mean, np.zeros(nseg), np.random.default_rng(1452).uniform(-3, 3, nseg)):
             jobs.append((s0, p0, L, beta))
-    with mp.get_context("fork").Pool(min(len(jobs), workers or mp.cpu_count())) as p:
-        best = p.map(_shoot_job, jobs)
+    best = O.pmap(_shoot_job, jobs, workers, f"beta {beta} shooting")
     out = {}
     for n, (k, (v, greedy_cost)) in enumerate(meta.items()):
         j = min(best[3 * n:3 * n + 3])
@@ -460,7 +482,7 @@ def regions(level: dict, L: dict, beta: float) -> dict:
 
 
 def provenance(A, B, t0) -> dict:
-    return {"predeclaration": "docs/experiments/pendulum-oracle.md (version 6)",
+    return {"predeclaration": "docs/experiments/pendulum-oracle.md (version 6.1)",
             "environment": {"code_commit": git("rev-parse", "HEAD"),
                             "code_dirty": bool(git("status", "--porcelain", "--untracked-files=all")),
                             "numpy": np.__version__, "scipy": __import__("scipy").__version__,
@@ -474,12 +496,15 @@ def main() -> int:
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--workers", type=int)
+    ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
-    if a.out.exists():
-        raise SystemExit(f"refused: {a.out} exists")
+    if a.out.exists() and not (a.resume and (a.out / "checkpoints").is_dir() and not (a.out / "oracle.json").exists()):
+        raise SystemExit(f"refused: {a.out} exists" + ("" if a.resume else " (an incomplete run takes --resume)"))
+    if a.resume and not a.out.exists():
+        raise SystemExit(f"refused: nothing to resume at {a.out}")
     if sha(a.data) != DATA_SHA256:
         raise SystemExit("refused: the dataset is not the canonical continuous dataset")
-    a.out.mkdir(parents=True)
+    (a.out / "checkpoints").mkdir(parents=True, exist_ok=a.resume)
     t0 = time.time()
     A, B = O.linearize()
     Ls, levels, rules = {}, {}, {}
@@ -513,14 +538,14 @@ def main() -> int:
     log("terminal sets", {b: {k: Ls[b][k] for k in ("c", "binding", "accuracy_ratio_min", "accuracy_ratio_max")}
                           for b in O.BETAS})
     for name in ("L1", "L2"):
-        levels[name] = solve_level(name, Ls, a.workers)
+        levels[name] = solve_level(name, Ls, a.workers, a.out / "checkpoints")
         if why := failure(name):
             return stop(why)
     rules["L1-L2"] = convergence(levels["L1"], levels["L2"], Ls)
     log("convergence L1-L2", rules["L1-L2"]["pass"])
     oracle_level, coarser = "L2", "L1"
     if not rule_passes("L1-L2", rules["L1-L2"]):
-        levels["L3"] = solve_level("L3", Ls, a.workers)
+        levels["L3"] = solve_level("L3", Ls, a.workers, a.out / "checkpoints")
         if why := failure("L3"):
             return stop(why)
         rules["L2-L3"] = convergence(levels["L2"], levels["L3"], Ls)

@@ -1,4 +1,4 @@
-# Pendulum discrete DP oracle: predeclaration, version 6 (#145)
+# Pendulum discrete DP oracle: predeclaration, version 6.1 (#145)
 
 **Status: version 6, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
@@ -198,6 +198,13 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
 - **Axis contract** for every later phase portrait: e ∈ [−π, π) horizontal and periodic, ω ∈ [−8, 8] vertical, one orientation, shared color scales, and the named starts marked.
 - **Regeneration:** `tools/pendulum_oracle/check.py --check` regenerates the evidence and compares it with the committed copy.
 
+## Running
+
+- **Progress:** every parallel stage logs completed and total jobs, and every value iteration its iteration, last change and elapsed time, at least every 5 minutes (`PROGRESS_SECONDS`).
+- **Stall threshold:** 30 minutes without a new log line, which is six progress intervals. The watcher also reports process exit and the `EXIT=` marker. A stall is diagnosed with the process kept; it is not restarted silently.
+- **Checkpoints:** each value iteration's V and its iteration statistics are written atomically to `checkpoints/` in the output directory. `--resume` continues an incomplete directory (one without `oracle.json`) at the same commit; anything else is refused. Everything else is recomputed, which is deterministic.
+- **Incomplete:** a run is complete only when `oracle.json` exists. A dead worker fails the run with an error instead of hanging it.
+
 ## Version history
 
 **Version 2** changes only the ω domain: ω_max goes from 8 to 12, and the boundary check from ω_max = 10 to 14. The grid spacing, R and every tolerance are unchanged.
@@ -205,6 +212,12 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
 **Why.** Version 1's domain could not contain the motions that start in its own reported region. A state in R at |ω| = 6.5 near upright has H ≈ 21. Swinging down through the bottom, it reaches |ω| of about 9.0 even under full braking, since braking removes at most 3π of energy over half a turn. That exceeds ω_max = 8, so the greedy-reachability and boundary checks would have failed by construction, not by any property of the oracle. From R the bound is |ω| ≤ √(2(21.1 + 2g)) ≈ 9.03 without braking, which ω_max = 12 contains with margin.
 
 **How it was found.** A development probe of the implementation: L1, β = 1e-2, lower value iteration only, run before any check reported here. It found 42 unreachable nodes in R, all at |ω| = 6.5 with H ≈ 19–21. The probe also showed that the implementation let a finite sentinel leak through interpolation. That was fixed so that +∞ propagates as declared. The probe's values are not reported or used.
+
+**Version 6.1** (operational only; no definition, grid, tolerance, rule or check changes):
+- **What changes:** value iteration updates nodes in blocks of 20,000 from the previous iterate and shares the bilinear weights across β, so its memory no longer grows with the number of concurrent jobs times the full N × N_u temporaries. Parallel stages fail on a dead worker instead of hanging. Progress logging, checkpoints and `--resume` are added (under "Running").
+- **Equivalence evidence:** on the declared L1 grids (ω_max 12 and 14), for β 0, 1e-2 and 1, lower and upper value iteration, and block sizes 20,000 and 7,777, V, Q, the residual and every statistic are bit-identical to version 6's (`docs/fixtures/evidence/pendulum-oracle/vi-equivalence.log`). The rerun's L1 and L2 check lines must reproduce the aborted run's exactly.
+- **Why:** the version 6 official run, `runs/20261101T143027Z-dp-oracle` on siddh from 644f5fb, hung at L3. Its 15 concurrent L3 value iterations needed about 16 GB each on a 125 GB host, the kernel killed 7 workers for memory (`oom_kill 7` in the session's cgroup), and the process pool waited for them indefinitely. The log stopped at 06:48 and the hang was found at 10:47 by the stall watcher.
+- **What had been observed:** L1 and L2: every level check passed for every β, and the L1-L2 convergence rule failed (its pass flag only; the comparison's numbers were not logged), which triggered L3 as declared. L3: the boundary continuation report and the demonstrator's reach from R. No L3 value function, check, β selection, reference, figure or field was produced. The log and a process and memory snapshot are preserved beside an `ABORTED.md` note. That run is excluded, and the rerun under version 6.1 is the official one.
 
 **Version 6** (boundary semantics and properness; before any value iteration of an official run):
 - **What version 5 showed:** under version 5's own definition, almost every L1 node was improper (official run `runs/20261101T062610Z-dp-oracle`, `docs/fixtures/evidence/pendulum-oracle/oracle.json`; all verifications passed).
