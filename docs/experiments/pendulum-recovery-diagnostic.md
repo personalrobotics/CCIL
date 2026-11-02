@@ -8,6 +8,14 @@
 
 The evidence is in `docs/fixtures/evidence/pendulum-recovery/`: the phase 1 manifest, the ten probe records, `audit/audit.json` and the run log. The figure is `docs/experiments/figures/pendulum-recovery-diagnostic.svg`.
 
+**Re-audit after review (run 20261102T015339Z, from `8072768`).** The original audit rebuilt τ_demo and the coverage trees from `--data` without checking its bytes, and on `--resume` it trusted per-seed records that carried no input identity. The audit now:
+- refuses unless `--data` has the sha256 phase 1 recorded;
+- binds every per-seed record to the phase 1 manifest, the dataset, the capture set, the split and the audit code;
+- recomputes every answer on every run;
+- reuses only the exact-reference segment files, and only when their recorded sha256 matches.
+
+The fixed audit was rerun against the unchanged phase 1 into a new directory (`audit/reaudit-20261102T015339Z.json` and its log). It is identical to the original `audit/audit.json` in every field except the run's provenance and the new identity fields. The decision is unchanged.
+
 - **Construction is not the problem.** Acceptance is ≥ 0.91 at every M and ≥ 0.999 for M ≤ 16, degeneracy is ≤ 0.03, and Newton converges.
 - **Reach fails on every seed at every M.**
   - η_reach rises with M, but its maximum is 0.16–0.97, always at M = 32.
