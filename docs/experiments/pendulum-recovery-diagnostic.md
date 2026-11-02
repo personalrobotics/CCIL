@@ -24,7 +24,7 @@ The evidence is in `docs/fixtures/evidence/pendulum-recovery/`: the phase 1 mani
 - **Recorded as a design observation; it did not affect this decision:**
   - The empirical transfer radius is tiny: ρ_cap = 0.0004–0.0056, which is 0.6–13% of τ_demo.
   - The positive control's thinned BC rollouts are near-duplicates, so its collection and diagnostic sets lie almost on top of each other.
-  - Had phase 1 produced segments, question 2 would have required coverage at that sub-millimetre scale.
+  - Had phase 1 produced segments, question 2 would have required coverage within a few thousandths of a radian in the metric d.
   - Any future use of this audit should revisit the radius in a new version, before generation.
 
 **Conclusion:** from demonstrations alone at r = 0.1, persistent-bias recovery segments of up to 0.64 s with this learned model cannot produce trustworthy states beyond demonstration support. A learned-model segment that reaches beyond support is one the two models disagree about. CCIL does not reproduce the capture-region mechanism on this task under this proposal family. Pendulum gives no basis for M > 1 implementation work under #171's gate.
