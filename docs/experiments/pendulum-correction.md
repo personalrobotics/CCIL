@@ -13,7 +13,16 @@
 - **Near-identity at small σ:** every accepted row at σ ≤ 1e-4 is returned at initialization, as are 90% at 1e-3. That reproduces PR #16. The fraction falls to 42% at 3e-3 and to 4% or less from 3e-2.
 - **Demonstrator consistency falls as σ grows:** the median |ã − π_D(z̃)| is 0.18 at σ = 0.1, 0.53 at 0.3 and 1.25 at 1.
 - **The binding condition is coverage.** At every σ and every r, no accepted training row lies τ_demo from the training demonstrations.
-- **This is structural, not a σ choice.** A one-step preimage and its source both reach z_next with actions at most 6 rad/s² apart, so over dt = 0.02 their ω differ by at most 0.12 rad/s, and d_source ≤ 0.12/√g = 0.0383. At σ = 1 the observed maximum is exactly 0.0383. The source is itself a training-demonstration state, so d_demo ≤ d_source ≤ 0.0383. That is below τ_demo at every r: 0.116, 0.088 and 0.053. No σ, K or data fraction of this generator can pass this gate at this timestep and torque bound.
+- **This is structural, not a σ choice.** A one-step preimage x₁ = (θ₁, ω₁) and its source x₂ = (θ₂, ω₂) both reach the same successor in one interval dt = 0.02, under actions at most δu = 6 rad/s² apart.
+  - **Comparison system:** going backward from that common successor, the differences δθ and δω obey δθ̇ = δω and δω̇ = −g(sin θ₁ − sin θ₂) + Δu, with |sin θ₁ − sin θ₂| ≤ |δθ| and |Δu| ≤ δu. Both start at zero at the successor, so they are bounded by the solution of the majorant system δθ̈ = g·δθ + δu.
+  - **Bound** (√g·dt = 0.0626):
+    - |δθ₀| ≤ (δu/g)(cosh √g·dt − 1) = 0.0012004 rad;
+    - |δω₀| ≤ (δu/√g) sinh √g·dt = 0.120078 rad/s;
+    - so d_source = √(δθ₀² + (δω₀/√g)²) ≤ 0.038357.
+  - **Correction.** Version 1 of this section stated 0.0383 = dt·δu/√g. That counted only the velocity difference from the actions and omitted the angle difference and the gravity term. The corrected bound is 0.1% larger, and no conclusion changes.
+  - **Scope of the bound.** It is proved for the continuous dynamics θ̈ = −g sin θ + u. The exact map integrates that flow with RK45 under scipy's default tolerances, and its deviation from the flow is not bounded here. On the map, the observed maximum d_source over every accepted row of the scan is 0.0383, at σ = 1, consistent with the bound.
+  - **Consequence.** The source is itself a training-demonstration state, so d_demo ≤ d_source ≤ 0.038357. That is below τ_demo for each declared subset: 0.116, 0.088 and 0.053 at r = 0.1, 0.25 and 1. The smallest margin is 0.0146.
+  - **Conclusion.** For the continuous dynamics, no σ or K of this one-step generator can pass this gate at this timestep and torque bound, for these subsets. For the RK45 map, the measured result covers the declared σ grid, and the bound together with the observed maximum explains it.
 
 ## Why
 
