@@ -10,7 +10,7 @@ The oracle stopped at L3, as declared, because the L2-L3 convergence rule fails.
 - **Established:** the domain and boundary treatment are stable. Values, action sets and greedy trajectories agree between ω_max = 12 and 14, and no boundary transition is unsupported.
 - **Not established:** continuum accuracy. The 95th-percentile relative change in V is 0.12–0.14 from L1 to L2 and 0.047–0.078 from L2 to L3, against 0.05. It passes only at β = 1. The value from hanging rest (S1) still changes by about 3% from L2 to L3.
 - **Consequence:** task-optimal regret is unavailable. Downstream work uses construction validity and demonstrator consistency, and reports task-optimality as unsupported (`docs/experiments/pendulum-correction.md`). No objective is selected, and β = 1 is not adopted after the fact.
-- **Not pursued now:** a version 7. Higher-order interpolation can break the monotonicity that makes the bracketed scheme trustworthy, and refining selected starts repairs neither the phase field nor per-label regret. If the causal ladder later shows an effect to explain, a version 7 would target those fixed states, for example multi-start trajectory optimization with explicit numerical uncertainty.
+- **Closed:** oracle work ends here (#145). No version 7 is drafted, and the β grid is not rerun. Higher-order interpolation can break the monotonicity that makes the bracketed scheme trustworthy, and refining selected starts repairs neither the phase field nor per-label regret. Exact dynamics may audit a later frozen result, but they cannot select the objective or the recovery length.
 
 ## Why
 
