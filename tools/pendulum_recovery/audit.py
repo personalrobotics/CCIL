@@ -2,12 +2,16 @@
 """Recovery-segment diagnostic, phase 2: the external audit (docs/experiments/pendulum-recovery-diagnostic.md, v1).
 
     R="uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_recovery/audit.py"
-    $R --data DATASET.npz --phase1 DIR --capture RUN [--resume]
+    $R --data DATASET.npz --phase1 DIR --capture RUN [--out AUDIT_DIR] [--resume]
 
-Refuses unless DIR holds a complete phase 1 (manifest.json, every file's sha256 verifying) and RUN is the positive
-control run (il-supervision-benchmarks runs/20261102T003101Z-capture-control) whose capture sets and splits match the
-recorded hashes and phase 1's splits. Opens the exact map, the corrected demonstrator and the capture sets only here.
-Writes DIR/audit/s{seed}.json per seed (resumable), the exact-dynamics reference segments, then DIR/audit/audit.json
+Refuses unless DATASET is the canonical dataset that phase 1 recorded, DIR holds a complete phase 1 (manifest.json,
+every file's sha256 verifying), and RUN is the positive control run (il-supervision-benchmarks
+runs/20261102T003101Z-capture-control) whose capture sets and splits match the recorded hashes and phase 1's splits.
+Every per-seed answer is recomputed from these verified bytes on every run. Each per-seed record carries the identity
+of every input and of the audit code; --resume refuses a record with another identity, and reuses only its exact
+reference segment files, and only when their sha256 matches the record. Opens the exact map, the corrected demonstrator and the capture sets only here.
+Writes AUDIT_DIR (default DIR/audit)/s{seed}.json per seed (resumable), the exact-dynamics reference segments, then
+AUDIT_DIR/audit.json
 with the six questions, the per-seed outcomes and the decision. Nothing here changes M, the segments or a threshold.
 """
 from __future__ import annotations
@@ -134,12 +138,16 @@ def main() -> int:
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("--phase1", type=Path, required=True)
     ap.add_argument("--capture", type=Path, required=True)
+    ap.add_argument("--out", type=Path)
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
     man_p = a.phase1 / "manifest.json"
     if not man_p.exists():
         raise SystemExit("refused: phase 1 is not complete (no manifest.json)")
     man = json.loads(man_p.read_text())
+    data_sha = sha(a.data)
+    if data_sha != man["data_sha256"] or data_sha != P1.DATA_SHA256:
+        raise SystemExit("refused: --data is not the canonical dataset phase 1 recorded")
     bad = [f for f, h in man["files"].items() if sha(a.phase1 / f) != h]
     if bad:
         raise SystemExit(f"refused: phase 1 files changed since the manifest: {bad}")
@@ -151,21 +159,30 @@ def main() -> int:
         if {k: sorted(theirs[k]) for k in ("train", "validation")} != {k: sorted(v) for k, v in
                                                                          man["splits"][str(s)].items()}:
             raise SystemExit(f"refused: seed {s}'s split differs from the positive control's")
-    d = a.phase1 / "audit"
+    d = a.out or a.phase1 / "audit"
     if d.exists() and (d / "audit.json").exists():
         raise SystemExit(f"refused: {d / 'audit.json'} exists")
     if d.exists() and not a.resume:
         raise SystemExit(f"refused: {d} exists (an incomplete audit takes --resume)")
-    d.mkdir(exist_ok=True)
+    d.mkdir(parents=True, exist_ok=True)
+    code = {p.name: sha(p) for p in (HERE / "audit.py", HERE / "generate.py", Path(scan.__file__), Path(O.__file__))}
+
+    def identity(s: int) -> dict:
+        """Everything a per-seed record depends on; a resumed record must carry exactly this."""
+        return {"phase1_manifest_sha256": sha(man_p), "data_sha256": data_sha,
+                "capture_sha256": sha(a.capture / "select" / f"s{s}.npz"),
+                "split_sha256": sha(a.capture / "data" / f"s{s}" / "split.json"), "code_sha256": code}
     t0 = time.time()
     U = P1.units(a.data)
     log("audit inputs verified; phase 1", man["code_commit"][:7], "selected M", man["selected_M"])
     seeds = {}
     for i, s in enumerate(P1.SEEDS):
+        # every answer is recomputed from verified bytes; only the exact reference segments are reused on --resume,
+        # and only when the earlier record has this seed's identity and their files still have its hashes
         path = d / f"s{s}.json"
-        if path.exists():
-            seeds[s] = json.loads(path.read_text())
-            continue
+        prior = json.loads(path.read_text()) if path.exists() else None
+        if prior is not None and prior.get("identity") != identity(s):
+            raise SystemExit(f"refused: {path} was written for other inputs or audit code")
         with Heartbeat(f"audit s{s} ({i + 1} of {len(P1.SEEDS)})"):
             f = np.load(a.capture / "select" / f"s{s}.npz")
             cap = {n: f[f"{n}/x"].astype(np.float64) for n in ("collection", "diagnostic")}
@@ -174,18 +191,24 @@ def main() -> int:
             if bool(seg["empty"]):
                 seg, pw = empty_view()
             u = U[s]
-            rec = {"seed": s, "rho_cap": rho, "tau_demo": u["tau_demo"], "rho_over_tau": rho / u["tau_demo"],
-                   "learned": questions(seg, pw, u, cap, rho)}
+            rec = {"seed": s, "identity": identity(s), "rho_cap": rho, "tau_demo": u["tau_demo"],
+                   "rho_over_tau": rho / u["tau_demo"], "learned": questions(seg, pw, u, cap, rho)}
             M = int(seg["M"])
             if M:  # exact-dynamics reference segments at the already selected M (reported; not in the decision)
-                g = P1.segments(Exact(), Exact(), u, M, 1)
-                acc = np.flatnonzero(g["accepted"])
-                sid, off = np.repeat(acc, M), np.tile(np.arange(M), len(acc))
-                epw = {"observations": g["X"][sid, off], "actions": g["U"][sid, off][:, None], "segment": sid,
-                       "offset": off}
-                atomic_npz(d / f"exact-segments-s{s}.npz", M=np.array(M), **g)
-                atomic_npz(d / f"exact-pointwise-s{s}.npz", M=np.array(M), **epw)
-                rec["exact_reference"] = questions({"M": np.array(M), **g}, epw, u, cap, rho)
+                ex = {k: d / f"exact-{k}-s{s}.npz" for k in ("segments", "pointwise")}
+                if prior is not None and all(p.exists() and sha(p) == prior.get("exact_sha256", {}).get(k)
+                                             for k, p in ex.items()):
+                    g, epw = dict(np.load(ex["segments"])), dict(np.load(ex["pointwise"]))
+                else:
+                    g = P1.segments(Exact(), Exact(), u, M, 1)
+                    acc = np.flatnonzero(g["accepted"])
+                    sid, off = np.repeat(acc, M), np.tile(np.arange(M), len(acc))
+                    epw = {"observations": g["X"][sid, off], "actions": g["U"][sid, off][:, None], "segment": sid,
+                           "offset": off}
+                    atomic_npz(ex["segments"], M=np.array(M), **g)
+                    atomic_npz(ex["pointwise"], M=np.array(M), **epw)
+                rec["exact_sha256"] = {k: sha(p) for k, p in ex.items()}
+                rec["exact_reference"] = questions({**g, "M": np.array(M)}, epw, u, cap, rho)
             atomic_json(path, rec)
             seeds[s] = rec
             L = rec["learned"]
@@ -199,7 +222,8 @@ def main() -> int:
         decision = "passes" if len(passing) >= MIN_SEEDS else "fails"
     doc = {"phase": 2, "predeclaration": "docs/experiments/pendulum-recovery-diagnostic.md (version 1)",
            "audit_commit": P1.git("rev-parse", "HEAD"), "audit_dirty": bool(P1.git("status", "--porcelain")),
-           "phase1_manifest_sha256": sha(man_p), "phase1_commit": man["code_commit"],
+           "phase1_manifest_sha256": sha(man_p), "phase1_commit": man["code_commit"], "data_sha256": data_sha,
+           "audit_code_sha256": code,
            "capture_sha256": {str(k): v for k, v in CAPTURE_SHA256.items()},
            "selected_M": man["selected_M"], "seeds": {str(s): r for s, r in seeds.items()},
            "seeds_with_enough_uncovered": unc, "passing_seeds": passing, "decision": decision,
