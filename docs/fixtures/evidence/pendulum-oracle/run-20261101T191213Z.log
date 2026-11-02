@@ -1,0 +1,216 @@
+command uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_oracle/check.py --data /home/siddh/code/il-supervision-benchmarks/data/pendulum_cont_corrected.npz --out /home/siddh/code/CCIL/runs/20261101T191213Z-dp-oracle
+commit e7e9f954b90bff7bdda9fd604efec03f79394647 dirty=0
+host siddh cpus 64
+               total        used        free      shared  buff/cache   available
+Mem:             125           6         119           0           0         119
+ 11:12:14 up 9 days,  5:58,  2 users,  load average: 0.10, 0.08, 0.03
+uv 0.13.0 (x86_64-unknown-linux-gnu)
+stall threshold 1800 s; progress every 300 s; completion marker EXIT= and oracle.json
+numpy 2.4.6 scipy 1.16.3 python 3.11.17
+11:12:16 terminal sets {0.001: {'c': 0.00010307755357182513, 'binding': ['input', 'decrease', 'accuracy'], 'accuracy_ratio_min': 0.9998195909193808, 'accuracy_ratio_max': 1.0000000233945021}, 0.01: {'c': 0.001445375202810474, 'binding': ['input', 'decrease', 'accuracy'], 'accuracy_ratio_min': 0.9975363702666303, 'accuracy_ratio_max': 1.0005041841772473}, 0.1: {'c': 0.01656096021687062, 'binding': ['input', 'decrease', 'accuracy'], 'accuracy_ratio_min': 0.9503187547020474, 'accuracy_ratio_max': 1.0347533924483603}, 1.0: {'c': 0.006244436208664533, 'binding': ['accuracy'], 'accuracy_ratio_min': 0.9500239494359526, 'accuracy_ratio_max': 1.0499061852472518}}
+11:12:16 L1 transitions 48200 nodes x 31 actions; boundary grid 56200
+11:12:21 L1 boundary continuation {"0.0": {"omega_max_12": {"exiting_transitions": 11168, "unsupported_transitions": 0, "nodes_with_exits": 512, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 11180, "unsupported_transitions": 0, "nodes_with_exits": 514, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.001": {"omega_max_12": {"exiting_transitions": 11168, "unsupported_transitions": 0, "nodes_with_exits": 512, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 11180, "unsupported_transitions": 0, "nodes_with_exits": 514, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.01": {"omega_max_12": {"exiting_transitions": 11168, "unsupported_transitions": 0, "nodes_with_exits": 512, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 11180, "unsupported_transitions": 0, "nodes_with_exits": 514, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.1": {"omega_max_12": {"exiting_transitions": 11168, "unsupported_transitions": 0, "nodes_with_exits": 512, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 11180, "unsupported_transitions": 0, "nodes_with_exits": 514, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "1.0": {"omega_max_12": {"exiting_transitions": 11168, "unsupported_transitions": 0, "nodes_with_exits": 512, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 11180, "unsupported_transitions": 0, "nodes_with_exits": 514, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}}
+11:12:24 L1 beta 0.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:12:26 L1 beta 0.001 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:12:29 L1 beta 0.01 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:12:31 L1 beta 0.1 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:12:33 L1 beta 1.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:13:42 L1 beta 0.0 {"lower": {"iterations": 728, "stopped": true, "last_change": 9.936229616869241e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 532, "stopped": true, "last_change": 9.875833484329632e-11}, "bellman_residual_R": 9.304867987225407e-11, "initialization_gap_R": 3.5676657184069427e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.029637226404372, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.0064865607617435e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:13:47 L1 beta 0.001 {"lower": {"iterations": 723, "stopped": true, "last_change": 9.633271957909528e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 531, "stopped": true, "last_change": 9.515765952983202e-11}, "bellman_residual_R": 9.018341629030147e-11, "initialization_gap_R": 3.419884819777508e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.029637226404372, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.0072498390911733e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:13:51 L1 beta 0.01 {"lower": {"iterations": 682, "stopped": true, "last_change": 9.934364442187871e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 517, "stopped": true, "last_change": 9.878942108798583e-11}, "bellman_residual_R": 9.28777055264618e-11, "initialization_gap_R": 3.417429006447037e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.029637226404372, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.0145356776902759e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:13:55 L1 beta 0.1 {"lower": {"iterations": 531, "stopped": true, "last_change": 9.811174095375463e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 447, "stopped": true, "last_change": 9.60684864992345e-11}, "bellman_residual_R": 9.14734954449159e-11, "initialization_gap_R": 2.919911867849123e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.737870787730063, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 9.822698210371072e-14, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:13:59 L1 beta 1.0 {"lower": {"iterations": 461, "stopped": true, "last_change": 9.811529366743343e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 404, "stopped": true, "last_change": 9.726797145503951e-11}, "bellman_residual_R": 9.012524060381111e-11, "initialization_gap_R": 2.1737251998388274e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.443216861560556, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.8885440849350537e-10, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:13:59 L2 transitions 192400 nodes x 61 actions; boundary grid 224400
+11:14:17 L2 boundary continuation {"0.0": {"omega_max_12": {"exiting_transitions": 74116, "unsupported_transitions": 0, "nodes_with_exits": 1776, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 74132, "unsupported_transitions": 0, "nodes_with_exits": 1778, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.001": {"omega_max_12": {"exiting_transitions": 74116, "unsupported_transitions": 0, "nodes_with_exits": 1776, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 74132, "unsupported_transitions": 0, "nodes_with_exits": 1778, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.01": {"omega_max_12": {"exiting_transitions": 74116, "unsupported_transitions": 0, "nodes_with_exits": 1776, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 74132, "unsupported_transitions": 0, "nodes_with_exits": 1778, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.1": {"omega_max_12": {"exiting_transitions": 74116, "unsupported_transitions": 0, "nodes_with_exits": 1776, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 74132, "unsupported_transitions": 0, "nodes_with_exits": 1778, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "1.0": {"omega_max_12": {"exiting_transitions": 74116, "unsupported_transitions": 0, "nodes_with_exits": 1776, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 74132, "unsupported_transitions": 0, "nodes_with_exits": 1778, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}}
+11:14:20 L2 beta 0.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:14:23 L2 beta 0.001 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:14:26 L2 beta 0.01 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:14:29 L2 beta 0.1 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:14:32 L2 beta 1.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}
+11:19:33 L2 value iterations 3/15 jobs done, 300 s
+11:19:33 L2 lower beta 0.0 iteration 527 change 3.380e-08 300 s
+11:19:33 L2 upper beta 0.01 iteration 431 change 3.153e-09 300 s
+11:19:33 L2 lower beta 0.001 iteration 519 change 4.561e-08 300 s
+11:19:33 L2 lower beta 0.1 iteration 481 change 7.509e-10 300 s
+11:19:33 L2 upper beta 0.0 iteration 435 change 5.058e-09 300 s
+11:19:33 L2 lower beta 0.01 iteration 442 change 2.264e-07 300 s
+11:19:33 L2 boundary beta 0.0 iteration 396 change 5.797e-07 300 s
+11:19:33 L2 boundary beta 0.01 iteration 398 change 4.667e-07 300 s
+11:19:33 L2 boundary beta 0.001 iteration 372 change 1.441e-06 300 s
+11:19:34 L2 boundary beta 0.1 iteration 446 change 1.045e-08 300 s
+11:19:34 L2 upper beta 0.001 iteration 439 change 3.809e-09 301 s
+11:19:34 L2 boundary beta 1.0 iteration 416 change 1.069e-02 301 s
+11:22:50 L2 beta 0.0 {"lower": {"iterations": 615, "stopped": true, "last_change": 9.46953626623781e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 516, "stopped": true, "last_change": 9.909451037515282e-11}, "bellman_residual_R": 8.843015208981342e-11, "initialization_gap_R": 3.3123512821475742e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.531239833201743, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.644379077347935e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:23:56 L2 beta 0.001 {"lower": {"iterations": 612, "stopped": true, "last_change": 9.591349936499682e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 514, "stopped": true, "last_change": 9.862466399113146e-11}, "bellman_residual_R": 8.953726648996962e-11, "initialization_gap_R": 3.3079197159224805e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.524857262070329, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.6474321906656542e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:24:57 L2 beta 0.01 {"lower": {"iterations": 592, "stopped": true, "last_change": 9.509903975413181e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 501, "stopped": true, "last_change": 9.984724158584868e-11}, "bellman_residual_R": 8.860023825718599e-11, "initialization_gap_R": 3.2715803399696597e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.502097865835339, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.662558979376172e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:25:48 L2 beta 0.1 {"lower": {"iterations": 508, "stopped": true, "last_change": 9.669953726643143e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 459, "stopped": true, "last_change": 9.787481936029963e-11}, "bellman_residual_R": 8.962919295640859e-11, "initialization_gap_R": 1.750291023228101e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.876940958216931, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 1.6095458299503207e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:26:50 L2 beta 1.0 {"lower": {"iterations": 371, "stopped": true, "last_change": 9.600586992064564e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 316, "stopped": true, "last_change": 9.585932048139512e-11}, "bellman_residual_R": 8.104006354869853e-11, "initialization_gap_R": 9.924470134592411e-10, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.44921197198237, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.029637226404372}, "boundary_max_rel_R": 9.299302659740713e-11, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+11:26:51 convergence L1-L2 False
+11:26:51 L3 transitions 768800 nodes x 121 actions; boundary grid 896800
+11:28:49 L3 boundary continuation {"0.0": {"omega_max_12": {"exiting_transitions": 539118, "unsupported_transitions": 0, "nodes_with_exits": 6604, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 538772, "unsupported_transitions": 0, "nodes_with_exits": 6600, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.001": {"omega_max_12": {"exiting_transitions": 539118, "unsupported_transitions": 0, "nodes_with_exits": 6604, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 538772, "unsupported_transitions": 0, "nodes_with_exits": 6600, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.01": {"omega_max_12": {"exiting_transitions": 539118, "unsupported_transitions": 0, "nodes_with_exits": 6604, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 538772, "unsupported_transitions": 0, "nodes_with_exits": 6600, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "0.1": {"omega_max_12": {"exiting_transitions": 539118, "unsupported_transitions": 0, "nodes_with_exits": 6604, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 538772, "unsupported_transitions": 0, "nodes_with_exits": 6600, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}, "1.0": {"omega_max_12": {"exiting_transitions": 539118, "unsupported_transitions": 0, "nodes_with_exits": 6604, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}, "omega_max_14": {"exiting_transitions": 538772, "unsupported_transitions": 0, "nodes_with_exits": 6600, "nodes_all_unsupported": 0, "unsupported_min_abs_omega": null}}}
+11:28:56 L3 beta 0.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}
+11:29:02 L3 beta 0.001 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}
+11:29:09 L3 beta 0.01 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}
+11:29:15 L3 beta 0.1 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}
+11:29:21 L3 beta 1.0 demonstrator from R {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}
+11:34:29 L3 value iterations 0/15 jobs done, 301 s
+11:34:33 L3 lower beta 0.0 iteration 57 change 2.000e-02 301 s
+11:34:34 L3 lower beta 0.001 iteration 53 change 2.000e-02 301 s
+11:34:34 L3 upper beta 0.01 iteration 55 change 8.566e-02 300 s
+11:34:34 L3 upper beta 0.0 iteration 55 change 9.129e-02 302 s
+11:34:34 L3 boundary beta 0.01 iteration 45 change 2.000e-02 300 s
+11:34:35 L3 lower beta 0.01 iteration 58 change 2.000e-02 301 s
+11:34:35 L3 upper beta 0.1 iteration 57 change 5.610e-02 302 s
+11:34:36 L3 boundary beta 0.1 iteration 47 change 2.000e-02 302 s
+11:34:36 L3 lower beta 1.0 iteration 56 change 2.000e-02 302 s
+11:34:36 L3 lower beta 0.1 iteration 58 change 2.000e-02 302 s
+11:34:36 L3 boundary beta 0.0 iteration 52 change 2.000e-02 304 s
+11:34:37 L3 upper beta 0.001 iteration 53 change 9.303e-02 303 s
+11:34:38 L3 upper beta 1.0 iteration 58 change 7.903e-02 305 s
+11:34:38 L3 boundary beta 1.0 iteration 47 change 2.000e-02 304 s
+11:34:38 L3 boundary beta 0.001 iteration 52 change 2.000e-02 305 s
+11:39:29 L3 value iterations 0/15 jobs done, 601 s
+11:39:36 L3 lower beta 0.0 iteration 117 change 1.992e-02 604 s
+11:39:36 L3 lower beta 0.001 iteration 106 change 1.997e-02 603 s
+11:39:36 L3 lower beta 0.01 iteration 111 change 1.996e-02 603 s
+11:39:37 L3 upper beta 0.0 iteration 108 change 5.789e-02 606 s
+11:39:38 L3 upper beta 0.01 iteration 108 change 5.240e-02 604 s
+11:39:38 L3 boundary beta 0.01 iteration 94 change 1.999e-02 604 s
+11:39:38 L3 lower beta 0.1 iteration 118 change 1.995e-02 605 s
+11:39:39 L3 upper beta 0.1 iteration 113 change 3.183e-02 606 s
+11:39:40 L3 upper beta 1.0 iteration 117 change 4.280e-02 607 s
+11:39:40 L3 upper beta 0.001 iteration 106 change 5.853e-02 606 s
+11:39:40 L3 lower beta 1.0 iteration 109 change 2.000e-02 607 s
+11:39:41 L3 boundary beta 0.0 iteration 104 change 1.998e-02 609 s
+11:39:42 L3 boundary beta 0.1 iteration 99 change 1.997e-02 608 s
+11:39:43 L3 boundary beta 1.0 iteration 93 change 2.000e-02 610 s
+11:39:44 L3 boundary beta 0.001 iteration 104 change 1.998e-02 610 s
+11:44:29 L3 value iterations 0/15 jobs done, 901 s
+11:44:37 L3 lower beta 0.0 iteration 177 change 1.652e-02 905 s
+11:44:38 L3 lower beta 0.001 iteration 159 change 1.919e-02 905 s
+11:44:40 L3 lower beta 0.01 iteration 164 change 1.883e-02 907 s
+11:44:40 L3 lower beta 1.0 iteration 167 change 2.000e-02 907 s
+11:44:40 L3 upper beta 0.0 iteration 161 change 3.300e-02 909 s
+11:44:41 L3 lower beta 0.1 iteration 178 change 1.635e-02 907 s
+11:44:41 L3 boundary beta 0.0 iteration 155 change 1.949e-02 909 s
+11:44:42 L3 upper beta 0.01 iteration 161 change 3.045e-02 909 s
+11:44:43 L3 upper beta 1.0 iteration 171 change 5.601e-03 910 s
+11:44:43 L3 boundary beta 0.01 iteration 146 change 1.973e-02 909 s
+11:44:43 L3 upper beta 0.1 iteration 166 change 1.552e-02 910 s
+11:44:44 L3 boundary beta 0.1 iteration 144 change 1.990e-02 910 s
+11:44:45 L3 upper beta 0.001 iteration 159 change 3.651e-02 912 s
+11:44:49 L3 boundary beta 1.0 iteration 145 change 2.000e-02 915 s
+11:44:49 L3 boundary beta 0.001 iteration 156 change 1.946e-02 916 s
+11:49:29 L3 value iterations 0/15 jobs done, 1201 s
+11:49:39 L3 lower beta 0.001 iteration 212 change 6.184e-03 1206 s
+11:49:39 L3 lower beta 0.0 iteration 237 change 2.025e-03 1207 s
+11:49:42 L3 lower beta 0.1 iteration 238 change 1.490e-03 1209 s
+11:49:42 L3 upper beta 0.0 iteration 214 change 5.476e-04 1211 s
+11:49:42 L3 lower beta 0.01 iteration 217 change 5.027e-03 1209 s
+11:49:42 L3 lower beta 1.0 iteration 227 change 1.999e-02 1209 s
+11:49:45 L3 upper beta 1.0 iteration 224 change 1.356e-04 1212 s
+11:49:45 L3 upper beta 0.01 iteration 214 change 5.264e-04 1212 s
+11:49:46 L3 boundary beta 0.0 iteration 207 change 7.701e-03 1214 s
+11:49:47 L3 boundary beta 0.01 iteration 198 change 9.961e-03 1213 s
+11:49:47 L3 upper beta 0.1 iteration 222 change 1.623e-04 1214 s
+11:49:48 L3 upper beta 0.001 iteration 212 change 6.339e-04 1215 s
+11:49:50 L3 boundary beta 0.1 iteration 190 change 1.244e-02 1216 s
+11:49:51 L3 boundary beta 1.0 iteration 194 change 1.999e-02 1218 s
+11:49:54 L3 boundary beta 0.001 iteration 208 change 7.438e-03 1220 s
+11:54:29 L3 value iterations 1/15 jobs done, 1501 s
+11:54:40 L3 lower beta 0.001 iteration 265 change 4.094e-04 1507 s
+11:54:44 L3 lower beta 1.0 iteration 288 change 1.209e-02 1510 s
+11:54:44 L3 lower beta 0.1 iteration 299 change 3.235e-05 1510 s
+11:54:44 L3 lower beta 0.0 iteration 295 change 6.451e-05 1512 s
+11:54:44 L3 upper beta 0.0 iteration 272 change 2.385e-05 1513 s
+11:54:45 L3 lower beta 0.01 iteration 271 change 2.799e-04 1512 s
+11:54:47 L3 upper beta 0.01 iteration 267 change 2.366e-05 1514 s
+11:54:50 L3 boundary beta 0.01 iteration 251 change 9.747e-04 1516 s
+11:54:51 L3 upper beta 0.001 iteration 268 change 2.858e-05 1517 s
+11:54:51 L3 upper beta 0.1 iteration 281 change 5.620e-06 1518 s
+11:54:51 L3 boundary beta 0.0 iteration 254 change 8.053e-04 1519 s
+11:54:55 L3 boundary beta 1.0 iteration 242 change 1.998e-02 1522 s
+11:54:55 L3 boundary beta 0.1 iteration 238 change 1.490e-03 1521 s
+11:55:00 L3 boundary beta 0.001 iteration 257 change 6.810e-04 1526 s
+11:59:29 L3 value iterations 1/15 jobs done, 1801 s
+11:59:41 L3 lower beta 0.001 iteration 324 change 1.311e-05 1808 s
+11:59:44 L3 lower beta 0.1 iteration 367 change 4.657e-07 1810 s
+11:59:44 L3 lower beta 1.0 iteration 350 change 1.066e-02 1811 s
+11:59:47 L3 lower beta 0.0 iteration 354 change 3.003e-06 1815 s
+11:59:48 L3 lower beta 0.01 iteration 324 change 1.093e-05 1815 s
+11:59:48 L3 upper beta 0.0 iteration 341 change 1.000e-06 1817 s
+11:59:51 L3 upper beta 0.01 iteration 323 change 1.826e-06 1818 s
+11:59:52 L3 boundary beta 0.0 iteration 299 change 5.111e-05 1820 s
+11:59:54 L3 boundary beta 0.01 iteration 310 change 2.481e-05 1820 s
+11:59:54 L3 upper beta 0.1 iteration 340 change 7.046e-07 1821 s
+11:59:54 L3 upper beta 0.001 iteration 321 change 2.021e-06 1821 s
+11:59:58 L3 boundary beta 1.0 iteration 301 change 1.240e-02 1825 s
+12:00:00 L3 boundary beta 0.001 iteration 302 change 4.279e-05 1827 s
+12:00:01 L3 boundary beta 0.1 iteration 284 change 8.865e-05 1827 s
+12:04:29 L3 value iterations 2/15 jobs done, 2101 s
+12:04:43 L3 lower beta 0.001 iteration 377 change 1.002e-06 2110 s
+12:04:47 L3 lower beta 0.0 iteration 408 change 3.430e-07 2115 s
+12:04:48 L3 lower beta 0.1 iteration 443 change 6.825e-09 2114 s
+12:04:51 L3 upper beta 0.0 iteration 417 change 6.892e-08 2119 s
+12:04:51 L3 lower beta 0.01 iteration 377 change 7.786e-07 2118 s
+12:04:54 L3 upper beta 0.01 iteration 399 change 1.259e-07 2121 s
+12:04:55 L3 upper beta 0.001 iteration 394 change 1.548e-07 2121 s
+12:04:57 L3 upper beta 0.1 iteration 393 change 1.091e-07 2124 s
+12:04:58 L3 boundary beta 0.0 iteration 345 change 4.657e-06 2126 s
+12:04:58 L3 boundary beta 0.01 iteration 359 change 1.715e-06 2124 s
+12:05:00 L3 boundary beta 1.0 iteration 347 change 1.141e-02 2126 s
+12:05:02 L3 boundary beta 0.1 iteration 346 change 1.275e-06 2128 s
+12:05:06 L3 boundary beta 0.001 iteration 349 change 3.685e-06 2133 s
+12:09:29 L3 value iterations 2/15 jobs done, 2401 s
+12:09:45 L3 lower beta 0.001 iteration 430 change 1.732e-07 2412 s
+12:09:48 L3 lower beta 0.1 iteration 519 change 4.704e-10 2415 s
+12:09:50 L3 lower beta 0.0 iteration 461 change 4.186e-08 2418 s
+12:09:54 L3 upper beta 0.01 iteration 475 change 8.675e-09 2421 s
+12:09:54 L3 lower beta 0.01 iteration 444 change 6.936e-08 2421 s
+12:09:55 L3 upper beta 0.0 iteration 482 change 6.996e-09 2423 s
+12:09:55 L3 upper beta 0.001 iteration 451 change 2.082e-08 2421 s
+12:10:00 L3 upper beta 0.1 iteration 446 change 1.689e-08 2427 s
+12:10:05 L3 boundary beta 0.01 iteration 405 change 3.204e-07 2431 s
+12:10:05 L3 boundary beta 0.0 iteration 391 change 6.058e-07 2433 s
+12:10:06 L3 boundary beta 1.0 iteration 403 change 1.072e-02 2432 s
+12:10:06 L3 boundary beta 0.1 iteration 412 change 3.369e-08 2432 s
+12:10:09 L3 boundary beta 0.001 iteration 400 change 4.360e-07 2436 s
+12:14:29 L3 value iterations 3/15 jobs done, 2701 s
+12:14:48 L3 lower beta 0.001 iteration 483 change 7.820e-09 2715 s
+12:14:51 L3 lower beta 0.0 iteration 536 change 1.211e-10 2719 s
+12:14:55 L3 upper beta 0.01 iteration 529 change 1.297e-09 2721 s
+12:14:57 L3 upper beta 0.0 iteration 542 change 8.467e-10 2725 s
+12:14:58 L3 upper beta 0.001 iteration 504 change 3.225e-09 2724 s
+12:14:58 L3 lower beta 0.01 iteration 517 change 2.185e-10 2725 s
+12:15:02 L3 upper beta 0.1 iteration 499 change 2.616e-09 2729 s
+12:15:08 L3 boundary beta 0.01 iteration 451 change 4.518e-08 2734 s
+12:15:09 L3 boundary beta 0.1 iteration 479 change 1.922e-09 2735 s
+12:15:10 L3 boundary beta 0.0 iteration 437 change 1.404e-07 2738 s
+12:15:13 L3 boundary beta 0.001 iteration 467 change 2.634e-08 2740 s
+12:19:29 L3 value iterations 6/15 jobs done, 3001 s
+12:19:59 L3 upper beta 0.001 iteration 558 change 4.820e-10 3025 s
+12:19:59 L3 upper beta 0.01 iteration 584 change 1.872e-10 3026 s
+12:20:02 L3 upper beta 0.0 iteration 601 change 1.062e-10 3030 s
+12:20:02 L3 upper beta 0.1 iteration 552 change 4.051e-10 3029 s
+12:20:10 L3 boundary beta 0.01 iteration 516 change 2.374e-10 3036 s
+12:20:11 L3 boundary beta 0.1 iteration 526 change 3.676e-10 3037 s
+12:20:14 L3 boundary beta 0.0 iteration 483 change 8.533e-09 3042 s
+12:20:18 L3 boundary beta 0.001 iteration 516 change 5.294e-10 3044 s
+12:29:33 oracle rollouts beta 0.0 58/84 jobs done, 312 s
+12:35:59 oracle rollouts beta 0.0 51/84 jobs done, 312 s
+12:37:39 L3 beta 0.0 {"lower": {"iterations": 539, "stopped": true, "last_change": 9.626255348393897e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 603, "stopped": true, "last_change": 9.893573460484362e-11}, "bellman_residual_R": 8.919887051206388e-11, "initialization_gap_R": 3.267651718652509e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.686149968489962, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}, "boundary_max_rel_R": 2.0711210524382295e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+12:42:52 oracle rollouts beta 0.001 53/84 jobs done, 312 s
+12:49:40 oracle rollouts beta 0.001 51/84 jobs done, 312 s
+12:51:25 L3 beta 0.001 {"lower": {"iterations": 538, "stopped": true, "last_change": 9.39368582919542e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 603, "stopped": true, "last_change": 9.891470975631478e-11}, "bellman_residual_R": 8.700329345856517e-11, "initialization_gap_R": 3.3339041111135614e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.684865979459769, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}, "boundary_max_rel_R": 2.0761170560490427e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+12:56:38 oracle rollouts beta 0.01 60/84 jobs done, 312 s
+13:02:55 oracle rollouts beta 0.01 58/84 jobs done, 312 s
+13:04:06 L3 beta 0.01 {"lower": {"iterations": 527, "stopped": true, "last_change": 9.60844737107891e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 602, "stopped": true, "last_change": 9.933033562337101e-11}, "bellman_residual_R": 8.856293476355859e-11, "initialization_gap_R": 4.1656218405239365e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 9.674984561209822, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}, "boundary_max_rel_R": 2.116640196447861e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+13:09:19 oracle rollouts beta 0.1 79/84 jobs done, 312 s
+13:14:38 oracle rollouts beta 0.1 78/84 jobs done, 312 s
+13:14:48 L3 beta 0.1 {"lower": {"iterations": 563, "stopped": true, "last_change": 9.997311312126556e-11, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 592, "stopped": true, "last_change": 9.91164927910404e-11}, "bellman_residual_R": 9.651576760028036e-11, "initialization_gap_R": 5.557806409539623e-09, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.916820886220396, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}, "boundary_max_rel_R": 2.2004620348070603e-13, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+13:20:01 oracle rollouts beta 1.0 53/84 jobs done, 312 s
+13:26:45 oracle rollouts beta 1.0 55/84 jobs done, 312 s
+13:28:14 L3 beta 1.0 {"lower": {"iterations": 354, "stopped": true, "last_change": 1.4210854715202004e-14, "monotone": true, "worst_drop": 0.0}, "upper": {"iterations": 267, "stopped": true, "last_change": 7.963141257505413e-11}, "bellman_residual_R": 9.769962616701378e-15, "initialization_gap_R": 1.8288570657887249e-10, "unreachable_R": 0, "greedy_unreached_R": 0, "greedy_recurrence_min_distance": null, "greedy_margin_violations_R": 0, "greedy_max_abs_omega_R": 8.44875598511375, "demonstrator": {"unreached_R": 1, "lookahead_recovered_R": 1, "margin_violations_R": 0, "max_abs_omega_R": 8.0296435453736}, "boundary_max_rel_R": 2.942091015256665e-14, "boundary_reachability_mismatch_R": 0, "boundary_action_mismatch_R": 0, "boundary_greedy_unreached_R": 0, "boundary_greedy_margin_violations_R": 0, "boundary_trajectory_cost_mismatch_R": 0, "boundary_trajectory_cost_max_rel_R": 0.0, "pass": true}
+13:28:16 convergence L2-L3 False
+13:28:17 stopped: not converged: the L2-L3 rule fails
+EXIT=1
