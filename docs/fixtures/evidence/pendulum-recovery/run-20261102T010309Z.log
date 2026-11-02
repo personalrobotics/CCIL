@@ -1,0 +1,139 @@
+command: uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_recovery/generate.py --data /home/siddh/code/il-supervision-benchmarks/data/pendulum_cont_corrected.npz --out /home/siddh/code/CCIL/runs/20261102T010309Z-recovery-diagnostic --device cuda; then audit.py --data /home/siddh/code/il-supervision-benchmarks/data/pendulum_cont_corrected.npz --phase1 /home/siddh/code/CCIL/runs/20261102T010309Z-recovery-diagnostic --capture /home/siddh/code/il-supervision-benchmarks/runs/20261102T003101Z-capture-control
+commit 468b921e5f37332cf9bff34691b744d24043da4e dirty=0
+host siddh cpus 64
+               total        used        free      shared  buff/cache   available
+Mem:             125           6         112           0           7         119
+NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition, 455 MiB
+NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition, 15 MiB
+ 17:03:09 up 9 days, 11:49,  2 users,  load average: 0.00, 0.07, 0.59
+uv 0.13.0 (x86_64-unknown-linux-gnu)
+seeds 3311-3320; stall threshold 1800 s; heartbeat every 300 s; completion markers manifest.json (phase 1), audit/audit.json (phase 2), EXIT=
+numpy 2.4.6 scipy 1.16.3 torch 2.14.1+cu130 cuda True python 3.11.17
+17:03:12 data ready {3311: 0.0536, 3312: 0.1146, 3313: 0.0864, 3314: 0.1613, 3315: 0.0435, 3316: 0.0582, 3317: 0.0461, 3318: 0.246, 3319: 0.0503, 3320: 0.3157}
+17:03:32 fit 20 transition models done, 19 s
+17:03:32 models ready 20
+17:03:32 probe 3311 M=1 {"acceptance": 1.0, "degeneracy": 0.0249, "epsilon_M": 0.0007, "kappa_M": 0.0032, "eta_reach": 0.0606, "admissible": false}
+17:03:32 probe 3311 M=2 {"acceptance": 1.0, "degeneracy": 0.0092, "epsilon_M": 0.0014, "kappa_M": 0.0065, "eta_reach": 0.1215, "admissible": false}
+17:03:32 probe 3311 M=4 {"acceptance": 1.0, "degeneracy": 0.0034, "epsilon_M": 0.0027, "kappa_M": 0.0124, "eta_reach": 0.2269, "admissible": false}
+17:03:33 probe 3311 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.005, "kappa_M": 0.0236, "eta_reach": 0.3958, "admissible": false}
+17:03:33 probe 3311 M=16 {"acceptance": 0.9994, "degeneracy": 0.0, "epsilon_M": 0.0094, "kappa_M": 0.0425, "eta_reach": 0.6612, "admissible": false}
+17:03:34 probe 3311 M=32 {"acceptance": 0.9702, "degeneracy": 0.0, "epsilon_M": 0.0186, "kappa_M": 0.1054, "eta_reach": 0.8672, "admissible": false}
+17:03:34 probe 3311 selected M None
+17:03:34 probe s3311 (1 of 10) done, 2 s
+17:03:34 probe 3312 M=1 {"acceptance": 1.0, "degeneracy": 0.0091, "epsilon_M": 0.0009, "kappa_M": 0.0022, "eta_reach": 0.026, "admissible": false}
+17:03:34 probe 3312 M=2 {"acceptance": 1.0, "degeneracy": 0.0057, "epsilon_M": 0.0017, "kappa_M": 0.0044, "eta_reach": 0.0506, "admissible": false}
+17:03:34 probe 3312 M=4 {"acceptance": 1.0, "degeneracy": 0.0014, "epsilon_M": 0.0033, "kappa_M": 0.0089, "eta_reach": 0.0935, "admissible": false}
+17:03:34 probe 3312 M=8 {"acceptance": 1.0, "degeneracy": 0.0005, "epsilon_M": 0.0063, "kappa_M": 0.0181, "eta_reach": 0.1616, "admissible": false}
+17:03:34 probe 3312 M=16 {"acceptance": 0.9995, "degeneracy": 0.0004, "epsilon_M": 0.0118, "kappa_M": 0.0367, "eta_reach": 0.2595, "admissible": false}
+17:03:35 probe 3312 M=32 {"acceptance": 0.9693, "degeneracy": 0.0001, "epsilon_M": 0.0213, "kappa_M": 0.0845, "eta_reach": 0.3654, "admissible": false}
+17:03:35 probe 3312 selected M None
+17:03:35 probe s3312 (2 of 10) done, 1 s
+17:03:35 probe 3313 M=1 {"acceptance": 1.0, "degeneracy": 0.0013, "epsilon_M": 0.0011, "kappa_M": 0.0027, "eta_reach": 0.0383, "admissible": false}
+17:03:35 probe 3313 M=2 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0021, "kappa_M": 0.0052, "eta_reach": 0.075, "admissible": false}
+17:03:35 probe 3313 M=4 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0043, "kappa_M": 0.0107, "eta_reach": 0.1446, "admissible": false}
+17:03:35 probe 3313 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0084, "kappa_M": 0.0241, "eta_reach": 0.2551, "admissible": false}
+17:03:36 probe 3313 M=16 {"acceptance": 0.9995, "degeneracy": 0.0, "epsilon_M": 0.0157, "kappa_M": 0.0598, "eta_reach": 0.4047, "admissible": false}
+17:03:36 probe 3313 M=32 {"acceptance": 0.9695, "degeneracy": 0.0, "epsilon_M": 0.0259, "kappa_M": 0.2162, "eta_reach": 0.5479, "admissible": false}
+17:03:36 probe 3313 selected M None
+17:03:36 probe s3313 (3 of 10) done, 1 s
+17:03:36 probe 3314 M=1 {"acceptance": 1.0, "degeneracy": 0.0119, "epsilon_M": 0.0016, "kappa_M": 0.0037, "eta_reach": 0.0239, "admissible": false}
+17:03:36 probe 3314 M=2 {"acceptance": 1.0, "degeneracy": 0.0024, "epsilon_M": 0.0031, "kappa_M": 0.0078, "eta_reach": 0.0481, "admissible": false}
+17:03:37 probe 3314 M=4 {"acceptance": 1.0, "degeneracy": 0.0003, "epsilon_M": 0.006, "kappa_M": 0.0151, "eta_reach": 0.0871, "admissible": false}
+17:03:37 probe 3314 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0119, "kappa_M": 0.032, "eta_reach": 0.1491, "admissible": false}
+17:03:37 probe 3314 M=16 {"acceptance": 0.9992, "degeneracy": 0.0, "epsilon_M": 0.0248, "kappa_M": 0.0722, "eta_reach": 0.2582, "admissible": false}
+17:03:38 probe 3314 M=32 {"acceptance": 0.9766, "degeneracy": 0.0, "epsilon_M": 0.0613, "kappa_M": 0.1813, "eta_reach": 0.3701, "admissible": false}
+17:03:38 probe 3314 selected M None
+17:03:38 probe s3314 (4 of 10) done, 1 s
+17:03:38 probe 3315 M=1 {"acceptance": 1.0, "degeneracy": 0.0144, "epsilon_M": 0.0006, "kappa_M": 0.0017, "eta_reach": 0.0685, "admissible": false}
+17:03:38 probe 3315 M=2 {"acceptance": 1.0, "degeneracy": 0.0024, "epsilon_M": 0.0011, "kappa_M": 0.0034, "eta_reach": 0.1285, "admissible": false}
+17:03:38 probe 3315 M=4 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0023, "kappa_M": 0.0069, "eta_reach": 0.243, "admissible": false}
+17:03:38 probe 3315 M=8 {"acceptance": 1.0, "degeneracy": 0.0001, "epsilon_M": 0.0043, "kappa_M": 0.0147, "eta_reach": 0.4225, "admissible": false}
+17:03:38 probe 3315 M=16 {"acceptance": 0.9996, "degeneracy": 0.0, "epsilon_M": 0.0088, "kappa_M": 0.037, "eta_reach": 0.6688, "admissible": false}
+17:03:39 probe 3315 M=32 {"acceptance": 0.9134, "degeneracy": 0.0, "epsilon_M": 0.0207, "kappa_M": 0.1226, "eta_reach": 0.889, "admissible": false}
+17:03:39 probe 3315 selected M None
+17:03:39 probe s3315 (5 of 10) done, 1 s
+17:03:39 probe 3316 M=1 {"acceptance": 1.0, "degeneracy": 0.0135, "epsilon_M": 0.0006, "kappa_M": 0.0035, "eta_reach": 0.0568, "admissible": false}
+17:03:39 probe 3316 M=2 {"acceptance": 1.0, "degeneracy": 0.0051, "epsilon_M": 0.0012, "kappa_M": 0.0072, "eta_reach": 0.1114, "admissible": false}
+17:03:39 probe 3316 M=4 {"acceptance": 1.0, "degeneracy": 0.0016, "epsilon_M": 0.0023, "kappa_M": 0.0154, "eta_reach": 0.2098, "admissible": false}
+17:03:40 probe 3316 M=8 {"acceptance": 1.0, "degeneracy": 0.0003, "epsilon_M": 0.0043, "kappa_M": 0.0318, "eta_reach": 0.3647, "admissible": false}
+17:03:40 probe 3316 M=16 {"acceptance": 0.9996, "degeneracy": 0.0, "epsilon_M": 0.0075, "kappa_M": 0.0846, "eta_reach": 0.5838, "admissible": false}
+17:03:40 probe 3316 M=32 {"acceptance": 0.975, "degeneracy": 0.0, "epsilon_M": 0.0127, "kappa_M": 0.2781, "eta_reach": 0.817, "admissible": false}
+17:03:40 probe 3316 selected M None
+17:03:40 probe s3316 (6 of 10) done, 1 s
+17:03:40 probe 3317 M=1 {"acceptance": 1.0, "degeneracy": 0.0116, "epsilon_M": 0.0005, "kappa_M": 0.0027, "eta_reach": 0.0727, "admissible": false}
+17:03:41 probe 3317 M=2 {"acceptance": 1.0, "degeneracy": 0.0036, "epsilon_M": 0.0011, "kappa_M": 0.0051, "eta_reach": 0.1404, "admissible": false}
+17:03:41 probe 3317 M=4 {"acceptance": 1.0, "degeneracy": 0.0021, "epsilon_M": 0.0021, "kappa_M": 0.0096, "eta_reach": 0.2588, "admissible": false}
+17:03:41 probe 3317 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.004, "kappa_M": 0.0167, "eta_reach": 0.4491, "admissible": false}
+17:03:41 probe 3317 M=16 {"acceptance": 0.999, "degeneracy": 0.0, "epsilon_M": 0.0073, "kappa_M": 0.0275, "eta_reach": 0.7295, "admissible": false}
+17:03:42 probe 3317 M=32 {"acceptance": 0.9384, "degeneracy": 0.0001, "epsilon_M": 0.0123, "kappa_M": 0.0602, "eta_reach": 0.9674, "admissible": false}
+17:03:42 probe 3317 selected M None
+17:03:42 probe s3317 (7 of 10) done, 1 s
+17:03:42 probe 3318 M=1 {"acceptance": 1.0, "degeneracy": 0.0279, "epsilon_M": 0.0017, "kappa_M": 0.0026, "eta_reach": 0.0149, "admissible": false}
+17:03:42 probe 3318 M=2 {"acceptance": 1.0, "degeneracy": 0.0064, "epsilon_M": 0.0033, "kappa_M": 0.0053, "eta_reach": 0.0287, "admissible": false}
+17:03:42 probe 3318 M=4 {"acceptance": 1.0, "degeneracy": 0.0003, "epsilon_M": 0.0065, "kappa_M": 0.0101, "eta_reach": 0.0505, "admissible": false}
+17:03:42 probe 3318 M=8 {"acceptance": 1.0, "degeneracy": 0.0001, "epsilon_M": 0.0114, "kappa_M": 0.0194, "eta_reach": 0.0931, "admissible": false}
+17:03:42 probe 3318 M=16 {"acceptance": 0.9989, "degeneracy": 0.0018, "epsilon_M": 0.023, "kappa_M": 0.0351, "eta_reach": 0.1496, "admissible": false}
+17:03:43 probe 3318 M=32 {"acceptance": 0.9565, "degeneracy": 0.0, "epsilon_M": 0.0366, "kappa_M": 0.0739, "eta_reach": 0.2141, "admissible": false}
+17:03:43 probe 3318 selected M None
+17:03:43 probe s3318 (8 of 10) done, 1 s
+17:03:43 probe 3319 M=1 {"acceptance": 1.0, "degeneracy": 0.0029, "epsilon_M": 0.0009, "kappa_M": 0.0019, "eta_reach": 0.0661, "admissible": false}
+17:03:43 probe 3319 M=2 {"acceptance": 1.0, "degeneracy": 0.002, "epsilon_M": 0.0018, "kappa_M": 0.0037, "eta_reach": 0.1206, "admissible": false}
+17:03:43 probe 3319 M=4 {"acceptance": 1.0, "degeneracy": 0.0001, "epsilon_M": 0.0036, "kappa_M": 0.0077, "eta_reach": 0.2274, "admissible": false}
+17:03:44 probe 3319 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.007, "kappa_M": 0.0145, "eta_reach": 0.4171, "admissible": false}
+17:03:44 probe 3319 M=16 {"acceptance": 0.9992, "degeneracy": 0.0001, "epsilon_M": 0.0122, "kappa_M": 0.0323, "eta_reach": 0.6747, "admissible": false}
+17:03:44 probe 3319 M=32 {"acceptance": 0.917, "degeneracy": 0.0, "epsilon_M": 0.0187, "kappa_M": 0.1017, "eta_reach": 0.8747, "admissible": false}
+17:03:44 probe 3319 selected M None
+17:03:44 probe s3319 (9 of 10) done, 1 s
+17:03:44 probe 3320 M=1 {"acceptance": 1.0, "degeneracy": 0.0034, "epsilon_M": 0.0018, "kappa_M": 0.002, "eta_reach": 0.0114, "admissible": false}
+17:03:45 probe 3320 M=2 {"acceptance": 1.0, "degeneracy": 0.0001, "epsilon_M": 0.0036, "kappa_M": 0.004, "eta_reach": 0.0218, "admissible": false}
+17:03:45 probe 3320 M=4 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0071, "kappa_M": 0.0076, "eta_reach": 0.0412, "admissible": false}
+17:03:45 probe 3320 M=8 {"acceptance": 1.0, "degeneracy": 0.0, "epsilon_M": 0.0133, "kappa_M": 0.0143, "eta_reach": 0.0704, "admissible": false}
+17:03:45 probe 3320 M=16 {"acceptance": 0.9996, "degeneracy": 0.0, "epsilon_M": 0.0254, "kappa_M": 0.0264, "eta_reach": 0.1168, "admissible": false}
+17:03:46 probe 3320 M=32 {"acceptance": 0.963, "degeneracy": 0.0, "epsilon_M": 0.0447, "kappa_M": 0.0754, "eta_reach": 0.1628, "admissible": false}
+17:03:46 probe 3320 selected M None
+17:03:46 probe s3320 (10 of 10) done, 1 s
+17:03:46 generate 3311 no admissible M: empty synthetic view
+17:03:46 generated 1 of 10
+17:03:46 generate 3312 no admissible M: empty synthetic view
+17:03:46 generated 2 of 10
+17:03:46 generate 3313 no admissible M: empty synthetic view
+17:03:46 generated 3 of 10
+17:03:46 generate 3314 no admissible M: empty synthetic view
+17:03:46 generated 4 of 10
+17:03:46 generate 3315 no admissible M: empty synthetic view
+17:03:46 generated 5 of 10
+17:03:46 generate 3316 no admissible M: empty synthetic view
+17:03:46 generated 6 of 10
+17:03:46 generate 3317 no admissible M: empty synthetic view
+17:03:46 generated 7 of 10
+17:03:46 generate 3318 no admissible M: empty synthetic view
+17:03:46 generated 8 of 10
+17:03:46 generate 3319 no admissible M: empty synthetic view
+17:03:46 generated 9 of 10
+17:03:46 generate 3320 no admissible M: empty synthetic view
+17:03:46 generated 10 of 10
+17:03:46 phase 1 complete; selected M {'3311': None, '3312': None, '3313': None, '3314': None, '3315': None, '3316': None, '3317': None, '3318': None, '3319': None, '3320': None}
+PHASE1 EXIT=0
+17:03:48 audit inputs verified; phase 1 468b921 selected M {'3311': None, '3312': None, '3313': None, '3314': None, '3315': None, '3316': None, '3317': None, '3318': None, '3319': None, '3320': None}
+17:03:48 audit 3311 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3311 (1 of 10) done, 0 s
+17:03:48 audit 3312 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3312 (2 of 10) done, 0 s
+17:03:48 audit 3313 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3313 (3 of 10) done, 0 s
+17:03:48 audit 3314 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3314 (4 of 10) done, 0 s
+17:03:48 audit 3315 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3315 (5 of 10) done, 0 s
+17:03:48 audit 3316 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3316 (6 of 10) done, 0 s
+17:03:48 audit 3317 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3317 (7 of 10) done, 0 s
+17:03:48 audit 3318 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3318 (8 of 10) done, 0 s
+17:03:48 audit 3319 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3319 (9 of 10) done, 0 s
+17:03:48 audit 3320 M=0 {"selected_M": false, "q1": false, "q2": false, "q3": false, "q4": false, "q6": false} passes False
+17:03:48 audit s3320 (10 of 10) done, 0 s
+17:03:48 decision fails passing []
+EXIT=0

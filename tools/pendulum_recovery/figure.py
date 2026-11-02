@@ -7,7 +7,9 @@
 For one seed (default: the first): (a) the axis contract, e in [-pi, pi) periodic and omega in [-8, 8], with the
 training demonstrations and a sample of accepted learned-model segments from x0 to the target; (b) the near-upright
 inset (e in [-0.5, 0.5], omega in [-3, 3]) with the LQR branch shaded and the collection capture states, covered or
-not within rho_cap by a pointwise row; (c) the inset again, rows colored by |u - pi_D|. Requires a complete audit.
+not within rho_cap by a pointwise row; (c) the inset again, rows colored by |u - pi_D|. Second row, every seed: the
+phase 1 ladder against M, each criterion normalized by its threshold, (d) eta_reach (admissible at >= 1), (e)
+kappa_M / (0.25 tau_demo) and (f) epsilon_M / (0.25 tau_demo) (admissible at <= 1). Requires a complete audit.
 --check exits 1 unless FILE equals a regeneration.
 """
 from __future__ import annotations
@@ -76,7 +78,8 @@ def figure(data: Path, p1: Path, capture: Path, seed: int | None) -> str:
     obs = pw["observations"]
     covered = (P1.Tree(obs).query(xc) <= rec["rho_cap"]) if len(obs) else np.zeros(len(xc), bool)
     plt = setup()
-    fig, axs = plt.subplots(1, 3, figsize=(16.5, 5.6), layout="constrained")
+    fig, grid = plt.subplots(2, 3, figsize=(16.5, 11.2), layout="constrained")
+    axs = grid[0]
     for ax, near in ((axs[0], False), (axs[1], True)):
         lines(ax, demos, DEMO, lw=0.5, alpha=0.7)
         if M:
@@ -103,6 +106,23 @@ def figure(data: Path, p1: Path, capture: Path, seed: int | None) -> str:
         fig.colorbar(sc, ax=axs[2], shrink=0.8, label="|ũ − π_D(x̃)| (rad/s²)")
     frame(axs[2], "(c) near upright: pointwise rows by disagreement with the corrected demonstrator\n"
                   "(audit only; the demonstrator never entered generation)", True)
+    probes = {int(k): json.loads((p1 / f"probe-s{k}.json").read_text()) for k in doc["seeds"]}
+    for ax, key, tag, label in ((grid[1, 0], "eta_reach", "d", "η_reach(M) = r_reach / τ_demo (admissible ≥ 1)"),
+                                (grid[1, 1], "kappa_M", "e", "κ_M / (0.25 τ_demo): check-model disagreement (≤ 1)"),
+                                (grid[1, 2], "epsilon_M", "f", "ε_M / (0.25 τ_demo): held-out M-step error (≤ 1)")):
+        for k, r in probes.items():
+            Ms = sorted(int(m) for m in r["ladder"])
+            v = [r["ladder"][str(m)][key] for m in Ms]
+            v = v if key == "eta_reach" else [x / r["trust_threshold"] for x in v]
+            ax.plot(Ms, v, color=INK if k == s else MUTED, lw=1.4 if k == s else 0.7, marker="o", ms=2.5,
+                    alpha=1.0 if k == s else 0.6)
+        ax.axhline(1.0, color=UNCOVERED, lw=0.9, ls="--", zorder=3)
+        ax.set_xscale("log", base=2), ax.set_yscale("log")
+        ax.set_xticks(Ms, [str(m) for m in Ms])
+        ax.set_xlabel("M (recorded action intervals; 32 = 0.64 s)")
+        ax.set_ylabel(label.split(" (admissible")[0].split(":")[0])
+        ax.set_title(f"({tag}) {label}\nevery seed (grey), seed {s} (black); dashed: threshold", loc="left",
+                     color=INK, fontsize=8.5)
     fig.suptitle(f"Pendulum recovery-segment diagnostic (descriptive; learned-model segments from demonstrations only). "
                  f"Decision: {doc['decision']}", x=0.01, ha="left", color=INK, fontsize=10)
     buf = io.StringIO()

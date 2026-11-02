@@ -2,6 +2,33 @@
 
 **Status: version 1, pushed before any transition model is fitted, any segment is generated, or any audit input is opened.** The draft's review decisions are recorded under "Version history". This step trains no policy. If the selected recovery segments fail coverage or trust, the outcome is reported, and no learner runs.
 
+## Result (version 1: run 20261102T010309Z from `468b921`)
+
+**The diagnostic fails: no M is admissible on any of the 10 seeds.** Phase 1 returned the empty synthetic view for every seed, so the audit found nothing to audit, and no learner runs. Per this document, the ladder is not extended to M = 64 and no threshold changes. This tests the persistent action-bias proposal family with this learned model at r = 0.1, not every recovery-segment proposal.
+
+The evidence is in `docs/fixtures/evidence/pendulum-recovery/`: the phase 1 manifest, the ten probe records, `audit/audit.json` and the run log. The figure is `docs/experiments/figures/pendulum-recovery-diagnostic.svg`.
+
+- **Construction is not the problem.** Acceptance is ≥ 0.91 at every M and ≥ 0.999 for M ≤ 16, degeneracy is ≤ 0.03, and Newton converges.
+- **Reach fails on every seed at every M.**
+  - η_reach rises with M, but its maximum is 0.16–0.97, always at M = 32.
+  - The segments do move: at M = 32, the median displacement from the source, d_source, is 0.09–0.14, above τ_demo on 6 seeds.
+  - Their starts land near other demonstration states, though. The median d_demo(x̃_0) is 0.04–0.06, below τ_demo everywhere.
+  - At r = 0.1 the 8 training swing-ups already cover the phase-space band that a 0.64 s persistent bias can reach.
+- **Off-demonstration trust fails before reach could pass.**
+  - On 9 of 10 seeds, the check model's disagreement κ_M exceeds 0.25·τ_demo from M = 4, 8 or 16 onward, while the held-out error ε_M is still within it.
+  - **Where both models agree, η_reach is only 0.11–0.26.**
+  - The four seeds with large τ_demo (3312, 3314, 3318 and 3320, 0.115–0.316) pass trust longer, but their η_reach stays ≤ 0.37.
+  - Held-out error along demonstrations alone would have admitted much longer segments than the check model does. That is the self-consistency failure the check model was added to catch.
+- **Clipping:** about 10–13% of proposed steps are clipped at the action bound, mostly while the demonstration pumps at saturation, and the realized offsets are recorded.
+- **Audit context:** all 10 seeds have ≥ 100 capture states that the demonstrations do not cover, so the outcome is "fails", not "coverage is not the missing mechanism".
+- **Recorded as a design observation; it did not affect this decision:**
+  - The empirical transfer radius is tiny: ρ_cap = 0.0004–0.0056, which is 0.6–13% of τ_demo.
+  - The positive control's thinned BC rollouts are near-duplicates, so its collection and diagnostic sets lie almost on top of each other.
+  - Had phase 1 produced segments, question 2 would have required coverage at that sub-millimetre scale.
+  - Any future use of this audit should revisit the radius in a new version, before generation.
+
+**Conclusion:** from demonstrations alone at r = 0.1, persistent-bias recovery segments of up to 0.64 s with this learned model cannot produce trustworthy states beyond demonstration support. A learned-model segment that reaches beyond support is one the two models disagree about. CCIL does not reproduce the capture-region mechanism on this task under this proposal family. Pendulum gives no basis for M > 1 implementation work under #171's gate.
+
 ## Why
 
 il-supervision-benchmarks#12 established a positive control, exploratory and against exposure-matched duplication: for states BC visits inside the demonstrator LQR-branch capture region (not the oracle's terminal set Ω_c), corrected-demonstrator labels improve both held-out action accuracy and final capture (`docs/studies/pendulum-capture-control.md` in il-supervision-benchmarks). Gate 3A showed that one-step CCIL cannot leave demonstration support on this task (`docs/experiments/pendulum-correction.md`, "Result").
