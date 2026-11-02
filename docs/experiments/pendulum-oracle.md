@@ -210,6 +210,7 @@ A state is on the cylinder when |sin² + cos² − 1| ≤ 6.7e-7. That is 10 × 
   1. From commit `e7e9f95`, with numpy 2.4.6, scipy 1.16.3 and Python 3.11.17, run `uv run --group evidence --with-requirements tools/vector_env/requirements.txt python tools/pendulum_oracle/check.py --data DATASET.npz --out NEW_DIR`, where DATASET is the canonical continuous dataset (sha256 `59c332bc…cf43c`). It exits 1, stopping at L3, as the official run did.
   2. Run `python tools/pendulum_oracle/compare.py docs/fixtures/evidence/pendulum-oracle/oracle.json NEW_DIR/oracle.json`. It exits 0 only when every field is exactly equal except wall time and the run's code commit and dirty flag. The numerical environment is compared like any other field.
   - The oracle is deterministic: version 6.1 reproduced version 6's L1 and L2 results exactly.
+  - An independent full rerun at `e7e9f95` (2026-11-01, same versions) passed `compare.py`: every substantive field matched exactly, with only wall time differing (8,027 s against 8,161 s).
 
 ## Running
 
