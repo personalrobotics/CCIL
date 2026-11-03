@@ -1,10 +1,10 @@
 {
  "all_pass": true,
  "artifacts": {
-  "pipeline/runs/labels-curate-9f554fcf9b86/labels/selection.npz": "8a8e2fa7d257711f45b4ee0e3d98bdcb41884972798fdae8f4c93ad4c61bb271",
-  "pipeline/runs/labels-curate-b135049bd1e3/labels/selection.npz": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f",
-  "pipeline/runs/labels-curate-d797818b69a4/labels/selection.npz": "ae1b9036d43186587183ea0b64ebf4367fd79337d5d764c7a095e96379f9c735",
-  "selection-bound.npz": "0acf04be68619c271562c6193af01ec362cb7cb4973ddb703544846846f4fb10"
+  "pipeline/runs/labels-curate-2e8f26f20f8e/labels/selection.npz": "7f8bc56ff6ca82e8c527d01402d765e520ae3cca59ccf86b223bd5e407333d70",
+  "pipeline/runs/labels-curate-31856e966693/labels/selection.npz": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239",
+  "pipeline/runs/labels-curate-e82dd01cf5db/labels/selection.npz": "87239474d35051a9d04635c78a4eefe16a269c343deadca4329498a594eb65b2",
+  "selection-bound.npz": "d1eed7f588fd209597c96285d8aa7a0d9e36971f0eef307d7de2411ec260fc1e"
  },
  "cases": [
   {
@@ -39,7 +39,7 @@
   },
   {
    "case": "fail_closed",
-   "data_only_refusal": "InterfaceError: the certificate's constants come from reference dynamics, which data_only curation cannot use; set evidence_mode reference_assisted",
+   "data_only_refusal": "InterfaceError: the certificate's constants come from reference dynamics, which data_only curation cannot use; allow reference_assisted evidence (generation.evidence_mode)",
    "empirical_under_bound_policy": 0,
    "empirical_under_score_policy": 40,
    "pass": true,
@@ -47,52 +47,73 @@
    "unsupported_selected": 0
   },
   {
+   "case": "boundaries_hold",
+   "data_only_certificate_under_reference_allowance": {
+    "evidence_allowed": "reference_assisted",
+    "evidence_mode": "data_only"
+   },
+   "forged_certificate": "InterfaceError: the certificate does not verify against these candidates: total_error_value does not follow from the persisted terms on 54 rows",
+   "pass": true,
+   "wrong_claims": {
+    "data_only_claimed": [
+     "evidence_mode 'data_only' is not the certificate's provenance ('reference_assisted')"
+    ],
+    "reference_claimed": [
+     "evidence_mode 'reference_assisted' is not the certificate's provenance ('data_only')"
+    ]
+   },
+   "zero_tolerance": {
+    "config": "ConfigError: curate.tolerance: 0.0 is outside (0.0, inf] (cli)",
+    "policy": "InterfaceError: tolerance must be finite and > 0 or None, got 0.0"
+   }
+  },
+  {
    "case": "tolerance_change_is_a_new_selection",
    "pass": true,
    "runs": {
     "budget": {
-     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
-     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
-     "certify": "labels-certify-e455be630ab5",
-     "curate": "labels-curate-9f554fcf9b86",
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-2e8f26f20f8e",
      "curate_reused": false,
      "evidence_mode": "data_only",
-     "labels": "labels-generate-cec54174c2f9",
+     "labels": "labels-generate-886112701ddc",
      "selected": 13,
-     "selection_sha256": "8a8e2fa7d257711f45b4ee0e3d98bdcb41884972798fdae8f4c93ad4c61bb271"
+     "selection_sha256": "7f8bc56ff6ca82e8c527d01402d765e520ae3cca59ccf86b223bd5e407333d70"
     },
     "loose": {
-     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
-     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
-     "certify": "labels-certify-e455be630ab5",
-     "curate": "labels-curate-b135049bd1e3",
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-31856e966693",
      "curate_reused": false,
      "evidence_mode": "data_only",
-     "labels": "labels-generate-cec54174c2f9",
+     "labels": "labels-generate-886112701ddc",
      "selected": 25,
-     "selection_sha256": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f"
+     "selection_sha256": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239"
     },
     "loose_again": {
-     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
-     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
-     "certify": "labels-certify-e455be630ab5",
-     "curate": "labels-curate-b135049bd1e3",
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-31856e966693",
      "curate_reused": true,
      "evidence_mode": "data_only",
-     "labels": "labels-generate-cec54174c2f9",
+     "labels": "labels-generate-886112701ddc",
      "selected": 25,
-     "selection_sha256": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f"
+     "selection_sha256": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239"
     },
     "tight": {
-     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
-     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
-     "certify": "labels-certify-e455be630ab5",
-     "curate": "labels-curate-d797818b69a4",
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-e82dd01cf5db",
      "curate_reused": false,
      "evidence_mode": "data_only",
-     "labels": "labels-generate-cec54174c2f9",
+     "labels": "labels-generate-886112701ddc",
      "selected": 20,
-     "selection_sha256": "ae1b9036d43186587183ea0b64ebf4367fd79337d5d764c7a095e96379f9c735"
+     "selection_sha256": "87239474d35051a9d04635c78a4eefe16a269c343deadca4329498a594eb65b2"
     }
    }
   },
@@ -123,7 +144,7 @@
   }
  ],
  "environment": {
-  "code_commit": "1fe0d01a9feb5b6c38826650a87f4718f7ccd629",
+  "code_commit": "a3eae44206afd9bd951aa75540e0a6c92a5d4c06",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
