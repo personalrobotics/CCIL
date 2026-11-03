@@ -38,8 +38,8 @@ Status counts: declared 6, deferred 7, derived 3, dropped 8, implemented 40, inv
 | `aug.delta` | tunable | `generation.action_noise_std` | implemented |  |
 | `aug.epsilon` | tunable | `generation.support_radius` | implemented |  |
 | `aug.balance_data` | tunable | `policy.balance_noisy_labels` | implemented |  |
-| `aug.label_err_quantile` | tunable | `certificate.selection_quantile` | implemented |  |
-| `aug.max_label_err` | tunable | `certificate.score_threshold` | implemented |  |
+| `aug.label_err_quantile` | tunable | `curate.quantile` | implemented |  |
+| `aug.max_label_err` | tunable | `curate.tolerance` | implemented |  |
 | `aug.model_err_thresh` | tunable | `generation.model_error_threshold` | implemented |  |
 | `aug.chunk_size` | tunable | `generation.action_chunk_size` | implemented |  |
 | `policy.lr` | tunable | `policy.learning_rate` | implemented |  |

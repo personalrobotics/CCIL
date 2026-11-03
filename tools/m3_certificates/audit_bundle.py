@@ -51,7 +51,7 @@ def main():
         structure, audit = verify_structure(cert, files["candidates"]), audit_sources(cert, sources)
         ok = structure == [] and audit == []
         cases.append({"case": name, "pass": ok, "profile": cert.descriptor["profile"],
-                      "classification": sorted(set(cert.classification.tolist())), "rows": int(len(cert.selected)),
+                      "classification": sorted(set(cert.classification.tolist())), "rows": int(len(cert.classification)),
                       "constants": {r: {"value": c["value"], "source": c["source"]} for r, c in cert.descriptor["constants"].items()},
                       "structure": structure, "audit": audit[:5]})
         print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else json.dumps((structure + audit)[:3])[:600]}", flush=True)

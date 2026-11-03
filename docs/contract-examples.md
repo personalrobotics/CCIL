@@ -62,7 +62,8 @@ runs/
   transition-fit-<id>/checkpoints/          transition model      today: held-out max one-step error 6.7e-8
   labels-generate-<id>/diagnosis.json       diagnosis             specified: per-M gates, admitted M, dt_ctrl 0.05 s, H 0.05 s
   labels-generate-<id>/labels/candidates.npz  ccil.candidates 2.x today: 320 rows, 46 accepted, 274 out_of_support
-  labels-generate-<id>/labels/quality/      quality bundle        specified (#167)
+  labels-certify-<id>/labels/certificates.npz  ccil.certificates 2.0  with certificate.profile
+  labels-curate-<id>/labels/selection.npz   ccil.selection 1.0    today: the accepted rows, without certificates
   each run directory: manifest.json, config.json, metrics.json, stage.json, logs/run.log
 ```
 
@@ -128,7 +129,7 @@ obs, act, w = c.observations["state"][rows], c.actions[rows], c.weight[rows]
 On example 1 this gives 46 rows with observations of shape (46, 2), actions
 (46, 1), and a weight total of 46.0, the same rows `build_supervision` returns.
 
-**With a selection** (**specified**, #167): the consumer also reads one
+**With a selection** (`labels/selection.npz`): the consumer also reads the
 selection file, checks that its recorded candidates SHA-256 is this candidates
 file's, and multiplies by its mask and weights. Before relying on the rows, it
 checks the evidence class it needs: an empirical score is never a bound.

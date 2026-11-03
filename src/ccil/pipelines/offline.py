@@ -1,8 +1,8 @@
 """Offline label generation: trajectories in, labels and a report out.
 
-Stages: data.prepare -> transition.fit -> labels.generate [-> labels.certify, with certificate.profile]. The accepted rows of
-labels/candidates.npz together with the prepared dataset are the augmentation;
-dataset writers (M4) turn them into training data. This module never imports a
+Stages: data.prepare -> transition.fit -> labels.generate [-> labels.certify, with certificate.profile]
+-> labels.curate. The selected rows of labels/candidates.npz (labels/selection.npz) together with the prepared
+dataset are the augmentation; dataset writers (M4) turn them into training data. This module never imports a
 policy trainer or the integrated pipeline.
 """
 from __future__ import annotations
@@ -24,9 +24,12 @@ from ..runs import layout
 from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
+from ..core.batch import InterfaceError
+from ..core.curate import CurationPolicy, curate
 from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
-from ..schema import read_candidates, read_trajectories, write_candidates, write_certificates
+from ..schema.selection import REASON_CODES
+from ..schema import read_trajectories, write_candidates, write_certificates, write_selection
 from .stages import StageResult, run_stage
 
 MODEL_CHECKPOINT = f"{layout.CHECKPOINTS}/transition_model.npz"
@@ -88,13 +91,18 @@ def build_certificate(v) -> tuple:
         else:
             profile = DisturbedActionProfile(true("certificate.true_state_lipschitz"),
                                              true("certificate.true_action_lipschitz"), demo, **nb)
-        admission, threshold = "upper_bound", v["certificate.max_total_error"]
     else:
         profile = PROFILES[name](**nb)
-        admission, threshold = "score", v["certificate.score_threshold"]
-    return profile, {"admission": admission, "threshold": threshold, "selection_quantile": v["certificate.selection_quantile"],
-                     "selection_population": v["certificate.selection_population"],
-                     "references": {REFERENCE: Path(ref)} if ref is not None else {}}
+    return profile, {"references": {REFERENCE: Path(ref)} if ref is not None else {}}
+
+
+def build_policy(v) -> CurationPolicy:
+    """The curation policy of curate.*: admission follows the certificate profile (none: every accepted row)."""
+    name = v["certificate.profile"]
+    if name is None:
+        return CurationPolicy(admit="accepted")
+    return CurationPolicy(admit="bound" if name in BOUND_PROFILES else "score", tolerance=v["curate.tolerance"],
+                          quantile=v["curate.quantile"], population=v["curate.population"])
 
 
 def build_model(v):
@@ -311,17 +319,13 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 
 
 def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: StageResult, representation, profile,
-                  admission: str = "upper_bound", threshold: float | None = None,
-                  selection_quantile: float | None = None, references: dict | None = None,
-                  state_scale=None, action_scale=None, extra_inputs=None,
-                  selection_population: str = "admitted") -> StageResult:
-    """labels.certify: write labels/certificates.npz for the labels stage's candidates (#88).
+                  references: dict | None = None, state_scale=None, action_scale=None, extra_inputs=None) -> StageResult:
+    """labels.certify: write labels/certificates.npz, the quality evidence of the labels stage's candidates (#88).
 
-    The candidates are an input and are never modified; consumers train on
-    candidate.accepted & certificate.admissible & certificate.selected.
-    references are artifacts bound providers compute constants from; they are
-    stage inputs. The profile's specification, the admission policy, the
-    selection, and the scales enter the stage identity.
+    The candidates are an input and are never modified; which rows to use is
+    labels.curate's decision. references are artifacts bound providers compute
+    constants from; they are stage inputs. The profile's specification and the
+    scales enter the stage identity.
     """
     v = cfg.values
     references = dict(references or {})
@@ -335,26 +339,44 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
                           device="cpu" if v["transition_model.kind"] == "linear" else v["compute.device"],
                           jacobian_memory_bytes=v["compute.jacobian_memory_mb"] * 2**20)
         with _jacobian_budget():
-            cert = certify(sources, profile, admission=admission, threshold=threshold,
-                           selection_quantile=selection_quantile, state_scale=state_scale, action_scale=action_scale,
-                           selection_population=selection_population)
+            cert = certify(sources, profile, state_scale=state_scale, action_scale=action_scale)
         write_certificates(cert, run.path(layout.CERTIFICATES))
-        accepted = read_candidates(inputs["candidates"]).accepted
-        usable = np.asarray(accepted) & cert.admissible & cert.selected
-        run.metrics({"certificates": int(len(cert.selected)), "profile": profile.name, "admission": cert.admission,
-                     "by_classification": {c: int((cert.classification == c).sum()) for c in CLASSIFICATIONS},
-                     "admissible": int(cert.admissible.sum()), "selected": int(cert.selected.sum()),
-                     "usable": int(usable.sum())})
-        run.log(f"certified {len(cert.selected)} candidates with {profile.name}; usable {int(usable.sum())}")
+        run.metrics({"certificates": int(len(cert.classification)), "profile": profile.name,
+                     "by_classification": {c: int((cert.classification == c).sum()) for c in CLASSIFICATIONS}})
+        run.log(f"certified {len(cert.classification)} candidates with {profile.name}")
     scales = {k: None if x is None else [float(e) for e in x] for k, x in (("state", state_scale), ("action", action_scale))}
     return run_stage("labels.certify", cfg, inputs, body, components={"representation": representation},
-                     parameters={"profile": profile.spec(), "admission": admission, "threshold": threshold,
-                                 "selection_quantile": selection_quantile, "selection_population": selection_population,
-                                 "scales": scales})
+                     parameters={"profile": profile.spec(), "scales": scales})
+
+
+def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, policy: CurationPolicy) -> StageResult:
+    """labels.curate: write labels/selection.npz, one policy's selection of the candidates (#167).
+
+    Neither input is modified, so a new tolerance writes a new selection run
+    and reuses the candidate and certificate runs unchanged.
+    """
+    v = cfg.values
+    inputs = {"candidates": labeled.out(layout.CANDIDATES)}
+    if certified is not None:
+        inputs["certificates"] = certified.out(layout.CERTIFICATES)
+
+    def body(run):
+        try:
+            sel = curate(inputs["candidates"], inputs.get("certificates"), policy, v["generation.evidence_mode"])
+        except InterfaceError as e:
+            raise ConfigError([str(e)]) from None
+        write_selection(sel, run.path(layout.SELECTION))
+        counts = {code: int(sel.reasons[:, i].sum()) for i, code in enumerate(REASON_CODES)}
+        run.metrics({"rows": int(len(sel.mask)), "selected": int(sel.mask.sum()), "policy": sel.policy,
+                     "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed,
+                     "threshold": sel.threshold, "reasons": counts,
+                     "caveats": sel.caveats})
+        run.log(f"selected {int(sel.mask.sum())} of {len(sel.mask)} candidates with {sel.policy}")
+    return run_stage("labels.curate", cfg, inputs, body, parameters={"policy": policy.spec()})
 
 
 def generate_offline(cfg) -> list[StageResult]:
-    """Run the offline pipeline; return the stage results (reused or new), with labels.certify when configured."""
+    """Run the offline pipeline; return the stage results (reused or new): prepare, fit, labels, [certify,] curate."""
     preflight(cfg)
     if cfg["representation.kind"] != "identity":
         raise ConfigError(["offline generation uses representation.kind=identity; learned representations are "
@@ -363,7 +385,15 @@ def generate_offline(cfg) -> list[StageResult]:
     prepared = prepare_stage(cfg)
     fitted = fit_transition_stage(cfg, prepared, representation)
     labeled = labels_stage(cfg, prepared, fitted, representation)
-    if cfg["certificate.profile"] is None:
-        return [prepared, fitted, labeled]
-    profile, kwargs = build_certificate(cfg.values)
-    return [prepared, fitted, labeled, certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)]
+    stages = [prepared, fitted, labeled]
+    certified = None
+    if cfg["certificate.profile"] is not None:
+        profile, kwargs = build_certificate(cfg.values)
+        certified = certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)
+        stages.append(certified)
+    return stages + [curate_stage(cfg, labeled, certified, build_policy(cfg.values))]
+
+
+def stage(results: list[StageResult], name: str) -> StageResult | None:
+    """The result of the named stage among a pipeline's results, or None when it did not run."""
+    return next((r for r in results if r.stage == name), None)

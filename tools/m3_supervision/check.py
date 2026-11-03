@@ -9,14 +9,16 @@ integrator with a train/validation split. For each arm the rows are recomputed
 independently from the files and compared with build_supervision:
 - bc and noise_bc are the training demonstrations only; ccil without
   certificates adds every accepted candidate, labelled uncertified; ccil with
-  certificates adds exactly accepted & admissible & selected;
+  certificates and the labels.curate selection adds exactly accepted & mask;
 - accepted candidates that are inadmissible or unselected, with positive
   weights, never reach a trainer: an instrumented trainer sees exactly the
   usable rows;
 - synthetic weights are the recorded ones, the demonstration weight is
   explicit, and the row counts reconcile;
 - held-out episodes contribute no rows and are counted;
-- mismatched artifacts fail closed, each with its own reason;
+- mismatched artifacts fail closed, each with its own reason, including a
+  tampered selection, a selection of other candidates, and a 2.0 certificate
+  without its selection;
 - chunked candidates are refused unless consumed; consumed chunks equal the
   stored ones and demonstration chunks follow the label-chunk alignment;
 - the exact recipe block of docs/supervision.md, executed, reproduces the
@@ -44,10 +46,10 @@ from system import DoubleIntegrator  # noqa: E402
 from ccil.config import resolve  # noqa: E402
 from ccil.core import IdentityRepresentation  # noqa: E402
 from ccil.core.certificates import write_reference_dynamics  # noqa: E402
-from ccil.pipelines.offline import generate_offline  # noqa: E402
+from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
-from ccil.schema import (Episode, TrajectoryDataset, read_candidates, read_certificates, read_trajectories,  # noqa: E402
-                         write_certificates, write_trajectories)
+from ccil.schema import (Episode, TrajectoryDataset, read_candidates, read_certificates, read_selection,  # noqa: E402
+                         read_trajectories, write_certificates, write_selection, write_trajectories)
 from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261026, 4, 0.05
@@ -106,15 +108,17 @@ def main():
             "generation.method=noisy_action", f"generation.labels_per_transition={K}",
             f"generation.action_noise_std={SIGMA}", *extra])
         res = generate_offline(cfg)
-        paths = {"dataset": res[0].out(layout.DATASET), "split": res[0].out(layout.SPLIT),
-                 "candidates": res[2].out(layout.CANDIDATES)}
-        if len(res) == 4:
-            paths["certificates"] = res[3].out(layout.CERTIFICATES)
+        prepared = stage(res, "data.prepare")
+        paths = {"dataset": prepared.out(layout.DATASET), "split": prepared.out(layout.SPLIT),
+                 "candidates": stage(res, "labels.generate").out(layout.CANDIDATES),
+                 "selection": stage(res, "labels.curate").out(layout.SELECTION)}
+        if stage(res, "labels.certify") is not None:
+            paths["certificates"] = stage(res, "labels.certify").out(layout.CERTIFICATES)
         return paths
 
     certified = ["generation.support_radius=0.08", "certificate.profile=disturbed_action",
-                 f"certificate.reference_dynamics={out / 'true-dynamics.npz'}", "certificate.max_total_error=0.015",
-                 "certificate.selection_quantile=0.6"]
+                 f"certificate.reference_dynamics={out / 'true-dynamics.npz'}", "curate.tolerance=0.015",
+                 "curate.quantile=0.6", "generation.evidence_mode=reference_assisted"]
     P = pipeline("certified", extra=certified)
     PC = pipeline("chunks", extra=["generation.action_chunk_size=3"])
     PO = pipeline("other", data="rollouts-other.npz", extra=certified)
@@ -123,6 +127,7 @@ def main():
     split = json.loads(Path(P["split"]).read_text())
     cands = read_candidates(P["candidates"], ds)
     cert = read_certificates(P["certificates"])
+    sel = read_selection(P["selection"])
     train = set(split["train"])
 
     # Independent recomputation from the files.
@@ -139,11 +144,12 @@ def main():
 
     d_rows, d_obs, d_act = demonstrations()
     accepted = np.asarray(cands.accepted)
-    usable_cert = accepted & cert.admissible & cert.selected
+    usable_cert = accepted & sel.mask
     expect = {"bc": [], "noise_bc": [], "ccil_uncertified": synthetic(accepted), "ccil_certified": synthetic(usable_cert)}
     arms = {"bc": dict(method="bc"), "noise_bc": dict(method="noise_bc"),
             "ccil_uncertified": dict(method="ccil", candidates=P["candidates"]),
-            "ccil_certified": dict(method="ccil", candidates=P["candidates"], certificates=P["certificates"])}
+            "ccil_certified": dict(method="ccil", candidates=P["candidates"], certificates=P["certificates"],
+                                   selection=P["selection"])}
     sups, arm_results = {}, {}
     for arm, kw in arms.items():
         sup = build_supervision(P["dataset"], representation=rep, split=P["split"], **kw)
@@ -171,10 +177,10 @@ def main():
             self.z, self.a, self.w = z, a, w
             return self
     rec = Recorder().fit(*sups["ccil_certified"].arrays())
-    excluded = accepted & ~(cert.admissible & cert.selected)
+    excluded = accepted & ~sel.mask
     seen = {tuple(map(float, r)) for r in rec.z}
     leaked = [i for i in np.flatnonzero(excluded) if tuple(map(float, cands.observations["state"][i])) in seen]
-    inadmissible, unselected = accepted & ~cert.admissible, accepted & cert.admissible & ~cert.selected
+    inadmissible, unselected = accepted & sel.reasons[:, 1:4].any(axis=1), accepted & sel.reasons[:, 4]
     record("unusable_rows_never_reach_the_trainer",
            inadmissible.any() and unselected.any() and (cands.weight[excluded] > 0).all() and not leaked
            and len(rec.w) == len(d_rows) + len(expect["ccil_certified"]),
@@ -184,14 +190,15 @@ def main():
 
     # Weights, explicit demonstration weight, and reconciliation.
     s2 = build_supervision(P["dataset"], "ccil", representation=rep, candidates=P["candidates"],
-                           certificates=P["certificates"], split=P["split"], demonstration_weight=2.0)
+                           certificates=P["certificates"], selection=P["selection"], split=P["split"],
+                           demonstration_weight=2.0)
     syn = s2.source == "synthetic"
     c = s2.manifest()["counts"]
     record("weights_and_reconciliation",
            np.array_equal(s2.weights[syn], cands.weight[s2.candidate_row[syn]].astype(np.float64))
            and (s2.weights[~syn] == 2.0).all() and s2.manifest()["demonstration_weight"] == 2.0
            and c["demonstration_rows"] + c["demonstration_rows_held_out"] == c["demonstration_transitions"]
-           and c["synthetic_rows"] + c["usable_rows_held_out"] == c["accepted_admissible_and_selected"]
+           and c["synthetic_rows"] + c["usable_rows_held_out"] == c["selected"]
            and c["rows"] == c["demonstration_rows"] + c["synthetic_rows"],
            counts=c)
 
@@ -207,20 +214,20 @@ def main():
     reordered = copy.deepcopy(cert)
     perm = np.random.default_rng(SEED).permutation(len(reordered.source_frame))
     for name in ("source_episode_id", "source_frame", "model_error_value", "total_error_value", "classification",
-                 "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"):
+                 "is_upper_bound", "in_neighborhood", "reasons"):
         setattr(reordered, name, getattr(reordered, name)[perm])
     reordered.terms = {k: v[perm] for k, v in reordered.terms.items()}
     write_certificates(reordered, out / "certificates-reordered.npz")
     other_dataset = copy.deepcopy(cert)
     other_dataset.inputs = {**other_dataset.inputs, "dataset": "0" * 64}
     write_certificates(other_dataset, out / "certificates-other-dataset.npz")
-    flipped = copy.deepcopy(cert)
-    i = int(np.flatnonzero(flipped.admissible & ~flipped.selected)[0]) if (flipped.admissible & ~flipped.selected).any() else 0
-    flipped.selected = flipped.selected.copy()
-    flipped.selected[i] = ~flipped.selected[i]
-    flipped.reasons = flipped.reasons.copy()
-    flipped.reasons[i, 3] = ~flipped.selected[i] & flipped.reasons[i, 3]
-    write_certificates(flipped, out / "certificates-flipped.npz")
+    # The 1.0 "certificate_selection_tampered" case: selection now lives in the selection file, so the tampering
+    # is a selected row dropped there, consistently enough to pass the schema; only recomputation detects it.
+    flipped = copy.deepcopy(sel)
+    i = int(np.flatnonzero(flipped.mask)[0])
+    flipped.mask, flipped.weight, flipped.reasons = flipped.mask.copy(), flipped.weight.copy(), flipped.reasons.copy()
+    flipped.mask[i], flipped.weight[i], flipped.reasons[i, 4] = False, 0.0, True
+    write_selection(flipped, out / "selection-flipped.npz")
     bad_split = dict(split, episode_ids=split["episode_ids"][:-1] + ["foreign"],
                      train=sorted([e for e in split["train"] if e != split["episode_ids"][-1]] + (
                          ["foreign"] if split["episode_ids"][-1] in split["train"] else [])),
@@ -236,16 +243,22 @@ def main():
     tall.target_observations = {"state": np.hstack([tall.target_observations["state"], tall.target_observations["state"][:, :1]])}
     write_candidates(tall, out / "candidates-tall-observations.npz")
     base = dict(representation=rep, split=P["split"])
+    certified_base = dict(base, selection=P["selection"])
     refused = {
         "candidates_from_another_dataset": outcome(lambda: build_supervision(P["dataset"], "ccil", candidates=PO["candidates"], **base)),
         "certificates_for_other_candidates": outcome(lambda: build_supervision(
             P["dataset"], "ccil", candidates=PC["candidates"], certificates=P["certificates"], action_chunks="consume", **base)),
         "certificate_rows_reordered": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-reordered.npz", **base)),
+            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-reordered.npz", **certified_base)),
         "certificate_from_another_dataset": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-other-dataset.npz", **base)),
-        "certificate_selection_tampered": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-flipped.npz", **base)),
+            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-other-dataset.npz", **certified_base)),
+        "selection_tampered": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=P["candidates"], certificates=P["certificates"],
+            selection=out / "selection-flipped.npz", **base)),
+        "selection_of_other_candidates": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=PO["candidates"], certificates=P["certificates"], **certified_base)),
+        "certificate_without_its_selection": outcome(lambda: build_supervision(
+            P["dataset"], "ccil", candidates=P["candidates"], certificates=P["certificates"], **base)),
         "split_of_another_dataset": outcome(lambda: build_supervision(P["dataset"], "bc", representation=rep,
                                                                       split=out / "split-foreign.json")),
         "representation_cannot_encode_dataset": outcome(lambda: build_supervision(
@@ -268,12 +281,14 @@ def main():
               "certificates_for_other_candidates": "certificates certify candidates",
               "certificate_rows_reordered": "do not match the candidate rows in identity and order",
               "certificate_from_another_dataset": "certificates were computed from dataset",
-              "certificate_selection_tampered": "certificate structure: selected",
+              "selection_tampered": "selection: mask does not follow",
+              "selection_of_other_candidates": "the selection selects from candidates",
+              "certificate_without_its_selection": "selects nothing by itself",
               "split_of_another_dataset": "split episode ids", "representation_modality_mismatch": "not the representation's",
               "representation_cannot_encode_dataset": "cannot encode the dataset",
               "bc_with_candidates": "bc trains on the demonstrations only",
               "noise_bc_with_certificates": "noise_bc trains on the demonstrations only",
-              "certificates_without_candidates": "certificates need the candidates file",
+              "certificates_without_candidates": "need the candidates file",
               "ccil_without_candidates": "ccil needs a candidates file",
               "negative_demonstration_weight": "demonstration_weight", "chunked_candidates_refused_by_default": "action chunks",
               "candidate_action_width_mismatch": "candidate actions have shape",
@@ -321,10 +336,11 @@ def main():
     # An independent consumer: execute the exact recipe block of docs/supervision.md.
     doc = (REPO / "docs/supervision.md").read_text()
     block = doc.split("## Without `ccil`: the recipe", 1)[1].split("```python\n", 1)[1].split("```", 1)[0]
-    ns = {"candidates_path": str(P["candidates"]), "certificates_path": str(P["certificates"]), "split_path": str(P["split"])}
+    ns = {"candidates_path": str(P["candidates"]), "certificates_path": str(P["certificates"]),
+          "selection_path": str(P["selection"]), "split_path": str(P["split"])}
     exec(compile(block, "docs/supervision.md recipe", "exec"), ns)  # noqa: S102 (repository documentation)
     rows = sups["ccil_certified"].candidate_row[sups["ccil_certified"].source == "synthetic"]
-    without_split = np.flatnonzero(np.asarray(cands.accepted) & cert.admissible & cert.selected)
+    without_split = np.flatnonzero(np.asarray(cands.accepted) & sel.mask)
     record("documented_recipe_reproduces_the_usable_rows",
            np.array_equal(ns["rows"], rows) and len(without_split) > len(rows),
            recipe_rows=int(len(ns["rows"])), supervision_synthetic_rows=int(len(rows)),

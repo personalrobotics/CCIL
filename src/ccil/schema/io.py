@@ -18,10 +18,11 @@ import zipfile
 
 import numpy as np
 
-from . import certificates, labels, trajectories
+from . import certificates, labels, selection, trajectories
 from .certificates import CertificateSet
 from .fields import SchemaError
 from .labels import CandidateSet
+from .selection import SelectionSet
 from .trajectories import Episode, TrajectoryDataset
 
 
@@ -267,43 +268,56 @@ def read_candidates(path, dataset: TrajectoryDataset | None = None) -> Candidate
 
 # --- certificates ---------------------------------------------------------
 CERT_REQUIRED = {"source_episode_id", "source_frame", "model_error_value", "total_error_value", "classification",
-                 "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"}
-CERT_META = ("descriptor", "admission", "selection", "candidates_sha256", "inputs", "components")
+                 "is_upper_bound", "in_neighborhood", "reasons"}
+CERT_META = ("descriptor", "candidates_sha256", "inputs", "components")
+# Version 1.0 also stored its admission and selection.
+CERT_LEGACY_ARRAYS = ("admissible", "selected")
+CERT_LEGACY_META = ("admission", "selection")
 
 
 def write_certificates(cert: CertificateSet, path) -> None:
+    """Write a certificate set: 2.0, or 1.0 when it carries the legacy admission and selection."""
     cert.validate()
     arrays = {"source_episode_id": cert.source_episode_id, "source_frame": cert.source_frame,
               "model_error_value": cert.model_error_value, "total_error_value": cert.total_error_value,
               "classification": certificates.code_classifications(cert.classification),
-              "is_upper_bound": cert.is_upper_bound, "in_neighborhood": cert.in_neighborhood,
-              "admissible": cert.admissible, "selected": cert.selected, "reasons": cert.reasons}
+              "is_upper_bound": cert.is_upper_bound, "in_neighborhood": cert.in_neighborhood, "reasons": cert.reasons}
     arrays.update({f"term/{k}": v for k, v in cert.terms.items()})
-    arrays["meta"] = _meta(certificates.SCHEMA, certificates.VERSION, set(), **{k: getattr(cert, k) for k in CERT_META},
-                           classification_codes=list(certificates.CLASSIFICATIONS),
-                           reason_codes=list(certificates.REASON_CODES))
+    meta = {k: getattr(cert, k) for k in CERT_META}
+    if cert.legacy:
+        arrays.update({k: getattr(cert, k) for k in CERT_LEGACY_ARRAYS})
+        meta.update({k: getattr(cert, k) for k in CERT_LEGACY_META})
+    arrays["meta"] = _meta(certificates.SCHEMA, cert.version, set(), **meta,
+                           classification_codes=list(certificates.CLASSIFICATIONS), reason_codes=list(cert.reason_codes))
     _atomic_savez(path, arrays)
 
 
 def read_certificates(path) -> CertificateSet:
-    """Read and validate a ccil.certificates file."""
+    """Read and validate a ccil.certificates file, 2.0 or legacy 1.0."""
     s = certificates.SCHEMA
-    z, meta = _open(path, s, certificates.VERSION, CERT_REQUIRED, ("term/",))
+    legacy = str(_load_npz(path, s)[1].get("version", "")).split(".")[0] == str(certificates.LEGACY_VERSION[0])
+    version = certificates.LEGACY_VERSION if legacy else certificates.VERSION
+    required = CERT_REQUIRED | (set(CERT_LEGACY_ARRAYS) if legacy else set())
+    meta_keys = CERT_META + (CERT_LEGACY_META if legacy else ())
+    reason_codes = certificates.LEGACY_REASON_CODES if legacy else certificates.REASON_CODES
+    z, meta = _open(path, s, version, required, ("term/",))
     problems = []
-    missing = sorted(CERT_REQUIRED - set(z))
+    missing = sorted(required - set(z))
     if missing:
         problems.append(f"missing required fields {missing}")
-    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "classification_codes", "reason_codes", *CERT_META})
+    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "classification_codes", "reason_codes", *meta_keys})
     if unknown:
         problems.append(f"unknown meta fields {unknown}")
     if meta.get("classification_codes") != list(certificates.CLASSIFICATIONS):
         problems.append(f"classification_codes must be {list(certificates.CLASSIFICATIONS)}")
-    if meta.get("reason_codes") != list(certificates.REASON_CODES):
-        problems.append(f"reason_codes must be {list(certificates.REASON_CODES)}")
+    if meta.get("reason_codes") != list(reason_codes):
+        problems.append(f"reason_codes must be {list(reason_codes)}")
     codes = z.get("classification")
     if codes is not None and (codes.ndim != 1 or codes.dtype.kind not in "iu"
                               or ((codes < 0) | (codes >= len(certificates.CLASSIFICATIONS))).any()):
         problems.append("classification must be rank-1 integer codes into classification_codes")
+    if legacy and not isinstance(meta.get("admission"), dict):
+        problems.append("a 1.0 file records its admission policy")
     if problems:
         raise _format_error(s, path, problems)
     cert = CertificateSet(
@@ -311,6 +325,40 @@ def read_certificates(path) -> CertificateSet:
         terms={k[5:]: z[k] for k in z if k.startswith("term/")},
         model_error_value=z["model_error_value"], total_error_value=z["total_error_value"],
         classification=certificates.decode_classifications(codes), is_upper_bound=z["is_upper_bound"],
-        in_neighborhood=z["in_neighborhood"], admissible=z["admissible"], selected=z["selected"], reasons=z["reasons"],
-        **{k: meta.get(k) for k in CERT_META})
+        in_neighborhood=z["in_neighborhood"], reasons=z["reasons"],
+        **{k: meta.get(k) for k in CERT_META},
+        **({k: z[k] for k in CERT_LEGACY_ARRAYS} | {k: meta.get(k) for k in CERT_LEGACY_META} if legacy else {}))
     return cert.validate()
+
+
+# --- selection ------------------------------------------------------------
+SEL_REQUIRED = {"source_episode_id", "source_frame", "mask", "weight", "error", "ratio", "rank", "reasons"}
+SEL_META = ("policy", "policy_version", "uses", "caveats", "threshold", "evidence_mode", "evidence_allowed",
+            "candidates_sha256", "certificates_sha256")
+
+
+def write_selection(sel: SelectionSet, path) -> None:
+    sel.validate()
+    arrays = {k: getattr(sel, k) for k in sorted(SEL_REQUIRED)}
+    arrays["meta"] = _meta(selection.SCHEMA, selection.VERSION, set(), **{k: getattr(sel, k) for k in SEL_META},
+                           error=sel.error_spec, reason_codes=list(selection.REASON_CODES))
+    _atomic_savez(path, arrays)
+
+
+def read_selection(path) -> SelectionSet:
+    """Read and validate a ccil.selection file."""
+    s = selection.SCHEMA
+    z, meta = _open(path, s, selection.VERSION, SEL_REQUIRED, ())
+    problems = []
+    missing = sorted(SEL_REQUIRED - set(z))
+    if missing:
+        problems.append(f"missing required fields {missing}")
+    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "reason_codes", "error", *SEL_META})
+    if unknown:
+        problems.append(f"unknown meta fields {unknown}")
+    if meta.get("reason_codes") != list(selection.REASON_CODES):
+        problems.append(f"reason_codes must be {list(selection.REASON_CODES)}")
+    if problems:
+        raise _format_error(s, path, problems)
+    return SelectionSet(**{k: z[k] for k in SEL_REQUIRED}, **{k: meta.get(k) for k in SEL_META},
+                        error_spec=meta.get("error")).validate()

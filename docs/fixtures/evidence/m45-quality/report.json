@@ -1,0 +1,153 @@
+{
+ "all_pass": true,
+ "artifacts": {
+  "pipeline/runs/labels-curate-2e8f26f20f8e/labels/selection.npz": "7f8bc56ff6ca82e8c527d01402d765e520ae3cca59ccf86b223bd5e407333d70",
+  "pipeline/runs/labels-curate-31856e966693/labels/selection.npz": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239",
+  "pipeline/runs/labels-curate-e82dd01cf5db/labels/selection.npz": "87239474d35051a9d04635c78a4eefe16a269c343deadca4329498a594eb65b2",
+  "selection-bound.npz": "d1eed7f588fd209597c96285d8aa7a0d9e36971f0eef307d7de2411ec260fc1e"
+ },
+ "cases": [
+  {
+   "case": "selected_bounds_cover_true_error",
+   "max_bound_selected": 0.012990553200721218,
+   "max_true_error_selected": 0.009806878071837402,
+   "max_true_error_unselected": 0.09610877600061866,
+   "pass": true,
+   "rows": 54,
+   "selected": 27,
+   "tolerance": 0.014059963132056832
+  },
+  {
+   "case": "consumer_recomputes_selection_with_numpy",
+   "caveats": [
+    "fidelity only: the policy compares label error and no novelty term, so it favours labels close to the demonstrations"
+   ],
+   "checks": {
+    "inputs": true,
+    "mask": true,
+    "ratio": true,
+    "weight": true
+   },
+   "error_units": "scaled state (z / state_scale)",
+   "pass": true
+  },
+  {
+   "audit": [],
+   "case": "sources_recompute_certificate_and_selection",
+   "pass": true,
+   "verify": []
+  },
+  {
+   "case": "fail_closed",
+   "data_only_refusal": "InterfaceError: the certificate's constants come from reference dynamics, which data_only curation cannot use; allow reference_assisted evidence (generation.evidence_mode)",
+   "empirical_under_bound_policy": 0,
+   "empirical_under_score_policy": 40,
+   "pass": true,
+   "unsupported_rows": 27,
+   "unsupported_selected": 0
+  },
+  {
+   "case": "boundaries_hold",
+   "data_only_certificate_under_reference_allowance": {
+    "evidence_allowed": "reference_assisted",
+    "evidence_mode": "data_only"
+   },
+   "forged_certificate": "InterfaceError: the certificate does not verify against these candidates: total_error_value does not follow from the persisted terms on 54 rows",
+   "pass": true,
+   "wrong_claims": {
+    "data_only_claimed": [
+     "evidence_mode 'data_only' is not the certificate's provenance ('reference_assisted')"
+    ],
+    "reference_claimed": [
+     "evidence_mode 'reference_assisted' is not the certificate's provenance ('data_only')"
+    ]
+   },
+   "zero_tolerance": {
+    "config": "ConfigError: curate.tolerance: 0.0 is outside (0.0, inf] (cli)",
+    "policy": "InterfaceError: tolerance must be finite and > 0 or None, got 0.0"
+   }
+  },
+  {
+   "case": "tolerance_change_is_a_new_selection",
+   "pass": true,
+   "runs": {
+    "budget": {
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-2e8f26f20f8e",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-886112701ddc",
+     "selected": 13,
+     "selection_sha256": "7f8bc56ff6ca82e8c527d01402d765e520ae3cca59ccf86b223bd5e407333d70"
+    },
+    "loose": {
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-31856e966693",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-886112701ddc",
+     "selected": 25,
+     "selection_sha256": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239"
+    },
+    "loose_again": {
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-31856e966693",
+     "curate_reused": true,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-886112701ddc",
+     "selected": 25,
+     "selection_sha256": "05e6d0cddf7e0d0a92194bb587a2656f0db5c16ea0ab3d741314601a43b51239"
+    },
+    "tight": {
+     "candidates_sha256": "1a9963cf82c3a267d07747f436db93424104d47baef56eb432bf1c549151fe92",
+     "certificates_sha256": "f9660f4082ae1764169e8e9b297afa017b4ec26881d5b61987e17cddbc2a1892",
+     "certify": "labels-certify-2c9a777f3eff",
+     "curate": "labels-curate-e82dd01cf5db",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-886112701ddc",
+     "selected": 20,
+     "selection_sha256": "87239474d35051a9d04635c78a4eefe16a269c343deadca4329498a594eb65b2"
+    }
+   }
+  },
+  {
+   "case": "configuration_refuses_before_running",
+   "moved_key": "ConfigError: certificate.max_total_error was withdrawn (cli): selection moved out of the certificate (#167): set curate.tolerance",
+   "pass": true,
+   "reference_in_data_only": "ConfigError: certificate.reference_dynamics computes constants from reference dynamics, which data-only curation cannot use; set generation.evidence_mode reference_assisted [curate; sources: curate.tolerance=default, curate.quantile=default, curate.population=default, certificate.profile=cli, certificate.reference_dynamics=cli, generation.evidence_mode=default]"
+  },
+  {
+   "case": "corruption_refused",
+   "pass": true,
+   "refusals": {
+    "certificate_1_0_with_selection": "SupervisionError: a 1.0 certificate carries its own selection; it takes no separate selection | the selection was curated from certificates c865cc7666b7f6f7068d343adf0e9be1ce016e1adce7f25648e8d32e10a54b31, not e779de4c7ef6678508bdc9dda0acb99709bf740047d11d1c436675e9148ca69f",
+    "certificate_2_0_without_selection": "SupervisionError: a 2.0 certificate selects nothing by itself; pass the selection curated from it",
+    "clean": "accepted",
+    "forged_mask": "SupervisionError: selection: mask does not follow from the inputs and the policy | selection: weight does not follow from the inputs and the policy | selection: reasons does not follow from the inputs and the policy",
+    "selection_byte_flipped": "SupervisionError: selection: ccil.selection failed validation (format=1): | format at <out>/selection-flipped.npz: an array cannot be read: Bad CRC-32 for file 'meta.npy'",
+    "selection_of_other_certificates": "SupervisionError: the selection was curated from certificates e1c8c0b457088872b2396b1680480e22b494d3d524d9db73adf002daf58747f8, not c865cc7666b7f6f7068d343adf0e9be1ce016e1adce7f25648e8d32e10a54b31"
+   }
+  },
+  {
+   "case": "legacy_certificate_rows_equal_selection",
+   "legacy_rows": 27,
+   "legacy_version": "1.0",
+   "pass": true,
+   "selection_rows": 27
+  }
+ ],
+ "environment": {
+  "code_commit": "a3eae44206afd9bd951aa75540e0a6c92a5d4c06",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}

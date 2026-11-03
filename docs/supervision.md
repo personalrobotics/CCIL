@@ -6,7 +6,9 @@ CCIL produces synthetic supervision. Its ordinary workflow turns
 demonstrations into immutable artifacts:
 - the prepared dataset;
 - the candidate labels (`labels/candidates.npz`);
-- optionally, their certificates (`labels/certificates.npz`).
+- optionally, their certificates (`labels/certificates.npz`);
+- a selection (`labels/selection.npz`), written by one curation policy
+  ([certificates.md](certificates.md#curation)).
 
 Users train downstream policies with whatever trainer they choose. This
 document defines exactly which rows such a trainer may use, and with which
@@ -25,11 +27,12 @@ other trainer. Using CCIL does not require it.
 |---|---|
 | `bc` | The demonstrations only |
 | `noise_bc` | The demonstrations only. The trainer perturbs them online at every draw ([`training/noise_bc.py`](../src/ccil/training/noise_bc.py)), so nothing synthetic is stored. |
-| `ccil`, no certificates | The demonstrations, and every candidate with `accepted`. Recorded as `certification: uncertified`, with each synthetic row classified `uncertified`. |
-| `ccil`, with certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`. Each row keeps its certificate classification, and the manifest records the profile, admission and selection. |
+| `ccil`, with a selection | The demonstrations, and every candidate with `accepted ∧ selection.mask`, at the selection's weights. With certificates, each row keeps its certificate classification. The manifest records the profile and the selection's policy, threshold, evidence mode and caveats. |
+| `ccil`, no selection or certificates | The demonstrations, and every candidate with `accepted`. Recorded as `certification: uncertified`, with each synthetic row classified `uncertified`. |
+| `ccil`, legacy 1.0 certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`, the selection a 1.0 certificate stored. Recorded with `legacy: true`. |
 
-**Usable rows only.** A rejected, inadmissible or unselected candidate never
-appears, whatever its weight. There is no weight-only path into the loss.
+**Usable rows only.** A rejected or unselected candidate never appears,
+whatever its weight. There is no weight-only path into the loss.
 
 ## Rows and weights
 
@@ -78,7 +81,12 @@ checkpoint.
   observation or action shape is not the demonstrations';
 - a fitted representation is given without its checkpoint, or differs from
   it, or the candidates or certificates were made in another representation;
-- certificates are given without candidates, or candidates or certificates
+- a 2.0 certificate is given without a selection, or a 1.0 certificate with
+  one;
+- the selection selects from other candidates, was curated from other
+  certificates (or from none, when certificates are given), or does not
+  recompute from its inputs (`verify_selection`);
+- certificates or a selection are given without candidates, or any of them
   with `bc` or `noise_bc`;
 - the candidates carry action chunks that the consumer has not declared it
   will consume.
@@ -104,7 +112,8 @@ Only position 0 of a label's chunk carries its one-step CCIL claim.
 
 ## Manifest
 
-`Supervision.manifest()` (`ccil.supervision-manifest` 1.0) records:
+`Supervision.manifest()` (`ccil.supervision-manifest` 1.0, or 1.1 with a
+selection, which adds `selection`) records:
 - the arm, the certification, the demonstration weight and frames;
 - the chunk policy and representation;
 - the SHA-256 of every input;
@@ -113,7 +122,7 @@ Only position 0 of a label's chunk carries its one-step CCIL claim.
 | Reconciliation count | Rule |
 |---|---|
 | Demonstration rows | Training plus held-out rows equals the transitions. |
-| Synthetic rows | Training plus held-out rows equals the usable candidates. |
+| Synthetic rows | Training plus held-out rows equals the usable candidates (`selected`). |
 | Total rows | Demonstration plus synthetic rows equals the row count. |
 
 Construction fails unless the counts close.
@@ -139,27 +148,29 @@ A study that varies the synthetic dose K generates one candidate set at K_max an
 
 ## Without `ccil`: the recipe
 
-An independent consumer needs the two label files and the split. The
-evidence executes this exact block.
+An independent consumer needs the candidates, the selection and the split.
+The evidence executes this exact block.
 
 ```python
 import json
 
 import numpy as np
 
-from ccil.schema import read_candidates, read_certificates
+from ccil.schema import read_candidates, read_selection
 
 c = read_candidates(candidates_path)
-k = read_certificates(certificates_path)    # its candidates_sha256 must be this file's
+s = read_selection(selection_path)         # its candidates_sha256 must be this file's
 train = json.loads(open(split_path).read())["train"]
-usable = c.accepted & k.admissible & k.selected    # without certificates: c.accepted
+usable = c.accepted & s.mask               # without a selection: c.accepted
 usable &= np.isin(c.source_episode_id, train)      # never train on held-out episodes' labels
-rows = np.flatnonzero(usable)    # c.observations[...][rows], c.actions[rows], c.weight[rows]
+rows = np.flatnonzero(usable)    # c.observations[...][rows], c.actions[rows], s.weight[rows]
 ```
 
 Before relying on that, check two things:
-- the certificate's rows equal the candidates' (`source_episode_id`,
-  `source_frame`, same order), and the hashes match;
+- the selection's rows equal the candidates' (`source_episode_id`,
+  `source_frame`, same order), and its recorded candidate and certificate
+  hashes are the files' (`s.error_spec["is_bound"]` says whether its errors
+  are bounds);
 - for a fitted representation, the demonstrations are encoded by the same
   checkpoint the candidates record.
 
@@ -171,7 +182,8 @@ uv run --group evidence python tools/m3_supervision/check.py --out <new-dir>
 
 The report is
 [`fixtures/evidence/m3-supervision/report.json`](fixtures/evidence/m3-supervision/report.json),
-with `report-siddh.json` from the CUDA host. It writes each arm's manifest to
+with `report-siddh.json` from the CUDA host, both produced at `c8a4712`, before
+selections; the tool now reads the certified arm through its selection. It writes each arm's manifest to
 `manifests/`. The artifacts come from the real offline pipeline. The report
 shows:
 - **Arms.** Each arm equals an independent recomputation from the files.

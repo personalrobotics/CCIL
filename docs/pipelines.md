@@ -39,7 +39,7 @@ Each stage writes its own run directory.
 
 ## Offline generation: `ccil labels generate`
 
-    data.prepare → transition.fit → labels.generate
+    data.prepare → transition.fit → labels.generate [→ labels.certify] → labels.curate
 
 The output is a label set, `labels-generate-*/labels/candidates.npz`, with
 accepted and rejected rows, plus a report in its `metrics.json`: counts by
@@ -120,10 +120,15 @@ imports the integrated pipeline or a policy trainer.
 uv run ccil labels generate --recipe analytic_double_integrator --set data.path=fixture.npz
 ```
 
-A `labels.certify` stage can follow `labels.generate`. It writes
-`labels-certify-*/labels/certificates.npz` and leaves the candidates unchanged.
-The profile's specification, admission policy, selection and references are part of its identity. See
-[certificates.md](certificates.md).
+A `labels.certify` stage follows `labels.generate` when `certificate.profile`
+is set. It writes `labels-certify-*/labels/certificates.npz`, the labels'
+quality evidence, and leaves the candidates unchanged. The profile's
+specification and references are part of its identity.
+
+`labels.curate` always runs last. It writes `labels-curate-*/labels/selection.npz`,
+the rows one policy selects (`curate.*`), and leaves the candidates and
+certificates unchanged, so a new tolerance reruns only this stage. See
+[certificates.md](certificates.md#curation).
 
 ## Experimental vector-policy harness: `ccil policy train`
 
