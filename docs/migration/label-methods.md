@@ -113,7 +113,7 @@ training weight stay separate:
 |---|---|---|---|
 | `aug.epsilon` (`distance < ε`) | `SupportRadius` (`generation.support_radius`) | `out_of_support` | Unchanged (#11). |
 | `aug.model_err_thresh` (`model_fits_data`) | `ModelMisfit` (`generation.model_error_threshold`) | `label_filter.model_misfit` | It measures `anchor_model_error` on every row, and rejects anchors not below the threshold. Legacy generated nothing for such a transition; its candidates are now generated and rejected. |
-| `label_error` with `aug.max_label_err` / `aug.label_err_quantile` | Certificates (#88): `certificate.profile` with `certificate.score_threshold` / `certificate.selection_quantile` | `certificate.*` (in `certificates.npz`, never a candidate reason) | The branch's score is the opt-in `legacy_label_filtering` profile, and the old keys migrate to it. The paper's definitions are `backtrack_paper_proxy` and `disturbed_action_paper_proxy`, and the theorem bounds are `backtrack` and `disturbed_action`. See [`../certificates.md`](../certificates.md). |
+| `label_error` with `aug.max_label_err` / `aug.label_err_quantile` | Certificates (#88) and curation (#167): `certificate.profile` with `curate.tolerance` / `curate.quantile` | The score in `certificates.npz`; the decision in a separate `selection.npz` (never a candidate reason) | The branch's score is the opt-in `legacy_label_filtering` profile, and the old keys migrate to it. The paper's definitions are `backtrack_paper_proxy` and `disturbed_action_paper_proxy`, and the theorem bounds are `backtrack` and `disturbed_action`. See [`../certificates.md`](../certificates.md). |
 
 **Schema.** `label_filter.model_misfit` is a namespaced extension reason
 (#78), so files stay `ccil.candidates` 2.2. The evidence reads them with the
@@ -146,8 +146,8 @@ at the source transition (z_t, a_t) (Ke et al., §4.3):
   selection quantile, as legacy skipped them.
   - By default the quantile is taken over accepted, admissible rows.
   - Migrated configurations take it over every produced row, independently
-    of `max_label_err` and `epsilon` (`certificate.selection_population:
-    produced`), which reproduces the branch's selection.
+    of `max_label_err` and `epsilon` (`curate.population: produced`), which
+    reproduces the branch's selection.
 - **Exact Jacobians only.** The scores use the model's exact `jacobian_za`,
   with no finite-difference fallback. Without it a row is unsupported, never
   0: at float32, steps of 1e-6 vanish for inputs near 1e4, and the evidence

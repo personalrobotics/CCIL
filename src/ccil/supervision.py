@@ -349,7 +349,8 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                 "online_perturbation": "noise_bc: applied by the trainer at every draw" if method == "noise_bc" else None}
     if sel is not None:  # 1.1: the curation policy the rows came from
         manifest["selection"] = {"policy": sel.policy, "policy_version": sel.policy_version, "threshold": sel.threshold,
-                                 "evidence_mode": sel.evidence_mode, "uses": sel.uses, "caveats": sel.caveats}
+                                 "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed,
+                                 "uses": sel.uses, "caveats": sel.caveats}
     if part != "train":  # recorded only when it differs, so training manifests are unchanged
         manifest["split_part"] = part
     return Supervision(arrays["observations"], arrays["actions"], arrays["weights"], arrays["source"], arrays["episode_id"],

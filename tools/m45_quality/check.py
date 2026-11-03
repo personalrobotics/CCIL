@@ -18,6 +18,10 @@ true label error ||T(q) - y|| is computed independently of every artifact):
 - fail closed: unsupported rows are never selected, a bound policy selects no
   empirical row, and data_only curation refuses reference-assisted evidence,
   in the library and in the configuration before any run is written;
+- boundaries: a certificate whose totals do not follow from its terms is
+  refused before any selection exists; a selection records the provenance of
+  the evidence it used, not the allowance it ran under, and a selection that
+  claims either wrongly fails verification; a zero tolerance is refused;
 - corruption refusal: a corrupted selection file, a forged mask, a selection
   of other certificates, a 2.0 certificate without a selection, and a 1.0
   certificate with one are refused by build_supervision;
@@ -112,7 +116,7 @@ def main():
     write_certificates(cert, kpath)
     err = true_label_error(cands, sys_)
     tol = float(np.quantile(cert.total_error_value, 0.5))
-    sel = curate(cpath, kpath, CurationPolicy(admit="bound", tolerance=tol), evidence_mode="reference_assisted")
+    sel = curate(cpath, kpath, CurationPolicy(admit="bound", tolerance=tol), allow_evidence="reference_assisted")
     spath = out / "selection-bound.npz"
     write_selection(sel, spath)
     artifacts["selection-bound.npz"] = sha(spath)
@@ -152,7 +156,7 @@ def main():
     nb = certify(src, ContinuityProfile(REF, REF, DEMO, neighborhood_state=radius))
     nbpath = out / "certificates-neighborhood.npz"
     write_certificates(nb, nbpath)
-    snb = curate(cpath, nbpath, CurationPolicy(admit="bound"), evidence_mode="reference_assisted")
+    snb = curate(cpath, nbpath, CurationPolicy(admit="bound"), allow_evidence="reference_assisted")
     outside = nb.classification == "unsupported"
     score = certify(src, DisturbedActionPaperProxy())
     scpath = out / "certificates-score.npz"
@@ -171,6 +175,37 @@ def main():
            unsupported_rows=int(outside.sum()), unsupported_selected=int(snb.mask[outside].sum()),
            empirical_under_bound_policy=int(as_bound.mask.sum()), empirical_under_score_policy=int(as_score.mask.sum()),
            data_only_refusal=data_only)
+
+    # 4b. Boundaries: forged certificates, recorded provenance, zero tolerance.
+    forged_cert = copy.deepcopy(cert)
+    forged_cert.total_error_value = forged_cert.total_error_value * 0.5
+    fcpath = out / "certificates-forged-totals.npz"
+    write_certificates(forged_cert, fcpath)
+    forged_refusal = outcome(lambda: curate(cpath, fcpath, CurationPolicy(admit="bound", tolerance=tol),
+                                            allow_evidence="reference_assisted"))
+    permitted = curate(cpath, scpath, CurationPolicy(admit="score", tolerance=limit), allow_evidence="reference_assisted")
+    uncertified = curate(cpath, None, CurationPolicy(admit="accepted"), allow_evidence="reference_assisted")
+    claimed = copy.deepcopy(permitted)
+    claimed.evidence_mode = "reference_assisted"
+    disclaimed = copy.deepcopy(sel)
+    disclaimed.evidence_mode = "data_only"
+    zero = {"policy": outcome(lambda: CurationPolicy(admit="bound", tolerance=0.0)),
+            "config": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=[
+                f"data.path={data_path}", "certificate.profile=disturbed_action_paper_proxy", "curate.tolerance=0"]))}
+    record("boundaries_hold",
+           forged_refusal.startswith("InterfaceError") and "does not verify" in forged_refusal
+           and permitted.evidence_mode == "data_only" and permitted.evidence_allowed == "reference_assisted"
+           and uncertified.evidence_mode == "data_only"
+           and any("provenance" in q for q in verify_selection(claimed, cpath, scpath))
+           and any("provenance" in q for q in verify_selection(disclaimed, cpath, kpath))
+           and all(v.startswith(("InterfaceError", "ConfigError")) for v in zero.values())
+           and np.isnan(sel.ratio).sum() == int((cert.classification == "unsupported").sum()),
+           forged_certificate=forged_refusal,
+           data_only_certificate_under_reference_allowance={"evidence_mode": permitted.evidence_mode,
+                                                             "evidence_allowed": permitted.evidence_allowed},
+           wrong_claims={"reference_claimed": verify_selection(claimed, cpath, scpath),
+                         "data_only_claimed": verify_selection(disclaimed, cpath, kpath)},
+           zero_tolerance=zero)
 
     # 5. Tolerance changes through the pipeline: new selections, unchanged candidates and certificates.
     work = out / "pipeline"
@@ -227,7 +262,7 @@ def main():
     forged.weight[i] = float(cands.weight[i])
     fpath = out / "selection-forged.npz"
     write_selection(forged, fpath)
-    other = curate(cpath, nbpath, CurationPolicy(admit="bound"), evidence_mode="reference_assisted")
+    other = curate(cpath, nbpath, CurationPolicy(admit="bound"), allow_evidence="reference_assisted")
     opath = out / "selection-other-certificates.npz"
     write_selection(other, opath)
     rows, thr = decide(ContinuityProfile(REF, REF, DEMO), resolved_of(cert.descriptor), cert.terms, cands.accepted,

@@ -115,19 +115,20 @@ Required: `classification`, `in_neighborhood`, `is_upper_bound`, `model_error_va
 
 ## `ccil.selection` 1.0
 
-A selection is the output of one curation policy applied to one candidate set and, optionally, its certificates (#167). It never modifies either: changing a tolerance writes a new selection and leaves both hashes unchanged. One row per candidate row, in the same order, with the source identity repeated for joining.  Per row it records the mask and weight, the raw error the policy compared (the certificate's total_error_value, in the certificate's units), the error-to-tolerance ratio, the relative rank of that error within the named population, and every reason the row was not selected. A ratio of at most one means exactly that the recorded error is within the declared tolerance; it is a bound only when the error is (`error.is_bound`). Ranks are relative to the named population of this candidate set, not universal quantities.  A consumer trains on candidate.accepted & mask, with weight.
+A selection is the output of one curation policy applied to one candidate set and, optionally, its certificates (#167). It never modifies either: changing a tolerance writes a new selection and leaves both hashes unchanged. One row per candidate row, in the same order, with the source identity repeated for joining.  Per row it records the mask and weight, the raw error the policy compared (the certificate's total_error_value, in the certificate's units), the error-to-tolerance ratio, the relative rank of that error within the named population, and every reason the row was not selected. A ratio of at most one means exactly that the recorded error is within the declared tolerance, which is strictly positive; it is a bound only when the error is (`error.is_bound`). Ranks are relative to the named population of this candidate set, not universal quantities.  evidence_mode is provenance: reference_assisted exactly when reference dynamics computed a constant or residual of the certificate the selection used. evidence_allowed is what the curation run permitted; a data_only allowance never records reference-assisted evidence.  A consumer trains on candidate.accepted & mask, with weight.
 
 ### Fields
 
 | Field | Type | Description |
 |---|---|---|
-| `policy` | `dict` | admit ['accepted', 'bound', 'score'], tolerance (null or finite >= 0, in error.units), quantile (null or in (0, 1]), and population ['admitted', 'produced'] the quantile is taken over. |
+| `policy` | `dict` | admit ['accepted', 'bound', 'score'], tolerance (null or finite > 0, in error.units), quantile (null or in (0, 1]), and population ['admitted', 'produced'] the quantile is taken over. |
 | `policy_version` | `str` | Version of the curation rules that produced the selection. |
 | `uses` | `list[str]` | Quality terms the policy compares, from ['fidelity', 'novelty']. |
 | `caveats` | `list[str]` | What the policy does not establish, e.g. that a fidelity-only policy favours labels close to the demonstrations. |
 | `error` | `dict | null` | definition, units, and is_bound of the error column; null without certificates. |
 | `threshold` | `float | null` | The error threshold the quantile resolved to; null without a quantile or a population. |
-| `evidence_mode` | `str` | ['data_only', 'reference_assisted']: whether reference dynamics shaped the evidence used. |
+| `evidence_mode` | `str` | ['data_only', 'reference_assisted']: whether reference dynamics shaped the evidence used (provenance). |
+| `evidence_allowed` | `str` | ['data_only', 'reference_assisted']: the evidence the curation run permitted; data_only permits no reference-assisted evidence. |
 | `candidates_sha256` | `str` | SHA-256 of the candidates file. |
 | `certificates_sha256` | `str | null` | SHA-256 of the certificates file; null for admit accepted. |
 | `reason_codes` | `list[str]` | Exactly ['selection.not_accepted', 'selection.unsupported', 'selection.not_bound', 'selection.exceeds_tolerance', 'selection.not_selected']. |
@@ -141,7 +142,7 @@ A selection is the output of one curation policy applied to one candidate set an
 | `mask` | bool | (N,) | - | yes | The row may be used: accepted, and passed every rule of the policy. |
 | `weight` | float | (N,) | - | yes | Loss weight: the candidate's weight on selected rows, 0 elsewhere. |
 | `error` | float | (N,) | per error.units | yes | The raw error the policy compared: the certificate's total_error_value. NaN without certificates and on unsupported rows. |
-| `ratio` | float | (N,) | - | yes | error / tolerance; NaN without a tolerance or a finite error. |
+| `ratio` | float | (N,) | - | yes | error / tolerance (tolerance > 0); NaN exactly without a tolerance or a finite error. |
 | `rank` | float | (N,) | - | yes | Relative rank of error within the named population, in [0, 1] (the fraction of that population with error at most this row's); NaN outside it. |
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
 
@@ -149,7 +150,7 @@ Reason codes, in column order: `selection.not_accepted`, `selection.unsupported`
 
 ### File layout (.npz)
 
-Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted.
+Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_allowed`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted.
 
 ## Compatibility
 

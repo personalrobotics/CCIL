@@ -24,9 +24,18 @@ quantile selects a subset. Every policy here compares one quality term, the
 certificate's error, so it records the caveat that fidelity alone favours
 labels that stay close to the demonstrations.
 
-Evidence modes: a certificate whose constants or demonstration residuals come
-from reference dynamics is reference_assisted evidence. curate refuses it in
-the default data_only mode, and records the mode it ran in.
+Evidence: a certificate whose constants or demonstration residuals come from
+reference dynamics is reference_assisted evidence. curate's allowance
+(allow_evidence) says what it may use; data_only, the default, refuses
+reference-assisted evidence. The selection records both the allowance and the
+provenance of the evidence it actually used, which is data_only whenever the
+certificate is data-only or there is none.
+
+Before deciding anything, curate verifies the certificate's structure against
+the candidates (core/certificates.py verify_structure): a certificate whose
+totals, classification, or reasons do not follow from its persisted terms
+and descriptor is refused. The source audit (audit_sources) remains the
+stronger, separate check.
 """
 from __future__ import annotations
 
@@ -61,8 +70,8 @@ class CurationPolicy:
         problems = []
         if self.admit not in ADMIT:
             problems.append(f"admit must be one of {list(ADMIT)}, got {self.admit!r}")
-        if self.tolerance is not None and not _nonneg(self.tolerance):
-            problems.append(f"tolerance must be finite and >= 0 or None, got {self.tolerance!r}")
+        if self.tolerance is not None and not (_number(self.tolerance) and self.tolerance > 0):
+            problems.append(f"tolerance must be finite and > 0 or None, got {self.tolerance!r}")
         if self.quantile is not None and not (_number(self.quantile) and 0 < self.quantile <= 1):
             problems.append(f"quantile must be in (0, 1] or None, got {self.quantile!r}")
         if self.population not in POPULATIONS:
@@ -81,10 +90,6 @@ class CurationPolicy:
 
 def _number(x) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
-
-
-def _nonneg(x) -> bool:
-    return _number(x) and x >= 0
 
 
 def produced_rows(candidates) -> np.ndarray:
@@ -137,12 +142,26 @@ def reference_assisted(cert) -> bool:
     from .certificates import PROVIDERS
     d = cert.descriptor
     entries = list(d.get("constants", {}).values()) + ([d["demonstration"]] if "demonstration" in d else [])
+    for e in entries:
+        p = e.get("provenance")
+        if p and p.get("provider") not in PROVIDERS:
+            raise InterfaceError(f"the certificate names an unregistered provider {p.get('provider')!r}")
     return any(e.get("provenance") and PROVIDERS[e["provenance"]["provider"]].needs_reference for e in entries)
 
 
 def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256: str, certificates_sha256: str | None,
-                     evidence_mode: str) -> SelectionSet:
-    """The selection one policy makes, from loaded candidates and certificates; pure arithmetic over the files."""
+                     allow_evidence: str = "data_only") -> SelectionSet:
+    """The selection one policy makes, from loaded candidates and certificates; pure arithmetic over the files.
+
+    The recorded evidence mode is the certificate's provenance; reference-assisted
+    evidence under a data_only allowance raises InterfaceError.
+    """
+    if allow_evidence not in EVIDENCE_MODES:
+        raise InterfaceError(f"allow_evidence must be one of {list(EVIDENCE_MODES)}, got {allow_evidence!r}")
+    evidence_mode = "reference_assisted" if cert is not None and reference_assisted(cert) else "data_only"
+    if evidence_mode == "reference_assisted" and allow_evidence == "data_only":
+        raise InterfaceError("the certificate's constants come from reference dynamics, which data_only curation cannot "
+                             "use; allow reference_assisted evidence (generation.evidence_mode)")
     accepted = np.asarray(candidates.accepted, bool)
     n = len(accepted)
     reasons = np.zeros((n, len(REASON_CODES)), bool)
@@ -163,8 +182,7 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
         reasons[:, 3] = rows["candidate"] & ~rows["within"]
         reasons[:, 4] = rows["eligible"] & ~rows["selected"]
         error = np.where(supported, total, np.nan)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            ratio = nan.copy() if policy.tolerance is None else np.where(supported, total / policy.tolerance, np.nan)
+        ratio = nan.copy() if policy.tolerance is None else np.where(supported, total / policy.tolerance, np.nan)
         rank = _ranks(total, rows["pool"] if policy.quantile is not None else rows["eligible"])
         units = cert.descriptor["units"]["error"]
         error_spec = {"definition": "the certificate's total_error_value: "
@@ -179,43 +197,40 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
         source_episode_id=np.asarray(candidates.source_episode_id), source_frame=np.asarray(candidates.source_frame),
         mask=mask, weight=weight, error=error, ratio=ratio, rank=rank, reasons=reasons, policy=policy.spec(),
         policy_version=POLICY_VERSION, uses=uses, caveats=caveats, error_spec=error_spec, threshold=threshold,
-        evidence_mode=evidence_mode, candidates_sha256=candidates_sha256, certificates_sha256=certificates_sha256).validate()
+        evidence_mode=evidence_mode, evidence_allowed=allow_evidence, candidates_sha256=candidates_sha256, certificates_sha256=certificates_sha256).validate()
 
 
 def curate(candidates, certificates=None, policy: CurationPolicy = CurationPolicy(admit="accepted"),
-           evidence_mode: str = "data_only") -> SelectionSet:
+           allow_evidence: str = "data_only") -> SelectionSet:
     """Select rows of the candidates file with policy; neither input is modified.
 
     candidates and certificates are file paths. Raises InterfaceError when the
     policy and inputs do not fit: a certificate policy without certificates,
-    certificates with admit accepted, certificates of other candidates, a
-    legacy 1.0 certificate, or reference-assisted evidence in data_only mode.
+    certificates with admit accepted, a legacy 1.0 certificate, a certificate
+    that fails structural verification against these candidates, or
+    reference-assisted evidence under a data_only allowance.
     """
-    if evidence_mode not in EVIDENCE_MODES:
-        raise InterfaceError(f"evidence_mode must be one of {list(EVIDENCE_MODES)}, got {evidence_mode!r}")
     cands = read_candidates(candidates)
     cand_sha = sha256(Path(candidates))
     if policy.admit == "accepted":
         if certificates is not None:
             raise InterfaceError("admit accepted selects by acceptance alone; it takes no certificates")
-        return decide_selection(cands, None, policy, cand_sha, None, evidence_mode)
+        return decide_selection(cands, None, policy, cand_sha, None, allow_evidence)
     if certificates is None:
         raise InterfaceError(f"admit {policy.admit} compares certificate errors; it needs certificates")
     cert = read_certificates(certificates)
-    problems = []
     if cert.legacy:
-        problems.append("a 1.0 certificate already carries its own selection; certify the candidates again (2.0)")
-    if cert.candidates_sha256 != cand_sha:
-        problems.append(f"certificates certify candidates {cert.candidates_sha256}, not this file ({cand_sha})")
-    elif not (np.array_equal(cert.source_episode_id.astype(str), np.asarray(cands.source_episode_id).astype(str))
-              and np.array_equal(cert.source_frame, cands.source_frame)):
-        problems.append("certificate rows do not match the candidate rows")
-    if evidence_mode == "data_only" and reference_assisted(cert):
-        problems.append("the certificate's constants come from reference dynamics, which data_only curation cannot "
-                        "use; set evidence_mode reference_assisted")
+        raise InterfaceError("a 1.0 certificate already carries its own selection; certify the candidates again (2.0)")
+    problems = _certificate_problems(cert, candidates)
     if problems:
-        raise InterfaceError("; ".join(problems))
-    return decide_selection(cands, cert, policy, cand_sha, sha256(Path(certificates)), evidence_mode)
+        raise InterfaceError("the certificate does not verify against these candidates: " + "; ".join(problems))
+    return decide_selection(cands, cert, policy, cand_sha, sha256(Path(certificates)), allow_evidence)
+
+
+def _certificate_problems(cert, candidates_path) -> list[str]:
+    """Structural verification of the certificate against the candidates file (identity, profile, arithmetic)."""
+    from .certificates import verify_structure
+    return verify_structure(cert, candidates_path)
 
 
 def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None) -> list[str]:
@@ -233,11 +248,15 @@ def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None)
         sel.validate()
         cands = read_candidates(candidates_path)
         cert = None if certificates_path is None else read_certificates(certificates_path)
-        again = decide_selection(cands, cert, CurationPolicy(**sel.policy), cand_sha, cert_sha, sel.evidence_mode)
+        if cert is not None:
+            structural = _certificate_problems(cert, candidates_path)
+            if structural:
+                return [f"certificate: {p}" for p in structural]
+        again = decide_selection(cands, cert, CurationPolicy(**sel.policy), cand_sha, cert_sha, sel.evidence_allowed)
     except (SchemaError, InterfaceError) as e:
         return [str(e)]
-    if sel.evidence_mode == "data_only" and cert is not None and reference_assisted(cert):
-        problems.append("a data_only selection uses reference-assisted certificates")
+    if sel.evidence_mode != again.evidence_mode:
+        problems.append(f"evidence_mode {sel.evidence_mode!r} is not the certificate's provenance ({again.evidence_mode!r})")
     for name in ("source_episode_id", "source_frame", "mask", "weight", "reasons"):
         if not np.array_equal(np.asarray(getattr(sel, name)), np.asarray(getattr(again, name))):
             problems.append(f"{name} does not follow from the inputs and the policy")

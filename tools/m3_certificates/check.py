@@ -271,7 +271,7 @@ def main():
     admitted = cm.is_upper_bound & (cm.total_error_value <= limit)
     eligible = cands.accepted & admitted
     thr = cm_sel.threshold
-    empty = select(certify(s, provided), CurationPolicy("bound", tolerance=0.0, quantile=0.5))
+    empty = select(certify(s, provided), CurationPolicy("bound", tolerance=1e-300, quantile=0.5))  # below every total; 0 is not a tolerance
     record("masks_follow_rules",
            sha(s.candidates) == before and np.array_equal(read_candidates(s.candidates).accepted, cands.accepted)
            and np.array_equal(cm_sel.mask, eligible & (cm.total_error_value <= thr))

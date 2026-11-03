@@ -185,7 +185,7 @@ PARAMS = [
     Param("curate.tolerance", "float", None, "Select labels whose certificate error is at most this.",
           "Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical "
           "scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err.",
-          "curate", units="scaled state", low=0.0, nullable=True, legacy=("aug.max_label_err",)),
+          "curate", units="scaled state", low=0.0, low_open=True, nullable=True, legacy=("aug.max_label_err",)),
     Param("curate.quantile", "float", None,
           "Select admitted, accepted labels whose error is at most this quantile of the population's.",
           "A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the "

@@ -97,7 +97,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `curate.tolerance` | float | `null` | scaled state | [0.0, inf] | implemented | Select labels whose certificate error is at most this. | Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err. | `aug.max_label_err` |
+| `curate.tolerance` | float | `null` | scaled state | (0.0, inf] | implemented | Select labels whose certificate error is at most this. | Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err. | `aug.max_label_err` |
 | `curate.quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose error is at most this quantile of the population's. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
 | `curate.population` | choice | `"admitted"` | - | `admitted`, `produced` | implemented | Rows the selection quantile is taken over. | admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, independently of the tolerance and support radius, as the label-filtering branch did; migrated legacy configurations use it. | - |
 

@@ -183,18 +183,27 @@ stay the same.
 - **Per row,** the selection records the raw error and its units, the ratio
   error / tolerance, the rank of the error within the named population, and
   every reason against the row: `selection.not_accepted`, `unsupported`,
-  `not_bound`, `exceeds_tolerance`, `not_selected`. A ratio of at most one
-  means exactly that the recorded error is within the tolerance; it is a bound
-  only when the error is.
+  `not_bound`, `exceeds_tolerance`, `not_selected`. The tolerance is strictly
+  positive. A ratio of at most one means exactly that the recorded error is
+  within the tolerance; it is a bound only when the error is. The ratio is NaN
+  exactly where there is no tolerance or no finite error.
 - **Caveats:** every policy here compares one quality term, the error, so the
   selection records that fidelity alone favours labels close to the
   demonstrations.
+- **Structure first:** curation verifies the certificate's structure against
+  the candidates (`verify_structure`) before it decides anything, so a
+  certificate whose totals, classification or reasons do not follow from its
+  terms never produces a selection.
 - **Evidence mode:** constants or demonstration residuals computed from
-  reference dynamics are `reference_assisted` evidence. Curation refuses them
-  unless `generation.evidence_mode` is `reference_assisted`, which the
-  selection records ([contract.md](contract.md#reference-dynamics)).
-- **Verification:** `verify_selection` recomputes every mask, weight, error,
-  ratio, rank, reason and threshold from the selection's inputs.
+  reference dynamics are `reference_assisted` evidence. `generation.evidence_mode`
+  is the allowance: under `data_only`, the default, curation refuses such
+  evidence. The selection records both the allowance (`evidence_allowed`) and
+  the provenance of what it used (`evidence_mode`), which is `data_only`
+  whenever the certificate is data-only or absent
+  ([contract.md](contract.md#reference-dynamics)).
+- **Verification:** `verify_selection` verifies the certificate's structure,
+  then recomputes every mask, weight, error, ratio, rank, reason, threshold and
+  the evidence provenance from the selection's inputs.
 
 ## Profiles
 
@@ -351,6 +360,7 @@ On the analytic double integrator:
 - **Recomputation:** the certificate is recomputed from its sources and the selection from its inputs.
 - **Tolerance changes:** through the pipeline they write new, nested selections while the candidate and certificate runs and hashes are unchanged.
 - **Fail closed:** unsupported and empirical rows are never selected as bounds, and data-only curation refuses reference evidence, in the library and in the configuration.
+- **Boundaries:** a certificate with forged totals is refused before any selection exists; a selection's recorded provenance is checked in both directions; a zero tolerance is refused.
 - **Refusals:** corrupted, forged and mismatched selections are refused by `build_supervision`.
 - **Legacy:** a 1.0 certificate's rows equal the same policy's selection.
 

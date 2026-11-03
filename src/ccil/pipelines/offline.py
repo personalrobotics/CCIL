@@ -368,7 +368,8 @@ def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, polic
         write_selection(sel, run.path(layout.SELECTION))
         counts = {code: int(sel.reasons[:, i].sum()) for i, code in enumerate(REASON_CODES)}
         run.metrics({"rows": int(len(sel.mask)), "selected": int(sel.mask.sum()), "policy": sel.policy,
-                     "evidence_mode": sel.evidence_mode, "threshold": sel.threshold, "reasons": counts,
+                     "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed,
+                     "threshold": sel.threshold, "reasons": counts,
                      "caveats": sel.caveats})
         run.log(f"selected {int(sel.mask.sum())} of {len(sel.mask)} candidates with {sel.policy}")
     return run_stage("labels.curate", cfg, inputs, body, parameters={"policy": policy.spec()})

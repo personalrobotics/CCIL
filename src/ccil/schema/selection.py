@@ -10,9 +10,15 @@ Per row it records the mask and weight, the raw error the policy compared
 (the certificate's total_error_value, in the certificate's units), the
 error-to-tolerance ratio, the relative rank of that error within the named
 population, and every reason the row was not selected. A ratio of at most one
-means exactly that the recorded error is within the declared tolerance; it is
-a bound only when the error is (`error.is_bound`). Ranks are relative to the
-named population of this candidate set, not universal quantities.
+means exactly that the recorded error is within the declared tolerance, which
+is strictly positive; it is a bound only when the error is (`error.is_bound`).
+Ranks are relative to the named population of this candidate set, not
+universal quantities.
+
+evidence_mode is provenance: reference_assisted exactly when reference
+dynamics computed a constant or residual of the certificate the selection
+used. evidence_allowed is what the curation run permitted; a data_only
+allowance never records reference-assisted evidence.
 
 A consumer trains on candidate.accepted & mask, with weight.
 """
@@ -43,14 +49,14 @@ WEIGHT = ArraySpec("weight", "float", ("N",), "-", "Loss weight: the candidate's
 ERROR = ArraySpec("error", "float", ("N",), "per error.units",
                   "The raw error the policy compared: the certificate's total_error_value. NaN without certificates and "
                   "on unsupported rows.")
-RATIO = ArraySpec("ratio", "float", ("N",), "-", "error / tolerance; NaN without a tolerance or a finite error.")
+RATIO = ArraySpec("ratio", "float", ("N",), "-", "error / tolerance (tolerance > 0); NaN exactly without a tolerance or a finite error.")
 RANK = ArraySpec("rank", "float", ("N",), "-",
                  "Relative rank of error within the named population, in [0, 1] (the fraction of that population with "
                  "error at most this row's); NaN outside it.")
 REASONS = ArraySpec("reasons", "bool", ("N", "R"), "-", "reasons[i, r] is True when reason_codes[r] applies to row i.")
 ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, MASK, WEIGHT, ERROR, RATIO, RANK, REASONS]
 FIELDS = [
-    ("policy", "dict", f"admit {list(ADMIT)}, tolerance (null or finite >= 0, in error.units), quantile (null or in "
+    ("policy", "dict", f"admit {list(ADMIT)}, tolerance (null or finite > 0, in error.units), quantile (null or in "
                        f"(0, 1]), and population {list(POPULATIONS)} the quantile is taken over."),
     ("policy_version", "str", "Version of the curation rules that produced the selection."),
     ("uses", "list[str]", f"Quality terms the policy compares, from {list(USES)}."),
@@ -58,7 +64,9 @@ FIELDS = [
                              "close to the demonstrations."),
     ("error", "dict | null", "definition, units, and is_bound of the error column; null without certificates."),
     ("threshold", "float | null", "The error threshold the quantile resolved to; null without a quantile or a population."),
-    ("evidence_mode", "str", f"{list(EVIDENCE_MODES)}: whether reference dynamics shaped the evidence used."),
+    ("evidence_mode", "str", f"{list(EVIDENCE_MODES)}: whether reference dynamics shaped the evidence used (provenance)."),
+    ("evidence_allowed", "str", f"{list(EVIDENCE_MODES)}: the evidence the curation run permitted; data_only permits no "
+                                "reference-assisted evidence."),
     ("candidates_sha256", "str", "SHA-256 of the candidates file."),
     ("certificates_sha256", "str | null", "SHA-256 of the certificates file; null for admit accepted."),
     ("reason_codes", "list[str]", f"Exactly {list(REASON_CODES)}."),
@@ -86,6 +94,7 @@ class SelectionSet:
     error_spec: dict | None
     threshold: float | None
     evidence_mode: str
+    evidence_allowed: str
     candidates_sha256: str
     certificates_sha256: str | None
 
@@ -110,10 +119,10 @@ class SelectionSet:
         w = "selection"
         p = self.policy
         if not (isinstance(p, dict) and set(p) == {"admit", "tolerance", "quantile", "population"} and p["admit"] in ADMIT
-                and (p["tolerance"] is None or (_number(p["tolerance"]) and p["tolerance"] >= 0))
+                and (p["tolerance"] is None or (_number(p["tolerance"]) and p["tolerance"] > 0))
                 and (p["quantile"] is None or (_number(p["quantile"]) and 0 < p["quantile"] <= 1))
                 and p["population"] in POPULATIONS and not (p["quantile"] is None and p["population"] != "admitted")):
-            out.add("policy", w, f"policy must be {{admit: {list(ADMIT)}, tolerance: null or finite >= 0, quantile: null or "
+            out.add("policy", w, f"policy must be {{admit: {list(ADMIT)}, tolerance: null or finite > 0, quantile: null or "
                                  f"in (0, 1], population: {list(POPULATIONS)}}}, with a non-default population only "
                                  "with a quantile")
             return
@@ -139,8 +148,10 @@ class SelectionSet:
         t = self.threshold
         if not (t is None or (_number(t) and t >= 0)) or (p["quantile"] is None and t is not None):
             out.add("threshold", w, "threshold must be null, or finite >= 0 with a quantile")
-        if self.evidence_mode not in EVIDENCE_MODES:
-            out.add("evidence_mode", w, f"evidence_mode must be one of {list(EVIDENCE_MODES)}")
+        if self.evidence_mode not in EVIDENCE_MODES or self.evidence_allowed not in EVIDENCE_MODES:
+            out.add("evidence_mode", w, f"evidence_mode and evidence_allowed must be one of {list(EVIDENCE_MODES)}")
+        elif self.evidence_mode == "reference_assisted" and (self.evidence_allowed == "data_only" or accepted_only):
+            out.add("evidence_mode", w, "reference-assisted evidence needs a certificate and a reference_assisted allowance")
         if not (isinstance(self.candidates_sha256, str) and SHA256.match(self.candidates_sha256)):
             out.add("inputs", w, "candidates_sha256 must be 64 lowercase hex")
         c = self.certificates_sha256
@@ -159,6 +170,12 @@ class SelectionSet:
             rule("rank", ~np.isnan(self.rank) & ~((self.rank >= 0) & (self.rank <= 1)), "rank must be in [0, 1] or NaN")
             rule("error", ~np.isnan(self.error) & ~(np.isfinite(self.error) & (self.error >= 0)),
                  "error must be finite and >= 0, or NaN")
+        tol = self.policy["tolerance"]
+        with np.errstate(invalid="ignore"):
+            rule("ratio", ~np.isnan(self.ratio) & ~(np.isfinite(self.ratio) & (self.ratio >= 0)),
+                 "ratio must be finite and >= 0, or NaN")
+        rule("ratio", np.isnan(self.ratio) != (np.isnan(self.error) | (tol is None)),
+             "ratio is NaN exactly without a tolerance or a finite error")
         if self.policy["admit"] == "accepted":
             rule("error", ~np.isnan(self.error) | ~np.isnan(self.ratio) | ~np.isnan(self.rank),
                  "admit accepted records no error, ratio, or rank")

@@ -333,8 +333,8 @@ def read_certificates(path) -> CertificateSet:
 
 # --- selection ------------------------------------------------------------
 SEL_REQUIRED = {"source_episode_id", "source_frame", "mask", "weight", "error", "ratio", "rank", "reasons"}
-SEL_META = ("policy", "policy_version", "uses", "caveats", "threshold", "evidence_mode", "candidates_sha256",
-            "certificates_sha256")
+SEL_META = ("policy", "policy_version", "uses", "caveats", "threshold", "evidence_mode", "evidence_allowed",
+            "candidates_sha256", "certificates_sha256")
 
 
 def write_selection(sel: SelectionSet, path) -> None:
