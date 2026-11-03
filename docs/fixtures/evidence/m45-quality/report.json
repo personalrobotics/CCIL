@@ -1,0 +1,132 @@
+{
+ "all_pass": true,
+ "artifacts": {
+  "pipeline/runs/labels-curate-9f554fcf9b86/labels/selection.npz": "8a8e2fa7d257711f45b4ee0e3d98bdcb41884972798fdae8f4c93ad4c61bb271",
+  "pipeline/runs/labels-curate-b135049bd1e3/labels/selection.npz": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f",
+  "pipeline/runs/labels-curate-d797818b69a4/labels/selection.npz": "ae1b9036d43186587183ea0b64ebf4367fd79337d5d764c7a095e96379f9c735",
+  "selection-bound.npz": "0acf04be68619c271562c6193af01ec362cb7cb4973ddb703544846846f4fb10"
+ },
+ "cases": [
+  {
+   "case": "selected_bounds_cover_true_error",
+   "max_bound_selected": 0.012990553200721218,
+   "max_true_error_selected": 0.009806878071837402,
+   "max_true_error_unselected": 0.09610877600061866,
+   "pass": true,
+   "rows": 54,
+   "selected": 27,
+   "tolerance": 0.014059963132056832
+  },
+  {
+   "case": "consumer_recomputes_selection_with_numpy",
+   "caveats": [
+    "fidelity only: the policy compares label error and no novelty term, so it favours labels close to the demonstrations"
+   ],
+   "checks": {
+    "inputs": true,
+    "mask": true,
+    "ratio": true,
+    "weight": true
+   },
+   "error_units": "scaled state (z / state_scale)",
+   "pass": true
+  },
+  {
+   "audit": [],
+   "case": "sources_recompute_certificate_and_selection",
+   "pass": true,
+   "verify": []
+  },
+  {
+   "case": "fail_closed",
+   "data_only_refusal": "InterfaceError: the certificate's constants come from reference dynamics, which data_only curation cannot use; set evidence_mode reference_assisted",
+   "empirical_under_bound_policy": 0,
+   "empirical_under_score_policy": 40,
+   "pass": true,
+   "unsupported_rows": 27,
+   "unsupported_selected": 0
+  },
+  {
+   "case": "tolerance_change_is_a_new_selection",
+   "pass": true,
+   "runs": {
+    "budget": {
+     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
+     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
+     "certify": "labels-certify-e455be630ab5",
+     "curate": "labels-curate-9f554fcf9b86",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-cec54174c2f9",
+     "selected": 13,
+     "selection_sha256": "8a8e2fa7d257711f45b4ee0e3d98bdcb41884972798fdae8f4c93ad4c61bb271"
+    },
+    "loose": {
+     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
+     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
+     "certify": "labels-certify-e455be630ab5",
+     "curate": "labels-curate-b135049bd1e3",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-cec54174c2f9",
+     "selected": 25,
+     "selection_sha256": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f"
+    },
+    "loose_again": {
+     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
+     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
+     "certify": "labels-certify-e455be630ab5",
+     "curate": "labels-curate-b135049bd1e3",
+     "curate_reused": true,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-cec54174c2f9",
+     "selected": 25,
+     "selection_sha256": "9f843f854a803217b2341763c62fb2ba5069ae2126e6c0b4508c42ec8084d44f"
+    },
+    "tight": {
+     "candidates_sha256": "f3b75bd89900e4a27b1d45b453c65eb34b002754ea53d70eafcceee631280b1a",
+     "certificates_sha256": "90a6bfad440a09eeef17d72b7c15b0ff29110e4a3e38ac9d31d7dbc8e20969c4",
+     "certify": "labels-certify-e455be630ab5",
+     "curate": "labels-curate-d797818b69a4",
+     "curate_reused": false,
+     "evidence_mode": "data_only",
+     "labels": "labels-generate-cec54174c2f9",
+     "selected": 20,
+     "selection_sha256": "ae1b9036d43186587183ea0b64ebf4367fd79337d5d764c7a095e96379f9c735"
+    }
+   }
+  },
+  {
+   "case": "configuration_refuses_before_running",
+   "moved_key": "ConfigError: certificate.max_total_error was withdrawn (cli): selection moved out of the certificate (#167): set curate.tolerance",
+   "pass": true,
+   "reference_in_data_only": "ConfigError: certificate.reference_dynamics computes constants from reference dynamics, which data-only curation cannot use; set generation.evidence_mode reference_assisted [curate; sources: curate.tolerance=default, curate.quantile=default, curate.population=default, certificate.profile=cli, certificate.reference_dynamics=cli, generation.evidence_mode=default]"
+  },
+  {
+   "case": "corruption_refused",
+   "pass": true,
+   "refusals": {
+    "certificate_1_0_with_selection": "SupervisionError: a 1.0 certificate carries its own selection; it takes no separate selection | the selection was curated from certificates c865cc7666b7f6f7068d343adf0e9be1ce016e1adce7f25648e8d32e10a54b31, not e779de4c7ef6678508bdc9dda0acb99709bf740047d11d1c436675e9148ca69f",
+    "certificate_2_0_without_selection": "SupervisionError: a 2.0 certificate selects nothing by itself; pass the selection curated from it",
+    "clean": "accepted",
+    "forged_mask": "SupervisionError: selection: mask does not follow from the inputs and the policy | selection: weight does not follow from the inputs and the policy | selection: reasons does not follow from the inputs and the policy",
+    "selection_byte_flipped": "SupervisionError: selection: ccil.selection failed validation (format=1): | format at <out>/selection-flipped.npz: an array cannot be read: Bad CRC-32 for file 'meta.npy'",
+    "selection_of_other_certificates": "SupervisionError: the selection was curated from certificates e1c8c0b457088872b2396b1680480e22b494d3d524d9db73adf002daf58747f8, not c865cc7666b7f6f7068d343adf0e9be1ce016e1adce7f25648e8d32e10a54b31"
+   }
+  },
+  {
+   "case": "legacy_certificate_rows_equal_selection",
+   "legacy_rows": 27,
+   "legacy_version": "1.0",
+   "pass": true,
+   "selection_rows": 27
+  }
+ ],
+ "environment": {
+  "code_commit": "1fe0d01a9feb5b6c38826650a87f4718f7ccd629",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.16"
+ }
+}
