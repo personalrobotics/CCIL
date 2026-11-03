@@ -7,6 +7,8 @@ Official repo for CCIL: Continuity-based Data Augmentation for Imitation Learnin
 
 > **Consolidation in progress.** This repository is being rebuilt around a maintained CCIL core. State-based workflows come first; end-to-end image integration is deferred to M5 while `image_ccil` remains in active development. Scope, benchmarks and policies are set by the [migration contract](docs/migration-contract.md); history, inventory, reproducibility ledger and artifacts are under [docs/](docs/).
 
+**Using CCIL:** the user contract, from demonstrations to consumable supervision, is [docs/contract.md](docs/contract.md).
+
 ## Setup
 
 The `ccil` core is managed with [uv](https://docs.astral.sh/uv/) and supports Python 3.10 and newer:
