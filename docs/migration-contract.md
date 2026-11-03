@@ -94,10 +94,9 @@ any results are seen, and every seed is reported.
    environments, never the full legacy stack), and stated numerical
    tolerances. Intentional departures are correctness changes (§6). This is
    how M2 and M3 have been verified.
-2. **CCIL efficacy on Pendulum** (blocking for M3). This is a predeclared
-   study on the modern stack, with the protocol in
-   [`experiments/pendulum-ccil-study-predeclaration.md`](experiments/pendulum-ccil-study-predeclaration.md)
-   (#24). It measures, with paired seeds and bootstrap intervals, how CCIL
+2. **CCIL efficacy on Pendulum** (blocking for M3). This was a predeclared
+   study on the modern stack. Its full protocol is preserved at tag
+   `pendulum-evidence-archive-v1` (#24). It measures, with paired seeds and bootstrap intervals, how CCIL
    compares with BC and NoiseBC on continuous and discontinuous Pendulum,
    and how robust that comparison is. The M3 gate is that the study reaches
    its predeclared terminal outcome, whatever that outcome is. CCIL is not
@@ -121,9 +120,8 @@ Pendulum. The decision is to drop it, before any parity outcome was run.
   already checked against the legacy code on fixtures. The question worth
   answering rigorously is whether CCIL helps, and by how much.
 - **What replaces it.** The efficacy study above.
-- **The superseded parity predeclaration**
-  ([`experiments/pendulum-parity-predeclaration.md`](experiments/pendulum-parity-predeclaration.md))
-  was never run.
+- **The superseded parity predeclaration**, preserved at tag
+  `pendulum-evidence-archive-v1`, was never run.
 
 The M7 benchmarks have no historical oracle either. They are new baselines,
 using the same kind of predeclared protocol, seeds and statistics.

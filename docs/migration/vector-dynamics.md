@@ -149,7 +149,7 @@ Version-1 checkpoints are refused (`CheckpointError`).
      model smoother either: the measured ratio is the same before and after. It
      acted as an unrelated regularizer.
    - The Pendulum parity run planned in #24 was withdrawn before it ran (see
-     [the M3 closeout](../experiments/pendulum-m3-closeout.md)), so no reported
+     the [canonical Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md)), so no reported
      comparison against legacy results depends on this.
 
 3. **`soft_jac` constrains the residual.** Legacy penalized the spectral norm

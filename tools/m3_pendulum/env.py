@@ -1,7 +1,7 @@
 """The canonical Pendulum swing-up environment and evaluator of the #24 study.
 
-Predeclaration (docs/experiments/pendulum-ccil-study-predeclaration.md) §3
-and §7. The physics is the data generator's (correct_il/envs/pendulum_env.py,
+The original predeclaration is preserved at tag `pendulum-evidence-archive-v1`.
+The physics is the data generator's (correct_il/envs/pendulum_env.py,
 PendulumEnv_NP in "rk4" mode):
 
 - state (sin θ, cos θ, θ̇), integrated as three independent coordinates under

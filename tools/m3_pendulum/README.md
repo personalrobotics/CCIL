@@ -1,7 +1,9 @@
-# Pendulum study tooling (#24)
+# Archived Pendulum evaluator fixture
 
-Tooling for the predeclared CCIL efficacy study,
-[`docs/experiments/pendulum-ccil-study-predeclaration.md`](../../docs/experiments/pendulum-ccil-study-predeclaration.md).
+This fixture remains because current infrastructure checks import its environment,
+audit and provenance helpers. The completed investigation is summarized in the
+[canonical Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md),
+and the evidence-filled tree is tagged `pendulum-evidence-archive-v1`.
 It may never modify `src/ccil`, `pyproject.toml` or `uv.lock` (§2). Its own
 dependencies are pinned in `requirements.txt`, and every command runs as:
 
