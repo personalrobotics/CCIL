@@ -1,5 +1,7 @@
 # Pendulum expert reconstruction: frozen validation (#143, decision 1)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: frozen before either comparison was run.** This document, the controller (`tools/pendulum_eval/expert.py`) and every tolerance below were committed before any reconstructed action or trace was compared with a stored demonstration. Decision 1 of `docs/experiments/pendulum-eval-v2-predeclaration.md` requires this ordering. A failure is reported as observed. No gain, tolerance or variant is changed after the comparisons, and nothing is fitted to the data. Any later revision is a new declaration with its own frozen commit, and this one stays on record.
 
 ## What was looked at before freezing

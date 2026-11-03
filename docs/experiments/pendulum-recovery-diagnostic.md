@@ -1,5 +1,7 @@
 # Pendulum recovery-segment diagnostic: predeclaration, version 1 (#171, #167)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: version 1, pushed before any transition model is fitted, any segment is generated, or any audit input is opened.** The draft's review decisions are recorded under "Version history". This step trains no policy. If the selected recovery segments fail coverage or trust, the outcome is reported, and no learner runs.
 
 ## Result (version 1: run 20261102T010309Z from `468b921`)

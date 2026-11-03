@@ -28,17 +28,7 @@ Their installer (`setup.py`, `install_deps.txt`) was retired; it is preserved at
 
 ## Running experiments
 
-We include scripts to reproduce our experiments:
-
-```bash
-> ./scripts/pendulum.sh
-```
-
-To visualize the results:
-
-```bash
-> find output/* -name "rewards_noise_*.npy" | xargs python ./correct_il/tabulate_results.py
-```
+**Pendulum:** `./scripts/pendulum.sh` and `tabulate_results.py` are the legacy pipeline. They score policies with a return that was later found to be defective, and exact reproduction of the paper's Pendulum figure was withdrawn. They are kept as a historical record only. What the Pendulum studies established is summarized in [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md).
 
 With additional environments installed (see below for instructions), you can try:
 ```bash

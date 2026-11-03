@@ -12,9 +12,9 @@ which `correct_il/train_dynamics_model.py` uses.
 | **Evaluation model** (not saved) | the train split only, with the label model's settings and seed | held-out metrics |
 
 The held-out numbers validate the *fitting procedure*, not the exact label
-model. The label model saw the held-out trajectories too. This keeps labels,
-and the Pendulum parity check in #24, unchanged, at the cost of a second
-dynamics fit.
+model. The label model saw the held-out trajectories too. This keeps labels
+unchanged, at the cost of a second dynamics fit. (The Pendulum parity check
+planned in #24 was later withdrawn.)
 
 ## Split
 

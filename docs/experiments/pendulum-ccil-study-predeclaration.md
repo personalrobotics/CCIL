@@ -1,5 +1,7 @@
 # Pendulum CCIL efficacy study: predeclaration (#24)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Version 6.** Results are reported against the version that governed them.
 A change after any outcome is seen is a new version, with its rationale, and
 is never applied retroactively.

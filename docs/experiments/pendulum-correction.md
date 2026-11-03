@@ -1,5 +1,7 @@
 # Pendulum correction treatment, Gate 3A: predeclaration, version 1 (#145, #167)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: version 1, pushed before any candidate in this document is generated.** If the gate fails, the failure is reported, no learner is trained from this treatment, and any change is made as a new version.
 
 ## Result (version 1: run 20261101T222500Z from `d36fc58`)
