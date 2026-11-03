@@ -6,19 +6,19 @@
   label-filtering branch's label_error (73d187d), on a linear model and on an
   MLP;
 - scores are never bounds: every row is empirical with is_upper_bound false,
-  upper_bound admission admits none, and require_upper_bound refuses them;
-  score admission filters by score_threshold;
+  bound admission (ccil.core.curate) selects none, and require_upper_bound
+  refuses them; score admission filters by the curation tolerance;
 - selection never changes acceptance: the candidates file is byte-identical,
   rows rejected by the model-error gate are never selected, and the quantile
   is taken over accepted, admissible rows only (the label-filtering
   population), which differs from the quantile over all rows; with both
-  legacy keys, selection_population produced reproduces the branch's
+  legacy keys, curate.population produced reproduces the branch's
   selection (quantile over every generated label, then max_label_err and
   epsilon) exactly, where the default admitted population does not;
 - a model without exact Jacobians, at 1e4 in float32 where a finite
   difference reads a derivative of 19999 as 0, gives unsupported rows with NaN
   scores, never 0;
-- the branch's keys migrate to certificate.*, the withdrawn generation keys
+- the branch's keys migrate to certificate.* and curate.*, the withdrawn generation keys
   fail with guidance, inconsistent certificate settings (including a declared
   learned constant outside the backtrack bound profile and an action
   neighborhood for either BackTrack profile) are refused, and the integrated
@@ -39,10 +39,17 @@ from ccil.core import (BackwardEuler, Finite, GenerationFailed, IdentityRepresen
 from ccil.core import transition as transition_module
 from ccil.core.certificates import (BackTrackPaperProxy, DisturbedActionPaperProxy, LegacyLabelFiltering, Sources,
                                     audit_sources, certify, require_upper_bound, verify_structure)
-from ccil.schema import Episode, SchemaError, TrajectoryDataset, read_candidates, write_candidates, write_trajectories
+from ccil.core.curate import CurationPolicy, decide_selection
+from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_selection, write_candidates,
+                         write_trajectories)
 from ccil.schema.io import _atomic_savez
 
 SEED, K, SIGMA = 20261025, 4, 0.05
+
+
+def select(cands, cert, policy):
+    """The selection policy makes from in-memory candidates and certificates (data-only: no reference dynamics)."""
+    return decide_selection(cands, cert, policy, "0" * 64, "0" * 64, "data_only")
 PRE_88 = "8663348"  # main before #88: the candidates reader that predates certificates
 
 
@@ -94,7 +101,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     nA, nB = float(np.linalg.norm(A_hat, 2)), float(np.linalg.norm(B_hat, 2))
     s_bt = sources(lin, lin_path, BackwardEuler())
     s_da = sources(lin, lin_path, NoisyAction(K, SIGMA))
-    c_bt, c_da = certify(s_bt, BackTrackPaperProxy(), admission="score"), certify(s_da, DisturbedActionPaperProxy(), admission="score")
+    c_bt, c_da = certify(s_bt, BackTrackPaperProxy()), certify(s_da, DisturbedActionPaperProxy())
     cb, cd = read_candidates(s_bt.candidates), read_candidates(s_da.candidates)
     z, a = (np.concatenate([ep.observations["state"][:-1] for ep in dataset.episodes]).astype(np.float64),
             np.concatenate([ep.actions[:-1] for ep in dataset.episodes]).astype(np.float64))
@@ -110,8 +117,9 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     moved_path = out / "candidates-proxy-backtrack-moved-action.npz"
     write_candidates(moved, moved_path)
     s_moved = Sources(moved_path, data_path, lin_path, rep)
-    c_moved = certify(s_moved, BackTrackPaperProxy(), admission="score")
-    moved_ok = (c_moved.classification[0] == "unsupported" and not c_moved.admissible[0] and c_moved.reasons[0, 0]
+    c_moved = certify(s_moved, BackTrackPaperProxy())
+    moved_sel = select(moved, c_moved, CurationPolicy("score"))
+    moved_ok = (c_moved.classification[0] == "unsupported" and not moved_sel.mask[0] and c_moved.reasons[0, 0]
                 and (c_moved.classification[1:] == "empirical").all() and moved.generator == cb.generator)
     record("paper_proxies_equal_definitions",
            np.allclose(c_bt.total_error_value, e_bt, rtol=1e-12, atol=1e-15)
@@ -121,7 +129,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
            and verify_structure(c_bt, s_bt.candidates) == [] and audit_sources(c_bt, s_bt) == []
            and verify_structure(c_da, s_da.candidates) == [] and audit_sources(c_da, s_da) == [] and moved_ok,
            backtrack_moved_action={"row": 0, "action_change": 0.25, "classification": str(c_moved.classification[0]),
-                                   "admissible": bool(c_moved.admissible[0]), "generator": moved.generator["name"]},
+                                   "selected": bool(moved_sel.mask[0]), "generator": moved.generator["name"]},
            definitions={"backtrack_paper_proxy": "||J_S f_hat|| ||z_G - z_t|| (Def. 4.5)",
                         "disturbed_action_paper_proxy": "||J_A f_hat|| ||a_G - a_t|| + (1 + ||J_S f_hat||) ||z_G - z_t|| (Def. 4.6)"},
            state_jacobian_norm=nA, action_jacobian_norm=nB,
@@ -155,7 +163,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
                        lambda s_, a_: s_ + s_ @ torch.as_tensor(A_hat.T, dtype=torch.float32) + a_ @ torch.as_tensor(B_hat.T, dtype=torch.float32)),
             "mlp": (mlp, mlp_path, syn, syn_path, None)}.items():
         src = sources(model, path, NoisyAction(K, SIGMA), data=data, dpath=dpath, tag=f"-{name}")
-        cert = certify(src, LegacyLabelFiltering(), admission="score")
+        cert = certify(src, LegacyLabelFiltering())
         c = read_candidates(src.candidates)
         zz = np.concatenate([ep.observations["state"][:-1] for ep in data.episodes]).astype(np.float64)
         aa = np.concatenate([ep.actions[:-1] for ep in data.episodes]).astype(np.float64)
@@ -184,18 +192,17 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
                 "also compared with its float64 closed form (1e-12)")
 
     # P3. Scores are never bounds.
-    ub = certify(s_da, DisturbedActionPaperProxy())
     limit = float(np.quantile(c_da.total_error_value, 0.6))
-    sc = certify(s_da, DisturbedActionPaperProxy(), admission="score", threshold=limit)
+    ub = select(cd, c_da, CurationPolicy("bound"))
+    sc = select(cd, c_da, CurationPolicy("score", tolerance=limit))
     record("scores_are_never_bounds",
-           all((x.classification == "empirical").all() and not x.is_upper_bound.any() for x in (c_bt, c_da, ub, sc))
-           and not ub.admissible.any() and ub.reasons[:, 1].all()
-           and np.array_equal(sc.admissible, sc.total_error_value <= limit)
-           and outcome(lambda: require_upper_bound(ub)).startswith("InterfaceError")
-           and outcome(lambda: require_upper_bound(sc)).startswith("InterfaceError"),
-           upper_bound_admission={"admissible": int(ub.admissible.sum()), "not_upper_bound": int(ub.reasons[:, 1].sum())},
-           score_admission={"threshold": limit, "admissible": int(sc.admissible.sum()), "rows": int(len(sc.admissible))},
-           require_upper_bound=outcome(lambda: require_upper_bound(sc)))
+           all((x.classification == "empirical").all() and not x.is_upper_bound.any() for x in (c_bt, c_da))
+           and not ub.mask.any() and c_da.reasons[:, 1].all() and ub.reasons[cd.accepted, 2].all()
+           and np.array_equal(sc.mask, cd.accepted & (c_da.total_error_value <= limit)) and not sc.error_spec["is_bound"]
+           and outcome(lambda: require_upper_bound(c_da)).startswith("InterfaceError"),
+           bound_admission={"selected": int(ub.mask.sum()), "not_upper_bound": int(c_da.reasons[:, 1].sum())},
+           score_admission={"tolerance": limit, "selected": int(sc.mask.sum()), "rows": int(len(sc.mask))},
+           require_upper_bound=outcome(lambda: require_upper_bound(c_da)))
 
     # P4. Selection never changes acceptance; misfit anchors are rejected at generation and never selected.
     wrong = TrajectoryDataset([Episode(ep.episode_id, {"state": ep.observations["state"].copy()}, ep.actions.copy())
@@ -211,19 +218,20 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
                  validators=(Finite(), GenerationFailed(), ModelMisfit(gate)), tag="-misfit")
     before = open(sm.candidates, "rb").read()
     cm = read_candidates(sm.candidates)
-    sel = certify(sm, LegacyLabelFiltering(), admission="score", selection_quantile=0.3)
+    cert = certify(sm, LegacyLabelFiltering())
+    sel = select(cm, cert, CurationPolicy("score", quantile=0.3))
     misfit = ~cm.accepted
-    eligible = cm.accepted & sel.admissible
-    q_eligible, q_all = float(np.quantile(sel.total_error_value[eligible], 0.3)), float(np.quantile(sel.total_error_value, 0.3))
+    eligible = cm.accepted & (cert.classification != "unsupported")
+    q_eligible, q_all = float(np.quantile(cert.total_error_value[eligible], 0.3)), float(np.quantile(cert.total_error_value, 0.3))
     record("selection_never_changes_acceptance",
            open(sm.candidates, "rb").read() == before and np.array_equal(read_candidates(sm.candidates).accepted, cm.accepted)
-           and misfit.any() and not sel.selected[misfit].any() and sel.selection["threshold"] == q_eligible
-           and q_eligible != q_all and np.array_equal(sel.selected, eligible & (sel.total_error_value <= q_eligible)),
-           rows=int(len(cm.accepted)), rejected_by_model_gate=int(misfit.sum()), selected=int(sel.selected.sum()),
+           and misfit.any() and not sel.mask[misfit].any() and sel.threshold == q_eligible
+           and q_eligible != q_all and np.array_equal(sel.mask, eligible & (cert.total_error_value <= q_eligible)),
+           rows=int(len(cm.accepted)), rejected_by_model_gate=int(misfit.sum()), selected=int(sel.mask.sum()),
            threshold_over_accepted_admissible=q_eligible, threshold_if_rejected_rows_were_included=q_all)
 
     # P4b. Both legacy keys at once: the branch's selection (utils.py at 73d187d) takes the quantile over every generated
-    # label, then intersects with max_label_err and epsilon. selection_population produced reproduces it.
+    # label, then intersects with max_label_err and epsilon. curate.population produced reproduces it.
     def branch_selection(err, produced_mask, q, max_err, eps_ok):
         sel = np.ones(len(err), bool)  # transcribed: sel_bounded over the labels the branch generated
         thresh = np.quantile(err[produced_mask], q)
@@ -238,7 +246,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
             src = sources(lin, lin_path, NoisyAction(K, SIGMA), data=wrong, dpath=wpath,
                           validators=(Finite(), GenerationFailed(), ModelMisfit(gate), SupportRadius(eps)), tag="-both")
         c = read_candidates(src.candidates)
-        probe = certify(src, LegacyLabelFiltering(), admission="score")
+        probe = certify(src, LegacyLabelFiltering())
         meas = c.measurements
         produced_mask = np.isfinite(probe.total_error_value)
         if gate_on:  # the branch generated nothing for anchors its model misfit
@@ -250,16 +258,16 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
         dist = np.linalg.norm(c.observations["state"].astype(np.float64) - z_t, axis=1)  # the branch's aug.epsilon test
         eps_ok = np.ones(len(c.accepted), bool) if eps is None else dist < eps
         legacy, legacy_thr = branch_selection(probe.total_error_value, produced_mask, 0.3, max_err, eps_ok)
-        cert = certify(src, LegacyLabelFiltering(), admission="score", threshold=max_err, selection_quantile=0.3,
-                       selection_population="produced")
-        admitted = certify(src, LegacyLabelFiltering(), admission="score", threshold=max_err, selection_quantile=0.3)
-        usable = c.accepted & cert.admissible & cert.selected
-        usable_admitted = c.accepted & admitted.admissible & admitted.selected
+        cert = probe
+        produced = select(c, cert, CurationPolicy("score", tolerance=max_err, quantile=0.3, population="produced"))
+        admitted = select(c, cert, CurationPolicy("score", tolerance=max_err, quantile=0.3))
+        usable = c.accepted & produced.mask
+        usable_admitted = c.accepted & admitted.mask
         both[name] = {"rows": int(len(c.accepted)), "max_label_err": max_err,
                       "branch": {"selected": int(legacy.sum()), "threshold": legacy_thr},
-                      "produced": {"selected": int(usable.sum()), "threshold": cert.selection["threshold"]},
-                      "admitted": {"selected": int(usable_admitted.sum()), "threshold": admitted.selection["threshold"]},
-                      "ok": bool(np.array_equal(usable, legacy) and np.isclose(cert.selection["threshold"], legacy_thr, rtol=0, atol=0)
+                      "produced": {"selected": int(usable.sum()), "threshold": produced.threshold},
+                      "admitted": {"selected": int(usable_admitted.sum()), "threshold": admitted.threshold},
+                      "ok": bool(np.array_equal(usable, legacy) and np.isclose(produced.threshold, legacy_thr, rtol=0, atol=0)
                                  and verify_structure(cert, src.candidates) == [])}
     record("legacy_selection_with_both_keys_matches_the_branch", all(v["ok"] for v in both.values()), cases=both,
            source="label-filtering 73d187d correct_il/utils.py lines 89-99")
@@ -273,10 +281,11 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     write_trajectories(one, qpath)
     fd = float(jacobian_fd(Float32Quadratic(), np.full((1, 1), 1e4), np.zeros((1, 1))).ravel()[0])
     sq = sources(Float32Quadratic(), quad_path, BackwardEuler(), data=one, dpath=qpath, tag="-quadratic")
-    cq = certify(sq, BackTrackPaperProxy(), admission="score")
+    cq = certify(sq, BackTrackPaperProxy())
+    cq_sel = select(read_candidates(sq.candidates), cq, CurationPolicy("score"))
     record("unresolved_derivatives_are_unsupported",
            fd == 0.0 and (cq.classification == "unsupported").all() and np.isnan(cq.terms["state_jacobian_norm"]).all()
-           and np.isnan(cq.total_error_value).all() and cq.reasons[:, 0].all() and not cq.admissible.any(),
+           and np.isnan(cq.total_error_value).all() and cq.reasons[:, 0].all() and not cq_sel.mask.any(),
            float32_finite_difference_at_1e4=fd, true_derivative=2e4 - 1,
            classification=sorted(set(cq.classification.tolist())), state_jacobian_norm=cq.terms["state_jacobian_norm"].tolist())
     del transition_module.TRANSITION_MODELS[Float32Quadratic.kind]
@@ -287,23 +296,22 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     legacy_yml.write_text((repo / "config/pendulum_cont.yml").read_text().replace(
         "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
     rc = resolve(config=legacy_yml)
-    migrated = {k: rc[k] for k in ("certificate.profile", "certificate.score_threshold", "certificate.selection_quantile",
-                                   "certificate.selection_population", "generation.model_error_threshold")}
+    migrated = {k: rc[k] for k in ("certificate.profile", "curate.tolerance", "curate.quantile",
+                                   "curate.population", "generation.model_error_threshold")}
     base = ["data.path=x.npz"]
     refused = {
         "withdrawn_max_label_error": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + ["generation.max_label_error=0.5"])),
         "withdrawn_label_error_quantile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + ["generation.label_error_quantile=0.3"])),
-        "score_profile_with_bound_threshold": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
-            "certificate.profile=legacy_label_filtering", "certificate.max_total_error=1"])),
-        "bound_profile_with_score_threshold": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
-            "generation.method=noisy_action", "certificate.profile=disturbed_action", "certificate.true_state_lipschitz=0.1",
-            "certificate.true_action_lipschitz=0.1", "certificate.demonstration_residual_bound=0", "certificate.score_threshold=1"])),
+        # The 1.0 cases "score_profile_with_bound_threshold" and "bound_profile_with_score_threshold" are gone: one key,
+        # curate.tolerance, now applies to either profile, and admission follows the profile (#167).
+        "withdrawn_certificate_threshold": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
+            "certificate.profile=legacy_label_filtering", "certificate.score_threshold=1"])),
         "profile_for_the_other_family": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
             "generation.method=noisy_action", "certificate.profile=backtrack_paper_proxy"])),
         "bound_profile_without_demonstration": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
             "generation.method=backward_euler", "certificate.profile=backtrack", "certificate.true_state_lipschitz=0.1"])),
         "certificate_settings_without_profile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
-            "certificate.selection_quantile=0.3"])),
+            "curate.quantile=0.3"])),
         "declared_learned_source_without_profile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
             "certificate.learned_lipschitz_source=declared"])),
         "declared_learned_source_with_backtrack_paper_proxy": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
@@ -316,7 +324,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
         "action_neighborhood_with_backtrack_paper_proxy": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
             "generation.method=backward_euler", "certificate.profile=backtrack_paper_proxy", "certificate.neighborhood_action=0.1"])),
         "produced_population_without_quantile": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=base + [
-            "certificate.profile=legacy_label_filtering", "certificate.selection_population=produced"])),
+            "certificate.profile=legacy_label_filtering", "curate.population=produced"])),
     }
     from ccil.config import ConfigError
     from ccil.pipelines.integrated import run_integrated
@@ -327,8 +335,8 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     except ConfigError as e:
         integrated = f"ConfigError: {e.errors[0][:200]}"
     record("configuration_and_migration",
-           migrated == {"certificate.profile": "legacy_label_filtering", "certificate.score_threshold": 0.5,
-                        "certificate.selection_quantile": 0.3, "certificate.selection_population": "produced",
+           migrated == {"certificate.profile": "legacy_label_filtering", "curate.tolerance": 0.5,
+                        "curate.quantile": 0.3, "curate.population": "produced",
                         "generation.model_error_threshold": 0.1}
            and all(v.startswith("ConfigError") or v.startswith("ValueError") for v in refused.values())
            and "withdrawn" in refused["withdrawn_max_label_error"] and integrated.startswith("ConfigError"),
@@ -342,9 +350,10 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
     (work / "true-dynamics.npz").write_bytes(open(truth, "rb").read())
     for name, extra in {"legacy_label_filtering": ["generation.method=noisy_action", f"generation.labels_per_transition={K}",
                                                    f"generation.action_noise_std={SIGMA}", "generation.model_error_threshold=0.5",
-                                                   "certificate.profile=legacy_label_filtering", "certificate.selection_quantile=0.3"],
+                                                   "certificate.profile=legacy_label_filtering", "curate.quantile=0.3"],
                         "backtrack": ["generation.method=backward_euler", "certificate.profile=backtrack",
-                                      "certificate.reference_dynamics=true-dynamics.npz"]}.items():
+                                      "certificate.reference_dynamics=true-dynamics.npz",
+                                      "generation.evidence_mode=reference_assisted"]}.items():
         args = [sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
                 "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs"]
         for e in extra:
@@ -359,8 +368,9 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
             cdir, ldir = work / stages["labels.certify"], work / stages["labels.generate"]
             cert = read_certificates(cdir / "labels/certificates.npz")
             cand = read_candidates(ldir / "labels/candidates.npz")
+            sel = read_selection(work / stages["labels.curate"] / "labels/selection.npz")
             runs[name].update(status=validate_run(cdir)[0], classification=sorted(set(cert.classification.tolist())),
-                              usable=int((cand.accepted & cert.admissible & cert.selected).sum()), rows=int(len(cand.accepted)),
+                              usable=int((cand.accepted & sel.mask).sum()), rows=int(len(cand.accepted)),
                               candidates=str(ldir / "labels/candidates.npz"))
     old_root = out / f"reader_{PRE_88}"
     old_root.mkdir()
@@ -374,7 +384,7 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
                                env={**os.environ, "PYTHONPATH": str(old_root / "src")})
             v["read_by_pre_88_reader"] = r.returncode == 0 and r.stdout.strip() == str(v["rows"])
     record("cli_certify_runs_and_pre_88_reader",
-           all(v["exit"] == 0 and "labels.certify" in v["stages"] and v.get("status") == "complete"
+           all(v["exit"] == 0 and {"labels.certify", "labels.curate"} <= set(v["stages"]) and v.get("status") == "complete"
                and v.get("read_by_pre_88_reader") for v in runs.values())
            and runs["legacy_label_filtering"]["classification"] == ["empirical"]
            and runs["backtrack"]["classification"] == ["certified"],

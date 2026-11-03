@@ -55,9 +55,14 @@ STAGE_KEYS = {
     "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
                         "compute."),
     "labels.certify": ("certificate.", "representation.modality", "compute."),
+    "labels.curate": ("curate.", "generation.evidence_mode"),
     "policy.train": ("run.seed", "policy.", "compute."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }
+
+
+# Keys a prefix above would include that the stage never reads: the evidence mode is curation's.
+STAGE_EXCLUDE = {"labels.generate": ("generation.evidence_mode",)}
 
 
 def component(obj) -> dict:
@@ -70,7 +75,8 @@ def stage_identity(stage: str, cfg, inputs: dict, components: dict | None = None
                    parameters: dict | None = None) -> dict:
     """Everything the reuse decision depends on; its hash is the run ID."""
     prefixes = STAGE_KEYS[stage]
-    consumed = {k: v for k, v in cfg.values.items() if any(k == p or (p.endswith(".") and k.startswith(p)) for p in prefixes)}
+    consumed = {k: v for k, v in cfg.values.items() if any(k == p or (p.endswith(".") and k.startswith(p)) for p in prefixes)
+                and k not in STAGE_EXCLUDE.get(stage, ())}
     try:
         impl = implementation()
     except ImplementationUnknown as e:

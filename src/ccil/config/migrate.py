@@ -1,6 +1,6 @@
 """Versioned configuration migration.
 
-Current files declare `config_version: 2`. A file without a version is read as
+Current files declare `config_version: 3`. A file without a version is read as
 version 0, the legacy correct_il YAML, and migrated: renamed keys move to their
 canonical key; keys that never affected behavior are dropped with a note; keys
 that did affect behavior but have no supported home yet fail with guidance.
@@ -8,12 +8,19 @@ that did affect behavior but have no supported home yet fail with guidance.
 Version 1 files are read with the meaning they had: version 2 (#125) changed
 the default of transition_model.lipschitz_coordinates to model_normalized, so
 a version 0 or 1 file that does not set it resolves to raw, with a note.
+
+Version 3 (#167) moved label selection out of the certificate: a version 1 or
+2 file's certificate.max_total_error or score_threshold is read as
+curate.tolerance, selection_quantile as curate.quantile, and
+selection_population as curate.population, each with a note. Such a file's
+certificate.reference_dynamics made its selection reference-assisted, so it
+resolves generation.evidence_mode to reference_assisted unless it sets it.
 """
 from __future__ import annotations
 
 from .params import REGISTRY
 
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 # Defaults that changed with a version: an older file that does not set the key keeps the older meaning.
 CHANGED_DEFAULTS = {2: {"transition_model.lipschitz_coordinates": ("raw", "#125: version 2's default is "
                                                                           "model_normalized")}}
@@ -35,14 +42,17 @@ UNSUPPORTED = {
     "state_encoder": "image-observation encoder from the fork image branch; deferred to M5",
     "policy.layers": "policy encoder width from label-filtering; ported with the policy stage in M3",
 }
-# Version 1 keys withdrawn in favour of the certificate layer (#88).
+# Keys withdrawn in favour of the certificate layer (#88) and of curation (#167).
 WITHDRAWN = {
-    "generation.max_label_error": "label-error filtering moved to certificates: set certificate.profile "
-                                  "(legacy_label_filtering for the branch's score) and certificate.score_threshold, or a "
-                                  "bound profile and certificate.max_total_error",
-    "generation.label_error_quantile": "label-error filtering moved to certificates: set certificate.profile and "
-                                       "certificate.selection_quantile",
+    "generation.max_label_error": "label-error filtering moved to certificates and curation: set certificate.profile "
+                                  "(legacy_label_filtering for the branch's score) and curate.tolerance",
+    "generation.label_error_quantile": "label-error filtering moved to certificates and curation: set "
+                                       "certificate.profile and curate.quantile",
 }
+# Version 1 and 2 selection keys, read as their curate keys (#167).
+MOVED_V3 = {"certificate.max_total_error": "curate.tolerance", "certificate.score_threshold": "curate.tolerance",
+            "certificate.selection_quantile": "curate.quantile", "certificate.selection_population": "curate.population"}
+WITHDRAWN.update({old: f"selection moved out of the certificate (#167): set {new}" for old, new in MOVED_V3.items()})
 RENAMED = {legacy: p.key for p in REGISTRY.values() for legacy in p.legacy
            if legacy not in ("no_gpu", "dynamics.backward", "policy.naive", "policy.noise_bc", "data.pkl", "eval.noise")}
 
@@ -93,9 +103,9 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
         notes.append("aug.max_label_err / aug.label_err_quantile -> certificate.profile legacy_label_filtering "
                      "(the branch's score, empirical)")
     if "aug.label_err_quantile" in flat:
-        values["certificate.selection_population"] = "produced"
-        notes.append("aug.label_err_quantile -> certificate.selection_population produced (the branch took the quantile "
-                     "over every generated label, independently of aug.max_label_err)")
+        values["curate.population"] = "produced"
+        notes.append("aug.label_err_quantile -> curate.population produced (the branch took the quantile over every "
+                     "generated label, independently of aug.max_label_err)")
     if "policy.naive" in flat or "policy.noise_bc" in flat:
         naive, noise = flat.get("policy.naive", False), flat.get("policy.noise_bc", 0.0)
         if naive is True and noise:
@@ -108,6 +118,25 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
             errors.append(f"policy.naive={naive!r} with policy.noise_bc={noise!r} has no supported equivalent")
         notes.append("policy.naive + policy.noise_bc -> policy.method (+ policy.noise_scale)")
     return values, notes, errors
+
+
+def _move_selection(values: dict, version: int) -> tuple[dict, list[str], list[str]]:
+    """A version 1 or 2 layer's selection keys, read as their curate keys (#167)."""
+    out, notes, errors = {}, [], []
+    for key, v in values.items():
+        new = MOVED_V3.get(key)
+        if new is None:
+            out[key] = v
+        elif new in out:
+            errors.append(f"{key} and another key both set {new}")
+        else:
+            out[new] = v
+            notes.append(f"{key} -> {new} (config_version {version}; #167 moved selection out of the certificate)")
+    if values.get("certificate.reference_dynamics") is not None and "generation.evidence_mode" not in values:
+        out["generation.evidence_mode"] = "reference_assisted"
+        notes.append(f"generation.evidence_mode = 'reference_assisted': the meaning of config_version {version}, whose "
+                     "certificate.reference_dynamics shaped the selection")
+    return out, notes, errors
 
 
 def read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
@@ -127,6 +156,8 @@ def _read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
         notes = ["read as legacy correct_il configuration (config_version 0)"] + notes
     elif version in range(1, CONFIG_VERSION + 1):
         values, notes, errors = flatten({k: v for k, v in raw.items() if k != "config_version"}), [], []
+        if version < 3:
+            values, notes, errors = _move_selection(values, version)
     else:
         return {}, [], [f"config_version {version!r} is not supported (this version reads 0 to {CONFIG_VERSION})"]
     for changed, keys in CHANGED_DEFAULTS.items():

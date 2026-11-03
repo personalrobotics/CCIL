@@ -38,7 +38,7 @@ import numpy as np
 from ccil.core import (BackwardEuler, ExactPreimage, Finite, IdentityRepresentation, InterfaceError,
                        LinearTransitionModel, NoisyAction, NoisyActionPreimage, generate_labels)
 from ccil.core.certificates import (PROVIDERS, BackTrackProfile, ContinuityProfile, Context, Declared,
-                                    DisturbedActionProfile, Provided, Sources, audit_sources, certify, decide,
+                                    DisturbedActionProfile, Provided, Sources, audit_sources, certify, classify,
                                     resolved_of, verify_structure)
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates, write_candidates,
                          write_trajectories)
@@ -159,8 +159,7 @@ def run(out, record, dataset, data_path, sys_, truth, bundle):
                               rtol=1e-14, atol=0) for c in (c1, c2))
     moved = {k: v.copy() for k, v in c1.terms.items()}
     moved["action_displacement"][:3] = 1e-3
-    rows, _ = decide(backtrack, resolved_of(c1.descriptor), moved, np.ones(len(c1.selected), bool),
-                     {"mode": "upper_bound", "threshold": None}, None)
+    rows = classify(backtrack, resolved_of(c1.descriptor), moved)
     record("backtrack_has_no_action_term",
            formula and c1.descriptor["constants"]["K_hat_z"]["value"] == c2.descriptor["constants"]["K_hat_z"]["value"]
            and action_bounds["wrong_action_x100"] > 50 * action_bounds["wrong"]
@@ -344,7 +343,7 @@ def run(out, record, dataset, data_path, sys_, truth, bundle):
         cfg = resolve(recipe="analytic_double_integrator",
                       sets=[f"data.path={work / 'fixture.npz'}", f"run.output_dir={work / 'runs'}", f"generation.method={method}",
                             f"generation.labels_per_transition={K}", f"generation.action_noise_std={SIGMA}"])
-        prepared, fitted, labeled = generate_offline(cfg)
+        prepared, fitted, labeled = generate_offline(cfg)[:3]
         res = certify_stage(cfg, prepared, fitted, labeled, rep, profile, references={"true": truth})
         pc = read_certificates(res.out("labels/certificates.npz"))
         cand = read_candidates(labeled.out("labels/candidates.npz"))

@@ -1,7 +1,8 @@
 """The trainer-neutral supervision contract (#89): which rows reach a policy loss, and with which weights.
 
 CCIL's ordinary workflow ends at immutable artifacts: the prepared
-demonstrations, the candidate labels, and optionally their certificates. A
+demonstrations, the candidate labels, optionally their certificates, and a
+selection (ccil.selection, written by ccil.core.curate). A
 downstream trainer of the user's choice consumes them. build_supervision
 resolves, from those files, exactly the rows a trainer may use, fails closed
 when the artifacts do not belong together, and records a manifest that
@@ -11,12 +12,16 @@ Arms (policy.method):
 - bc: the demonstrations only.
 - noise_bc: the demonstrations only; the trainer perturbs them online at every
   draw (ccil.training.noise_bc), so nothing synthetic is stored.
-- ccil without certificates: the demonstrations and every accepted candidate,
-  recorded as uncertified.
-- ccil with certificates: the demonstrations and the candidates with
-  accepted & admissible & selected.
-A rejected, inadmissible, or unselected candidate never appears, whatever its
-weight: there is no weight-only path into the loss.
+- ccil with a selection: the demonstrations and the candidates with
+  accepted & selection.mask, at the selection's weights. A selection of
+  certified rows needs its certificates, which are checked with it.
+- ccil without a selection or certificates: the demonstrations and every
+  accepted candidate, recorded as uncertified.
+- ccil with a legacy 1.0 certificate, which carries its own selection: the
+  candidates with accepted & admissible & selected. A 2.0 certificate selects
+  nothing by itself and needs a selection.
+A rejected or unselected candidate never appears, whatever its weight: there
+is no weight-only path into the loss.
 
 Demonstration rows are the transition frames t <= T - 2 of the training
 episodes (the legacy load_data rows), weighted by an explicit, recorded
@@ -44,7 +49,7 @@ from .core.batch import InterfaceError
 from .core.representation import transitions
 from .data.split import SplitError, check_split
 from .runs.provenance import sha256
-from .schema import SchemaError, read_candidates, read_certificates, read_trajectories
+from .schema import SchemaError, read_candidates, read_certificates, read_selection, read_trajectories
 
 METHODS = ("bc", "noise_bc", "ccil")
 CHUNK_POLICIES = ("refuse", "consume")
@@ -136,7 +141,7 @@ def _valid_chunk_size(k) -> bool:
     return not isinstance(k, bool) and isinstance(k, (int, np.integer)) and k >= 1
 
 
-def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, split=None,
+def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, selection=None, split=None,
                       representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
                       chunk_size: int | None = None, part: str = "train") -> Supervision:
     """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency.
@@ -154,10 +159,11 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
     if isinstance(demonstration_weight, bool) or not isinstance(demonstration_weight, (int, float)) or not (
             np.isfinite(demonstration_weight) and demonstration_weight >= 0):
         raise SupervisionError([f"demonstration_weight must be finite and >= 0, got {demonstration_weight!r}"])
-    if method != "ccil" and (candidates is not None or certificates is not None):
-        raise SupervisionError([f"{method} trains on the demonstrations only; it takes no candidates or certificates"])
-    if certificates is not None and candidates is None:
-        raise SupervisionError(["certificates need the candidates file they certify"])
+    if method != "ccil" and (candidates is not None or certificates is not None or selection is not None):
+        raise SupervisionError([f"{method} trains on the demonstrations only; it takes no candidates, certificates, "
+                                "or selection"])
+    if (certificates is not None or selection is not None) and candidates is None:
+        raise SupervisionError(["certificates and selections need the candidates file they describe"])
     if method == "ccil" and candidates is None:
         raise SupervisionError(["ccil needs a candidates file"])
 
@@ -238,6 +244,26 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
             from .core.certificates import verify_structure
             structural = verify_structure(cert, candidates)
             problems += [f"certificate structure: {p}" for p in structural]
+        if cert.legacy and selection is not None:
+            problems.append("a 1.0 certificate carries its own selection; it takes no separate selection")
+        if not cert.legacy and selection is None:
+            problems.append("a 2.0 certificate selects nothing by itself; pass the selection curated from it")
+    sel = None
+    if selection is not None:
+        hashes["selection"] = sha256(selection)
+        try:
+            sel = read_selection(selection)
+        except SchemaError as e:
+            raise SupervisionError([f"selection: {e}"]) from None
+        if sel.candidates_sha256 != hashes.get("candidates"):
+            problems.append(f"the selection selects from candidates {sel.candidates_sha256}, not this file "
+                            f"({hashes.get('candidates')})")
+        if sel.certificates_sha256 != hashes.get("certificates"):
+            problems.append(f"the selection was curated from certificates {sel.certificates_sha256}, not "
+                            f"{hashes.get('certificates')}")
+        if not problems:
+            from .core.curate import verify_selection
+            problems += [f"selection: {p}" for p in verify_selection(sel, candidates, certificates)]
     if action_chunks == "consume" and cands is None and chunk_size is None:
         problems.append("action_chunks='consume' without candidates needs chunk_size")
     if action_chunks == "consume" and cands is not None and cands.action_chunks is None:
@@ -268,14 +294,21 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         accepted = np.asarray(cands.accepted, bool)
         usable = accepted.copy()
         counts.update(candidate_rows=n, accepted=int(accepted.sum()))
-        if cert is not None:
+        weights = np.asarray(cands.weight, np.float64)
+        if sel is not None:
+            usable &= np.asarray(sel.mask, bool)
+            weights = np.asarray(sel.weight, np.float64)
+            counts.update(selected=int(usable.sum()))
+        elif cert is not None:  # legacy 1.0
             admissible, selected = np.asarray(cert.admissible, bool), np.asarray(cert.selected, bool)
             usable &= admissible & selected
             counts.update(accepted_and_admissible=int((accepted & admissible).sum()),
                           accepted_admissible_and_selected=int(usable.sum()))
+        if cert is not None:
             classification = cert.classification
-            certification = {"profile": cert.descriptor["profile"], "version": cert.descriptor["version"],
-                             "admission": cert.admission, "selection": cert.selection}
+            certification = {"profile": cert.descriptor["profile"], "version": cert.descriptor["version"]}
+            if cert.legacy:
+                certification.update(legacy=True, admission=cert.admission, selection=cert.selection)
         else:
             classification = np.full(n, "uncertified")
             certification = "uncertified"
@@ -284,7 +317,7 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         counts.update(usable_rows_held_out=int((usable & ~in_train).sum()), synthetic_rows=int(len(rows)))
         parts["observations"].append(np.asarray(cands.observations[modality][rows]))
         parts["actions"].append(np.asarray(cands.actions[rows]))
-        parts["weights"].append(np.asarray(cands.weight[rows], np.float64))
+        parts["weights"].append(weights[rows])
         parts["source"].append(np.full(len(rows), SYNTHETIC))
         parts["episode_id"].append(cands.source_episode_id[rows].astype(str))
         parts["frame"].append(np.asarray(cands.source_frame[rows], np.int64))
@@ -301,12 +334,12 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
     closes = [len(v) == total for v in arrays.values()]
     closes.append(counts["demonstration_rows"] + counts["demonstration_rows_held_out"] == counts["demonstration_transitions"])
     if cands is not None:
-        usable_total = counts.get("accepted_admissible_and_selected", counts["accepted"])
+        usable_total = counts.get("selected", counts.get("accepted_admissible_and_selected", counts["accepted"]))
         closes.append(counts["synthetic_rows"] + counts["usable_rows_held_out"] == usable_total)
     if not all(closes):
         raise SupervisionError([f"row counts do not reconcile: {counts}"])
     counts["rows"] = total
-    manifest = {"schema": "ccil.supervision-manifest", "version": "1.0", "method": method,
+    manifest = {"schema": "ccil.supervision-manifest", "version": "1.0" if sel is None else "1.1", "method": method,
                 "certification": certification, "demonstration_weight": float(demonstration_weight),
                 "demonstration_frames": "transition frames t <= T - 2 of the training episodes",
                 "action_chunks": {"policy": action_chunks, "chunk_size": K},
@@ -314,6 +347,9 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                                    "version": str(getattr(representation, "version", "?")), "modality": modality},
                 "inputs": hashes, "counts": counts,
                 "online_perturbation": "noise_bc: applied by the trainer at every draw" if method == "noise_bc" else None}
+    if sel is not None:  # 1.1: the curation policy the rows came from
+        manifest["selection"] = {"policy": sel.policy, "policy_version": sel.policy_version, "threshold": sel.threshold,
+                                 "evidence_mode": sel.evidence_mode, "uses": sel.uses, "caveats": sel.caveats}
     if part != "train":  # recorded only when it differs, so training manifests are unchanged
         manifest["split_part"] = part
     return Supervision(arrays["observations"], arrays["actions"], arrays["weights"], arrays["source"], arrays["episode_id"],

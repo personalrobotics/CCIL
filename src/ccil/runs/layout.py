@@ -10,6 +10,7 @@ DATASET = "data/dataset.npz"
 SPLIT = "data/split.json"
 CANDIDATES = "labels/candidates.npz"
 CERTIFICATES = "labels/certificates.npz"  # labels.certify; candidates are never modified
+SELECTION = "labels/selection.npz"  # labels.curate; candidates and certificates are never modified
 CHECKPOINTS = "checkpoints"   # checkpoints/<name>.pt
 PLOTS = "plots"               # plots/<name>.png
 LOG = "logs/run.log"
@@ -23,7 +24,8 @@ METRICS_SCHEMA = "ccil.metrics"
 READABLE = {
     "ccil.trajectories": 1,
     "ccil.candidates": 2,
-    "ccil.certificates": 1,
+    "ccil.certificates": 2,
+    "ccil.selection": 1,
     "ccil.config": 1,
     "ccil.split": 1,
     METRICS_SCHEMA: 1,

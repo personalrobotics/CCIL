@@ -1,7 +1,7 @@
 """Generate the normative schema reference from the specs, its one canonical source."""
 from __future__ import annotations
 
-from . import certificates, io, labels, trajectories
+from . import certificates, io, labels, selection, trajectories
 
 
 def _table(specs) -> list[str]:
@@ -65,7 +65,19 @@ def render() -> str:
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.CERT_REQUIRED))}, and `term/<name>` for exactly the "
         f"descriptor's terms. `meta` holds {_names(io.CERT_META)}, `classification_codes`, and `reason_codes`; "
-        "no other array or meta field is accepted.", "",
+        "no other array or meta field is accepted. A legacy 1.0 file also holds "
+        f"{_names(io.CERT_LEGACY_ARRAYS)} and, in `meta`, {_names(io.CERT_LEGACY_META)}, with the reason codes "
+        f"{', '.join(f'`{r}`' for r in certificates.LEGACY_REASON_CODES)}.", "",
+        f"## `{selection.SCHEMA}` {selection.VERSION[0]}.{selection.VERSION[1]}",
+        "",
+        (selection.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "),
+        "",
+        "### Fields", "", *_fields(selection.FIELDS), "",
+        "### Arrays", "", *_table(selection.ARRAY_SPECS), "",
+        f"Reason codes, in column order: {', '.join(f'`{r}`' for r in selection.REASON_CODES)}.", "",
+        "### File layout (.npz)", "",
+        f"Required: {', '.join(f'`{k}`' for k in sorted(io.SEL_REQUIRED))}. `meta` holds {_names(io.SEL_META)}, "
+        "`error`, and `reason_codes`; no other array or meta field is accepted.", "",
         "## Compatibility", "",
         (io.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "), "",
     ]

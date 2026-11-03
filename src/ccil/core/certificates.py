@@ -1,10 +1,11 @@
 """Label-error certificates: a post-generation layer over candidate files (#88).
 
-    generate candidates -> certify candidates -> select / admit labels -> train policy
+    generate candidates -> certify candidates -> curate a selection -> train policy
 
-Candidate files are never modified; certify() writes a ccil.certificates set
-(src/ccil/schema/certificates.py) with one row per candidate row. Consumers
-train on candidate.accepted & admissible & selected.
+Candidate files are never modified; certify() writes a ccil.certificates 2.0
+set (src/ccil/schema/certificates.py) with one row per candidate row. It is
+evidence only: which rows to train on is a separate ccil.selection written by
+ccil.core.curate.
 
 Constants. A profile's constants are specified, never asserted: Declared(value,
 rationale) is an assumption and always conditional, whatever its value;
@@ -35,15 +36,13 @@ Coordinates. Norms are taken in scaled coordinates, z / state_scale and
 a / action_scale, and errors in the scaled state coordinates; the scales and
 dimensions are part of the descriptor and the units are derived from them.
 
-Admission is a policy separate from classification: "upper_bound" admits only
-bound rows (certified, conditional, calibrated) within the threshold; "score"
-is an explicit opt-in that admits any supported row whose score is within the
-threshold, and its rows stay visibly non-bound. Selection is a budget quantile
-over accepted, admissible rows and never changes a candidate's acceptance.
+Admission and selection are curation policies (core/curate.py), separate from
+classification. Legacy 1.0 certificates stored their admission and selection;
+they are still verified, with the same rules.
 
 Verification has two levels. verify_structure uses the certificate and the
-candidates file: identity, the descriptor, and every value, classification,
-mask, and threshold recomputed from the persisted terms. audit_sources also
+candidates file: identity, the descriptor, and every value and classification
+(and, for 1.0, every mask and threshold) recomputed from the persisted terms. audit_sources also
 takes the source artifacts: it checks each against its recorded SHA-256 and
 component identity, recomputes every term one row at a time to a row-local
 tolerance, recomputes every provided constant, and re-verifies every
@@ -61,11 +60,12 @@ import numpy as np
 
 from ..runs.provenance import sha256
 from ..schema import read_candidates, read_trajectories
-from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS, REASON_CODES, SCHEMA,
-                                   SELECTION_POPULATIONS, VERSION, CertificateSet)
+from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS, REASON_CODES, SCHEMA, VERSION,
+                                   CertificateSet)
 from ..schema.fields import SchemaError
 from ..schema.io import _atomic_savez, _format_error, _open
 from .batch import InterfaceError
+from .curate import admit_rows, produced_rows
 from .generators import BackwardEuler, ExactPreimage, NoisyAction, NoisyActionPreimage
 from .representation import transitions
 from .transition import load_transition_model
@@ -789,30 +789,13 @@ def resolve_demonstration(spec, ctx: Context) -> tuple[dict, np.ndarray]:
     return provider.describe(spec.reference, ctx), provider.residuals(spec.reference, z, a, zn, ctx)[0]
 
 
-# Candidate reasons that mean a row was never produced in the legacy sense: legacy generated no label for it.
-NOT_PRODUCED = ("generation_failed", "non_finite", "label_filter.model_misfit")
-
-
-def produced_rows(candidates) -> np.ndarray:
-    """Rows a legacy run would have generated: not rejected for generation failure, non-finite values, or model misfit."""
-    cols = [i for i, c in enumerate(candidates.reason_codes) if c in NOT_PRODUCED]
-    reasons = np.asarray(candidates.reasons, bool)
-    return ~reasons[:, cols].any(axis=1) if cols else np.ones(len(reasons), bool)
-
-
-def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: dict, quantile, population=None):
-    """Values, classification, masks, reasons, and selection threshold from persisted terms.
+def classify(profile: Profile, resolved: dict, terms: dict) -> dict:
+    """Values, classification, and certificate reasons from persisted terms.
 
     resolved holds the descriptor's constants, demonstration, and
     model_evaluation. Shared by certify() and verify_structure(), so the
     structural check recomputes exactly what certification decided. Totals are
     rounded up to enclose the float64 arithmetic of the formula.
-
-    The selection quantile is taken over the accepted, admissible rows, or,
-    with population (a row mask: the "produced" selection population), over
-    the supported rows of that mask, independently of acceptance and the
-    admission threshold, as the label-filtering branch did. Either way only
-    accepted, admissible rows are selected.
     """
     model, total = profile.evaluate(terms, {r: c["value"] for r, c in resolved["constants"].items()})
     model, total = sum_upper(model), sum_upper(total)
@@ -821,31 +804,23 @@ def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: d
     supported = inside & np.isfinite(total) & np.all([np.isfinite(terms[n]) for n in required], axis=0)
     cls = np.where(supported, profile.base_classification(resolved), "unsupported").astype("<U12")
     bound = np.isin(cls, BOUND_CLASSES)
-    candidate = bound if admission["mode"] == "upper_bound" else supported
-    with np.errstate(invalid="ignore"):
-        within = np.ones(len(total), bool) if admission["threshold"] is None else total <= admission["threshold"]
-    admissible = candidate & within
-    eligible = np.asarray(accepted, bool) & admissible
-    pool = eligible if population is None else np.asarray(population, bool) & supported
-    threshold = None
-    if quantile is None:
-        selected = np.ones(len(total), bool)
-    elif pool.any():
-        threshold = float(np.quantile(total[pool], quantile))
-        selected = eligible & (total <= threshold)
-    else:
-        selected = np.zeros(len(total), bool)
-    reasons = np.stack([~supported, (admission["mode"] == "upper_bound") & supported & ~bound,
-                        candidate & ~within, eligible & ~selected], axis=1)
     return {"model_error_value": model, "total_error_value": total, "classification": cls, "is_upper_bound": bound,
-            "in_neighborhood": inside, "admissible": admissible, "selected": selected, "reasons": reasons}, threshold
+            "in_neighborhood": inside, "reasons": np.stack([~supported, supported & ~bound], axis=1)}
 
 
-def _admission(mode, threshold) -> dict:
-    if mode not in ("upper_bound", "score"):
-        raise InterfaceError(f"admission must be 'upper_bound' or 'score', got {mode!r}")
-    _nonneg(threshold, "the admission threshold")
-    return {"mode": mode, "threshold": None if threshold is None else float(threshold)}
+def decide(profile: Profile, resolved: dict, terms: dict, accepted, admission: dict, quantile, population=None):
+    """The rows of a legacy 1.0 certificate, with its admission and selection; (rows, selection threshold).
+
+    1.0 stored one admission policy and selection quantile; they are the
+    curation rules of core/curate.py, recomputed here to verify such files.
+    """
+    rows = classify(profile, resolved, terms)
+    admit = "bound" if admission["mode"] == "upper_bound" else "score"
+    pol = admit_rows(rows["classification"], rows["total_error_value"], accepted, admit, admission["threshold"],
+                     quantile, population)
+    rows["reasons"] = np.stack([rows["reasons"][:, 0], (admission["mode"] == "upper_bound") & pol["supported"] & ~pol["bound"],
+                                pol["candidate"] & ~pol["within"], pol["eligible"] & ~pol["selected"]], axis=1)
+    return {**rows, "admissible": pol["admissible"], "selected": pol["selected"]}, pol["threshold"]
 
 
 def _load_model(sources: Sources):
@@ -856,19 +831,10 @@ def _load_model(sources: Sources):
     return model
 
 
-def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", threshold: float | None = None,
-            selection_quantile: float | None = None, state_scale=None, action_scale=None,
-            selection_population: str = "admitted") -> CertificateSet:
+def certify(sources: Sources, profile: Profile, state_scale=None, action_scale=None) -> CertificateSet:
     """Certify every candidate row of sources.candidates with profile; the candidates are not modified."""
     if not isinstance(profile, Profile) or profile.constants is None:
         raise InterfaceError("certify needs a profile built from Declared/Provided constants")
-    adm = _admission(admission, threshold)
-    if selection_quantile is not None and (isinstance(selection_quantile, bool) or not isinstance(selection_quantile, (int, float))
-                                           or not 0 < selection_quantile <= 1):
-        raise InterfaceError(f"selection_quantile must be in (0, 1] or None, got {selection_quantile!r}")
-    if selection_population not in SELECTION_POPULATIONS or (selection_population != "admitted" and selection_quantile is None):
-        raise InterfaceError(f"selection_population must be one of {list(SELECTION_POPULATIONS)}, and a population other "
-                             f"than admitted needs a selection_quantile; got {selection_population!r}")
     hashes = sources.hashes()
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
@@ -889,13 +855,10 @@ def certify(sources: Sources, profile: Profile, admission: str = "upper_bound", 
         raise InterfaceError(f"{profile.name} computed terms {sorted(terms)}, declares {sorted(profile.term_specs())}")
     coordinates = {"modality": ctx.modality, "state_dim": int(probe.z.shape[1]), "action_dim": int(probe.a.shape[1]),
                    "state_scale": ctx.state_scale.tolist(), "action_scale": ctx.action_scale.tolist()}
-    rows, thr = decide(profile, resolved, terms, candidates.accepted, adm, selection_quantile,
-                       produced_rows(candidates) if selection_population == "produced" else None)
+    rows = classify(profile, resolved, terms)
     return CertificateSet(
         source_episode_id=np.asarray(candidates.source_episode_id), source_frame=np.asarray(candidates.source_frame),
-        terms=terms, descriptor=profile.descriptor(resolved, coordinates), admission=adm,
-        selection={"quantile": None if selection_quantile is None else float(selection_quantile), "threshold": thr,
-                   "population": selection_population},
+        terms=terms, descriptor=profile.descriptor(resolved, coordinates),
         candidates_sha256=hashes["candidates"], inputs=hashes, components=_components(rep, model), **rows).validate()
 
 
@@ -960,18 +923,23 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
     resolved = resolved_of(d)
     if json.dumps(profile.descriptor(resolved, d["coordinates"]), sort_keys=True) != json.dumps(d, sort_keys=True):
         problems.append("descriptor is not the one this version of the profile writes")
-    rows, thr = decide(profile, resolved, cert.terms, candidates.accepted, cert.admission, cert.selection["quantile"],
-                       produced_rows(candidates) if cert.selection["population"] == "produced" else None)
+    if cert.legacy:
+        rows, thr = decide(profile, resolved, cert.terms, candidates.accepted, cert.admission, cert.selection["quantile"],
+                           produced_rows(candidates) if cert.selection["population"] == "produced" else None)
+    else:
+        rows, thr = classify(profile, resolved, cert.terms), None
     for name in ("model_error_value", "total_error_value"):
         close = np.isclose(getattr(cert, name), rows[name], rtol=1e-12, atol=0.0, equal_nan=True)
         if not close.all():
             problems.append(f"{name} does not follow from the persisted terms on {int((~close).sum())} rows")
-    for name in ("classification", "is_upper_bound", "in_neighborhood", "admissible", "selected", "reasons"):
+    names = ("classification", "is_upper_bound", "in_neighborhood", "reasons") + (("admissible", "selected") if cert.legacy else ())
+    for name in names:
         if not np.array_equal(np.asarray(getattr(cert, name)), rows[name]):
             problems.append(f"{name} does not follow from the persisted terms, descriptor, and policy")
-    rec = cert.selection["threshold"]
-    if (thr is None) != (rec is None) or (thr is not None and not np.isclose(thr, rec, rtol=1e-12, atol=0.0)):
-        problems.append(f"selection threshold {rec!r} does not follow from the persisted totals ({thr!r})")
+    if cert.legacy:
+        rec = cert.selection["threshold"]
+        if (thr is None) != (rec is None) or (thr is not None and not np.isclose(thr, rec, rtol=1e-12, atol=0.0)):
+            problems.append(f"selection threshold {rec!r} does not follow from the persisted totals ({thr!r})")
     return problems
 
 
@@ -1077,15 +1045,14 @@ def audit_sources(cert: CertificateSet, sources: Sources) -> list[str]:
 
 
 def require_upper_bound(cert: CertificateSet) -> None:
-    """Raise unless every supported row is an upper bound and admission admits only bounds."""
+    """Raise unless every supported row is an upper bound (and, for a 1.0 set, admission admits only bounds)."""
     supported = cert.classification != "unsupported"
-    if cert.admission["mode"] != "upper_bound" or not cert.is_upper_bound[supported].all():
-        raise InterfaceError(f"certificate ({cert.descriptor.get('profile')}, admission {cert.admission['mode']!r}) "
-                             "does not admit rows as upper bounds")
+    if (cert.legacy and cert.admission["mode"] != "upper_bound") or not cert.is_upper_bound[supported].all():
+        raise InterfaceError(f"certificate ({cert.descriptor.get('profile')}) does not certify its rows as upper bounds")
 
 
 __all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile",
            "BackTrackPaperProxy", "DisturbedActionPaperProxy", "LegacyLabelFiltering", "jacobian_terms", "Sources",
-           "Context", "certify", "decide", "verify_structure", "audit_sources", "require_upper_bound", "register_profile",
+           "Context", "certify", "classify", "decide", "verify_structure", "audit_sources", "require_upper_bound", "register_profile",
            "write_reference_dynamics", "read_reference_dynamics", "check_applies", "model_evaluation", "resolved_of", "PROFILES",
            "PROVIDERS", "GENERATOR_PROFILES", "SCHEMA", "VERSION", "REASON_CODES"]

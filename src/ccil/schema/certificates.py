@@ -1,4 +1,4 @@
-"""Certificate schema `ccil.certificates` 1.0.
+"""Certificate schema `ccil.certificates` 2.0: the quality evidence of a candidate set.
 
 One row per candidate row of a ccil.candidates file, in the same order, with
 the source identity repeated for joining; the candidates file is never
@@ -6,14 +6,18 @@ modified. A row records the terms its profile used (every term the descriptor
 declares is persisted), model_error_value and total_error_value, a
 classification, is_upper_bound (true exactly for certified, conditional, and
 calibrated rows), whether the label lies in the profile's neighborhood, and
-the admissible and selected masks with independent certificate reasons. The
-file records the profile descriptor (form, terms, constants with their
-sources and provenance, the demonstration residual's source, whether model
-terms are evaluated with an error bound, neighborhood, coordinates and scales,
-derived units, assumptions), the admission policy, the selection, the SHA-256 of every input
-(always the candidates, dataset, and transition model), and the identity of
-the representation and transition model. Training uses
-candidate.accepted & admissible & selected.
+its certificate reasons. The file records the profile descriptor (form,
+terms, constants with their sources and provenance, the demonstration
+residual's source, whether model terms are evaluated with an error bound,
+neighborhood, coordinates and scales, derived units, assumptions), the SHA-256
+of every input (always the candidates, dataset, and transition model), and the
+identity of the representation and transition model.
+
+A certificate is evidence, not a decision: which rows to use is a separate
+ccil.selection (schema/selection.py), so changing a tolerance never changes a
+certificate. Version 1.0 also stored an admission policy, a selection, and the
+admissible and selected masks; 1.0 files are still read, with those legacy
+fields, and training on them uses candidate.accepted & admissible & selected.
 """
 from __future__ import annotations
 
@@ -26,14 +30,16 @@ import numpy as np
 from .fields import ArraySpec, Violations
 
 SCHEMA = "ccil.certificates"
-VERSION = (1, 0)
+VERSION = (2, 0)
+LEGACY_VERSION = (1, 0)
 CLASSIFICATIONS = ("certified", "conditional", "calibrated", "empirical", "unsupported")
 BOUND_CLASSES = ("certified", "conditional", "calibrated")
-REASON_CODES = ("certificate.unsupported", "certificate.not_upper_bound", "certificate.exceeds_threshold",
-                "certificate.not_selected")
+REASON_CODES = ("certificate.unsupported", "certificate.not_upper_bound")
+# 1.0 also recorded its admission and selection decisions.
+LEGACY_REASON_CODES = REASON_CODES + ("certificate.exceeds_threshold", "certificate.not_selected")
 FORMS = ("additive", "direct", "score")
 SOURCES = ("analytic_bound", "model_bound", "declared")
-ADMISSION_MODES = ("upper_bound", "score")
+ADMISSION_MODES = ("upper_bound", "score")  # 1.0 admission; ccil.selection admits by bound or score
 MODEL_EVALUATIONS = ("bounded", "assumed_exact")
 # The rows a selection quantile is taken over: accepted, admissible rows, or every produced, supported row (legacy).
 SELECTION_POPULATIONS = ("admitted", "produced")
@@ -54,12 +60,13 @@ TOTAL_ERROR = ArraySpec("total_error_value", "float", ("N",), "error",
 CLASSIFICATION = ArraySpec("classification", "int", ("N",), "-", "Index into classification_codes.")
 IS_UPPER_BOUND = ArraySpec("is_upper_bound", "bool", ("N",), "-", "True exactly for certified, conditional, and calibrated rows.")
 IN_NEIGHBORHOOD = ArraySpec("in_neighborhood", "bool", ("N",), "-", "The label lies in the profile's neighborhood.")
-ADMISSIBLE = ArraySpec("admissible", "bool", ("N",), "-", "Passes the admission policy; never set on unsupported rows.")
-SELECTED = ArraySpec("selected", "bool", ("N",), "-",
-                     "Budget selection; with a quantile, a subset of accepted & admissible rows, otherwise every row.")
 REASONS = ArraySpec("reasons", "bool", ("N", "R"), "-", "reasons[i, r] is True when reason_codes[r] applies to row i.")
 ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, TERM, MODEL_ERROR, TOTAL_ERROR, CLASSIFICATION, IS_UPPER_BOUND,
-               IN_NEIGHBORHOOD, ADMISSIBLE, SELECTED, REASONS]
+               IN_NEIGHBORHOOD, REASONS]
+# Version 1.0 only.
+ADMISSIBLE = ArraySpec("admissible", "bool", ("N",), "-", "1.0: passes the admission policy; never set on unsupported rows.")
+SELECTED = ArraySpec("selected", "bool", ("N",), "-",
+                     "1.0: budget selection; with a quantile, a subset of accepted & admissible rows, otherwise every row.")
 FIELDS = [
     ("descriptor", "dict", "profile, version, form (additive, direct, score), terms {name: {definition, units, required}}, "
                            "constants {role: {value, source, maps, rationale, provenance}}, neighborhood {state, action} "
@@ -67,11 +74,6 @@ FIELDS = [
                            "model_evaluation (bounded: the model terms are upper bounds; assumed_exact: they assume exact "
                            "evaluation), demonstration {source, value, rationale, provenance} for profiles that add the "
                            "demonstration residual, units, norms, assumptions."),
-    ("admission", "dict", f"mode {list(ADMISSION_MODES)} and threshold (null or finite >= 0) on total_error_value."),
-    ("selection", "dict", "quantile (null or in (0, 1]), the resulting threshold (null when no quantile or no row to take it "
-                          "over), and population: admitted (accepted, admissible rows) or produced (supported rows not "
-                          "rejected for generation failure, non-finite values, or model misfit, as the label-filtering "
-                          "branch took it)."),
     ("candidates_sha256", "str", "SHA-256 of the candidates file."),
     ("inputs", "dict[str, str]", f"SHA-256 of each input by name; always {list(REQUIRED_INPUTS)}."),
     ("components", "dict", "representation {kind, version, modality} and transition_model {kind, version}."),
@@ -177,15 +179,29 @@ class CertificateSet:
     classification: np.ndarray        # (N,) str, one of CLASSIFICATIONS
     is_upper_bound: np.ndarray
     in_neighborhood: np.ndarray
-    admissible: np.ndarray
-    selected: np.ndarray
-    reasons: np.ndarray               # (N, len(REASON_CODES)) bool
+    reasons: np.ndarray               # (N, len(reason_codes)) bool
     descriptor: dict
-    admission: dict
-    selection: dict
     candidates_sha256: str
     inputs: dict
     components: dict = field(default_factory=dict)
+    # Version 1.0 only: its admission policy, selection, and their masks. All four or none.
+    admissible: np.ndarray | None = None
+    selected: np.ndarray | None = None
+    admission: dict | None = None
+    selection: dict | None = None
+
+    @property
+    def legacy(self) -> bool:
+        """A version 1.0 set, which carries its own admission and selection."""
+        return self.admission is not None
+
+    @property
+    def version(self) -> tuple:
+        return LEGACY_VERSION if self.legacy else VERSION
+
+    @property
+    def reason_codes(self) -> tuple:
+        return LEGACY_REASON_CODES if self.legacy else REASON_CODES
 
     def validate(self) -> "CertificateSet":
         """Raise SchemaError listing every violation of the structure and its invariants."""
@@ -198,9 +214,18 @@ class CertificateSet:
                   *(s.check(x, w, dims, out, finite=False) for s, x in (
                       (MODEL_ERROR, self.model_error_value), (TOTAL_ERROR, self.total_error_value))),
                   *(s.check(x, w, dims, out) for s, x in (
-                      (IS_UPPER_BOUND, self.is_upper_bound), (IN_NEIGHBORHOOD, self.in_neighborhood),
-                      (ADMISSIBLE, self.admissible), (SELECTED, self.selected)))])
-        ok = REASONS.check(self.reasons, w, {**dims, "R": len(REASON_CODES)}, out) and ok
+                      (IS_UPPER_BOUND, self.is_upper_bound), (IN_NEIGHBORHOOD, self.in_neighborhood)))])
+        legacy = (self.admissible, self.selected, self.admission, self.selection)
+        if self.legacy:
+            if any(x is None for x in legacy):
+                out.add("version", w, "a 1.0 set has admissible, selected, admission, and selection together")
+                ok = False
+            else:
+                ok = all([ADMISSIBLE.check(self.admissible, w, dims, out), SELECTED.check(self.selected, w, dims, out)]) and ok
+        elif any(x is not None for x in legacy):
+            out.add("version", w, "a 2.0 set records no admission or selection: they belong to a ccil.selection")
+            ok = False
+        ok = REASONS.check(self.reasons, w, {**dims, "R": len(self.reason_codes)}, out) and ok
         cls = np.asarray(self.classification)
         if cls.shape != (dims.get("N", -1),) or not np.isin(cls, CLASSIFICATIONS).all():
             out.add("classification", w, f"classification must be (N,) codes from {list(CLASSIFICATIONS)}")
@@ -222,6 +247,24 @@ class CertificateSet:
 
     def _check_meta(self, out):
         w = "certificates"
+        if self.legacy:
+            self._check_legacy_meta(out)
+        if not (isinstance(self.candidates_sha256, str) and SHA256.match(self.candidates_sha256)):
+            out.add("inputs", w, "candidates_sha256 must be 64 lowercase hex")
+        if not _sha_map(self.inputs) or not set(REQUIRED_INPUTS) <= set(self.inputs):
+            out.add("inputs", w, f"inputs must map names to SHA-256 and include {list(REQUIRED_INPUTS)}")
+        elif self.inputs["candidates"] != self.candidates_sha256:
+            out.add("inputs", w, "inputs.candidates must equal candidates_sha256")
+        c = self.components
+        if not (isinstance(c, dict) and set(c) == {"representation", "transition_model"}
+                and isinstance(c["representation"], dict) and set(c["representation"]) == {"kind", "version", "modality"}
+                and isinstance(c["transition_model"], dict) and set(c["transition_model"]) == {"kind", "version"}
+                and all(isinstance(v, str) for part in c.values() for v in part.values())):
+            out.add("components", w, "components must be representation {kind, version, modality} and "
+                                     "transition_model {kind, version}, all strings")
+
+    def _check_legacy_meta(self, out):
+        w = "certificates"
         a = self.admission
         if not (isinstance(a, dict) and set(a) == {"mode", "threshold"} and a["mode"] in ADMISSION_MODES
                 and (a["threshold"] is None or (_number(a["threshold"]) and a["threshold"] >= 0))):
@@ -236,19 +279,6 @@ class CertificateSet:
             out.add("selection", w, "selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0, "
                                     f"population: {list(SELECTION_POPULATIONS)}}}, with no threshold or non-default "
                                     "population without a quantile")
-        if not (isinstance(self.candidates_sha256, str) and SHA256.match(self.candidates_sha256)):
-            out.add("inputs", w, "candidates_sha256 must be 64 lowercase hex")
-        if not _sha_map(self.inputs) or not set(REQUIRED_INPUTS) <= set(self.inputs):
-            out.add("inputs", w, f"inputs must map names to SHA-256 and include {list(REQUIRED_INPUTS)}")
-        elif self.inputs["candidates"] != self.candidates_sha256:
-            out.add("inputs", w, "inputs.candidates must equal candidates_sha256")
-        c = self.components
-        if not (isinstance(c, dict) and set(c) == {"representation", "transition_model"}
-                and isinstance(c["representation"], dict) and set(c["representation"]) == {"kind", "version", "modality"}
-                and isinstance(c["transition_model"], dict) and set(c["transition_model"]) == {"kind", "version"}
-                and all(isinstance(v, str) for part in c.values() for v in part.values())):
-            out.add("components", w, "components must be representation {kind, version, modality} and "
-                                     "transition_model {kind, version}, all strings")
 
     def _check_rows(self, terms_spec, out):
         """Invariants between the arrays; the profile-specific arithmetic is verify_structure's job."""
@@ -271,13 +301,14 @@ class CertificateSet:
         with np.errstate(invalid="ignore"):
             rule("model_error_value", (~unsupported & ~(np.isfinite(model) & (model >= 0))) if additive else ~np.isnan(model),
                  "model_error_value must be finite and >= 0 on supported rows of an additive profile, NaN otherwise")
-        rule("admissible", self.admissible & unsupported, "an unsupported row cannot be admissible")
-        if self.admission.get("mode") == "upper_bound":
-            rule("admissible", self.admissible & ~self.is_upper_bound, "upper_bound admission admits only bounds")
-        if self.selection.get("quantile") is not None:
-            rule("selected", self.selected & ~self.admissible, "with a quantile, selected rows must be admissible")
         rule("reasons", self.reasons[:, 0] != unsupported, "certificate.unsupported must be set exactly on unsupported rows")
-        rule("reasons", self.reasons[:, 3] & self.selected, "certificate.not_selected on a selected row")
+        if self.legacy:
+            rule("admissible", self.admissible & unsupported, "an unsupported row cannot be admissible")
+            if self.admission.get("mode") == "upper_bound":
+                rule("admissible", self.admissible & ~self.is_upper_bound, "upper_bound admission admits only bounds")
+            if self.selection.get("quantile") is not None:
+                rule("selected", self.selected & ~self.admissible, "with a quantile, selected rows must be admissible")
+            rule("reasons", self.reasons[:, 3] & self.selected, "certificate.not_selected on a selected row")
 
 
 def code_classifications(classification) -> np.ndarray:

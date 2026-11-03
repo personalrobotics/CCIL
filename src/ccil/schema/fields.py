@@ -85,7 +85,7 @@ class ArraySpec:
 
 def check_finite(x: np.ndarray, name: str, where: str, out: Violations, rows=None) -> None:
     """Report frames (axis 0) with non-finite or float32-overflowing values."""
-    flat = x.reshape(len(x), -1)
+    flat = x.reshape(len(x), int(np.prod(x.shape[1:])))  # not -1: a zero-row array has no inferable width
     if rows is not None:
         flat = flat[rows]
     idx = np.arange(len(x)) if rows is None else np.flatnonzero(rows) if rows.dtype == bool else rows

@@ -92,9 +92,12 @@ def main():
     write_reference_dynamics(work / "true-dynamics.npz", sys_.A, sys_.B, "analytic double integrator")
     base = ["data.path=rollouts.npz", "run.output_dir=runs", "data.validation_fraction=0.25", "compute.device=cpu",
             "generation.method=noisy_action", f"generation.labels_per_transition={K}", f"generation.action_noise_std={SIGMA}",
-            "policy.batch_size=32", "policy.epochs=4"]
+            "policy.batch_size=32", "policy.epochs=4",
+            # Every arm declares the mode the ccil arm's reference-dynamics certificate needs, so the arms share one
+            # labels.generate stage (generation.* is part of that stage's identity).
+            "generation.evidence_mode=reference_assisted"]
     certified = ["certificate.profile=disturbed_action", "certificate.reference_dynamics=true-dynamics.npz",
-                 "certificate.max_total_error=0.015", "certificate.selection_quantile=0.6"]
+                 "curate.tolerance=0.015", "curate.quantile=0.6"]
     arms = {"bc": ["policy.method=bc"], "noise_bc": ["policy.method=noise_bc", "policy.noise_scale=0.1"],
             "ccil": ["policy.method=ccil", *certified]}
 
@@ -132,11 +135,13 @@ def main():
     # Supervision objects for the API-level cases.
     d = work / "runs"
     P = {k: next(d.glob(f"{k}-*")) for k in ("data-prepare", "labels-generate", "labels-certify")}
+    P["labels-curate"] = work / runs["ccil"]["stages"]["labels.curate"]  # the ccil arm's selection (bc's selects all)
     sup = {"bc": build_supervision(P["data-prepare"] / "data/dataset.npz", "bc", representation=rep,
                                    split=P["data-prepare"] / "data/split.json"),
            "ccil": build_supervision(P["data-prepare"] / "data/dataset.npz", "ccil", representation=rep,
                                      candidates=P["labels-generate"] / "labels/candidates.npz",
                                      certificates=P["labels-certify"] / "labels/certificates.npz",
+                                     selection=P["labels-curate"] / "labels/selection.npz",
                                      split=P["data-prepare"] / "data/split.json")}
     sup["noise_bc"] = build_supervision(P["data-prepare"] / "data/dataset.npz", "noise_bc", representation=rep,
                                         split=P["data-prepare"] / "data/split.json")

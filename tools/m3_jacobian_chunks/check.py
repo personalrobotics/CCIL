@@ -19,8 +19,9 @@ cuda (on the task's real labels: the ordinary pipeline at seed 501, as the #24 d
 4. Agreement: the rows whose Jacobian differs between the two, how many and by how much. A ReLU network's exact
    Jacobian is discontinuous where a pre-activation is 0, so a different kernel can flip a row lying within
    rounding of a kink; this is measured, not assumed away.
-5. Certificates: labels.certify with disturbed_action_paper_proxy (selection quantile 0.3), at the default budget
-   and unchunked: admission, selection and total_error_value must be identical for every row.
+5. Certificates: labels.certify with disturbed_action_paper_proxy and its labels.curate selection (quantile 0.3),
+   at the default budget and unchunked: classification, total_error_value and the selection mask must be identical
+   for every row.
 6. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
 7. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
 """
@@ -122,7 +123,7 @@ def cuda_part(out: Path, task: str, device: str) -> dict:
     data = out / "inputs" / "data" / f"{study.DATASETS[task]}.npz"
     sets = [f"run.seed={SEED}", f"compute.device={device}", f"data.path={data}", f"run.output_dir={out / 'stages'}",
             "policy.exclude_validation_episodes=false", "certificate.profile=disturbed_action_paper_proxy",
-            "certificate.selection_quantile=0.3"]
+            "curate.quantile=0.3"]
     cwd = os.getcwd()
     os.chdir(out / "inputs")
     config = str(out / "inputs" / "config" / study.CONFIGS[task])
@@ -155,8 +156,11 @@ def cuda_part(out: Path, task: str, device: str) -> dict:
                                            f"compute.jacobian_memory_mb={mb}"])
         profile, kwargs = offline.build_certificate(cfg.values)
         res = offline.certify_stage(cfg, prepared, fitted, labeled, IdentityRepresentation("state"), profile, **kwargs)
+        sel = offline.curate_stage(cfg, labeled, res, offline.build_policy(cfg.values))
         with np.load(res.out("labels/certificates.npz"), allow_pickle=False) as f:
-            return {k: f[k] for k in ("admissible", "selected", "total_error_value")}
+            fields = {k: f[k] for k in ("classification", "total_error_value")}
+        with np.load(sel.out("labels/selection.npz"), allow_pickle=False) as f:
+            return {**fields, "mask": f["mask"]}
     cert_chunk = certify(budget // 2**20, "chunked")
     cert_full = certify(unbounded // 2**20, "unchunked")
     os.chdir(cwd)
@@ -165,7 +169,7 @@ def cuda_part(out: Path, task: str, device: str) -> dict:
     identical = all(v == 0 for v in cert_diff.values())
     return {"pass": bool(m_chunk <= budget and m_chunk <= 0.1 * m_full and identical),
             "criterion": "chunked peak within the budget and at most a tenth of the unchunked peak; every certificate "
-                         "field (admissible, selected, total_error_value) identical",
+                         "field (classification, total_error_value) and the selection mask identical",
             "task": task, "seed": SEED, "accepted_labels": int(acc.sum()), "budget_bytes": budget, "chunking": chunking,
             "peak_gb": {"chunked": m_chunk / 2**30, "unchunked": m_full / 2**30},
             "seconds": {"chunked": t_chunk, "unchunked": t_full},

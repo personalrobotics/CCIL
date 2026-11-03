@@ -177,21 +177,24 @@ PARAMS = [
     Param("certificate.neighborhood_action", "float", None, "Labels farther than this from their anchor action are unsupported.",
           "Null: the constants are global; backtrack keeps the anchor's action and takes none.", "certificate",
           units="scaled action", low=0.0, low_open=True, nullable=True),
-    Param("certificate.max_total_error", "float", None, "Bound profiles: admit labels whose bound is at most this.",
-          "Admission is upper_bound: only bound rows (certified or conditional) are admitted.", "certificate",
-          units="scaled state", low=0.0, nullable=True),
-    Param("certificate.score_threshold", "float", None, "Score profiles: admit labels whose score is at most this.",
-          "Admission is score: rows stay empirical and are never presented as bounds. Legacy aug.max_label_err.",
-          "certificate", units="scaled state", low=0.0, nullable=True, legacy=("aug.max_label_err",)),
-    Param("certificate.selection_quantile", "float", None,
-          "Select admitted, accepted labels whose total is at most this quantile of theirs.",
+    Param("generation.evidence_mode", "choice", "data_only",
+          "Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted.",
+          "The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and "
+          "recorded in every selection made under it.", "generation", choices=("data_only", "reference_assisted")),
+    # curate ------------------------------------------------------------------
+    Param("curate.tolerance", "float", None, "Select labels whose certificate error is at most this.",
+          "Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical "
+          "scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err.",
+          "curate", units="scaled state", low=0.0, nullable=True, legacy=("aug.max_label_err",)),
+    Param("curate.quantile", "float", None,
+          "Select admitted, accepted labels whose error is at most this quantile of the population's.",
           "A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the "
-          "label-filtering pendulum configs).", "certificate", low=0.0, low_open=True, high=1.0, nullable=True,
+          "label-filtering pendulum configs).", "curate", low=0.0, low_open=True, high=1.0, nullable=True,
           legacy=("aug.label_err_quantile",)),
-    Param("certificate.selection_population", "choice", "admitted", "Rows the selection quantile is taken over.",
+    Param("curate.population", "choice", "admitted", "Rows the selection quantile is taken over.",
           "admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, "
-          "independently of the admission threshold and support radius, as the label-filtering branch did; migrated "
-          "legacy configurations use it.", "certificate", choices=("admitted", "produced")),
+          "independently of the tolerance and support radius, as the label-filtering branch did; migrated legacy "
+          "configurations use it.", "curate", choices=("admitted", "produced")),
     # policy ----------------------------------------------------------------
     Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
           "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
@@ -324,14 +327,12 @@ _VALUE_KEYS = ("certificate.true_state_lipschitz", "certificate.true_action_lips
 
 def _certificate(v):
     prof, ref = v["certificate.profile"], v["certificate.reference_dynamics"]
-    defaults = {"certificate.learned_lipschitz_source": "model", "certificate.selection_population": "admitted"}
+    defaults = {"certificate.learned_lipschitz_source": "model"}
     settings = [k for k in v if k.startswith("certificate.") and k != "certificate.profile"
                 and v[k] is not None and v[k] != defaults.get(k)]
     if prof is None:
         return f"{settings} require certificate.profile" if settings else None
     problems = []
-    if v["certificate.selection_population"] != "admitted" and v["certificate.selection_quantile"] is None:
-        problems.append("certificate.selection_population applies to a selection; set certificate.selection_quantile")
     if v["certificate.learned_lipschitz_source"] != "model" and prof != "backtrack":
         problems.append(f"certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, "
                         f"not {prof}")
@@ -342,12 +343,10 @@ def _certificate(v):
         problems.append(f"certificate.profile {prof} certifies {family} labels; generation.method {method} makes "
                         f"{METHOD_FAMILY[method]} labels")
     if prof not in BOUND_PROFILES:
-        extra = [k for k in settings if k in _VALUE_KEYS + ("certificate.reference_dynamics", "certificate.max_total_error")]
+        extra = [k for k in settings if k in _VALUE_KEYS + ("certificate.reference_dynamics",)]
         if extra:
-            problems.append(f"score profile {prof} takes no constants, reference, or bound threshold: unset {extra}")
+            problems.append(f"score profile {prof} takes no constants or reference: unset {extra}")
         return "; ".join(problems) or None
-    if v["certificate.score_threshold"] is not None:
-        problems.append(f"bound profile {prof} admits by certificate.max_total_error, not certificate.score_threshold")
     if ref is not None and v["certificate.demonstration_residual_bound"] is not None:
         problems.append("certificate.demonstration_residual_bound is declared, but certificate.reference_dynamics computes "
                         "the residuals; set one")
@@ -363,6 +362,18 @@ def _certificate(v):
         problems.append(f"{prof} without {'exact discrepancy' if prof == 'continuity' else 'reference dynamics'} needs {missing}")
     if unused:
         problems.append(f"{prof} does not use {unused} here; unset them")
+    return "; ".join(problems) or None
+
+
+def _curate(v):
+    problems = []
+    if v["certificate.profile"] is None and (v["curate.tolerance"] is not None or v["curate.quantile"] is not None):
+        problems.append("curate.tolerance and curate.quantile compare certificate errors; set certificate.profile")
+    if v["curate.population"] != "admitted" and v["curate.quantile"] is None:
+        problems.append("curate.population applies to a quantile; set curate.quantile")
+    if v["certificate.reference_dynamics"] is not None and v["generation.evidence_mode"] != "reference_assisted":
+        problems.append("certificate.reference_dynamics computes constants from reference dynamics, which data-only "
+                        "curation cannot use; set generation.evidence_mode reference_assisted")
     return "; ".join(problems) or None
 
 
@@ -395,4 +406,6 @@ RULES = [
     ("noise_bc_scale", ("policy.method", "policy.noise_scale", "policy.balance_noisy_labels", "generation.method"), _noise),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind"),
      _certificate),
+    ("curate", ("curate.tolerance", "curate.quantile", "curate.population", "certificate.profile",
+                "certificate.reference_dynamics", "generation.evidence_mode"), _curate),
 ]

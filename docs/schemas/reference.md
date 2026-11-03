@@ -78,22 +78,20 @@ Built-in reason codes: `non_finite`, `out_of_support`, `generation_failed`, `act
 
 Required: `accepted`, `actions`, `reasons`, `source_episode_id`, `source_frame`, `weight`, plus `obs/<modality>`, `target/<modality>`, and `meas/<name>`. Optional: `action_chunk_mask`, `action_chunks`. `meta` holds `action_chunk_spec`, `generator`, `inputs`, `measurement_specs`, `reason_codes`, `run_id`, `seed`, `weighting`.
 
-## `ccil.certificates` 1.0
+## `ccil.certificates` 2.0
 
-One row per candidate row of a ccil.candidates file, in the same order, with the source identity repeated for joining; the candidates file is never modified. A row records the terms its profile used (every term the descriptor declares is persisted), model_error_value and total_error_value, a classification, is_upper_bound (true exactly for certified, conditional, and calibrated rows), whether the label lies in the profile's neighborhood, and the admissible and selected masks with independent certificate reasons. The file records the profile descriptor (form, terms, constants with their sources and provenance, the demonstration residual's source, whether model terms are evaluated with an error bound, neighborhood, coordinates and scales, derived units, assumptions), the admission policy, the selection, the SHA-256 of every input (always the candidates, dataset, and transition model), and the identity of the representation and transition model. Training uses candidate.accepted & admissible & selected.
+One row per candidate row of a ccil.candidates file, in the same order, with the source identity repeated for joining; the candidates file is never modified. A row records the terms its profile used (every term the descriptor declares is persisted), model_error_value and total_error_value, a classification, is_upper_bound (true exactly for certified, conditional, and calibrated rows), whether the label lies in the profile's neighborhood, and its certificate reasons. The file records the profile descriptor (form, terms, constants with their sources and provenance, the demonstration residual's source, whether model terms are evaluated with an error bound, neighborhood, coordinates and scales, derived units, assumptions), the SHA-256 of every input (always the candidates, dataset, and transition model), and the identity of the representation and transition model.  A certificate is evidence, not a decision: which rows to use is a separate ccil.selection (schema/selection.py), so changing a tolerance never changes a certificate. Version 1.0 also stored an admission policy, a selection, and the admissible and selected masks; 1.0 files are still read, with those legacy fields, and training on them uses candidate.accepted & admissible & selected.
 
 ### Fields
 
 | Field | Type | Description |
 |---|---|---|
 | `descriptor` | `dict` | profile, version, form (additive, direct, score), terms {name: {definition, units, required}}, constants {role: {value, source, maps, rationale, provenance}}, neighborhood {state, action} (null = unbounded), coordinates {modality, state_dim, action_dim, state_scale, action_scale}, model_evaluation (bounded: the model terms are upper bounds; assumed_exact: they assume exact evaluation), demonstration {source, value, rationale, provenance} for profiles that add the demonstration residual, units, norms, assumptions. |
-| `admission` | `dict` | mode ['upper_bound', 'score'] and threshold (null or finite >= 0) on total_error_value. |
-| `selection` | `dict` | quantile (null or in (0, 1]), the resulting threshold (null when no quantile or no row to take it over), and population: admitted (accepted, admissible rows) or produced (supported rows not rejected for generation failure, non-finite values, or model misfit, as the label-filtering branch took it). |
 | `candidates_sha256` | `str` | SHA-256 of the candidates file. |
 | `inputs` | `dict[str, str]` | SHA-256 of each input by name; always ['candidates', 'dataset', 'transition_model']. |
 | `components` | `dict` | representation {kind, version, modality} and transition_model {kind, version}. |
 | `classification_codes` | `list[str]` | Exactly ['certified', 'conditional', 'calibrated', 'empirical', 'unsupported']. |
-| `reason_codes` | `list[str]` | Exactly ['certificate.unsupported', 'certificate.not_upper_bound', 'certificate.exceeds_threshold', 'certificate.not_selected']. |
+| `reason_codes` | `list[str]` | Exactly ['certificate.unsupported', 'certificate.not_upper_bound']. |
 
 ### Arrays
 
@@ -107,15 +105,51 @@ One row per candidate row of a ccil.candidates file, in the same order, with the
 | `classification` | int | (N,) | - | yes | Index into classification_codes. |
 | `is_upper_bound` | bool | (N,) | - | yes | True exactly for certified, conditional, and calibrated rows. |
 | `in_neighborhood` | bool | (N,) | - | yes | The label lies in the profile's neighborhood. |
-| `admissible` | bool | (N,) | - | yes | Passes the admission policy; never set on unsupported rows. |
-| `selected` | bool | (N,) | - | yes | Budget selection; with a quantile, a subset of accepted & admissible rows, otherwise every row. |
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
 
-Classifications: `certified`, `conditional`, `calibrated`, `empirical`, `unsupported`; bounds: `certified`, `conditional`, `calibrated`. Reason codes, in column order: `certificate.unsupported`, `certificate.not_upper_bound`, `certificate.exceeds_threshold`, `certificate.not_selected`. Global terms, persisted by every profile: `state_displacement`, `action_displacement`, `anchor_model_error`, `solver_error`. Constant sources: `analytic_bound`, `model_bound`, `declared`.
+Classifications: `certified`, `conditional`, `calibrated`, `empirical`, `unsupported`; bounds: `certified`, `conditional`, `calibrated`. Reason codes, in column order: `certificate.unsupported`, `certificate.not_upper_bound`. Global terms, persisted by every profile: `state_displacement`, `action_displacement`, `anchor_model_error`, `solver_error`. Constant sources: `analytic_bound`, `model_bound`, `declared`.
 
 ### File layout (.npz)
 
-Required: `admissible`, `classification`, `in_neighborhood`, `is_upper_bound`, `model_error_value`, `reasons`, `selected`, `source_episode_id`, `source_frame`, `total_error_value`, and `term/<name>` for exactly the descriptor's terms. `meta` holds `admission`, `candidates_sha256`, `components`, `descriptor`, `inputs`, `selection`, `classification_codes`, and `reason_codes`; no other array or meta field is accepted.
+Required: `classification`, `in_neighborhood`, `is_upper_bound`, `model_error_value`, `reasons`, `source_episode_id`, `source_frame`, `total_error_value`, and `term/<name>` for exactly the descriptor's terms. `meta` holds `candidates_sha256`, `components`, `descriptor`, `inputs`, `classification_codes`, and `reason_codes`; no other array or meta field is accepted. A legacy 1.0 file also holds `admissible`, `selected` and, in `meta`, `admission`, `selection`, with the reason codes `certificate.unsupported`, `certificate.not_upper_bound`, `certificate.exceeds_threshold`, `certificate.not_selected`.
+
+## `ccil.selection` 1.0
+
+A selection is the output of one curation policy applied to one candidate set and, optionally, its certificates (#167). It never modifies either: changing a tolerance writes a new selection and leaves both hashes unchanged. One row per candidate row, in the same order, with the source identity repeated for joining.  Per row it records the mask and weight, the raw error the policy compared (the certificate's total_error_value, in the certificate's units), the error-to-tolerance ratio, the relative rank of that error within the named population, and every reason the row was not selected. A ratio of at most one means exactly that the recorded error is within the declared tolerance; it is a bound only when the error is (`error.is_bound`). Ranks are relative to the named population of this candidate set, not universal quantities.  A consumer trains on candidate.accepted & mask, with weight.
+
+### Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `policy` | `dict` | admit ['accepted', 'bound', 'score'], tolerance (null or finite >= 0, in error.units), quantile (null or in (0, 1]), and population ['admitted', 'produced'] the quantile is taken over. |
+| `policy_version` | `str` | Version of the curation rules that produced the selection. |
+| `uses` | `list[str]` | Quality terms the policy compares, from ['fidelity', 'novelty']. |
+| `caveats` | `list[str]` | What the policy does not establish, e.g. that a fidelity-only policy favours labels close to the demonstrations. |
+| `error` | `dict | null` | definition, units, and is_bound of the error column; null without certificates. |
+| `threshold` | `float | null` | The error threshold the quantile resolved to; null without a quantile or a population. |
+| `evidence_mode` | `str` | ['data_only', 'reference_assisted']: whether reference dynamics shaped the evidence used. |
+| `candidates_sha256` | `str` | SHA-256 of the candidates file. |
+| `certificates_sha256` | `str | null` | SHA-256 of the certificates file; null for admit accepted. |
+| `reason_codes` | `list[str]` | Exactly ['selection.not_accepted', 'selection.unsupported', 'selection.not_bound', 'selection.exceeds_tolerance', 'selection.not_selected']. |
+
+### Arrays
+
+| Field | Kind | Shape | Units | Required | Description |
+|---|---|---|---|---|---|
+| `source_episode_id` | str | (N,) | - | yes | Episode of the candidate row; equals the candidates file's. |
+| `source_frame` | int | (N,) | frames | yes | Transition index of the candidate row; equals the candidates file's. |
+| `mask` | bool | (N,) | - | yes | The row may be used: accepted, and passed every rule of the policy. |
+| `weight` | float | (N,) | - | yes | Loss weight: the candidate's weight on selected rows, 0 elsewhere. |
+| `error` | float | (N,) | per error.units | yes | The raw error the policy compared: the certificate's total_error_value. NaN without certificates and on unsupported rows. |
+| `ratio` | float | (N,) | - | yes | error / tolerance; NaN without a tolerance or a finite error. |
+| `rank` | float | (N,) | - | yes | Relative rank of error within the named population, in [0, 1] (the fraction of that population with error at most this row's); NaN outside it. |
+| `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
+
+Reason codes, in column order: `selection.not_accepted`, `selection.unsupported`, `selection.not_bound`, `selection.exceeds_tolerance`, `selection.not_selected`.
+
+### File layout (.npz)
+
+Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted.
 
 ## Compatibility
 

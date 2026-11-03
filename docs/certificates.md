@@ -2,19 +2,23 @@
 
 Certification is a separate step after label generation (#88):
 
-    generate candidates → certify candidates → select / admit labels → train policy
+    generate candidates → certify candidates → curate a selection → train policy
 
 It is implemented in
 [`src/ccil/core/certificates.py`](../src/ccil/core/certificates.py) and run by
 the `labels.certify` stage. The candidates file is an input and is never
-modified. Training uses the rows where
+modified. A certificate is evidence only: which rows to train on is a separate
+`ccil.selection`, written by the `labels.curate` stage
+([Curation](#curation)). Training uses the rows where
 
-    usable = candidate.accepted ∧ certificate.admissible ∧ certificate.selected
+    usable = candidate.accepted ∧ selection.mask
 
 [supervision.md](supervision.md) defines how a trainer consumes these rows.
 
-The file format, `ccil.certificates` 1.0, is specified in
-[`schemas/reference.md`](schemas/reference.md).
+The file formats, `ccil.certificates` 2.0 and `ccil.selection` 1.0, are
+specified in [`schemas/reference.md`](schemas/reference.md). Version 1.0
+certificates, which stored their own admission and selection, are still read
+and verified; training on them uses `accepted ∧ admissible ∧ selected`.
 
 ## What a certificate claims
 
@@ -140,40 +144,57 @@ Each row's classification is the weakest of what it relies on.
 | `empirical` | A score profile. | false |
 | `unsupported` | A required term or the total is not finite, or the label is outside the neighborhood. | false |
 
-**Admission** is a policy, chosen explicitly, and separate from
-classification:
-
-| Mode | Admits |
-|---|---|
-| `upper_bound` (default) | Bound rows with `total_error_value ≤ threshold` (when a threshold is set). Supported rows that are not bounds get `certificate.not_upper_bound`. |
-| `score` | Any supported row with `total_error_value ≤ threshold`. Its rows keep their classification and `is_upper_bound`, so a score is never presented as a bound. |
-
-`require_upper_bound(cert)` raises unless admission is `upper_bound` and
-every supported row is a bound.
-
-**Selection** is a budget choice:
-- With a `selection_quantile`, the selected rows are the accepted, admissible
-  rows whose total is at most a quantile. The `selection_population` says
-  which rows that quantile is taken over:
-  - `admitted` (the default) takes it over the accepted, admissible rows.
-  - `produced` takes it over every supported row a legacy run would have
-    generated: rows not rejected for generation failure, non-finite values or
-    model misfit. This is independent of the admission threshold and the
-    support radius, as the label-filtering branch took it. Migrated legacy
-    configurations use it.
-- If no row is in the population, none is selected and the threshold is null.
-- Without a quantile, every row is selected.
-
-Selection never changes a candidate's acceptance or a row's classification.
-
 **Reasons** are independent:
 
 | Reason | Set when |
 |---|---|
 | `certificate.unsupported` | The row is unsupported. |
-| `certificate.not_upper_bound` | Under `upper_bound` admission, a supported row is not a bound. |
-| `certificate.exceeds_threshold` | A row that the admission mode considers is over the threshold. |
-| `certificate.not_selected` | An eligible row is not selected. |
+| `certificate.not_upper_bound` | A supported row is not a bound. |
+
+`require_upper_bound(cert)` raises unless every supported row is a bound.
+
+## Curation
+
+A curation policy ([`src/ccil/core/curate.py`](../src/ccil/core/curate.py))
+reads the candidates and their certificates and writes a `ccil.selection`. It
+modifies neither, so a new tolerance writes a new selection while both hashes
+stay the same.
+
+| Policy (`admit`) | Selects |
+|---|---|
+| `accepted` | Every accepted row, without certificates. Recorded as uncertified. |
+| `bound` | Accepted bound rows (certified, conditional, calibrated) with `total_error_value ≤ tolerance`, when a tolerance is set. Supported rows that are not bounds get `selection.not_bound`. |
+| `score` | Accepted supported rows with `total_error_value ≤ tolerance`. The selection records that its error is not a bound. |
+
+- **Admission follows the profile:** the pipeline curates a bound profile's
+  certificates with `bound` and a score profile's with `score`.
+- **Quantile:** with `quantile`, the selected rows are the admitted rows whose
+  total is at most that quantile of a population:
+  - `admitted` (the default): the accepted, admitted rows;
+  - `produced`: every supported row a legacy run would have generated (not
+    rejected for generation failure, non-finite values or model misfit),
+    independently of the tolerance and the support radius, as the
+    label-filtering branch took it. Migrated legacy configurations use it.
+
+  If no row is in the population, none is selected and the threshold is null.
+- **Fail closed:** unsupported rows are never selected. Curation never changes
+  acceptance or classification, and a lower tolerance or quantile selects a
+  subset.
+- **Per row,** the selection records the raw error and its units, the ratio
+  error / tolerance, the rank of the error within the named population, and
+  every reason against the row: `selection.not_accepted`, `unsupported`,
+  `not_bound`, `exceeds_tolerance`, `not_selected`. A ratio of at most one
+  means exactly that the recorded error is within the tolerance; it is a bound
+  only when the error is.
+- **Caveats:** every policy here compares one quality term, the error, so the
+  selection records that fidelity alone favours labels close to the
+  demonstrations.
+- **Evidence mode:** constants or demonstration residuals computed from
+  reference dynamics are `reference_assisted` evidence. Curation refuses them
+  unless `generation.evidence_mode` is `reference_assisted`, which the
+  selection records ([contract.md](contract.md#reference-dynamics)).
+- **Verification:** `verify_selection` recomputes every mask, weight, error,
+  ratio, rank, reason and threshold from the selection's inputs.
 
 ## Profiles
 
@@ -241,7 +262,7 @@ family's candidates raises. A profile is a `Profile` subclass registered with
 
 | Level | Uses | Checks |
 |---|---|---|
-| **Structural** (`verify_structure`) | The certificate and its candidates file | The schema, the candidates' SHA-256 and row identity, and the registered profile and version. The descriptor must be exactly what the profile writes for its constants and coordinates, so edited units are caught. Every provider must be registered and match its claimed source. Every value, classification, mask and threshold is recomputed from the persisted terms. It cannot tell whether the terms or provided constants are right. |
+| **Structural** (`verify_structure`) | The certificate and its candidates file | The schema, the candidates' SHA-256 and row identity, and the registered profile and version. The descriptor must be exactly what the profile writes for its constants and coordinates, so edited units are caught. Every provider must be registered and match its claimed source. Every value and classification (and, for a 1.0 file, every mask and threshold) is recomputed from the persisted terms. It cannot tell whether the terms or provided constants are right. |
 | **Source audit** (`audit_sources`) | Also the sources (`Sources`: the candidates, dataset, transition model, representation, any other inputs, and references) | Every supplied file's SHA-256 must match the recorded one, and nothing may be missing or extra. The representation's kind, version and modality and the model's kind and version must match the record, as must the dimensions. It then recomputes every term one row at a time, including profile terms. Each term must match to a row-local tolerance: 64 ulps of that row's operand magnitude, in the precision the term was evaluated in (float32 for an MLP's model terms, float64 otherwise). An extreme state elsewhere therefore never loosens a row. Provided constants are recomputed, with identity fields equal and values within 1e-9 relative, since float64 norms differ by ulps across BLAS. Every `analytic_bound` value is verified again exactly. |
 
 Hashes establish artifact identity, not mathematical correctness.
@@ -249,21 +270,23 @@ Hashes establish artifact identity, not mathematical correctness.
 ## The `labels.certify` stage
 
 `ccil.pipelines.offline.certify_stage(cfg, prepared, fitted, labeled,
-representation, profile, admission="upper_bound", threshold=None,
-selection_quantile=None, references=None, state_scale=None,
+representation, profile, references=None, state_scale=None,
 action_scale=None)`.
 
 - **Inputs:** the dataset, the transition model checkpoint, the labels
   stage's candidates, and each reference as `reference.<name>`.
-- **Identity:** the profile's specification, the admission, the selection
-  and the scales are part of the stage identity, so a changed constant
-  specification, threshold or reference produces a new run.
-- **Metrics:** counts by classification, and the admissible, selected and
-  usable rows.
+- **Identity:** the profile's specification and the scales are part of the
+  stage identity, so a changed constant specification or reference produces a
+  new run. A changed tolerance does not.
+- **Metrics:** counts by classification.
+
+`curate_stage(cfg, labeled, certified, policy)` (`labels.curate`) follows it
+and writes `labels/selection.npz`. Its identity is the policy and its input
+hashes; its metrics are the selected rows and the count of each reason.
 
 **Configuration.** With `certificate.profile` set, `ccil labels generate` runs
-`labels.certify` after `labels.generate`. The parameters are listed in
-[`config/parameters.md`](config/parameters.md).
+`labels.certify` after `labels.generate`; it always ends with `labels.curate`.
+The parameters are listed in [`config/parameters.md`](config/parameters.md).
 
 | Key | Use |
 |---|---|
@@ -274,31 +297,38 @@ action_scale=None)`.
 | `certificate.learned_lipschitz_source`, `certificate.learned_state_lipschitz` | `model` (default) uses `model_lipschitz`; `declared` uses the value |
 | `certificate.discrepancy_state_lipschitz`, `certificate.discrepancy_action_lipschitz` | Declared continuity constants, without an exact discrepancy |
 | `certificate.neighborhood_state`, `certificate.neighborhood_action` | Neighborhood radii |
-| `certificate.max_total_error` | Bound profiles: `upper_bound` admission threshold |
-| `certificate.score_threshold` | Score profiles: `score` admission threshold |
-| `certificate.selection_quantile` | Budget selection |
-| `certificate.selection_population` | `admitted` (default) or `produced` (the legacy population) |
+| `curate.tolerance` | The tolerance on the certificate's error |
+| `curate.quantile` | Budget selection |
+| `curate.population` | `admitted` (default) or `produced` (the legacy population) |
+| `generation.evidence_mode` | `data_only` (default) or `reference_assisted`, required with `certificate.reference_dynamics` |
 
 **Consistency rules.** The configuration rule `certificate` refuses:
 - a profile for the other generator family;
-- a score profile with constants, a reference, or `max_total_error`;
-- a bound profile with `score_threshold`;
+- a score profile with constants or a reference;
 - a bound profile without a reference or declared demonstration bound;
 - missing or unused declared constants;
 - `learned_lipschitz_source: declared` outside the `backtrack` bound profile;
 - an action neighborhood for either BackTrack profile;
-- a `produced` population without a quantile;
 - `certificate.*` settings, including non-default choices, without a profile.
+
+The rule `curate` refuses a tolerance or quantile without a profile, a
+`produced` population without a quantile, and reference dynamics in
+`data_only` mode.
 
 The integrated pipeline refuses `certificate.profile` until its policy stage
 consumes certificates (#89).
 
 **Migration.**
 - Legacy `aug.max_label_err` and `aug.label_err_quantile` migrate to
-  `certificate.profile: legacy_label_filtering`, with
-  `certificate.score_threshold` and `certificate.selection_quantile`. The
-  quantile migrates with `certificate.selection_population: produced`, which
-  reproduces the branch's selection exactly.
+  `certificate.profile: legacy_label_filtering`, with `curate.tolerance` and
+  `curate.quantile`. The quantile migrates with `curate.population: produced`,
+  which reproduces the branch's selection exactly.
+- In a `config_version` 1 or 2 file, `certificate.max_total_error` and
+  `score_threshold` are read as `curate.tolerance`, `selection_quantile` as
+  `curate.quantile` and `selection_population` as `curate.population`, each
+  with a note. Such a file's `certificate.reference_dynamics` resolves
+  `generation.evidence_mode` to `reference_assisted`. Version 3 files and the
+  command line refuse the old keys with guidance.
 - `aug.model_err_thresh` stays `generation.model_error_threshold`.
 - `generation.max_label_error` and `generation.label_error_quantile` are
   withdrawn, and fail with guidance.
@@ -307,13 +337,34 @@ consumes certificates (#89).
 
 ## Evidence
 
+The separation of evidence from selection (#167) has its own evidence:
+
+```bash
+uv run --group evidence python tools/m45_quality/check.py --out <new-dir>
+```
+
+Its report is
+[`fixtures/evidence/m45-quality/report.json`](fixtures/evidence/m45-quality/report.json).
+On the analytic double integrator:
+- **Soundness:** every row a bound policy selects has true error ≤ its bound ≤ the tolerance.
+- **Consumers:** they recompute the selection with numpy alone.
+- **Recomputation:** the certificate is recomputed from its sources and the selection from its inputs.
+- **Tolerance changes:** through the pipeline they write new, nested selections while the candidate and certificate runs and hashes are unchanged.
+- **Fail closed:** unsupported and empirical rows are never selected as bounds, and data-only curation refuses reference evidence, in the library and in the configuration.
+- **Refusals:** corrupted, forged and mismatched selections are refused by `build_supervision`.
+- **Legacy:** a 1.0 certificate's rows equal the same policy's selection.
+
+The certificate contract itself:
+
 ```bash
 uv run --group evidence python tools/m3_certificates/check.py --out <new-dir>
 ```
 
 The report is
 [`fixtures/evidence/m3-certificates/report.json`](fixtures/evidence/m3-certificates/report.json),
-with `report-siddh.json` from the CUDA host. It uses the analytic double
+with `report-siddh.json` from the CUDA host. Both were produced at `c8a4712`,
+before certificates 2.0; the tool has since been adapted to curation, and its
+cases are described as they now run. It uses the analytic double
 integrator, with the true label error computed independently from the true
 dynamics.
 
@@ -324,10 +375,12 @@ dynamics.
   conditional and fails coverage. A forged certified zero passes the
   structural check but not the audit.
 - **Neighborhood.** Labels outside it are unsupported.
-- **Admission.** Admission is separate from classification, for an empirical
-  test profile under both modes.
-- **Masks.** They follow their rules, including a quantile with no eligible
-  row.
+- **Admission.** Admission is separate from classification: a bound policy
+  selects no empirical row, and a score policy never presents its rows as
+  bounds.
+- **Selections.** Their masks, threshold and reasons follow the curation
+  rules, including a quantile with no eligible row, and `verify_selection`
+  detects a forged mask, weight, threshold, tolerance or evidence mode.
 - **Profile terms.** They round-trip and are audited. Only required terms
   gate support.
 - **Two verification levels.** They detect different corruptions, and the

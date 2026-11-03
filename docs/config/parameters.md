@@ -75,6 +75,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `generation.action_chunk_size` | int | `null` | actions | [1, inf] | implemented | Add action chunks of this size to every label: the label action, then the demonstration's continuation. | Legacy aug.chunk_size (label-filtering), whose inverted condition ignored a configured value (#22). | `aug.chunk_size` |
 | `generation.model_error_threshold` | float | `null` | representation units | (0.0, inf] | implemented | Reject the candidates of transitions whose one-step model error is not below this. | Legacy aug.model_err_thresh (label-filtering). | `aug.model_err_thresh` |
 | `generation.support_radius` | float | `null` | state units | (0.0, inf] | implemented | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
+| `generation.evidence_mode` | choice | `"data_only"` | - | `data_only`, `reference_assisted` | implemented | Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted. | The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and recorded in every selection made under it. | - |
 
 ## certificate
 
@@ -91,10 +92,14 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `certificate.demonstration_residual_bound` | float | `null` | scaled state | [0.0, inf] | implemented | Declared bound on every demonstration residual ||T(z_t, a_t) - z_{t+1}||. | Bound profiles add the residual once; without certificate.reference_dynamics it must be declared. | - |
 | `certificate.neighborhood_state` | float | `null` | scaled state | (0.0, inf] | implemented | Labels farther than this from their anchor state are unsupported. | Null: the constants are global. | - |
 | `certificate.neighborhood_action` | float | `null` | scaled action | (0.0, inf] | implemented | Labels farther than this from their anchor action are unsupported. | Null: the constants are global; backtrack keeps the anchor's action and takes none. | - |
-| `certificate.max_total_error` | float | `null` | scaled state | [0.0, inf] | implemented | Bound profiles: admit labels whose bound is at most this. | Admission is upper_bound: only bound rows (certified or conditional) are admitted. | - |
-| `certificate.score_threshold` | float | `null` | scaled state | [0.0, inf] | implemented | Score profiles: admit labels whose score is at most this. | Admission is score: rows stay empirical and are never presented as bounds. Legacy aug.max_label_err. | `aug.max_label_err` |
-| `certificate.selection_quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose total is at most this quantile of theirs. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
-| `certificate.selection_population` | choice | `"admitted"` | - | `admitted`, `produced` | implemented | Rows the selection quantile is taken over. | admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, independently of the admission threshold and support radius, as the label-filtering branch did; migrated legacy configurations use it. | - |
+
+## curate
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `curate.tolerance` | float | `null` | scaled state | [0.0, inf] | implemented | Select labels whose certificate error is at most this. | Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err. | `aug.max_label_err` |
+| `curate.quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose error is at most this quantile of the population's. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
+| `curate.population` | choice | `"admitted"` | - | `admitted`, `produced` | implemented | Rows the selection quantile is taken over. | admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, independently of the tolerance and support radius, as the label-filtering branch did; migrated legacy configurations use it. | - |
 
 ## policy
 
@@ -146,3 +151,4 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `noise_bc_scale`: `policy.method`, `policy.noise_scale`, `policy.balance_noisy_labels`, `generation.method`
 - `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`
+- `curate`: `curate.tolerance`, `curate.quantile`, `curate.population`, `certificate.profile`, `certificate.reference_dynamics`, `generation.evidence_mode`

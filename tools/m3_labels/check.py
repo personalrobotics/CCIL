@@ -202,7 +202,7 @@ def main():
     status = {n: validate_run(p)[0] for n, p in runs.items()}
     lab = next((p for n, p in runs.items() if n.startswith("labels-generate")), None)
     pc = read_candidates(lab / "labels/candidates.npz") if lab else None
-    record("noisy_action_fe_pipeline_run", r.returncode == 0 and set(status.values()) == {"complete"} and len(status) == 3
+    record("noisy_action_fe_pipeline_run", r.returncode == 0 and set(status.values()) == {"complete"} and len(status) == 4
            and pc is not None and pc.generator["name"] == "noisy_action_preimage" and pc.measurement_specs is not None,
            stages=status, generator=pc.generator if pc else None,
            artifact=f"<out>/pipeline/runs/{lab.name}/labels/candidates.npz" if lab else None, stderr=r.stderr[-300:])
@@ -468,7 +468,7 @@ def main():
     legacy_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace(
         "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
     rc = resolve(config=legacy_yml)
-    keys = ("certificate.profile", "certificate.selection_quantile", "certificate.score_threshold",
+    keys = ("certificate.profile", "curate.quantile", "curate.tolerance",
             "generation.model_error_threshold")
     record("branch_filter_keys_migrate",  # label-error keys to the certificate layer (#88); the model gate stays
            tuple(rc[k] for k in keys) == ("legacy_label_filtering", 0.3, 0.5, 0.1), values={k: rc[k] for k in keys})
@@ -490,15 +490,15 @@ def main():
                         "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
                         "--set", "generation.method=noisy_action", "--set", f"generation.labels_per_transition={K}",
                         "--set", f"generation.action_noise_std={SIGMA}", "--set", "generation.model_error_threshold=0.5",
-                        "--set", "certificate.profile=legacy_label_filtering", "--set", "certificate.selection_quantile=0.5"],
+                        "--set", "certificate.profile=legacy_label_filtering", "--set", "curate.quantile=0.5"],
                        cwd=wf, capture_output=True, text=True)
     fruns = {p.name: p for p in sorted((wf / "runs").iterdir()) if p.is_dir()} if (wf / "runs").exists() else {}
     fstat = {n: validate_run(p)[0] for n, p in fruns.items()}
     flab = next((p for n, p in fruns.items() if n.startswith("labels-generate")), None)
     fmeta = file_meta(flab / "labels/candidates.npz") if flab else {}
-    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 4
+    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 5
            and fmeta.get("version") == "2.2" and MODEL_MISFIT in set(fmeta.get("reason_codes", []))
-           and any(n.startswith("labels-certify") for n in fruns),
+           and any(n.startswith("labels-certify") for n in fruns) and any(n.startswith("labels-curate") for n in fruns),
            stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
            artifact=f"<out>/pipeline_filters/runs/{flab.name}/labels/candidates.npz" if flab else None, stderr=r.stderr[-300:])
 
@@ -630,7 +630,7 @@ def main():
     legacy_chunk_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace("  epsilon:", "  chunk_size: 5\n  epsilon:"))
     rc5 = resolve(config=legacy_chunk_yml)
     record("action_chunks_pipeline_and_migration",
-           rcmd.returncode == 0 and set(cstat.values()) == {"complete"} and len(cstat) == 3
+           rcmd.returncode == 0 and set(cstat.values()) == {"complete"} and len(cstat) == 4
            and file_meta(clab / "labels/candidates.npz")["version"] == "2.3" and rc5["generation.action_chunk_size"] == 5,
            stages=cstat, migrated_chunk_size=rc5["generation.action_chunk_size"],
            artifact=f"<out>/pipeline_chunks/runs/{clab.name}/labels/candidates.npz" if clab else None, stderr=rcmd.stderr[-300:])

@@ -18,7 +18,7 @@ from ..core import IdentityRepresentation
 from ..runs import layout
 from ..runs.writer import dump_json
 from ..supervision import build_supervision
-from .offline import generate_offline
+from .offline import generate_offline, stage
 from .stages import StageResult, run_stage
 
 POLICY_CHECKPOINT = f"{layout.CHECKPOINTS}/policy.npz"
@@ -89,8 +89,8 @@ def unit_supervision(cfg):
         raise ConfigError(problems)
     from ..training.noise_bc import NoiseBC
     results = generate_offline(cfg)
-    prepared, labeled = results[0], results[2]
-    certified = results[3] if len(results) == 4 else None
+    prepared, labeled = stage(results, "data.prepare"), stage(results, "labels.generate")
+    certified, curated = stage(results, "labels.certify"), stage(results, "labels.curate")
     rep = IdentityRepresentation(v["representation.modality"])
     inputs = {"dataset": prepared.out(layout.DATASET)}
     split_path = prepared.out(layout.SPLIT)
@@ -100,9 +100,11 @@ def unit_supervision(cfg):
         inputs["candidates"] = labeled.out(layout.CANDIDATES)
         if certified is not None:
             inputs["certificates"] = certified.out(layout.CERTIFICATES)
+        inputs["selection"] = curated.out(layout.SELECTION)
     sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
                             candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
-                            split=inputs.get("split"), demonstration_weight=v["policy.demonstration_weight"])
+                            selection=inputs.get("selection"), split=inputs.get("split"),
+                            demonstration_weight=v["policy.demonstration_weight"])
     noise = None
     if v["policy.method"] == "noise_bc":
         noise = NoiseBC(v["policy.noise_model"], v["policy.noise_scale"], seed=v["run.seed"],

@@ -199,8 +199,8 @@ made from those artifacts.
 | Dynamics checkpoint | the fitted or loaded model, and its held-out error | transition-model checkpoint |
 | Diagnosis | the per-M gates, the admitted M or the empty-result reason, the evidence class | #167 |
 | Candidates | every generated row, accepted and rejected, with source identity, generator identity, draw identity, measurements and rejection reasons | `ccil.candidates` 2.x |
-| Quality evidence | per-row error terms and classification (certified, conditional, empirical, unsupported), with every constant's provenance | `ccil.certificates` today; #167's bundle |
-| Selection | one named curation policy, its tolerance, a mask and weights | #167 |
+| Quality evidence | per-row error terms and classification (certified, conditional, empirical, unsupported), with every constant's provenance | `ccil.certificates` 2.0 |
+| Selection | one named curation policy, its tolerance, a mask and weights | `ccil.selection` 1.0 |
 | Reference audit (optional) | reference-dynamics annotations of a decided result; never an input to admission or selection in `data_only` mode | #167 |
 
 **Immutability.** No artifact is modified after it is written. Curate never
@@ -248,7 +248,7 @@ value with its source ([parameters.md](config/parameters.md)).
 | `transition_model` | CCIL | dynamics fit or load |
 | `generation` | CCIL | generator, recovery length, support and validity rules |
 | `certificate` | CCIL | quality-evidence profile and its declared constants |
-| `curate` | CCIL | curation policy and tolerance (#167) |
+| `curate` | CCIL | curation tolerance, quantile and population |
 | `policy`, `evaluation`, `environment` | downstream | the benchmark harness (personalrobotics/il-supervision-benchmarks) |
 
 CCIL commands refuse downstream keys once #168 moves them. An unknown key, a

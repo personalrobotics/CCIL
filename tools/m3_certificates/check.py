@@ -13,22 +13,29 @@ true label error ||T(q) - y|| is computed independently of the certificate):
 - a raw value cannot be asserted as a bound: it is refused, a declared zero is
   conditional and fails coverage, and a forged certified constant passes the
   structural check but not the source audit;
-- labels outside the neighborhood are unsupported and not admissible;
-- admission is a policy, not a classification: an empirical profile admits
-  nothing under upper_bound admission and its supported rows under explicit
-  score admission, staying non-bound, and require_upper_bound refuses it;
-- the masks follow their rules, a quantile with no eligible row selects none,
-  and candidate.accepted never changes;
+- labels outside the neighborhood are unsupported and never selected;
+- admission is a curation policy (ccil.core.curate), not a classification: an
+  empirical profile's rows are selected by nothing under bound admission and by
+  explicit score admission within its tolerance, staying non-bound, and
+  require_upper_bound refuses the certificate;
+- the selection masks follow their rules, a quantile with no eligible row
+  selects none, and candidate.accepted never changes;
+- a selection is verified against its inputs: a flipped mask, a changed
+  weight, threshold, or policy, other certificates, and a data_only claim over
+  reference-assisted evidence are detected, and data_only curation of such
+  certificates is refused;
 - profile-declared terms round-trip, are audited, and only required terms gate
   support;
 - structural recomputation and the source audit detect different corruptions,
   and the audit binds every input hash and component identity;
 - the reader and writer enforce the schema: unknown fields, wrong dtypes and
   ranks, malformed metadata, and broken invariants raise SchemaError;
-- the API refuses malformed constants, thresholds, and scales;
+- the API refuses malformed constants, curation policies, and scales;
 - the pipeline writes a complete labels.certify run next to an unchanged
-  candidates file, covered against the true dynamics; a rerun reuses it, and a
-  changed reference or threshold is a new run (the inspectable artifact).
+  candidates file, covered against the true dynamics; a rerun reuses it, a
+  changed reference is a new certify run, and a changed tolerance is a new
+  labels.curate run that reuses the certificate unchanged (the inspectable
+  artifact).
 Part 2, the backtrack and disturbed_action theorem profiles and model bounds,
 is described in theorems.py; part 3, the score profiles, selection,
 configuration, and migration, in proxies.py.
@@ -55,11 +62,12 @@ from system import DoubleIntegrator  # noqa: E402
 from ccil.core import (BackwardEuler, Finite, IdentityRepresentation, InterfaceError,  # noqa: E402
                        LinearTransitionModel, NoisyAction, generate_labels)
 from ccil.core.certificates import (GLOBAL_TERM_SPECS, ContinuityProfile, Declared, Profile, Provided,  # noqa: E402
-                                    Sources, audit_sources, certify, decide, register_profile, require_upper_bound,
+                                    Sources, audit_sources, certify, classify, register_profile, require_upper_bound,
                                     resolved_of, verify_structure, write_reference_dynamics)
+from ccil.core.curate import CurationPolicy, curate, decide_selection, verify_selection  # noqa: E402
 from ccil.runs import validate_run  # noqa: E402
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates,  # noqa: E402
-                         write_candidates, write_certificates, write_trajectories)
+                         read_selection, write_candidates, write_certificates, write_selection, write_trajectories)
 from ccil.schema.io import _atomic_savez  # noqa: E402
 
 SEED, K, SIGMA = 20261025, 4, 0.05
@@ -206,7 +214,7 @@ def main():
     forged = copy.deepcopy(good)
     for c in forged.descriptor["constants"].values():
         c["value"] = 0.0
-    rows, thr = decide(provided, resolved_of(forged.descriptor), forged.terms, cands.accepted, forged.admission, None)
+    rows = classify(provided, resolved_of(forged.descriptor), forged.terms)
     for k, v in rows.items():
         setattr(forged, k, v)
     record("values_cannot_be_asserted_as_bounds",
@@ -220,76 +228,79 @@ def main():
                                   "structure": verify_structure(forged, s.candidates),
                                   "audit": [p for p in audit_sources(forged, s) if "constant" in p]})
 
-    # 4. Outside the neighborhood: unsupported, not a bound, not admissible.
+    def select(cert, policy):
+        """The selection policy makes from cert, in memory (the certificates' constants are reference-assisted)."""
+        return decide_selection(cands, cert, policy, sha(s.candidates), "0" * 64, "reference_assisted")
+
+    # 4. Outside the neighborhood: unsupported, not a bound, never selected.
     radius = float(np.median(good.terms["state_displacement"]))
     nb = ContinuityProfile(Provided("linear_discrepancy", "true"), Provided("linear_discrepancy", "true"), DEMO, neighborhood_state=radius)
     cn = certify(s, nb)
+    cn_sel = select(cn, CurationPolicy("bound"))
     outside = cn.terms["state_displacement"] > radius
     record("outside_neighborhood_unsupported",
            outside.any() and (~outside).any() and (cn.classification[outside] == "unsupported").all()
-           and not cn.is_upper_bound[outside].any() and not cn.admissible[outside].any()
+           and not cn.is_upper_bound[outside].any() and not cn_sel.mask[outside].any() and cn_sel.reasons[outside, 1].all()
            and cn.reasons[outside, 0].all() and not cn.reasons[~outside, 0].any() and (cn.classification[~outside] == "certified").all(),
            radius=radius, outside=int(outside.sum()), inside=int((~outside).sum()))
 
-    # 5. Admission is a policy: an empirical profile under each mode.
+    # 5. Admission is a curation policy: one empirical certificate under bound and score admission.
     score = AnchorActionScore()
     ub = certify(s, score)
-    limit = float(np.quantile(certify(s, score, admission="score").total_error_value, 0.75))
-    sc = certify(s, score, admission="score", threshold=limit)
+    limit = float(np.quantile(ub.total_error_value, 0.75))
+    ub_sel = select(ub, CurationPolicy("bound"))
+    sc_sel = select(ub, CurationPolicy("score", tolerance=limit))
     cont = certify(s, provided)
     record("admission_is_separate_from_classification",
-           (ub.classification == "empirical").all() and not ub.admissible.any() and ub.reasons[:, 1].all()
-           and sc.admissible.any() and not sc.is_upper_bound.any() and not sc.reasons[:, 1].any()
-           and np.array_equal(sc.admissible, sc.total_error_value <= limit)
+           (ub.classification == "empirical").all() and not ub.is_upper_bound.any() and ub.reasons[:, 1].all()
+           and not ub_sel.mask.any() and ub_sel.reasons[cands.accepted, 2].all()
+           and sc_sel.mask.any() and not sc_sel.error_spec["is_bound"]
+           and np.array_equal(sc_sel.mask, cands.accepted & (ub.total_error_value <= limit))
            and outcome(lambda: require_upper_bound(ub)).startswith("InterfaceError")
-           and outcome(lambda: require_upper_bound(sc)).startswith("InterfaceError")
            and outcome(lambda: require_upper_bound(cont)) == "accepted",
-           upper_bound_mode={"admissible": int(ub.admissible.sum()), "not_upper_bound": int(ub.reasons[:, 1].sum())},
-           score_mode={"threshold": limit, "admissible": int(sc.admissible.sum()), "is_upper_bound": int(sc.is_upper_bound.sum())},
-           require_upper_bound={"empirical_upper_bound_mode": outcome(lambda: require_upper_bound(ub)),
-                                "empirical_score_mode": outcome(lambda: require_upper_bound(sc)),
+           bound_admission={"selected": int(ub_sel.mask.sum()), "not_bound": int(ub_sel.reasons[:, 2].sum())},
+           score_admission={"tolerance": limit, "selected": int(sc_sel.mask.sum()), "is_bound": sc_sel.error_spec["is_bound"]},
+           require_upper_bound={"empirical": outcome(lambda: require_upper_bound(ub)),
                                 "continuity_provider": outcome(lambda: require_upper_bound(cont))})
 
     # 6. Masks; a quantile with no eligible row selects none; acceptance never changes.
     before = sha(s.candidates)
     limit = float(np.quantile(cn.total_error_value[~outside], 0.8))
-    cm = certify(s, nb, threshold=limit, selection_quantile=0.5)
-    eligible = cands.accepted & cm.admissible
-    thr = cm.selection["threshold"]
-    empty = certify(s, provided, threshold=0.0, selection_quantile=0.5)
+    cm = cn
+    cm_sel = select(cm, CurationPolicy("bound", tolerance=limit, quantile=0.5))
+    admitted = cm.is_upper_bound & (cm.total_error_value <= limit)
+    eligible = cands.accepted & admitted
+    thr = cm_sel.threshold
+    empty = select(certify(s, provided), CurationPolicy("bound", tolerance=0.0, quantile=0.5))
     record("masks_follow_rules",
            sha(s.candidates) == before and np.array_equal(read_candidates(s.candidates).accepted, cands.accepted)
-           and np.array_equal(cm.admissible, cm.is_upper_bound & (cm.total_error_value <= limit))
-           and np.array_equal(cm.selected, eligible & (cm.total_error_value <= thr))
+           and np.array_equal(cm_sel.mask, eligible & (cm.total_error_value <= thr))
            and thr == float(np.quantile(cm.total_error_value[eligible], 0.5))
-           and np.array_equal(cm.reasons[:, 2], cm.is_upper_bound & (cm.total_error_value > limit))
-           and np.array_equal(cm.reasons[:, 3], eligible & ~cm.selected)
-           and not empty.admissible.any() and not empty.selected.any() and empty.selection["threshold"] is None,
-           threshold=limit, selection_threshold=thr, accepted=int(cands.accepted.sum()), admissible=int(cm.admissible.sum()),
-           selected=int(cm.selected.sum()), no_eligible={"admissible": int(empty.admissible.sum()), "selected": int(empty.selected.sum()),
-                                                        "threshold": empty.selection["threshold"]})
+           and np.array_equal(cm_sel.reasons[:, 3], cm.is_upper_bound & (cm.total_error_value > limit))
+           and np.array_equal(cm_sel.reasons[:, 4], eligible & ~cm_sel.mask)
+           and not empty.mask.any() and empty.threshold is None,
+           threshold=limit, selection_threshold=thr, accepted=int(cands.accepted.sum()), admitted=int(admitted.sum()),
+           selected=int(cm_sel.mask.sum()), no_eligible={"selected": int(empty.mask.sum()), "threshold": empty.threshold})
 
     # 7. Profile terms round-trip, are audited, and only required terms gate support.
     spath = out / "score-certificates.npz"
-    write_certificates(sc, spath)
+    write_certificates(ub, spath)
     back = read_certificates(spath)
-    i = int(np.flatnonzero(sc.admissible)[0])
+    i = int(np.flatnonzero(sc_sel.mask)[0])
     falsified = copy.deepcopy(back)
     falsified.terms["anchor_action_norm"][i] *= 0.5
-    rows, _ = decide(score, resolved_of(falsified.descriptor), falsified.terms, cands.accepted, falsified.admission, None)
+    rows = classify(score, resolved_of(falsified.descriptor), falsified.terms)
     for k, v in rows.items():
         setattr(falsified, k, v)
     nan_terms = {k: v.copy() for k, v in back.terms.items()}
     nan_terms["anchor_model_error"][:] = np.nan
-    adm = {"mode": "score", "threshold": None}
-    score_rows, _ = decide(score, resolved_of(back.descriptor), nan_terms, cands.accepted, adm, None)
+    score_rows = classify(score, resolved_of(back.descriptor), nan_terms)
     cont_terms = {k: v.copy() for k, v in cont.terms.items()}
     cont_terms["anchor_model_error"][:] = np.nan
-    cont_rows, _ = decide(provided, resolved_of(cont.descriptor), cont_terms, cands.accepted,
-                          {"mode": "upper_bound", "threshold": None}, None)
+    cont_rows = classify(provided, resolved_of(cont.descriptor), cont_terms)
     record("profile_terms_round_trip_and_audit",
            set(back.terms) == set(GLOBAL_TERM_SPECS) | {"anchor_action_norm"}
-           and np.array_equal(back.terms["anchor_action_norm"], sc.terms["anchor_action_norm"])
+           and np.array_equal(back.terms["anchor_action_norm"], ub.terms["anchor_action_norm"])
            and verify_structure(back, s.candidates) == [] and audit_sources(back, s) == []
            and verify_structure(falsified, s.candidates) == [] and any("anchor_action_norm" in p for p in audit_sources(falsified, s))
            and (score_rows["classification"] == "empirical").all() and (cont_rows["classification"] == "unsupported").all(),
@@ -314,10 +325,9 @@ def main():
         """Falsify one term at row j and rederive every value and mask, as a careful forger would."""
         cs = copy.deepcopy(cs)
         cs.terms[term][j] += delta
-        rows, thr = decide(nb, resolved_of(cs.descriptor), cs.terms, cands.accepted, cs.admission, cs.selection["quantile"])
+        rows = classify(nb, resolved_of(cs.descriptor), cs.terms)
         for k, v in rows.items():
             setattr(cs, k, v)
-        cs.selection = {**cs.selection, "threshold": thr}
         return cs
 
     tampered = out / "tampered-candidates.npz"
@@ -328,7 +338,8 @@ def main():
         "total_halved": (mutate(lambda cs: cs.total_error_value.__setitem__(j, cs.total_error_value[j] / 2)), s.candidates, s),
         "unsupported_marked_certified": (mutate(lambda cs: cs.classification.__setitem__(
             int(np.flatnonzero(cs.classification == "unsupported")[0]), "certified")), s.candidates, s),
-        "selected_flipped": (mutate(lambda cs: cs.selected.__setitem__(j, ~cs.selected[j])), s.candidates, s),
+        # The 1.0 "selected_flipped" case moved to the selection (case 8b): a 2.0 certificate has no masks.
+        "not_upper_bound_reason_flipped": (mutate(lambda cs: cs.reasons.__setitem__((j, 1), ~cs.reasons[j, 1])), s.candidates, s),
         "unit_string_edited": (mutate(lambda cs: cs.descriptor["units"].__setitem__("C_z", "dimensionless")), s.candidates, s),
         "constant_lowered_without_rederiving": (mutate(lambda cs: cs.descriptor["constants"]["C_z"].__setitem__("value", 0.0)), s.candidates, s),
         "candidates_file_changed": (base, tampered, s),
@@ -340,7 +351,7 @@ def main():
     }
     detected = {n: {"structure": bool(verify_structure(cs, cf)), "audit": bool(audit_sources(cs, srcs))}
                 for n, (cs, cf, srcs) in corruptions.items()}
-    structural = ("total_halved", "unsupported_marked_certified", "selected_flipped", "unit_string_edited",
+    structural = ("total_halved", "unsupported_marked_certified", "not_upper_bound_reason_flipped", "unit_string_edited",
                   "candidates_file_changed")
     sourced = ("anchor_error_falsified_consistently", "solver_error_falsified_consistently", "recorded_model_hash_zeroed",
                "audited_against_another_model", "representation_identity_changed")
@@ -351,6 +362,37 @@ def main():
            # The totals no longer follow from it, and the provider recomputes it.
            and detected["constant_lowered_without_rederiving"] == {"structure": True, "audit": True},
            clean=clean, detected=detected)
+
+    # 8b. A selection is verified against its inputs; the certificate is never its own selection.
+    policy = CurationPolicy("bound", tolerance=limit, quantile=0.5)
+    selpath = out / "selection.npz"
+    write_selection(curate(s.candidates, cpath, policy, "reference_assisted"), selpath)
+    sel = read_selection(selpath)
+    tampered_cert = out / "tampered-certificates.npz"
+    craw = cpath.read_bytes()
+    tampered_cert.write_bytes(craw[:-1] + bytes([craw[-1] ^ 1]))
+
+    def smutate(fn):
+        x = copy.deepcopy(sel)
+        fn(x)
+        return x
+    k = int(np.flatnonzero(sel.mask)[0])
+    sel_corruptions = {
+        "mask_flipped": (smutate(lambda x: x.mask.__setitem__(k, False)), cpath),
+        "weight_doubled": (smutate(lambda x: x.weight.__setitem__(k, 2 * x.weight[k])), cpath),
+        "threshold_raised": (smutate(lambda x: setattr(x, "threshold", x.threshold * 2)), cpath),
+        "tolerance_edited": (smutate(lambda x: x.policy.__setitem__("tolerance", limit * 2)), cpath),
+        "data_only_claimed": (smutate(lambda x: setattr(x, "evidence_mode", "data_only")), cpath),
+        "other_certificates": (sel, tampered_cert),
+    }
+    sel_detected = {n: verify_selection(x, s.candidates, c) for n, (x, c) in sel_corruptions.items()}
+    record("selection_verified_against_inputs",
+           verify_selection(sel, s.candidates, cpath) == [] and sel.certificates_sha256 == sha(cpath)
+           and np.array_equal(sel.mask, cm_sel.mask)
+           and all(bool(v) for v in sel_detected.values())
+           and outcome(lambda: curate(s.candidates, cpath, policy, "data_only")).startswith("InterfaceError"),
+           clean=verify_selection(sel, s.candidates, cpath), detected={n: v[:1] for n, v in sel_detected.items()},
+           data_only=outcome(lambda: curate(s.candidates, cpath, policy, "data_only")))
 
     # 9. Schema ingress: the reader and the writer.
     with np.load(cpath, allow_pickle=False) as z:
@@ -369,13 +411,16 @@ def main():
             fn(m)
             a["meta"] = np.array(json.dumps(m))
         return edit
+    # 2.0 records no admission or selection: the 1.0 admission and selection cases are replaced by refusing
+    # those fields in a 2.0 file; the selection's own ingress is tools/m45_quality's.
     malformed = {
-        "unknown_array_field": file_with(lambda a: a.__setitem__("extra", np.zeros(len(a["selected"])))),
-        "integer_selected_mask": file_with(lambda a: a.__setitem__("selected", a["selected"].astype(np.int64))),
+        "unknown_array_field": file_with(lambda a: a.__setitem__("extra", np.zeros(len(a["is_upper_bound"])))),
+        "integer_neighborhood_mask": file_with(lambda a: a.__setitem__("in_neighborhood", a["in_neighborhood"].astype(np.int64))),
         "rank_2_total": file_with(lambda a: a.__setitem__("total_error_value", a["total_error_value"][:, None])),
-        "admission_null": file_with(meta(lambda m: m.update(admission=None))),
-        "negative_admission_threshold": file_with(meta(lambda m: m["admission"].update(threshold=-1.0))),
-        "selection_threshold_without_quantile": file_with(meta(lambda m: m.update(selection={"quantile": None, "threshold": 0.1}))),
+        "legacy_mask_in_2_0": file_with(lambda a: a.__setitem__("admissible", a["is_upper_bound"].copy())),
+        "legacy_admission_in_2_0": file_with(meta(lambda m: m.update(admission={"mode": "upper_bound", "threshold": None}))),
+        "legacy_reason_codes_in_2_0": file_with(meta(lambda m: m.update(reason_codes=m["reason_codes"] + [
+            "certificate.exceeds_threshold", "certificate.not_selected"]))),
         "bad_sha256": file_with(meta(lambda m: m.update(candidates_sha256="abc"))),
         "unknown_meta_field": file_with(meta(lambda m: m.update(note="x"))),
         "missing_term": file_with(lambda a: a.pop("term/anchor_model_error")),
@@ -384,23 +429,23 @@ def main():
         "declared_constant_with_provenance": file_with(meta(lambda m: m["descriptor"]["constants"]["C_z"].update(
             source="declared"))),
         "scale_of_wrong_length": file_with(meta(lambda m: m["descriptor"]["coordinates"].update(state_scale=[1.0]))),
-        "next_major_version": file_with(meta(lambda m: m.update(version="2.0"))),
+        "next_major_version": file_with(meta(lambda m: m.update(version="3.0"))),
         "classification_out_of_range": file_with(lambda a: a["classification"].__setitem__(0, 9)),
-        "row_count_mismatch": file_with(lambda a: a.__setitem__("selected", a["selected"][:-1])),
-        "admissible_unsupported_row": file_with(lambda a: a["admissible"].__setitem__(
-            int(np.flatnonzero(a["classification"] == 4)[0]), True)),
+        "row_count_mismatch": file_with(lambda a: a.__setitem__("is_upper_bound", a["is_upper_bound"][:-1])),
+        "unsupported_row_without_reason": file_with(lambda a: a["reasons"].__setitem__(
+            (int(np.flatnonzero(a["classification"] == 4)[0]), 0), False)),
         "is_upper_bound_inconsistent": file_with(lambda a: a["is_upper_bound"].__setitem__(j, False)),
     }
     bad = copy.deepcopy(base)
     bad.is_upper_bound = bad.is_upper_bound.astype(np.int64)
     malformed["writer_integer_mask"] = outcome(lambda: write_certificates(bad, out / "never.npz"))
-    rule = {"unknown_array_field": "format", "integer_selected_mask": "dtype", "rank_2_total": "rank",
-            "admission_null": "admission", "negative_admission_threshold": "admission",
-            "selection_threshold_without_quantile": "selection", "bad_sha256": "inputs", "unknown_meta_field": "format",
+    rule = {"unknown_array_field": "format", "integer_neighborhood_mask": "dtype", "rank_2_total": "rank",
+            "legacy_mask_in_2_0": "format", "legacy_admission_in_2_0": "format", "legacy_reason_codes_in_2_0": "format",
+            "bad_sha256": "inputs", "unknown_meta_field": "format",
             "missing_term": "terms", "undeclared_term": "terms", "analytic_constant_without_provenance": "descriptor",
             "declared_constant_with_provenance": "descriptor", "scale_of_wrong_length": "descriptor",
             "next_major_version": "format", "classification_out_of_range": "format", "row_count_mismatch": "shape",
-            "admissible_unsupported_row": "admissible", "is_upper_bound_inconsistent": "is_upper_bound",
+            "unsupported_row_without_reason": "reasons", "is_upper_bound_inconsistent": "is_upper_bound",
             "writer_integer_mask": "dtype"}
     record("schema_ingress_enforced",
            all(v.startswith("SchemaError") and f"'{rule[k]}'" in v.split(":")[1] for k, v in malformed.items())
@@ -413,11 +458,13 @@ def main():
         "declared_no_rationale": outcome(lambda: Declared(1.0, "")),
         "unknown_provider": outcome(lambda: Provided("guess", "true")),
         "neighborhood_zero": outcome(lambda: ContinuityProfile(Declared(0.0, "x"), Declared(0.0, "x"), DEMO, neighborhood_state=0.0)),
-        "threshold_nan": outcome(lambda: certify(s, provided, threshold=float("nan"))),
-        "threshold_negative": outcome(lambda: certify(s, provided, threshold=-1.0)),
-        "threshold_bool": outcome(lambda: certify(s, provided, threshold=True)),
-        "quantile_zero": outcome(lambda: certify(s, provided, selection_quantile=0.0)),
-        "unknown_admission": outcome(lambda: certify(s, provided, admission="maybe")),
+        "tolerance_nan": outcome(lambda: CurationPolicy("bound", tolerance=float("nan"))),
+        "tolerance_negative": outcome(lambda: CurationPolicy("bound", tolerance=-1.0)),
+        "tolerance_bool": outcome(lambda: CurationPolicy("bound", tolerance=True)),
+        "quantile_zero": outcome(lambda: CurationPolicy("bound", quantile=0.0)),
+        "unknown_admission": outcome(lambda: CurationPolicy("maybe")),
+        "population_without_quantile": outcome(lambda: CurationPolicy("bound", population="produced")),
+        "accepted_with_tolerance": outcome(lambda: CurationPolicy("accepted", tolerance=1.0)),
         "scale_wrong_length": outcome(lambda: certify(s, provided, state_scale=(1.0,))),
         "scale_zero": outcome(lambda: certify(s, provided, action_scale=(0.0,))),
         "missing_reference": outcome(lambda: certify(Sources(s.candidates, data_path, s.transition_model, rep), provided)),
@@ -426,40 +473,44 @@ def main():
 
     # 11. The pipeline: labels.certify next to an unchanged candidates file.
     from ccil.config import resolve
-    from ccil.pipelines.offline import certify_stage, generate_offline
+    from ccil.pipelines.offline import certify_stage, curate_stage, generate_offline
     work = out / "pipeline"
     work.mkdir()
     write_trajectories(dataset, work / "fixture.npz")
     cfg = resolve(recipe="analytic_double_integrator",
                   sets=[f"data.path={work / 'fixture.npz'}", f"run.output_dir={work / 'runs'}",
                         "generation.method=noisy_action", f"generation.labels_per_transition={K}",
-                        f"generation.action_noise_std={SIGMA}"])
-    prepared, fitted, labeled = generate_offline(cfg)
+                        f"generation.action_noise_std={SIGMA}", "generation.evidence_mode=reference_assisted"])
+    prepared, fitted, labeled = generate_offline(cfg)[:3]
     cand_file = labeled.out("labels/candidates.npz")
     cand_sha = sha(cand_file)
-    first_run = certify_stage(cfg, prepared, fitted, labeled, rep, provided, selection_quantile=0.75, references={"true": truth})
-    again = certify_stage(cfg, prepared, fitted, labeled, rep, provided, selection_quantile=0.75, references={"true": truth})
+    first_run = certify_stage(cfg, prepared, fitted, labeled, rep, provided, references={"true": truth})
+    again = certify_stage(cfg, prepared, fitted, labeled, rep, provided, references={"true": truth})
     other_truth = work / "perturbed-dynamics.npz"
     write_reference_dynamics(other_truth, sys_.A * 1.01, sys_.B, "a perturbed reference")
-    changed_ref = certify_stage(cfg, prepared, fitted, labeled, rep, provided, selection_quantile=0.75, references={"true": other_truth})
-    changed_thr = certify_stage(cfg, prepared, fitted, labeled, rep, provided, threshold=1.0, selection_quantile=0.75,
-                                references={"true": truth})
+    changed_ref = certify_stage(cfg, prepared, fitted, labeled, rep, provided, references={"true": other_truth})
+    cert_file = first_run.out("labels/certificates.npz")
+    cert_sha = sha(cert_file)
+    curated = curate_stage(cfg, labeled, first_run, CurationPolicy("bound", quantile=0.75))
+    changed_tol = curate_stage(cfg, labeled, first_run, CurationPolicy("bound", tolerance=1.0, quantile=0.75))
     status = {p.name: validate_run(p)[0] for p in sorted((work / "runs").iterdir()) if p.is_dir()}
     pc = read_candidates(cand_file)
-    pcert = read_certificates(first_run.out("labels/certificates.npz"))
+    pcert = read_certificates(cert_file)
+    psel = read_selection(curated.out("labels/selection.npz"))
     perr = true_label_error(pc, sys_)
     psrc = Sources(cand_file, prepared.out("data/dataset.npz"), fitted.out("checkpoints/transition_model.npz"), rep,
                    references={"true": truth})
     record("pipeline_certify_stage",
-           set(status.values()) == {"complete"} and len(status) == 6 and sha(cand_file) == cand_sha
+           set(status.values()) == {"complete"} and len(status) == 8 and sha(cand_file) == cand_sha
            and pcert.candidates_sha256 == cand_sha and again.reused and again.run_dir == first_run.run_dir
-           and len({first_run.run_dir, changed_ref.run_dir, changed_thr.run_dir}) == 3
+           and first_run.run_dir != changed_ref.run_dir and curated.run_dir != changed_tol.run_dir
+           and sha(cert_file) == cert_sha and psel.certificates_sha256 == cert_sha
            and (pcert.classification == "certified").all() and (pcert.total_error_value >= perr).all()
            and verify_structure(pcert, cand_file) == [] and audit_sources(pcert, psrc) == [],
            stages=status, candidates_sha256=cand_sha, reused=again.reused,
            constants={r: c["value"] for r, c in pcert.descriptor["constants"].items()},
            min_slack_vs_true=float((pcert.total_error_value - perr).min()),
-           usable=int((pc.accepted & pcert.admissible & pcert.selected).sum()), rows=int(len(pc.accepted)),
+           usable=int((pc.accepted & psel.mask).sum()), rows=int(len(pc.accepted)),
            artifact=f"<out>/pipeline/runs/{first_run.run_dir.name}/labels/certificates.npz")
 
     # 12. The audit's tolerance is row-local: one extreme state does not loosen any other row.
@@ -479,7 +530,7 @@ def main():
     delta = 1e-6
     xforged = copy.deepcopy(xcert)
     xforged.terms["anchor_model_error"][k] += delta
-    rows, thr = decide(provided, resolved_of(xforged.descriptor), xforged.terms, xc.accepted, xforged.admission, None)
+    rows = classify(provided, resolved_of(xforged.descriptor), xforged.terms)
     for name, v in rows.items():
         setattr(xforged, name, v)
     xaudit = audit_sources(xforged, xs)
