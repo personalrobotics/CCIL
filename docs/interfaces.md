@@ -1,5 +1,7 @@
 # Core interfaces
 
+> The user-facing workflow (Diagnose, Generate, Curate, Inspect) and its artifact vocabulary are specified in [contract.md](contract.md).
+
 These are the algorithmic interfaces every CCIL method plugs into (#17). They
 are implemented in [`src/ccil/core/`](../src/ccil/core/), and each module's
 docstring is its normative contract.

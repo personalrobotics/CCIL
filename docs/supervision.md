@@ -1,5 +1,7 @@
 # The supervision contract
 
+> The user-facing workflow (Diagnose, Generate, Curate, Inspect) and its artifact vocabulary are specified in [contract.md](contract.md).
+
 CCIL produces synthetic supervision. Its ordinary workflow turns
 demonstrations into immutable artifacts:
 - the prepared dataset;

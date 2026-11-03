@@ -1,5 +1,7 @@
 # Pipelines
 
+> The user-facing workflow (Diagnose, Generate, Curate, Inspect) and its artifact vocabulary are specified in [contract.md](contract.md).
+
 The `ccil` core has two public workflows (#19). They are implemented in
 [`src/ccil/pipelines/`](../src/ccil/pipelines/) and share the configuration
 contract ([`config/`](config/README.md)), the core interfaces
