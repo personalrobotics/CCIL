@@ -1,9 +1,9 @@
 # Predeclared studies: `ccil.experiments`
 
 `ccil.experiments` runs predeclared studies: many seeds × arms × tuning values
-of the CCIL pipeline. The predeclaration (for example
-[pendulum-ccil-study-predeclaration.md](pendulum-ccil-study-predeclaration.md))
-is the scientific contract. This package turns the study's plan into stage
+of the CCIL pipeline. A predeclaration is the scientific contract. The complete
+historical Pendulum example is preserved at tag `pendulum-evidence-archive-v1`.
+This package turns the study's plan into stage
 artifacts and records and verifies them, without changing what any unit
 computes.
 
