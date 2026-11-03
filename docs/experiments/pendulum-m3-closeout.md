@@ -1,5 +1,7 @@
 # Pendulum CCIL: M3 closeout (#24, #25)
 
+> **Later findings (2026-11-03).** This report closed milestone M3, not the Pendulum investigation. Later studies found that, against a duplication control matched in added rows, a CCIL − BC recovery gain was not attributable to corrective information, and that one-step and targeted multi-step CCIL produce no trusted labels outside the demonstration support on Pendulum. Read the conclusions below in that light; see [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 This report closes the Pendulum program of milestone M3. It is a synthesis of committed evidence: nothing was trained or evaluated for it. Every number comes from the generated tables in [`pendulum-m3-tables.md`](pendulum-m3-tables.md) (T1–T7). Each table names the committed report it reads.
 
 ## Conclusion

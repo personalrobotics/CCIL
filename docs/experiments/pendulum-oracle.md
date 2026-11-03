@@ -1,5 +1,7 @@
 # Pendulum discrete DP oracle: predeclaration, version 6.1 (#145)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: version 6.1, pushed before any oracle run that a check below reports on.** Version 1 (`d0d13ed`) was pushed before any oracle value was computed; "Version history" records why it changed. The checks below are fixed here. If any fails, the oracle is not used: the failure is reported, and any change is made as a new version in a new pull request.
 
 ## Result (version 6.1: run 20261101T191213Z from `e7e9f95`)

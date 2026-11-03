@@ -1,5 +1,7 @@
 # Pendulum parity: predeclaration (#24)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 > **Superseded on 2026-10-26, before any run.** The legacy refactor-parity
 > oracle was withdrawn by the migration contract amendment of that date (§5).
 > Nothing in this document was ever run. #24 is now governed by

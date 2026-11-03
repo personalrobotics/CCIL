@@ -1,5 +1,7 @@
 # Pendulum demonstration-count study: predeclaration, version 1 (#143)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: version 1, binding when merged.** No policy has been trained on a subset of the corrected discontinuous demonstrations.
 
 ## Why

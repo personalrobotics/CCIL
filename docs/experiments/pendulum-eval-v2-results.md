@@ -1,5 +1,7 @@
 # Pendulum evaluation v2: historical results (#143)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 The design is `docs/experiments/pendulum-eval-v2-predeclaration.md` (revision 2). These results use the historical demonstrations, the frozen v6 checkpoints and the task-aligned `pendulum_swingup_v2` metrics. The v6 analysis under the legacy return is unchanged and is reported elsewhere (`docs/experiments/pendulum-ccil-study-results.md`).
 
 ## The claim, and its limit

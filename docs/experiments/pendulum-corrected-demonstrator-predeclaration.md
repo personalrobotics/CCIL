@@ -1,5 +1,7 @@
 # Pendulum corrected-demonstrator study: predeclaration, version 1 (#143)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: version 1, binding when merged.** This must be merged together with revision 2 of `docs/experiments/pendulum-eval-v2-predeclaration.md`, before either historical Part B or the corrected controller is run. The design therefore cannot react to the historical fresh-start results. No corrected demonstration has been generated, and no policy has been trained on one.
 
 **Amendment 1** (before any training; see the end of this document) changes only the reproducibility contract for the corrected datasets.

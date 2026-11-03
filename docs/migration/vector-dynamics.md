@@ -148,8 +148,9 @@ Version-1 checkpoints are refused (`CheckpointError`).
      paper's penalty never activates there.** The legacy penalty didn't make the
      model smoother either: the measured ratio is the same before and after. It
      acted as an unrelated regularizer.
-   - The Pendulum parity run (#24) has to account for this when it compares
-     against legacy results.
+   - The Pendulum parity run planned in #24 was withdrawn before it ran (see
+     [the M3 closeout](../experiments/pendulum-m3-closeout.md)), so no reported
+     comparison against legacy results depends on this.
 
 3. **`soft_jac` constrains the residual.** Legacy penalized the spectral norm
    of the Jacobian of the next-state map `s + f̂`, which is `I + ∂f̂/∂s`. That

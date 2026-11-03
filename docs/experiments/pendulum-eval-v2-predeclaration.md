@@ -1,5 +1,7 @@
 # Pendulum evaluation v2: predeclaration of learned-policy scoring (#143)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 **Status: revision 2, binding when merged.** Revision 1 was merged in PR #144. Revision 2 changes only the expert reference (see "Revision 2" below). No learned-policy score has been computed under `pendulum_swingup_v2`, and no Part B evaluation has been run. Neither may run until both this revision and the separate repair-study predeclaration (`docs/experiments/pendulum-corrected-demonstrator-predeclaration.md`) are merged, so that the repair study's design cannot react to the historical fresh-start results.
 
 ## Revision 2: the historical expert reconstruction is terminated

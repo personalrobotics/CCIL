@@ -1,5 +1,7 @@
 # Pendulum CCIL efficacy study: results (#25)
 
+> **Historical record (2026-11-03).** The current account of the Pendulum investigation is [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md). The text below is unchanged.
+
 > **Read with the M3 closeout.** These results use the legacy quadratic return, which is a defective measure of swing-up (zero action outscores most learned policies). The task-aligned rescoring, the historical demonstrator defect and the later studies are summarized in [`pendulum-m3-closeout.md`](pendulum-m3-closeout.md).
 
 This reports the study predeclared in
