@@ -37,6 +37,8 @@ ccil generate --recipe analytic_double_integrator --set data.path=demos.npz --se
 # today: ccil labels generate, with the same arguments
 ```
 
+In Python: `ccil.generate(ccil.resolve_config("analytic_double_integrator", overrides={"data.path": "demos.npz", "compute.device": "cpu"}))`.
+
 **Resolved configuration** (`ccil config show`, values that are not defaults):
 
 | Key | Value | Source |

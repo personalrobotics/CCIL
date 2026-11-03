@@ -59,31 +59,80 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
 **Dynamics source.**
 - **Fit** (default): a transition model fitted to the demonstrations. A
   held-out evaluation on unseen episodes is always reported.
-- **Load:** a transition-model checkpoint, accepted only when its recorded
-  component, kind and version are known and its SHA-256 is recorded in every
-  artifact built from it. CCIL never unpickles.
-- **Exact dynamics** (optional, `certificate.reference_dynamics`): used as
-  evidence for certificates and audits. It never selects a recovery length or
-  a label.
+- **Load:** a transition-model checkpoint. CCIL never unpickles. Its SHA-256
+  is recorded in every artifact built from it. Before the model is used, its
+  recorded contract must match this dataset and configuration, or the command
+  fails with `CheckpointError` (exit 2):
+  - component, kind and version are known;
+  - representation kind, modality and, for a fitted representation, its
+    checkpoint SHA-256;
+  - observation and action dimensions, and their units where either side
+    declares them;
+  - normalization identity (coordinates, constraint and normalization SHA-256);
+  - direction (forward or backward) and the action-transition convention;
+  - transition interval: equal when both the checkpoint and the data declare
+    one; both unknown is accepted and limits the run to M without H; one known
+    and one unknown is refused.
+- **Exact dynamics** (optional, `certificate.reference_dynamics`): see
+  [Reference dynamics](#reference-dynamics).
 
 ## Commands
 
-Every command is also a Python function with the same name and arguments in
-the `ccil` package. Exit codes: 0 success, including an empty result; 2 an
-invalid configuration, dataset, artifact or combination; 3 the code changed
-while the command ran. A stage whose run directory is already complete with
-the same identity is reused ([runs.md](runs.md)).
-
 | Command | Reads | Writes |
 |---|---|---|
-| `ccil diagnose` | dataset, dynamics source, configuration | a **diagnosis**: the recovery-length frontier and the strongest available evidence class. No labels. |
-| `ccil generate` | dataset, dynamics source, configuration | the prepared dataset and split, the dynamics checkpoint, the diagnosis, immutable **candidates**, and their **quality evidence** |
+| `ccil diagnose` | dataset, dynamics source, configuration | the prepared dataset and split, the dynamics checkpoint and its held-out evaluation, and the **diagnosis**: the recovery-length frontier and the evidence class. No candidates. |
+| `ccil generate` | dataset, dynamics source, configuration | everything Diagnose writes, plus immutable **candidates** and their **quality evidence** |
 | `ccil curate` | one `generate` result, a curation policy | a **selection**: a usable-row mask and weights. Any number of selections can be made from one candidate set. |
-| `ccil inspect` | any artifact or run directory | a compact summary: resolved configuration with each value's source, provenance and hashes, quality distributions, rejection counts, usable rows, and the next consumption step |
+| `ccil inspect` | any artifact or run directory | nothing; it prints a summary: resolved configuration with each value's source, provenance and hashes, quality distributions, rejection counts, usable rows, and the next consumption step |
 
-`ccil generate` runs Diagnose first and generates only at an admitted recovery
-length. It ends by printing the artifacts, row counts, rejection classes,
-evidence classes, and the next step.
+**Durable outputs and reuse.** Every stage is a content-addressed run
+directory ([runs.md](runs.md)). A stage whose run directory is already
+complete with the same identity is reused. So `ccil generate` after `ccil
+diagnose` with the same data, dynamics and configuration reuses the prepared
+dataset, the checkpoint and the diagnosis, and generates only at the admitted
+recovery length. Generate ends by printing the artifacts, row counts,
+rejection classes, evidence classes, and the next step.
+
+**Empty results are complete.** When no recovery length is admitted, Generate
+still writes schema-valid zero-row candidates, zero-row quality evidence, and
+a complete manifest recording the reason. Curate on them writes a zero-row
+selection. A consumer never branches on a missing file.
+
+**Exit codes.**
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, including an empty result |
+| 1 | An unexpected program or infrastructure failure, reported with its traceback. It is never presented as an input error. |
+| 2 | An invalid configuration, dataset, checkpoint, artifact or combination: a `ccil.InputError` |
+| 3 | The code changed while the command ran (`CodeStateChanged`) |
+
+**Python entry points.** The CLI is a thin wrapper over these functions in
+the `ccil` package:
+
+```python
+ccil.resolve_config(recipe=None, config=None, overrides: dict | None = None) -> ccil.Config
+ccil.diagnose(config: ccil.Config) -> ccil.DiagnoseResult
+ccil.generate(config: ccil.Config) -> ccil.GenerateResult
+ccil.curate(generated: ccil.GenerateResult | str | Path, policy: ccil.CurationPolicy) -> ccil.CurateResult
+ccil.inspect(target: str | Path) -> ccil.Inspection
+```
+
+- **`Config`** is the resolved, validated configuration, with each value's
+  source. `overrides` maps dotted keys to typed values, as `--set` does to
+  strings. Resolution is the only place configuration is parsed.
+- **Results** are immutable records:
+  - **`DiagnoseResult`:** the run directory of each stage, the diagnosis path,
+    and the admitted M, or `None` with a reason.
+  - **`GenerateResult`:** the same, plus the candidates and quality-evidence
+    paths and the row counts.
+  - **`CurateResult`:** the selection path and its counts.
+  - **`Inspection`:** the printed summary as data.
+- **Exceptions.** Every input failure raises a subclass of `ccil.InputError`,
+  which itself subclasses `ValueError`. That covers configuration, schema,
+  checkpoint, dataset-format, split and artifact-mismatch errors, and each one
+  lists every problem found. `CodeStateChanged` is separate. Any other
+  exception is a defect and propagates unchanged.
 
 ## Recovery length
 
@@ -95,13 +144,18 @@ CCIL is the case M = 1.
 - `auto` probes a fixed ladder up to a declared cap and admits the **smallest**
   M that passes the data-only gates. **The current ladder is {1}.** Raising the
   cap (#171) changes no field's meaning.
-- **The gates** use only the demonstrations and the dynamics evidence:
+- **The gates are data-only.** Their inputs are:
+  - the demonstrations and their split;
+  - the learned or loaded transition model and its held-out evaluation;
+  - the user's declared constants, which are recorded as assumptions.
+
+  They measure:
   - the held-out M-step model error ε_M;
-  - reach: η_reach(M) = r_reach(M) / τ_demo, where τ_demo is the declared
-    demonstration-support scale;
+  - reach: η_reach(M) = r_reach(M) / τ_demo, where τ_demo is the
+    demonstration-support scale computed from the data;
   - novelty: each synthetic state's distance to the nearest demonstration
     state, d_demo, relative to τ_demo;
-  - the strongest evidence class available for the labels.
+  - the evidence class computed from those inputs alone.
 - No policy return, task reward or downstream outcome enters the selection. An
   integer `recovery_steps` skips the ladder but not the gates' report.
 - **When no M passes,** the command succeeds with an **empty synthetic view**
@@ -121,6 +175,22 @@ provenance only: refining it may change work and numerical error, never M, H,
 or a label's meaning. Resampling a dataset changes `dt_ctrl`, which is a
 changed system, not a harmless reformatting.
 
+### Reference dynamics
+
+Exact reference dynamics (`certificate.reference_dynamics`) never enter the
+default decision. In the default `data_only` evidence mode they may only
+annotate an already-decided result, in a separate audit record. They cannot
+change:
+- the admitted M;
+- the candidate set;
+- the default quality evidence;
+- any selection.
+
+A run that lets reference dynamics shape admission or evidence must declare
+`generation.evidence_mode: reference_assisted`. That mode is recorded in every
+artifact it produces, shown by Inspect, and propagated into every selection
+made from those artifacts.
+
 ## Artifacts and views
 
 | Artifact | Contents | Schema |
@@ -131,6 +201,7 @@ changed system, not a harmless reformatting.
 | Candidates | every generated row, accepted and rejected, with source identity, generator identity, draw identity, measurements and rejection reasons | `ccil.candidates` 2.x |
 | Quality evidence | per-row error terms and classification (certified, conditional, empirical, unsupported), with every constant's provenance | `ccil.certificates` today; #167's bundle |
 | Selection | one named curation policy, its tolerance, a mask and weights | #167 |
+| Reference audit (optional) | reference-dynamics annotations of a decided result; never an input to admission or selection in `data_only` mode | #167 |
 
 **Immutability.** No artifact is modified after it is written. Curate never
 changes candidates or quality evidence, and never promotes an empirical score
@@ -190,7 +261,9 @@ is constructed.
   structure. Legacy pickles cross only through the offline converter
   (`correct_il/convert_legacy_dataset.py`); CCIL itself never unpickles
   ([security.md](security.md)).
-- **Checkpoints** load only by known kind and version, and are bound by hash.
+- **Checkpoints** load only by known kind and version, are bound by hash, and
+  must match the dataset's representation, dimensions, normalization, direction
+  and transition interval ([Inputs](#inputs)).
 - **Configuration**: unknown keys and unsupported combinations are errors, not
   warnings.
 - **Artifact reuse** requires the same content identity and code state
@@ -207,7 +280,8 @@ is constructed.
 |---|---|
 | `ccil labels generate` | **Rename** to `ccil generate`. Kept as a deprecated alias for one minor release. |
 | `labels.certify` stage | **Keep** inside Generate, as its quality evidence. Its selection keys (`certificate.max_total_error`, `score_threshold`, `selection_quantile`, `selection_population`) **move** to `curate.*`; the old keys are converted with a recorded note. |
-| — | **New:** `ccil diagnose`, `ccil curate`, `ccil inspect`, `generation.recovery_steps`, and the `curate` group. |
+| — | **New:** `ccil diagnose`, `ccil curate`, `ccil inspect`, `generation.recovery_steps`, `generation.evidence_mode`, and the `curate` group. |
+| `certificate.reference_dynamics` | **Keep** as an audit input. A profile that uses it for admission or selection, as today's `labels.certify` can, runs only under `evidence_mode: reference_assisted`; a configuration converted from an older version gets that mode, with a recorded note. |
 | `ccil data prepare` | **Keep**, as the first stage Generate runs. |
 | `ccil data convert`, `ccil config convert` | **Keep**, as one-way legacy migration. |
 | `ccil schema validate`, `ccil run validate`, `ccil config show` | **Keep.** |
