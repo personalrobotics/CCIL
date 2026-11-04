@@ -24,6 +24,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "correct_il"))
 from ccil.config import ConfigError, resolve  # noqa: E402
+from ccil.config.migrate import CONFIG_VERSION  # noqa: E402
 from ccil.schema import SchemaError, read_trajectories, write_trajectories  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from trajectory_io import convert_legacy_pickle  # noqa: E402
@@ -187,13 +188,14 @@ def main():
         got = e.errors
     record("unsupported_legacy_key_fails_with_guidance", got is not None and any("deferred to M5" in g for g in got), errors=got)
     v2 = out / "future.yml"
-    v2.write_text("config_version: 3\nrun: {seed: 1}\n")
+    future = CONFIG_VERSION + 1
+    v2.write_text(f"config_version: {future}\nrun: {{seed: 1}}\n")
     try:
         resolve(config=v2)
         got = None
     except ConfigError as e:
         got = e.errors
-    record("unknown_config_version_rejected", got is not None and any("config_version 3" in g for g in got), errors=got)
+    record("unknown_config_version_rejected", got is not None and any(f"config_version {future}" in g for g in got), errors=got)
 
     # --- a changed default keeps an older file's meaning (#125) ---------------------------------------------------
     from ccil.config.params import mlp_settings_problem
