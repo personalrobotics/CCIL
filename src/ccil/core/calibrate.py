@@ -1,16 +1,16 @@
 """Calibration and the reference audit: reference dynamics as evidence, declared as such (#167).
 
-    certify (score) -> calibrate on held-out rows -> curate (reference_assisted) -> audit (optional)
+    certify (score) -> calibrate on held-out episodes -> curate (reference_assisted) -> audit (optional)
 
-calibrate() maps one certificate file's empirical scores to the label error
-observed under reference dynamics, ||(T(z_G, a_G) - y) / state_scale|| with
-T(z, a) = z + A z + B a, on the accepted, supported rows of declared episodes
-(the held-out ones). It writes ccil.calibration (schema/calibration.py): bins
-of equal calibration count, each with a split-conformal bound at the declared
-level. calibrated_rows() is the only way a row becomes calibrated: a row of
-that same certificate file, outside the calibration population, empirical,
-with its score in a bin that has a bound. Curation uses it only under a
-reference_assisted allowance (core/curate.py).
+calibrate() bounds the label error observed under reference dynamics,
+||(T(z_G, a_G) - y) / state_scale|| with T(z, a) = z + A z + B a, of one
+certificate file's eligible rows (accepted and empirical). The unit is the
+episode: each calibration episode is scored by the largest observed error over
+its eligible rows, and the bound is the split-conformal order statistic of
+those scores (schema/calibration.py states what it guarantees).
+calibrated_rows() is the only way a row becomes calibrated: an eligible row of
+that same certificate file whose episode is not a calibration episode.
+Curation uses it only under a reference_assisted allowance (core/curate.py).
 
 reference_audit() annotates a decided selection with the observed error. It
 reads the selection and never feeds back into it: an audited data_only result
@@ -26,10 +26,10 @@ import numpy as np
 from ..runs.provenance import sha256
 from ..schema import SchemaError, read_candidates, read_certificates, read_selection
 from ..schema.audit import SCHEMA as AUDIT_SCHEMA, STATEMENT as AUDIT_STATEMENT, VERSION as AUDIT_VERSION
-from ..schema.calibration import METHOD, SCHEMA, STATEMENT, VERSION, check
+from ..schema.calibration import METHOD, SCHEMA, STATEMENT, UNIT, VERSION, check
 from .batch import InterfaceError
 
-POPULATION_RULE = "accepted, supported rows whose source episode is one of the calibration episodes"
+POPULATION_RULE = "eligible (accepted, empirical) rows whose source episode is one of the calibration episodes"
 ERROR_DEFINITION = "||(T(z_G, a_G) - y) / state_scale|| with T(z, a) = z + A z + B a, the reference dynamics"
 
 
@@ -57,85 +57,53 @@ def _verified(candidates_path, certificates_path):
     if problems:
         raise InterfaceError("the certificate does not verify against these candidates: " + "; ".join(problems))
     if cert.descriptor["form"] != "score":
-        raise InterfaceError(f"profile {cert.descriptor['profile']} gives bounds already; calibration maps an "
-                             "empirical score to observed error")
+        raise InterfaceError(f"profile {cert.descriptor['profile']} gives bounds already; calibration bounds the "
+                             "observed error of an empirical profile's rows")
     return cands, cert
 
 
-def _bin_of(edges, score) -> np.ndarray:
-    """Bin index of each score in [edges[0], edges[-1]] (last bin closed), -1 outside."""
-    i = np.searchsorted(edges, score, side="right") - 1
-    i = np.where(score == edges[-1], len(edges) - 2, i)
-    with np.errstate(invalid="ignore"):
-        inside = (score >= edges[0]) & (score <= edges[-1])
-    return np.where(inside, i, -1)
+def eligible(cands, cert) -> np.ndarray:
+    """The rows a calibration scores and applies to: accepted, and classified empirical by the certificate."""
+    return np.asarray(cands.accepted, bool) & (np.asarray(cert.classification) == "empirical")
 
 
-def build_calibration(cands, cert, error, episodes, level: float, bins: int, inputs: dict) -> dict:
+def build_calibration(cands, cert, error, episodes, level: float, inputs: dict) -> dict:
     """The calibration document from loaded candidates, certificate, and observed errors; pure arithmetic."""
     if not (isinstance(level, float) and 0 < level < 1):
         raise InterfaceError(f"level must be in (0, 1), got {level!r}")
-    if not (type(bins) is int and bins >= 1):
-        raise InterfaceError(f"bins must be an int >= 1, got {bins!r}")
     episodes = sorted({str(e) for e in episodes})
-    pop = population(cands, cert, episodes)
+    ep = np.asarray(cands.source_episode_id).astype(str)
+    pop = eligible(cands, cert) & np.isin(ep, episodes)
     if not pop.any():
-        raise InterfaceError("no accepted, supported rows come from the calibration episodes")
-    score, err = np.asarray(cert.total_error_value, np.float64)[pop], error[pop]
-    edges = np.unique(np.quantile(score, np.linspace(0, 1, bins + 1)))
-    if len(edges) == 1:
-        edges = np.array([edges[0], edges[0]])
-    which = _bin_of(edges, score)
-    out = []
-    for b in range(len(edges) - 1):
-        e = np.sort(err[which == b])
-        if not len(e):
-            continue  # tied quantile edges; a later bin starts at the same edge
-        k = math.ceil((len(e) + 1) * level)
-        out.append({"lower": float(edges[b]), "upper": float(edges[b + 1]), "count": int(len(e)), "k": int(k),
-                    "bound": float(e[k - 1]) if k <= len(e) else None,
-                    "observed": {"median": float(np.median(e)), "at_level": float(np.quantile(e, level)),
-                                 "max": float(e[-1])}})
-    for prev, b in zip(out, out[1:]):
-        b["lower"] = prev["upper"]
+        raise InterfaceError("no accepted, empirical rows come from the calibration episodes")
+    scores = sorted(float(error[pop & (ep == e)].max()) for e in np.unique(ep[pop]))
+    n = len(scores)
+    k = math.ceil((n + 1) * level)
     d = cert.descriptor
     doc = {"schema": SCHEMA, "version": f"{VERSION[0]}.{VERSION[1]}", "evidence_mode": "reference_assisted",
-           "method": {**METHOD, "bins": bins}, "level": float(level),
-           "score": {"profile": d["profile"], "version": d["version"], "units": d["units"]["error"],
-                     "definition": "the certificate's total_error_value, an empirical score"},
+           "method": dict(METHOD), "level": float(level), "unit": dict(UNIT),
+           "certificate": {"profile": d["profile"], "version": d["version"], "neighborhood": d["neighborhood"]},
            "error": {"definition": ERROR_DEFINITION, "units": d["units"]["error"]},
            "population": {"rule": POPULATION_RULE, "episodes": episodes, "rows": int(pop.sum())},
-           "regime": {"score_min": out[0]["lower"], "score_max": out[-1]["upper"], "neighborhood": d["neighborhood"]},
-           "bins": out, "statement": STATEMENT, "inputs": dict(inputs)}
+           "bound": {"n": n, "k": k, "scores": scores, "value": scores[k - 1] if k <= n else None},
+           "statement": STATEMENT, "inputs": dict(inputs)}
     return check(doc)
 
 
-def population(cands, cert, episodes) -> np.ndarray:
-    """The calibration rows: accepted and supported, from the calibration episodes."""
-    return (np.asarray(cands.accepted, bool) & (np.asarray(cert.classification) != "unsupported")
-            & np.isin(np.asarray(cands.source_episode_id).astype(str), list(episodes)))
-
-
-def calibrate(candidates, certificates, reference, episodes, level: float = 0.9, bins: int = 4) -> dict:
-    """Calibrate the score of certificates (paths) on the rows of episodes, against reference dynamics."""
+def calibrate(candidates, certificates, reference, episodes, level: float = 0.9) -> dict:
+    """Calibrate the eligible rows of certificates (paths) on the rows of episodes, against reference dynamics."""
     cands, cert = _verified(candidates, certificates)
     inputs = {"candidates": sha256(Path(candidates)), "certificates": sha256(Path(certificates)),
               "reference": sha256(Path(reference))}
-    return build_calibration(cands, cert, observed_error(cands, cert, reference), episodes, level, bins, inputs)
+    return build_calibration(cands, cert, observed_error(cands, cert, reference), episodes, level, inputs)
 
 
 def calibrated_rows(cal: dict, cands, cert) -> tuple[np.ndarray, np.ndarray]:
     """(calibrated mask, calibrated bound or NaN) per row of the certificate the calibration names; pure arithmetic."""
-    score = np.asarray(cert.total_error_value, np.float64)
-    bins = cal["bins"]
-    edges = np.array([bins[0]["lower"]] + [b["upper"] for b in bins])
-    bound = np.array([np.nan if b["bound"] is None else b["bound"] for b in bins])
-    which = _bin_of(edges, score)
-    value = np.where(which >= 0, bound[np.clip(which, 0, len(bins) - 1)], np.nan)
-    eligible = ((np.asarray(cert.classification) == "empirical")
-                & ~np.isin(np.asarray(cands.source_episode_id).astype(str), cal["population"]["episodes"]))
-    mask = eligible & np.isfinite(value)
-    return mask, np.where(mask, value, np.nan)
+    value = cal["bound"]["value"]
+    mask = (eligible(cands, cert) & (value is not None)
+            & ~np.isin(np.asarray(cands.source_episode_id).astype(str), cal["population"]["episodes"]))
+    return mask, np.where(mask, np.nan if value is None else value, np.nan)
 
 
 def matching_calibration(cal: dict, candidates_sha256: str, certificates_sha256: str | None) -> None:
@@ -149,21 +117,20 @@ def matching_calibration(cal: dict, candidates_sha256: str, certificates_sha256:
 
 
 def structure_problems(cal: dict, cands, cert) -> list[str]:
-    """What the files alone contradict in a calibration: its population, score, regime, and bins (not the observed errors).
+    """What the files alone contradict in a calibration: its certificate, population, n and k (not the observed errors).
 
     Recomputed with the observed errors set to zero, so every recorded field
     that does not depend on the reference dynamics must match.
     """
     try:
         again = build_calibration(cands, cert, np.zeros(len(cert.classification)), cal["population"]["episodes"],
-                                  cal["level"], cal["method"]["bins"], cal["inputs"])
+                                  cal["level"], cal["inputs"])
     except InterfaceError as e:
         return [str(e)]
-    problems = [f"{key} does not follow from the certificate" for key in ("score", "population", "regime", "method")
+    problems = [f"{key} does not follow from the certificate" for key in ("certificate", "population")
                 if cal[key] != again[key]]
-    if [(b["lower"], b["upper"], b["count"], b["k"]) for b in cal["bins"]] != [
-            (b["lower"], b["upper"], b["count"], b["k"]) for b in again["bins"]]:
-        problems.append("the bins' score ranges and counts do not follow from the certificate")
+    if (cal["bound"]["n"], cal["bound"]["k"]) != (again["bound"]["n"], again["bound"]["k"]):
+        problems.append("the bound's n and k do not follow from the certificate")
     return problems
 
 
@@ -178,20 +145,17 @@ def verify_calibration(cal: dict, candidates, certificates, reference) -> list[s
         check(cal)
         cands, cert = _verified(candidates, certificates)
         again = build_calibration(cands, cert, observed_error(cands, cert, reference), cal["population"]["episodes"],
-                                  cal["level"], cal["method"]["bins"], given)
+                                  cal["level"], given)
     except (SchemaError, InterfaceError) as e:
         return [str(e)]
-    for key in ("score", "error", "population", "regime", "statement", "method"):
+    for key in ("method", "unit", "certificate", "error", "population", "statement"):
         if cal[key] != again[key]:
             problems.append(f"{key} does not follow from the inputs")
-    if len(cal["bins"]) != len(again["bins"]):
-        return problems + [f"{len(cal['bins'])} bins; the inputs give {len(again['bins'])}"]
-    for i, (b, c) in enumerate(zip(cal["bins"], again["bins"])):
-        same = all(b[k] == c[k] for k in ("count", "k")) and all(
-            (b[k] is None and c[k] is None) or (b[k] is not None and c[k] is not None and math.isclose(b[k], c[k], rel_tol=1e-12))
-            for k in ("lower", "upper", "bound"))
-        if not same:
-            problems.append(f"bin {i} does not follow from the inputs")
+    b, c = cal["bound"], again["bound"]
+    close = lambda x, y: (x is None and y is None) or (x is not None and y is not None and math.isclose(x, y, rel_tol=1e-12))  # noqa: E731
+    if not ((b["n"], b["k"]) == (c["n"], c["k"]) and close(b["value"], c["value"])
+            and all(close(x, y) for x, y in zip(b["scores"], c["scores"]))):
+        problems.append("the bound does not follow from the inputs")
     return problems
 
 
@@ -234,10 +198,15 @@ def reference_audit(selection, candidates, reference, certificates=None, calibra
     tol = sel.policy["tolerance"]
     tolerance = None if tol is None else {"value": float(tol), "rows": int(mask.sum()), "within": int((err[mask] <= tol).sum())}
     calibrated = None
-    if calibration is not None:
+    if calibration is not None:  # every calibrated row, the population the bound covers, by row and by episode
         cal = read_calibration(calibration)
-        rows = mask & np.asarray(sel.calibrated, bool)
-        calibrated = {"level": cal["level"], "rows": int(rows.sum()), "covered": int((err[rows] <= sel.error[rows]).sum())}
+        rows = np.asarray(sel.calibrated, bool)
+        covered = err <= np.where(rows, sel.error, np.inf)
+        ep = np.asarray(cands.source_episode_id).astype(str)
+        episodes = np.unique(ep[rows])
+        calibrated = {"level": cal["level"], "rows": int(rows.sum()), "covered": int((rows & covered).sum()),
+                      "episodes": int(len(episodes)),
+                      "episodes_covered": int(sum(covered[rows & (ep == e)].all() for e in episodes))}
     doc = {"schema": AUDIT_SCHEMA, "version": f"{AUDIT_VERSION[0]}.{AUDIT_VERSION[1]}",
            "selection": {"policy": sel.policy, "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed},
            "error": {"definition": ERROR_DEFINITION, "units": units},
@@ -250,6 +219,5 @@ def reference_audit(selection, candidates, reference, certificates=None, calibra
     return check_audit(doc)
 
 
-__all__ = ["calibrate", "build_calibration", "calibrated_rows", "matching_calibration", "structure_problems",
-           "verify_calibration",
-           "observed_error", "population", "reference_audit"]
+__all__ = ["calibrate", "build_calibration", "calibrated_rows", "eligible", "matching_calibration", "structure_problems",
+           "verify_calibration", "observed_error", "reference_audit"]

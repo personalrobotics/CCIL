@@ -234,13 +234,12 @@ PARAMS = [
     # calibration and the reference audit (#167) ---------------------------
     Param("calibration.level", "float", None,
           "Calibrate the score profile's errors at this coverage level (labels.calibrate); null skips it.",
-          "Reference-assisted: the observed errors come from certificate.reference_dynamics on the held-out episodes' "
-          "labels, so it needs generation.evidence_mode reference_assisted, a score profile, and held-out episodes. "
-          "Curation then admits the calibrated rows as bounds at this level (docs/certificates.md).", "calibration",
+          "Reference-assisted: one bound, conformal over the held-out episodes, on the largest observed error under "
+          "certificate.reference_dynamics of each episode's empirical rows. It needs generation.evidence_mode "
+          "reference_assisted, a score profile, held-out episodes (at least level / (1 - level) of them for a bound), "
+          "and transition_model.fit_episodes all, so the labels do not depend on the split. Curation then admits the "
+          "training episodes' empirical rows as bounds at this level (docs/certificates.md).", "calibration",
           low=0.0, low_open=True, high=1.0, high_open=True, nullable=True),
-    Param("calibration.bins", "int", 4, "Score bins of equal calibration count, each with its own calibrated bound.",
-          "More bins follow the score more closely; each needs about 1 / (1 - level) rows for a bound.", "calibration",
-          low=1),
     Param("audit.reference_dynamics", "path", None,
           "ccil.reference-dynamics file to annotate the selection with (labels.audit); null skips it.",
           "An annotation of the decided result, never an input to it, so it is allowed in data_only mode "
@@ -431,7 +430,7 @@ def _curate(v):
 
 def _calibration(v):
     if v["calibration.level"] is None:
-        return "calibration.bins applies to calibration.level; set it" if v["calibration.bins"] != 4 else None
+        return None
     problems = []
     prof = v["certificate.profile"]
     if prof is None or prof in BOUND_PROFILES:
@@ -441,6 +440,9 @@ def _calibration(v):
         problems.append("calibration.level measures observed error with certificate.reference_dynamics; set it")
     if not v["data.validation_fraction"]:
         problems.append("calibration.level calibrates on the held-out episodes: it needs data.validation_fraction > 0")
+    if v["transition_model.fit_episodes"] != "all":
+        problems.append("calibration.level needs labels that do not depend on the split, so its held-out episodes are "
+                        "exchangeable with the training episodes it is applied to: set transition_model.fit_episodes all")
     if v["generation.recovery_steps"] == "auto":
         problems.append("generation.recovery_steps auto admits from data alone, and a score profile gives its trust gate "
                         "no off-data evidence; a calibration is reference-assisted and cannot: set "
@@ -477,7 +479,7 @@ RULES = [
     ("noise_bc_scale", ("policy.method", "policy.noise_scale", "policy.balance_noisy_labels", "generation.method"), _noise),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind",
                      "calibration.level"), _certificate),
-    ("calibration", ("calibration.level", "calibration.bins", "certificate.profile", "certificate.reference_dynamics",
+    ("calibration", ("calibration.level", "certificate.profile", "certificate.reference_dynamics", "transition_model.fit_episodes",
                      "data.validation_fraction", "generation.recovery_steps"), _calibration),
     ("curate", ("curate.tolerance", "curate.quantile", "curate.population", "certificate.profile",
                 "certificate.reference_dynamics", "generation.evidence_mode"), _curate),

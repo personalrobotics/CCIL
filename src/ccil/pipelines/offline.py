@@ -437,7 +437,7 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
 
 
 def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified: StageResult) -> StageResult:
-    """labels.calibrate: write labels/calibration.json, the score's calibration on the held-out episodes (#167).
+    """labels.calibrate: write labels/calibration.json, the episode-level bound from the held-out episodes (#167).
 
     Reference-assisted: the observed errors come from certificate.reference_dynamics.
     """
@@ -451,13 +451,16 @@ def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified:
     def body(run):
         try:
             cal = calibrate(inputs["candidates"], inputs["certificates"], inputs["reference"], split["validation"],
-                            level=float(v["calibration.level"]), bins=int(v["calibration.bins"]))
+                            level=float(v["calibration.level"]))
         except InterfaceError as e:
             raise ConfigError([str(e)]) from None
         write_calibration(cal, run.path(layout.CALIBRATION))
-        run.metrics({"level": cal["level"], "population_rows": cal["population"]["rows"], "bins": len(cal["bins"]),
-                     "bins_with_bound": sum(b["bound"] is not None for b in cal["bins"]), "regime": cal["regime"]})
-        run.log(f"calibrated {cal['score']['profile']} on {cal['population']['rows']} held-out rows at level {cal['level']}")
+        b = cal["bound"]
+        run.metrics({"level": cal["level"], "population_rows": cal["population"]["rows"], "episodes": b["n"], "k": b["k"],
+                     "bound": b["value"]})
+        run.log(f"calibrated {cal['certificate']['profile']} on {b['n']} held-out episodes ({cal['population']['rows']} rows) "
+                f"at level {cal['level']}: bound {b['value']}" + ("" if b["value"] is not None else
+                                                                  f" (k = {b['k']} > n; more held-out episodes give one)"))
     return run_stage("labels.calibrate", cfg, inputs, body)
 
 

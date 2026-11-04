@@ -47,18 +47,24 @@ candidates, and the evaluation checkpoint:
   a configuration written before version 3 keeps generating at 1.
 Calibration and the reference audit (part 3), on 40 double-integrator
 episodes with process noise, so labels have a real error under the Euler
-reference dynamics:
-- coverage: over 20 random episode splits, each calibration's bins are
-  recomputed with numpy, and the mean coverage of the remaining rows' true
-  error is at least the level less a slack declared before the run; the
-  pipeline's own calibration recomputes from its sources;
-- out of regime: rows outside the bins' score range, the calibration's own
-  rows, and bins too small for a bound stay empirical and unselected, and a
-  bound profile cannot be calibrated;
-- mode: data_only curation refuses a calibration in the library and the
-  configuration; a calibration of another certificate file or with moved bin
-  edges is refused before selection, halved bounds fail the source check, and
-  supervision needs the calibration and classifies its rows calibrated;
+reference dynamics, 20 of them held out:
+- the guarantee at its unit, the episode: the labels and certificate are the
+  same under another split (fit_episodes all), so episode scores are fixed;
+  then in each of 20 random sets of n + 1 episodes, calibrating on n and
+  applying to the remaining one covers every eligible row of it for at least
+  k = ceil((n + 1) * level) of the n + 1 choices (the declared acceptance
+  rule, exact, which makes the expected coverage over random draws at least
+  the level), each bound recomputed with numpy; the pipeline's calibration
+  recomputes from its sources, and its audit's coverage of the training
+  episodes is reported as an observation of one draw;
+- uncalibrated rows: the calibration's own episodes, ineligible rows, and a
+  level with k > n keep their class and stay unselected, and a bound profile
+  cannot be calibrated;
+- mode: data_only curation and fit_episodes train refuse a calibration in
+  the configuration, data_only in the library too; a calibration of another
+  certificate file or with an altered population is refused before
+  selection, a halved bound fails the source check, and supervision needs the
+  calibration and classifies its rows calibrated;
 - the audit annotates: adding it reuses every other run and leaves the
   selection data_only, and its counts are recomputed from the true error.
 Writes DIR/report.json (the inspectable artifact) beside the selections it
@@ -68,6 +74,7 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import platform
 import subprocess
 import sys
@@ -83,7 +90,7 @@ from system import DoubleIntegrator  # noqa: E402
 
 from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.core import Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel, NoisyAction, generate_labels  # noqa: E402
-from ccil.core.calibrate import calibrate, calibrated_rows, verify_calibration  # noqa: E402
+from ccil.core.calibrate import build_calibration, calibrate, calibrated_rows, observed_error, verify_calibration  # noqa: E402
 from ccil.core.certificates import (ContinuityProfile, DisturbedActionPaperProxy, LegacyLabelFiltering, Provided,  # noqa: E402
                                     Sources, audit_sources, certify, decide, resolved_of, write_reference_dynamics)
 from ccil.core.curate import CurationPolicy, curate, verify_selection  # noqa: E402
@@ -100,9 +107,9 @@ from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261103, 6, 0.08
 DT, PROBE, TAU_SAMPLE = 0.05, 256, 2048
-# Part 3, declared before the run: the coverage level, the process noise, the random episode splits, and the shortfall
-# from the level the mean coverage over those splits may show (rows of one transition share its noise).
-LEVEL, PROCESS, SPLITS, COVERAGE_SLACK = 0.9, 0.01, 20, 0.02
+# Part 3, declared before the run: the coverage level, the process noise, the held-out fraction (20 of 40 episodes, so
+# k = 19 <= n = 20 at the level), and how many random sets of n + 1 episodes the guarantee is checked on.
+LEVEL, PROCESS, HELD_OUT, SETS = 0.9, 0.01, 0.5, 20
 
 
 class DoubleIntegratorEuler:
@@ -559,9 +566,11 @@ def main():
                              "Euler double integrator of the part-3 demonstrations, without their process noise")
     score_sets = [f"data.path={noisy}", f"run.output_dir={calib / 'runs'}", *common, "generation.recovery_steps=1",
                   "certificate.profile=disturbed_action_paper_proxy"]
+    # An action neighborhood of 2 (the label noise is 1) leaves some rows unsupported, so some are ineligible.
     calibrated_sets = [*score_sets, f"certificate.reference_dynamics={euler}", "generation.evidence_mode=reference_assisted",
-                       f"calibration.level={LEVEL}", f"audit.reference_dynamics={euler}", "curate.tolerance=0.05"]
-    res = generate_offline(resolve(sets=calibrated_sets))
+                       f"calibration.level={LEVEL}", f"audit.reference_dynamics={euler}", "curate.tolerance=0.05",
+                       "certificate.neighborhood_action=2.0"]
+    res = generate_offline(resolve(sets=[*calibrated_sets, f"data.validation_fraction={HELD_OUT}"]))
     lab, cer, cal_run, cur, aud = (stage(res, s) for s in ("labels.generate", "labels.certify", "labels.calibrate",
                                                             "labels.curate", "labels.audit"))
     cpath3, kpath3, calpath = lab.out(layout.CANDIDATES), cer.out(layout.CERTIFICATES), cal_run.out(layout.CALIBRATION)
@@ -569,53 +578,70 @@ def main():
     split3 = json.loads(stage(res, "data.prepare").out(layout.SPLIT).read_text())
     cands3, cert3, cal3, sel3 = (read_candidates(cpath3), read_certificates(kpath3), read_calibration(calpath),
                                  read_selection(spath3))
+    audit3 = read_audit(aud.out(layout.AUDIT))
     err3 = true_label_error(cands3, DoubleIntegratorEuler())
     episodes3 = cands3.source_episode_id.astype(str)
+    elig3 = cands3.accepted & (cert3.classification == "empirical")
     artifacts.update({"calibration/" + str(p.relative_to(calib)): sha(p) for p in (calpath, spath3, aud.out(layout.AUDIT))})
 
-    # Coverage: the pipeline's calibration on its training rows, and 20 random episode splits recomputed with numpy.
-    def numpy_bins(score, error, level, bins):
-        """The calibration rule restated: equal-count score bins, the ceil((n + 1) level)-th smallest error in each."""
-        edges = np.unique(np.quantile(score, np.linspace(0, 1, bins + 1)))
-        which = np.clip(np.searchsorted(edges, score, side="right") - 1, 0, len(edges) - 2)
-        out_ = []
-        for b in range(len(edges) - 1):
-            e = np.sort(error[which == b])
-            if len(e):
-                k = int(np.ceil((len(e) + 1) * level))
-                out_.append((len(e), k, float(e[k - 1]) if k <= len(e) else None))
-        return out_
+    # The guarantee's precondition: under another split the labels and certificate are the same, so each episode's
+    # score is fixed and the held-out episodes are a random subset of them.
+    resplit = generate_offline(resolve(sets=[*calibrated_sets, "data.validation_fraction=0.25"]))
+    rc = read_candidates(stage(resplit, "labels.generate").out(layout.CANDIDATES))
+    rk = read_certificates(stage(resplit, "labels.certify").out(layout.CERTIFICATES))
+    rsplit = json.loads(stage(resplit, "data.prepare").out(layout.SPLIT).read_text())
+    split_free = (rsplit["validation"] != split3["validation"] and all(np.array_equal(x, y) for x, y in (
+        (rc.observations["state"], cands3.observations["state"]), (rc.actions, cands3.actions),
+        (rc.target_observations["state"], cands3.target_observations["state"]), (rc.accepted, cands3.accepted),
+        (rc.source_episode_id, cands3.source_episode_id), (rk.classification, cert3.classification),
+        (rk.total_error_value, cert3.total_error_value))))
 
+    # The acceptance rule: in a set of n + 1 fixed episode scores, calibrating on n and applying to the remaining one
+    # covers it for at least k of the n + 1 choices; a random draw of the held-out episodes and one other episode is
+    # a uniform choice among these, so the expected coverage is at least k / (n + 1) >= level. Exact, without slack.
+    obs3 = observed_error(cands3, cert3, euler)
+    pool = sorted(set(episodes3[elig3]))
+    n = len(split3["validation"])
+    k = math.ceil((n + 1) * LEVEL)
     rng = np.random.default_rng(SEED)
-    ids = sorted(set(episodes3))
-    splits = []
-    score = cert3.total_error_value
-    for i in range(SPLITS):
-        held = sorted(rng.choice(ids, size=len(ids) // 5, replace=False).tolist())
-        doc = calibrate(cpath3, kpath3, euler, held, level=LEVEL, bins=4)
-        mask, bound = calibrated_rows(doc, cands3, cert3)
-        pop = cands3.accepted & (cert3.classification != "unsupported") & np.isin(episodes3, held)
-        mine = [(b["count"], b["k"], b["bound"]) for b in doc["bins"]]
-        splits.append({"held_out": len(held), "calibrated_rows": int(mask.sum()),
-                       "coverage": float((err3[mask] <= bound[mask]).mean()),
-                       "numpy_agrees": mine == numpy_bins(score[pop], err3[pop], LEVEL, 4)})
-    coverage = [s_["coverage"] for s_ in splits]
-    pipeline_rows = sel3.calibrated
-    record("calibration_covers_held_out_error",
-           all(s_["numpy_agrees"] for s_ in splits) and np.mean(coverage) >= LEVEL - COVERAGE_SLACK
-           and verify_calibration(cal3, cpath3, kpath3, euler) == [] and cal3["evidence_mode"] == "reference_assisted"
-           and sorted(cal3["population"]["episodes"]) == sorted(split3["validation"]) and pipeline_rows.any(),
-           level=LEVEL, declared_slack=COVERAGE_SLACK, mean_coverage=float(np.mean(coverage)),
-           min_coverage=float(np.min(coverage)), max_coverage=float(np.max(coverage)), splits=splits,
-           pipeline={"bins": cal3["bins"], "calibrated_rows": int(pipeline_rows.sum()),
-                     "coverage_on_training_rows": float((err3[pipeline_rows] <= sel3.error[pipeline_rows]).mean())})
+    rotations = []
+    for _ in range(SETS):
+        members = sorted(rng.choice(pool, size=n + 1, replace=False).tolist())
+        covered, agrees = 0, True
+        for j in members:
+            held = [e for e in members if e != j]
+            doc = build_calibration(cands3, cert3, obs3, held, LEVEL, cal3["inputs"])
+            mask, bound = calibrated_rows(doc, cands3, cert3)
+            rows = mask & (episodes3 == j)
+            covered += bool(rows.any() and (err3[rows] <= bound[rows]).all())
+            scores = np.sort([err3[elig3 & (episodes3 == e)].max() for e in held])  # the rule restated with numpy
+            agrees &= doc["bound"]["k"] == k and close(doc["bound"]["value"], float(scores[k - 1]))
+        rotations.append({"covered": covered, "of": n + 1, "numpy_agrees": bool(agrees)})
+    applied = elig3 & ~np.isin(episodes3, split3["validation"])
+    held_eps = np.unique(episodes3[sel3.calibrated])
+    observed = {"rows": int(sel3.calibrated.sum()), "covered": int((err3[sel3.calibrated] <= sel3.error[sel3.calibrated]).sum()),
+                "episodes": int(len(held_eps)),
+                "episodes_covered": int(sum((err3[sel3.calibrated & (episodes3 == e)] <= cal3["bound"]["value"]).all()
+                                            for e in held_eps))}
+    pipeline_ok = (verify_calibration(cal3, cpath3, kpath3, euler) == [] and cal3["evidence_mode"] == "reference_assisted"
+                   and cal3["population"]["episodes"] == sorted(split3["validation"]) and cal3["bound"]["n"] == n
+                   and cal3["bound"]["k"] == k and np.array_equal(sel3.calibrated, applied) and applied.any()
+                   and np.allclose(sel3.error[applied], cal3["bound"]["value"]))
+    audit_ok = {key: audit3["calibrated"][key] == observed[key] for key in observed}
+    record("calibration_guarantee_at_episode_level",
+           split_free and pipeline_ok and all(audit_ok.values())
+           and all(r["covered"] >= k and r["numpy_agrees"] for r in rotations),
+           level=LEVEL, n=n, k=k, acceptance=f"every set of {n + 1} episodes covers at least k = {k} of its rotations",
+           labels_independent_of_split=split_free, pipeline_recomputes=pipeline_ok, rotations=rotations,
+           mean_rotation_coverage=float(np.mean([r["covered"] for r in rotations]) / (n + 1)),
+           pipeline={"bound": cal3["bound"]["value"], "calibrated_rows": int(applied.sum())},
+           observed={"note": "the audit of the pipeline's one draw: an observation, not evidence for the guarantee",
+                     "audit_recomputed": audit_ok, **audit3["calibrated"]})
 
-    # Out of regime: rows outside the bins' score range, the calibration's own rows, bins too small for a bound,
-    # and bound profiles all keep their class.
-    lo, hi = cal3["regime"]["score_min"], cal3["regime"]["score_max"]
-    outside = (score < lo) | (score > hi)
+    # Rows a calibration does not apply to keep their class: its own episodes, ineligible rows, a level whose k
+    # exceeds n, and bound profiles.
     own = np.isin(episodes3, cal3["population"]["episodes"])
-    strict = calibrate(cpath3, kpath3, euler, split3["validation"], level=0.999, bins=4)
+    strict = calibrate(cpath3, kpath3, euler, split3["validation"], level=0.999)
     strict_path = calib / "calibration-0.999.json"
     write_calibration(strict, strict_path)
     strict_sel = curate(cpath3, kpath3, CurationPolicy(admit="bound"), "reference_assisted", calibration=strict_path)
@@ -623,16 +649,14 @@ def main():
     bound_refusal = outcome(lambda: calibrate(stage(bound_run, "labels.generate").out(layout.CANDIDATES),
                                               stage(bound_run, "labels.certify").out(layout.CERTIFICATES), euler,
                                               split3["validation"]))
-    record("out_of_regime_stays_empirical",
-           outside.any() and not sel3.calibrated[outside].any() and not sel3.mask[outside].any()
-           and sel3.reasons[outside & cands3.accepted, 2].all()
-           and not sel3.calibrated[own].any() and not sel3.mask[own].any()
-           and all(b["bound"] is None for b in strict["bins"]) and not strict_sel.calibrated.any()
-           and not strict_sel.mask.any()
+    record("uncalibrated_rows_keep_their_class",
+           own.any() and not sel3.calibrated[own].any() and not sel3.mask[own].any()
+           and (~elig3).any() and not sel3.calibrated[~elig3].any() and not sel3.mask[~elig3].any()
+           and strict["bound"]["value"] is None and not strict_sel.calibrated.any() and not strict_sel.mask.any()
            and bound_refusal.startswith("InterfaceError") and "gives bounds already" in bound_refusal,
-           regime=cal3["regime"], out_of_regime_rows=int(outside.sum()), out_of_regime_selected=int(sel3.mask[outside].sum()),
            calibration_rows=int(own.sum()), calibration_rows_calibrated=int(sel3.calibrated[own].sum()),
-           strict_bins=[(b["count"], b["k"]) for b in strict["bins"]], strict_selected=int(strict_sel.mask.sum()),
+           ineligible_rows=int((~elig3).sum()), ineligible_calibrated=int(sel3.calibrated[~elig3].sum()),
+           strict={"n": strict["bound"]["n"], "k": strict["bound"]["k"], "selected": int(strict_sel.mask.sum())},
            bound_profile=bound_refusal)
 
     # Mode: a calibration is reference-assisted evidence; data_only refuses it, before and inside the pipeline.
@@ -644,14 +668,14 @@ def main():
     other_cal = calib / "calibration-of-other-certificates.json"
     write_calibration(calibrate(cpath3, other_path, euler, split3["validation"], level=LEVEL), other_cal)
     lowered = copy.deepcopy(cal3)
-    for b in lowered["bins"]:
-        b["bound"] = None if b["bound"] is None else b["bound"] / 2
-    lowered_path = calib / "calibration-bounds-halved.json"
+    lowered["bound"]["scores"] = [x / 2 for x in lowered["bound"]["scores"]]
+    lowered["bound"]["value"] = lowered["bound"]["scores"][lowered["bound"]["k"] - 1]
+    lowered_path = calib / "calibration-bound-halved.json"
     write_calibration(lowered, lowered_path)
-    moved = copy.deepcopy(cal3)
-    moved["bins"][0]["upper"] = moved["bins"][1]["lower"] = (moved["bins"][0]["upper"] + moved["bins"][0]["lower"]) / 2
-    moved_path = calib / "calibration-edges-moved.json"
-    write_calibration(moved, moved_path)
+    altered = copy.deepcopy(cal3)
+    altered["population"]["rows"] += 1
+    altered_path = calib / "calibration-population-altered.json"
+    write_calibration(altered, altered_path)
     sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "ccil", representation=rep,  # noqa: E731
                                           candidates=cpath3, certificates=kpath3, selection=spath3,
                                           split=stage(res, "data.prepare").out(layout.SPLIT), **kw)
@@ -659,10 +683,13 @@ def main():
     modes = {"data_only_library": outcome(lambda: curate(cpath3, kpath3, policy, calibration=calpath)),
              "data_only_config": outcome(lambda: resolve(sets=[*score_sets, f"calibration.level={LEVEL}",
                                                                 f"certificate.reference_dynamics={euler}"])),
+             "fit_episodes_train": outcome(lambda: resolve(sets=[*calibrated_sets, f"data.validation_fraction={HELD_OUT}",
+                                                                  "transition_model.fit_episodes=train"])),
              "score_admission": outcome(lambda: curate(cpath3, kpath3, CurationPolicy(admit="score"), "reference_assisted",
                                                        calibration=calpath)),
              "other_certificates": outcome(lambda: curate(cpath3, kpath3, policy, "reference_assisted", calibration=other_cal)),
-             "edges_moved": outcome(lambda: curate(cpath3, kpath3, policy, "reference_assisted", calibration=moved_path)),
+             "population_altered": outcome(lambda: curate(cpath3, kpath3, policy, "reference_assisted",
+                                                          calibration=altered_path)),
              "supervision_without_calibration": outcome(lambda: sup3()),
              "supervision_with_calibration": outcome(lambda: sup3(calibration=calpath))}
     halved = verify_calibration(lowered, cpath3, kpath3, euler)
@@ -674,13 +701,14 @@ def main():
                              for k in modes if k != "supervision_with_calibration"),
               "reasons": "reference_assisted" in modes["data_only_library"] and "reference_assisted" in modes["data_only_config"]
               and "own certificate file" in modes["other_certificates"]
-              and "not follow from the certificate" in modes["edges_moved"],
-              "halved_bounds_fail_source_check": any("bin" in q for q in halved),
+              and "fit_episodes all" in modes["fit_episodes_train"]
+              and "not follow from the certificate" in modes["population_altered"],
+              "halved_bound_fails_source_check": any("bound does not follow" in q for q in halved),
               "supervision": modes["supervision_with_calibration"] == "accepted" and synthetic.sum() > 0
               and set(sup_ok.classification[synthetic].tolist()) == {"calibrated"}
               and sup_ok.manifest()["selection"].get("calibration_sha256") == sha(calpath)}
     record("calibration_is_reference_assisted", all(checks.values()), checks=checks,
-           refusals=modes, halved_bounds_source_check=halved,
+           refusals=modes, halved_bound_source_check=halved,
            supervision={"synthetic_rows": int(synthetic.sum()), "classes": sorted(set(sup_ok.classification[synthetic]))})
 
     # The audit annotates a data_only result: the same runs and selection with or without it, recomputed with numpy.

@@ -1,25 +1,32 @@
-"""Calibration schema `ccil.calibration` 1.0: an empirical score mapped to observed label error (#167).
+"""Calibration schema `ccil.calibration` 1.0: one episode-level conformal bound on observed label error (#167).
 
-A JSON document that maps one certificate file's empirical scores to the label
-error observed under reference dynamics, on a declared population of its rows
-(the held-out episodes' accepted, supported rows). The scores are split into
-bins of equal calibration count; each bin records its score range, its count,
-the observed-error quantiles, and a split-conformal bound: the k-th smallest
-observed error, k = ceil((count + 1) * level). For a row exchangeable with a
-bin's calibration rows, the bound covers the row's true error with
-probability at least level. It is a coverage statement, not a worst-case
-bound, and the bin edges come from the same scores, so per-bin coverage is
-approximate. A bin with too few rows (k > count) gives no bound.
+A JSON document that bounds the label error, observed under reference
+dynamics, of one certificate file's eligible rows: accepted rows the
+certificate classifies empirical. The sampling unit is the episode, since rows
+of one trajectory, and the labels of one transition, are not independent.
+Each calibration episode with an eligible row is scored by the largest
+observed error over its eligible rows; the bound is the k-th smallest of
+those n scores, k = ceil((n + 1) * level), the split-conformal rule, or null
+when k > n.
 
-A row of that certificate file is calibrated exactly when it is outside the
-population, empirical, and its score falls in a bin that has a bound: the
-regime is the bins' score range under the certificate's profile, neighborhood,
-and inputs. Every other row keeps its class: a calibration never makes a row
-stronger outside its regime, and never applies to another certificate file.
+What it guarantees: when the calibration episodes are a random subset of the
+dataset's episodes, drawn independently of the labels, and the labels and the
+certificate do not depend on which episodes were drawn (the label model is
+fitted on every episode: transition_model.fit_episodes all), the expected
+fraction of the other episodes whose every eligible row has observed error at
+most the bound is at least level. The probability is over the draw of the
+calibration episodes; it is not conditional on one draw, a row, or a score.
+Because it covers every eligible row of an episode at once, it holds for any
+subset of those rows, including the ones curation selects. It is not a
+worst-case bound, and it does not transfer to other datasets, tasks, model
+families, or certificate files.
+
+A row of that certificate file is calibrated exactly when it is eligible, its
+episode is not a calibration episode, and the bound is not null. Every other
+row keeps its class.
 
 The observed errors come from reference dynamics, so a calibration is always
-reference_assisted evidence. It does not establish that the calibration
-transfers to other tasks or model families.
+reference_assisted evidence.
 """
 from __future__ import annotations
 
@@ -32,28 +39,32 @@ from .fields import SchemaError
 
 SCHEMA = "ccil.calibration"
 VERSION = (1, 0)
-METHOD = {"name": "split_conformal_by_score_bin", "version": "1"}
+METHOD = {"name": "split_conformal_by_episode", "version": "1"}
+UNIT = {"name": "episode", "score": "the largest observed error over the episode's eligible rows"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-STATEMENT = ("a calibrated bound covers the true label error with probability at least the level, for rows "
-             "exchangeable with the calibration rows of its bin; it is not a worst-case bound, and it does not "
-             "transfer to other tasks or model families")
-KEYS = {"schema", "version", "evidence_mode", "method", "level", "score", "error", "population", "regime", "bins",
+STATEMENT = ("when the calibration episodes are drawn at random, independently of the labels, and the labels and "
+             "certificate do not depend on the draw (transition_model.fit_episodes all), the expected fraction of the "
+             "dataset's other episodes whose every eligible row has true label error at most the bound is at least "
+             "the level; the probability is over the draw, not conditional on one draw, a row, or a score, and it "
+             "holds for any subset of an episode's eligible rows; it is not a worst-case bound, and it does not "
+             "transfer to other datasets, tasks, model families, or certificate files")
+KEYS = {"schema", "version", "evidence_mode", "method", "level", "unit", "certificate", "error", "population", "bound",
         "statement", "inputs"}
 INPUTS = ("candidates", "certificates", "reference")
 FIELDS = [
     ("evidence_mode", "str", "Always reference_assisted: the observed errors come from reference dynamics."),
-    ("method", "dict", f"name and version of the calibration rule ({METHOD['name']} {METHOD['version']}), and the "
-                       "requested bin count; tied score quantiles merge bins."),
+    ("method", "dict", f"name and version of the calibration rule ({METHOD['name']} {METHOD['version']})."),
     ("level", "float", "The declared coverage level, in (0, 1)."),
-    ("score", "dict", "The calibrated score: the certificate's profile, version, definition, and units."),
+    ("unit", "dict", "The exchangeable unit (episode) and its score (the largest observed error over the "
+                     "episode's eligible rows)."),
+    ("certificate", "dict", "The calibrated certificate's profile, version, and neighborhood; its eligible rows are "
+                            "its accepted, empirical rows."),
     ("error", "dict", "The observed error: definition (||(T(z_G, a_G) - y) / state_scale|| under the reference "
                       "dynamics) and units, the certificate's."),
-    ("population", "dict", "rule, the episodes whose rows calibrate, and their row count."),
-    ("regime", "dict", "score_min and score_max over the bins, and the certificate's neighborhood: where the "
-                       "calibration applies."),
-    ("bins", "list", "Per bin: lower, upper (score), count, k, bound (null when k > count), and observed {median, "
-                     "at_level, max}; contiguous and increasing."),
-    ("statement", "str", "What a calibrated bound means and does not establish."),
+    ("population", "dict", "rule, the calibration episodes, and their eligible row count."),
+    ("bound", "dict", "n (calibration episodes with an eligible row), k = ceil((n + 1) * level), their scores in "
+                      "increasing order, and value: the k-th score, or null when k > n."),
+    ("statement", "str", "What the bound guarantees and does not establish."),
     ("inputs", "dict[str, str]", f"SHA-256 of {list(INPUTS)}; a calibration applies to that certificate file only."),
 ]
 
@@ -78,56 +89,42 @@ def check(d) -> dict:
         bad("format", f"schema and version must be {SCHEMA} {VERSION[0]}.{VERSION[1]}")
     if d["evidence_mode"] != "reference_assisted":
         bad("evidence_mode", "a calibration is reference_assisted")
-    m = d["method"]
-    if not (isinstance(m, dict) and set(m) == {*METHOD, "bins"} and all(m[k] == v for k, v in METHOD.items())
-            and type(m["bins"]) is int and m["bins"] >= 1):
-        bad("method", f"method must be {METHOD} with bins >= 1")
-    elif isinstance(d["bins"], list) and len(d["bins"]) > m["bins"]:
-        bad("bins", f"{len(d['bins'])} bins exceed the requested {m['bins']}")
+    if d["method"] != METHOD:
+        bad("method", f"method must be {METHOD}")
+    if d["unit"] != UNIT:
+        bad("unit", f"unit must be {UNIT}")
     level = d["level"]
     if not (_number(level) and 0 < level < 1):
         bad("level", "level must be in (0, 1)")
         level = None
-    for key, need in (("score", {"profile", "version", "definition", "units"}), ("error", {"definition", "units"})):
-        v = d[key]
-        if not (isinstance(v, dict) and set(v) == need and all(isinstance(x, str) and x for x in v.values())):
-            bad(key, f"{key} must be {{{', '.join(sorted(need))}}}, non-empty strings")
+    c = d["certificate"]
+    if not (isinstance(c, dict) and set(c) == {"profile", "version", "neighborhood"} and isinstance(c["profile"], str)
+            and c["profile"] and isinstance(c["version"], str) and c["version"] and isinstance(c["neighborhood"], dict)):
+        bad("certificate", "certificate must be {profile, version: non-empty strings, neighborhood}")
+    e = d["error"]
+    if not (isinstance(e, dict) and set(e) == {"definition", "units"} and all(isinstance(x, str) and x for x in e.values())):
+        bad("error", "error must be {definition, units}, non-empty strings")
     p = d["population"]
     if not (isinstance(p, dict) and set(p) == {"rule", "episodes", "rows"} and isinstance(p["rule"], str)
-            and isinstance(p["episodes"], list) and p["episodes"] and all(isinstance(e, str) for e in p["episodes"])
-            and type(p["rows"]) is int and p["rows"] >= 1):
-        bad("population", "population must be {rule, episodes: non-empty list of ids, rows >= 1}")
+            and isinstance(p["episodes"], list) and p["episodes"] and all(isinstance(x, str) for x in p["episodes"])
+            and p["episodes"] == sorted(set(p["episodes"])) and type(p["rows"]) is int and p["rows"] >= 1):
+        bad("population", "population must be {rule, episodes: sorted distinct ids, rows >= 1}")
         p = None
-    bins = d["bins"]
-    if not (isinstance(bins, list) and bins):
-        bad("bins", "bins must be a non-empty list")
+    b = d["bound"]
+    if not (isinstance(b, dict) and set(b) == {"n", "k", "scores", "value"} and type(b["n"]) is int and b["n"] >= 1
+            and type(b["k"]) is int and isinstance(b["scores"], list) and len(b["scores"]) == b["n"]
+            and all(_number(x) and x >= 0 for x in b["scores"]) and b["scores"] == sorted(b["scores"])):
+        bad("bound", "bound must be {n >= 1, k, scores: n increasing errors >= 0, value}")
     else:
-        prev, total = None, 0
-        for i, b in enumerate(bins):
-            where = f"bin {i}"
-            if not (isinstance(b, dict) and set(b) == {"lower", "upper", "count", "k", "bound", "observed"}
-                    and _number(b["lower"]) and _number(b["upper"]) and 0 <= b["lower"] <= b["upper"]
-                    and type(b["count"]) is int and b["count"] >= 1 and type(b["k"]) is int and b["k"] >= 1
-                    and isinstance(b["observed"], dict) and set(b["observed"]) == {"median", "at_level", "max"}
-                    and all(_number(x) and x >= 0 for x in b["observed"].values())):
-                bad("bins", f"{where} must be {{lower <= upper, count >= 1, k >= 1, bound, observed {{median, "
-                            "at_level, max}}}}")
-                continue
-            if prev is not None and b["lower"] != prev:
-                bad("bins", f"{where} must start where bin {i - 1} ends ({prev})")
-            prev, total = b["upper"], total + b["count"]
-            if level is not None and b["k"] != math.ceil((b["count"] + 1) * level):
-                bad("bins", f"{where}: k must be ceil((count + 1) * level)")
-            if (b["bound"] is None) != (b["k"] > b["count"]):
-                bad("bins", f"{where}: bound is null exactly when k > count")
-            elif b["bound"] is not None and not (_number(b["bound"]) and 0 <= b["bound"] <= b["observed"]["max"]):
-                bad("bins", f"{where}: bound must be one of the observed errors")
-        r = d["regime"]
-        if not (isinstance(r, dict) and set(r) == {"score_min", "score_max", "neighborhood"}
-                and r["score_min"] == bins[0].get("lower") and r["score_max"] == prev):
-            bad("regime", "regime must be {score_min, score_max, neighborhood}, the bins' score range")
-        if p is not None and total != p["rows"]:
-            bad("bins", f"the bin counts sum to {total}, not the population's {p['rows']} rows")
+        if p is not None and not b["n"] <= min(len(p["episodes"]), p["rows"]):
+            bad("bound", "n counts calibration episodes with an eligible row: at most the episodes and the rows")
+        if level is not None and b["k"] != math.ceil((b["n"] + 1) * level):
+            bad("bound", "k must be ceil((n + 1) * level)")
+        if b["k"] > b["n"]:
+            if b["value"] is not None:
+                bad("bound", "value is null when k > n")
+        elif b["value"] != b["scores"][b["k"] - 1]:
+            bad("bound", "value must be the k-th smallest score")
     if d["statement"] != STATEMENT:
         bad("statement", f"statement must be {STATEMENT!r}")
     inputs = d["inputs"]

@@ -201,10 +201,10 @@ Two artifacts carry reference dynamics as declared evidence
   annotates a decided selection with the label error under the reference, in
   any evidence mode. Nothing reads it back, so an audited `data_only` result
   stays `data_only`.
-- **A calibration** (`calibration.level`, `labels.calibrate`) maps a score
-  profile's empirical scores to the error observed on the held-out episodes.
-  It is always `reference_assisted`, and only through it can a row become
-  `calibrated`.
+- **A calibration** (`calibration.level`, `labels.calibrate`) bounds a score
+  profile's label error with one episode-level conformal bound from the
+  error observed on the held-out episodes. It is always `reference_assisted`,
+  and only through it can a row become `calibrated`.
 
 ## Artifacts and views
 
@@ -215,7 +215,7 @@ Two artifacts carry reference dynamics as declared evidence
 | Diagnosis | the per-M gates, the admitted M or the empty-result reason, the evidence class | `ccil.diagnosis` 1.0 |
 | Candidates | every generated row, accepted and rejected, with source identity, generator identity, draw identity, measurements and rejection reasons | `ccil.candidates` 2.x |
 | Quality evidence | per-row error terms and classification (certified, conditional, empirical, unsupported), with every constant's provenance | `ccil.certificates` 2.0 |
-| Calibration (optional, `reference_assisted`) | a score's observed error on the held-out episodes, in score bins, with a coverage bound per bin | `ccil.calibration` 1.0 |
+| Calibration (optional, `reference_assisted`) | one conformal bound on the observed label error, from the held-out episodes' per-episode largest errors | `ccil.calibration` 1.0 |
 | Selection | one named curation policy, its tolerance, a mask and weights, and with a calibration the rows it calibrated | `ccil.selection` 1.0, or 1.1 with a calibration |
 | Reference audit (optional) | reference-dynamics annotations of a decided result; never an input to admission, evidence or selection | `ccil.reference-audit` 1.0 |
 

@@ -120,8 +120,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `calibration.level` | float | `null` | - | (0.0, 1.0) | implemented | Calibrate the score profile's errors at this coverage level (labels.calibrate); null skips it. | Reference-assisted: the observed errors come from certificate.reference_dynamics on the held-out episodes' labels, so it needs generation.evidence_mode reference_assisted, a score profile, and held-out episodes. Curation then admits the calibrated rows as bounds at this level (docs/certificates.md). | - |
-| `calibration.bins` | int | `4` | - | [1, inf] | implemented | Score bins of equal calibration count, each with its own calibrated bound. | More bins follow the score more closely; each needs about 1 / (1 - level) rows for a bound. | - |
+| `calibration.level` | float | `null` | - | (0.0, 1.0) | implemented | Calibrate the score profile's errors at this coverage level (labels.calibrate); null skips it. | Reference-assisted: one bound, conformal over the held-out episodes, on the largest observed error under certificate.reference_dynamics of each episode's empirical rows. It needs generation.evidence_mode reference_assisted, a score profile, held-out episodes (at least level / (1 - level) of them for a bound), and transition_model.fit_episodes all, so the labels do not depend on the split. Curation then admits the training episodes' empirical rows as bounds at this level (docs/certificates.md). | - |
 
 ## audit
 
@@ -179,5 +178,5 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `noise_bc_scale`: `policy.method`, `policy.noise_scale`, `policy.balance_noisy_labels`, `generation.method`
 - `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`, `calibration.level`
-- `calibration`: `calibration.level`, `calibration.bins`, `certificate.profile`, `certificate.reference_dynamics`, `data.validation_fraction`, `generation.recovery_steps`
+- `calibration`: `calibration.level`, `certificate.profile`, `certificate.reference_dynamics`, `transition_model.fit_episodes`, `data.validation_fraction`, `generation.recovery_steps`
 - `curate`: `curate.tolerance`, `curate.quantile`, `curate.population`, `certificate.profile`, `certificate.reference_dynamics`, `generation.evidence_mode`

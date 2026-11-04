@@ -32,8 +32,8 @@ provenance of the evidence it actually used, which is data_only whenever the
 certificate is data-only or there is none.
 
 Calibration: a ccil.calibration of the same certificate file
-(core/calibrate.py) turns the empirical rows in its regime into calibrated
-rows, whose error is their calibrated bound, for a bound policy. Its
+(core/calibrate.py) turns the eligible empirical rows outside its episodes
+into calibrated rows, whose error is the calibrated bound, for a bound policy. Its
 observed errors come from reference dynamics, so it needs a reference_assisted
 allowance and the selection records it (ccil.selection 1.1).
 
@@ -214,8 +214,9 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
         definition = "the certificate's total_error_value: " + ("an upper bound on ||T(q) - y||" if policy.admit == "bound"
                                                                  else "an empirical score, not a bound")
         if calibration is not None:
-            definition += (f"; on calibrated rows, the calibration's bound, which covers ||T(q) - y|| with probability at "
-                           f"least {calibration['level']} (not a worst-case bound)")
+            definition += (f"; on calibrated rows, the calibration's bound: over the random draw of its episodes, the "
+                           f"expected fraction of other episodes with every calibrated row's ||T(q) - y|| within it is "
+                           f"at least {calibration['level']} (not a worst-case bound)")
         error_spec = {"definition": definition, "units": units, "is_bound": policy.admit == "bound"}
         uses, caveats = ["fidelity"], [FIDELITY_CAVEAT]
     if evidence_mode == "data_only":

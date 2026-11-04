@@ -5,7 +5,9 @@ under reference dynamics, ||(T(z_G, a_G) - y) / state_scale||. It records the
 observed error of the selected and of the accepted but unselected rows; where
 the selection's error is a bound, how many selected rows exceed their bound;
 with a tolerance, how many selected rows are within it; and on calibrated
-rows, the observed coverage of their calibrated bounds.
+rows, the observed coverage of their calibrated bound, by row and by episode.
+That coverage is an observation of one draw of the calibration episodes, not
+evidence for the calibration's guarantee, which is over the draw.
 
 An audit is an annotation, written after the selection: it is never an input
 to admission, generation, quality evidence, or selection, so a data_only
@@ -33,8 +35,8 @@ FIELDS = [
     ("bounds", "dict | null", "Where the selection's error is a bound: selected rows, violations (observed error "
                               "above the recorded bound), and the largest observed-to-bound ratio; null otherwise."),
     ("tolerance", "dict | null", "With a tolerance: its value, and the selected rows whose observed error is within it."),
-    ("calibrated", "dict | null", "With a calibration: its level, the selected calibrated rows, and how many their "
-                                  "bounds cover."),
+    ("calibrated", "dict | null", "With a calibration: its level; the calibrated rows (selected or not) and how many "
+                                  "the bound covers; their episodes and how many have every calibrated row covered."),
     ("statement", "str", "The audit's role."),
     ("inputs", "dict[str, str | null]", "SHA-256 of the selection, candidates, certificates (null without), "
                                         "calibration (null without), and reference."),
@@ -85,9 +87,10 @@ def check(d) -> dict:
                               and _count(t["within"]) and t["within"] <= t["rows"]):
         bad("tolerance", "tolerance must be null or {value, rows, within <= rows}")
     c = d["calibrated"]
-    if c is not None and not (isinstance(c, dict) and set(c) == {"level", "rows", "covered"} and _count(c["rows"])
-                              and _count(c["covered"]) and c["covered"] <= c["rows"]):
-        bad("calibrated", "calibrated must be null or {level, rows, covered <= rows}")
+    if c is not None and not (isinstance(c, dict) and set(c) == {"level", "rows", "covered", "episodes", "episodes_covered"}
+                              and all(_count(c[k]) for k in ("rows", "covered", "episodes", "episodes_covered"))
+                              and c["covered"] <= c["rows"] and c["episodes_covered"] <= c["episodes"] <= c["rows"]):
+        bad("calibrated", "calibrated must be null or {level, rows, covered <= rows, episodes, episodes_covered <= episodes}")
     if d["statement"] != STATEMENT:
         bad("statement", f"statement must be {STATEMENT!r}")
     inputs = d["inputs"]

@@ -63,8 +63,8 @@ RANK = ArraySpec("rank", "float", ("N",), "-",
                  "error at most this row's); NaN outside it.")
 REASONS = ArraySpec("reasons", "bool", ("N", "R"), "-", "reasons[i, r] is True when reason_codes[r] applies to row i.")
 CALIBRATED = ArraySpec("calibrated", "bool", ("N",), "-",
-                       "1.1, with a calibration: the row's error is its calibrated bound (an empirical row in the "
-                       "calibration's regime). Absent in 1.0.")
+                       "1.1, with a calibration: the row's error is its calibrated bound (an eligible empirical row "
+                       "outside the calibration's episodes). Absent in 1.0.")
 ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, MASK, WEIGHT, ERROR, RATIO, RANK, REASONS, CALIBRATED]
 FIELDS = [
     ("policy", "dict", f"admit {list(ADMIT)}, tolerance (null or finite > 0, in error.units), quantile (null or in "

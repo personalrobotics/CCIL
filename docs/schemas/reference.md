@@ -146,7 +146,7 @@ A selection is the output of one curation policy applied to one candidate set an
 | `ratio` | float | (N,) | - | yes | error / tolerance (tolerance > 0); NaN exactly without a tolerance or a finite error. |
 | `rank` | float | (N,) | - | yes | Relative rank of error within the named population, in [0, 1] (the fraction of that population with error at most this row's); NaN outside it. |
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
-| `calibrated` | bool | (N,) | - | yes | 1.1, with a calibration: the row's error is its calibrated bound (an empirical row in the calibration's regime). Absent in 1.0. |
+| `calibrated` | bool | (N,) | - | yes | 1.1, with a calibration: the row's error is its calibrated bound (an eligible empirical row outside the calibration's episodes). Absent in 1.0. |
 
 Reason codes, in column order: `selection.not_accepted`, `selection.unsupported`, `selection.not_bound`, `selection.exceeds_tolerance`, `selection.not_selected`.
 
@@ -183,28 +183,28 @@ A JSON object with exactly these fields plus `schema` and `version`; `statement`
 
 ## `ccil.calibration` 1.0
 
-A JSON document that maps one certificate file's empirical scores to the label error observed under reference dynamics, on a declared population of its rows (the held-out episodes' accepted, supported rows). The scores are split into bins of equal calibration count; each bin records its score range, its count, the observed-error quantiles, and a split-conformal bound: the k-th smallest observed error, k = ceil((count + 1) * level). For a row exchangeable with a bin's calibration rows, the bound covers the row's true error with probability at least level. It is a coverage statement, not a worst-case bound, and the bin edges come from the same scores, so per-bin coverage is approximate. A bin with too few rows (k > count) gives no bound.  A row of that certificate file is calibrated exactly when it is outside the population, empirical, and its score falls in a bin that has a bound: the regime is the bins' score range under the certificate's profile, neighborhood, and inputs. Every other row keeps its class: a calibration never makes a row stronger outside its regime, and never applies to another certificate file.  The observed errors come from reference dynamics, so a calibration is always reference_assisted evidence. It does not establish that the calibration transfers to other tasks or model families.
+A JSON document that bounds the label error, observed under reference dynamics, of one certificate file's eligible rows: accepted rows the certificate classifies empirical. The sampling unit is the episode, since rows of one trajectory, and the labels of one transition, are not independent. Each calibration episode with an eligible row is scored by the largest observed error over its eligible rows; the bound is the k-th smallest of those n scores, k = ceil((n + 1) * level), the split-conformal rule, or null when k > n.  What it guarantees: when the calibration episodes are a random subset of the dataset's episodes, drawn independently of the labels, and the labels and the certificate do not depend on which episodes were drawn (the label model is fitted on every episode: transition_model.fit_episodes all), the expected fraction of the other episodes whose every eligible row has observed error at most the bound is at least level. The probability is over the draw of the calibration episodes; it is not conditional on one draw, a row, or a score. Because it covers every eligible row of an episode at once, it holds for any subset of those rows, including the ones curation selects. It is not a worst-case bound, and it does not transfer to other datasets, tasks, model families, or certificate files.  A row of that certificate file is calibrated exactly when it is eligible, its episode is not a calibration episode, and the bound is not null. Every other row keeps its class.  The observed errors come from reference dynamics, so a calibration is always reference_assisted evidence.
 
 ### Fields (JSON)
 
 | Field | Type | Description |
 |---|---|---|
 | `evidence_mode` | `str` | Always reference_assisted: the observed errors come from reference dynamics. |
-| `method` | `dict` | name and version of the calibration rule (split_conformal_by_score_bin 1), and the requested bin count; tied score quantiles merge bins. |
+| `method` | `dict` | name and version of the calibration rule (split_conformal_by_episode 1). |
 | `level` | `float` | The declared coverage level, in (0, 1). |
-| `score` | `dict` | The calibrated score: the certificate's profile, version, definition, and units. |
+| `unit` | `dict` | The exchangeable unit (episode) and its score (the largest observed error over the episode's eligible rows). |
+| `certificate` | `dict` | The calibrated certificate's profile, version, and neighborhood; its eligible rows are its accepted, empirical rows. |
 | `error` | `dict` | The observed error: definition (||(T(z_G, a_G) - y) / state_scale|| under the reference dynamics) and units, the certificate's. |
-| `population` | `dict` | rule, the episodes whose rows calibrate, and their row count. |
-| `regime` | `dict` | score_min and score_max over the bins, and the certificate's neighborhood: where the calibration applies. |
-| `bins` | `list` | Per bin: lower, upper (score), count, k, bound (null when k > count), and observed {median, at_level, max}; contiguous and increasing. |
-| `statement` | `str` | What a calibrated bound means and does not establish. |
+| `population` | `dict` | rule, the calibration episodes, and their eligible row count. |
+| `bound` | `dict` | n (calibration episodes with an eligible row), k = ceil((n + 1) * level), their scores in increasing order, and value: the k-th score, or null when k > n. |
+| `statement` | `str` | What the bound guarantees and does not establish. |
 | `inputs` | `dict[str, str]` | SHA-256 of ['candidates', 'certificates', 'reference']; a calibration applies to that certificate file only. |
 
-A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "a calibrated bound covers the true label error with probability at least the level, for rows exchangeable with the calibration rows of its bin; it is not a worst-case bound, and it does not transfer to other tasks or model families".
+A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "when the calibration episodes are drawn at random, independently of the labels, and the labels and certificate do not depend on the draw (transition_model.fit_episodes all), the expected fraction of the dataset's other episodes whose every eligible row has true label error at most the bound is at least the level; the probability is over the draw, not conditional on one draw, a row, or a score, and it holds for any subset of an episode's eligible rows; it is not a worst-case bound, and it does not transfer to other datasets, tasks, model families, or certificate files".
 
 ## `ccil.reference-audit` 1.0
 
-A JSON document that compares one selection with the label error observed under reference dynamics, ||(T(z_G, a_G) - y) / state_scale||. It records the observed error of the selected and of the accepted but unselected rows; where the selection's error is a bound, how many selected rows exceed their bound; with a tolerance, how many selected rows are within it; and on calibrated rows, the observed coverage of their calibrated bounds.  An audit is an annotation, written after the selection: it is never an input to admission, generation, quality evidence, or selection, so a data_only result stays data_only when it is audited (docs/contract.md).
+A JSON document that compares one selection with the label error observed under reference dynamics, ||(T(z_G, a_G) - y) / state_scale||. It records the observed error of the selected and of the accepted but unselected rows; where the selection's error is a bound, how many selected rows exceed their bound; with a tolerance, how many selected rows are within it; and on calibrated rows, the observed coverage of their calibrated bound, by row and by episode. That coverage is an observation of one draw of the calibration episodes, not evidence for the calibration's guarantee, which is over the draw.  An audit is an annotation, written after the selection: it is never an input to admission, generation, quality evidence, or selection, so a data_only result stays data_only when it is audited (docs/contract.md).
 
 ### Fields (JSON)
 
@@ -215,7 +215,7 @@ A JSON document that compares one selection with the label error observed under 
 | `groups` | `dict` | ['selected', 'accepted_unselected']: rows, and the observed error's median, q90, and max (null without rows). |
 | `bounds` | `dict | null` | Where the selection's error is a bound: selected rows, violations (observed error above the recorded bound), and the largest observed-to-bound ratio; null otherwise. |
 | `tolerance` | `dict | null` | With a tolerance: its value, and the selected rows whose observed error is within it. |
-| `calibrated` | `dict | null` | With a calibration: its level, the selected calibrated rows, and how many their bounds cover. |
+| `calibrated` | `dict | null` | With a calibration: its level; the calibrated rows (selected or not) and how many the bound covers; their episodes and how many have every calibrated row covered. |
 | `statement` | `str` | The audit's role. |
 | `inputs` | `dict[str, str | null]` | SHA-256 of the selection, candidates, certificates (null without), calibration (null without), and reference. |
 
