@@ -159,7 +159,7 @@ def main():
         statuses = {n: validate_run(p)[0] for n, p in ars.items()}
     if "analytic" in only:
         detail = {"stages": statuses, "stderr": ar.stderr[-400:]}
-        ok = ar.returncode == 0 and len(ars) == 3 and set(statuses.values()) == {"complete"}
+        ok = ar.returncode == 0 and len(ars) == 5 and set(statuses.values()) == {"complete"}
         if ok:
             fit_dir, lab_dir = stage(ars, "transition-fit"), stage(ars, "labels-generate")
             ds = read_trajectories(stage(ars, "data-prepare") / layout.DATASET)
@@ -217,7 +217,7 @@ def main():
         rs = runs(pw / "runs")
         st = {n: validate_run(p)[0] for n, p in rs.items()}
         detail = {"device": args.device, "stages": st, "stderr": r.stderr[-400:]}
-        ok = r.returncode == 0 and set(st.values()) == {"complete"} and len(st) == 3
+        ok = r.returncode == 0 and set(st.values()) == {"complete"} and len(st) == 5
         if ok:
             fm = json.loads((stage(rs, "transition-fit") / layout.METRICS).read_text())["values"]
             lm = json.loads((stage(rs, "labels-generate") / layout.METRICS).read_text())["values"]
