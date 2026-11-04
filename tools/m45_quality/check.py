@@ -27,6 +27,24 @@ true label error ||T(q) - y|| is computed independently of every artifact):
   certificate with one are refused by build_supervision;
 - legacy: a 1.0 certificate still yields accepted & admissible & selected, and
   those are exactly the rows the same policy selects through ccil.selection.
+The diagnosis (part 2), on double-integrator demonstrations with exploration
+noise (dense, so tau_demo is small) under exact or nonlinear dynamics, each
+gate recomputed independently with numpy from the dataset, the split, the
+candidates, and the evaluation checkpoint:
+- admission: with exact dynamics and a bound profile's declared assumptions, M = 1 passes every gate and labels are
+  generated, with d_source on every row (and d_demo, opt-in, recomputed);
+- refusal: a tight support radius fails displacement, a linear model of
+  nonlinear dynamics fails fit, no certificate profile leaves trust without
+  off-data evidence, demonstrations whose actions are an exact linear function
+  of the state (an unidentified model whose labels query far from its data)
+  are refused, and no held-out episodes leave tau_demo undefined; each names
+  its gate and a next step;
+- the empty result is complete: zero-row candidates, certificates, and
+  selection, every run directory complete, no synthetic supervision row;
+- under declared assumptions the counterexample is admitted, but its
+  certified bounds (median far above the tolerance) leave no label selected;
+- a declared recovery length generates and still reports failing gates, and
+  a configuration written before version 3 keeps generating at 1.
 Writes DIR/report.json (the inspectable artifact) beside the selections it
 describes; the report records each selection's SHA-256.
 """
@@ -54,11 +72,15 @@ from ccil.core.certificates import (ContinuityProfile, DisturbedActionPaperProxy
 from ccil.core.curate import CurationPolicy, curate, verify_selection  # noqa: E402
 from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
-from ccil.schema import (SchemaError, read_candidates, read_selection, write_candidates,  # noqa: E402
-                         write_certificates, write_selection, write_trajectories)
+from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates,  # noqa: E402
+                         read_selection, read_trajectories, write_candidates, write_certificates, write_selection, write_trajectories)
+from ccil.schema.diagnosis import read_diagnosis  # noqa: E402
+from ccil.core.quality import demo_metric, nearest_distance  # noqa: E402
+from ccil.runs import validate_run  # noqa: E402
 from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261103, 6, 0.08
+DT, PROBE, TAU_SAMPLE = 0.05, 256, 2048
 REF = Provided("linear_discrepancy", "true")
 DEMO = Provided("reference_residual", "true")
 
@@ -71,6 +93,76 @@ def true_label_error(c, sys_):
     """||T(q) - y|| with the true dynamics, from the stored candidate arrays only."""
     z, a = c.observations["state"].astype(np.float64), c.actions.astype(np.float64)
     return np.linalg.norm(sys_.step_np(z, a) - c.target_observations["state"].astype(np.float64), axis=1)
+
+
+def demonstrations(path, k, n=20, spread=0.05, noise=0.3, T=41, seed=0):
+    """Double-integrator demonstrations with exploration noise; k > 0 adds a -k sin(3x) force the linear model cannot fit."""
+    rng = np.random.default_rng(seed)
+    eps = []
+    for i in range(n):
+        x = np.zeros((T, 2), np.float32)
+        x[0] = np.array([1.5, 0.0]) + rng.normal(0, spread, 2)
+        u = np.zeros((T, 1), np.float32)
+        for s in range(T - 1):
+            u[s] = -1.0 * x[s, 0] - 1.5 * x[s, 1] + rng.normal(0, noise)
+            x[s + 1] = x[s] + DT * np.array([x[s, 1], u[s, 0] - k * np.sin(3 * x[s, 0])])
+        eps.append(Episode(f"ep{i:02d}", {"state": x}, u, timestamps=np.arange(T) * DT, termination_known=True))
+    write_trajectories(TrajectoryDataset(eps), path)
+
+
+def spaced(n, k):
+    return np.arange(n) if k >= n else np.unique(np.round(np.linspace(0, n - 1, k)).astype(int))
+
+
+def independent_gates(dataset_path, split_path, cands, eval_ckpt):
+    """tau_demo, the probe's displacement and novelty, and the held-out error, recomputed with numpy alone.
+
+    The rules restated: tau_demo from at most TAU_SAMPLE evenly spaced held-out states (dataset order); the probe
+    stratified by training episode under PROBE transitions.
+    """
+    with np.load(dataset_path, allow_pickle=False) as z:
+        ids, lengths, states, actions = z["episode_ids"], z["episode_lengths"], z["obs/state"].astype(np.float64), z["actions"]
+    split = json.loads(Path(split_path).read_text()) if split_path else None
+    starts = np.concatenate([[0], np.cumsum(lengths)[:-1]])
+    per = {str(e): (states[s:s + n], actions[s:s + n].astype(np.float64)) for e, s, n in zip(ids, starts, lengths)}
+    order = [str(e) for e in ids]
+    train = order if split is None else [e for e in order if e in set(split["train"])]
+    held = [] if split is None else [e for e in order if e in set(split["validation"])]
+    tr = np.vstack([per[e][0] for e in train])
+    scale = np.where(tr.std(axis=0) > 0, tr.std(axis=0), 1.0)
+    near = lambda p, ref: np.sqrt(((p[:, None, :] / scale - ref[None, :, :] / scale) ** 2).sum(-1)).min(axis=1)  # noqa: E731
+    tau = None
+    if held:
+        hs = np.vstack([per[e][0] for e in held])
+        tau = float(np.quantile(near(hs[spaced(len(hs), TAU_SAMPLE)], tr), 0.95))
+    E = len(train)
+    if E <= PROBE:
+        quota = {e: PROBE // E + (i < PROBE % E) for i, e in enumerate(train)}
+        probe = {(e, int(f)) for e in train for f in spaced(len(per[e][0]) - 1, quota[e])}
+    else:
+        probe = {(train[i], (len(per[train[i]][0]) - 1) // 2) for i in spaced(E, PROBE)}
+    in_probe = np.array([(str(e), int(f)) in probe for e, f in zip(cands.source_episode_id, cands.source_frame)])
+    src = np.array([per[str(e)][0][int(f)] for e, f in zip(cands.source_episode_id, cands.source_frame)])
+    label = cands.observations["state"].astype(np.float64)
+    d_source = np.linalg.norm((label - src) / scale, axis=1)
+    rows = in_probe & cands.accepted
+    d, dd = d_source[rows], near(label[rows], tr) if rows.any() else np.zeros(0)
+    eps = None
+    if held:
+        with np.load(eval_ckpt, allow_pickle=False) as m:
+            A, B, c = m["A"], m["B"], m["c"]
+        z = np.vstack([per[e][0][:-1] for e in held])
+        a = np.vstack([per[e][1][:-1] for e in held])
+        zn = np.vstack([per[e][0][1:] for e in held])
+        eps = float(np.quantile(np.linalg.norm((z + z @ A.T + a @ B.T + c - zn) / scale, axis=1), 0.95))
+    q = lambda x, p: float(np.quantile(x, p)) if len(x) else None  # noqa: E731
+    return {"tau": tau, "displacement": q(d, 0.9), "novelty": q(dd, 0.9), "median_d_source": q(d, 0.5),
+            "epsilon": eps, "scale": scale, "d_source": d_source, "d_demo": near(label, tr),
+            "episodes_probed": len({e for e, _ in probe})}
+
+
+def close(a, b):
+    return (a is None and b is None) or (a is not None and b is not None and np.isclose(a, b, rtol=1e-9, atol=1e-12))
 
 
 def outcome(fn):
@@ -298,6 +390,129 @@ def main():
            and new.manifest()["selection"]["policy"]["tolerance"] == tol,
            legacy_rows=int((old.source == "synthetic").sum()), selection_rows=int((new.source == "synthetic").sum()),
            legacy_version=".".join(map(str, legacy.version)))
+
+    # Part 2: the diagnosis.
+    diag = out / "diagnosis"
+    diag.mkdir()
+    exact, nonlinear = diag / "demos-exact.npz", diag / "demos-nonlinear.npz"
+    demonstrations(exact, 0.0)
+    demonstrations(nonlinear, 4.0)
+    common = ["compute.device=cpu", "transition_model.kind=linear", "generation.method=noisy_action",
+              "generation.labels_per_transition=4", "generation.action_noise_std=1.0"]
+
+    def pipeline(name, data, extra=()):
+        res = generate_offline(resolve(sets=[f"data.path={data}", f"run.output_dir={diag / 'runs'}", *common, *extra]))
+        prep, fit, lab, dia = (stage(res, s) for s in ("data.prepare", "transition.fit", "labels.generate", "labels.diagnose"))
+        split = prep.out(layout.SPLIT) if prep.out(layout.SPLIT).exists() else None
+        ev = fit.out("checkpoints/evaluation_model.npz")
+        return {"results": res, "diagnosis": read_diagnosis(dia.out(layout.DIAGNOSIS)), "split": split,
+                "dataset": prep.out(layout.DATASET), "candidates": read_candidates(lab.out(layout.CANDIDATES)),
+                "eval": ev if ev.exists() else fit.out("checkpoints/transition_model.npz")}
+
+    def matches(doc, ind):
+        g = doc["gates"][0]
+        ratio = lambda x: None if not ind["tau"] or x is None else x / ind["tau"]  # noqa: E731
+        return {"tau_demo": close(doc["tau_demo"]["value"], ind["tau"]),
+                "displacement": close(g["displacement"]["eta"], ratio(ind["displacement"])),
+                "novelty": close(g["novelty"]["eta"], ratio(ind["novelty"])),
+                "median_d_source": close(g["fit"]["median_d_source"], ind["median_d_source"]),
+                "epsilon": close(g["fit"]["epsilon"], ind["epsilon"]),
+                "episodes_probed": doc["probe"]["episodes_probed"] == ind["episodes_probed"]}
+
+    # Declared assumptions about the true dynamics: the off-data evidence the trust gate needs (conditional).
+    cert_sets = ["certificate.profile=disturbed_action", "certificate.true_state_lipschitz=1.0",
+                 "certificate.true_action_lipschitz=0.2", "certificate.demonstration_residual_bound=0.0",
+                 "curate.tolerance=0.05"]
+    admit = pipeline("admit", exact, cert_sets)
+    ind = independent_gates(admit["dataset"], admit["split"], admit["candidates"], admit["eval"])
+    doc, c = admit["diagnosis"], admit["candidates"]
+    agree = matches(doc, ind)
+    train_rows = np.isin(c.source_episode_id.astype(str), json.loads(Path(admit["split"]).read_text())["train"])
+    metric = demo_metric(read_trajectories(admit["dataset"]), json.loads(Path(admit["split"]).read_text()), rep)
+    d_demo = nearest_distance(c.observations["state"], metric.train_states, metric.scale)
+    rows_agree = {
+        "d_source": bool(np.allclose(c.measurements["quality.d_source"], ind["d_source"], rtol=1e-6, atol=1e-9)),
+        # d_demo, the opt-in NearestDemonstration measurement, recomputed on the same rows.
+        "d_demo": bool(np.allclose(d_demo, ind["d_demo"], rtol=1e-6, atol=1e-9)),
+        # The nearest training state is at most as far as the source, when the source is a training state.
+        "d_demo_le_d_source": bool((d_demo <= c.measurements["quality.d_source"] + 1e-12)[train_rows].all())}
+    record("diagnosis_admits_when_gates_pass",
+           doc["admitted"] == 1 and doc["admitted_by"] == "gates" and doc["gates"][0]["pass"] and len(c.accepted) > 0
+           and doc["gates"][0]["trust"]["evidence"] == "conditional"
+           and all(agree.values()) and all(rows_agree.values()) and np.isclose(doc["timing"]["dt_ctrl"], DT, rtol=1e-6)
+           and np.isclose(doc["gates"][0]["horizon_s"], DT, rtol=1e-6),
+           independent=agree, rows=rows_agree, gates=doc["gates"][0], timing=doc["timing"], candidates=int(len(c.accepted)),
+           bands=doc["bands"], nested_views=doc["nested_views"])
+
+    # Each refusal recomputed from a declared run of the same configuration, whose candidates are persisted.
+    collinear, dense = diag / "demos-collinear.npz", diag / "demos-dense.npz"
+    # u = Kx exactly under nonlinear dynamics: the linear model's action response is not identifiable, so it fits
+    # the demonstrations and sends labels arbitrarily far (the counterexample the trust gate must refuse).
+    demonstrations(collinear, 4.0, noise=0.0)
+    demonstrations(dense, 0.0, n=60, spread=0.3)  # labels move far, but other demonstrations already cover them
+    refusals = {"displacement": (exact, ["generation.support_radius=0.01", *cert_sets], "from their sources"),
+                "novelty": (dense, cert_sets, "already covers"),
+                "fit": (nonlinear, [*cert_sets, "generation.action_noise_std=2.0"], "held-out error"),
+                "trust": (exact, [], "no off-data evidence"),
+                "collinear_actions": (collinear, ["generation.action_noise_std=0.2"], "no off-data evidence"),
+                "no_held_out": (exact, ["data.validation_fraction=0", *cert_sets], "held-out")}
+    refused = {}
+    for name, (data, extra, phrase) in refusals.items():
+        auto = pipeline(name, data, extra)
+        declared = pipeline(name, data, [*extra, "generation.recovery_steps=1"])
+        ind = independent_gates(declared["dataset"], declared["split"], declared["candidates"], declared["eval"])
+        d_auto, d_decl = auto["diagnosis"], declared["diagnosis"]
+        refused[name] = {"admitted": d_auto["admitted"], "reason": d_auto["reason"], "next_step": d_auto["next_step"],
+                         "independent": matches(d_auto, ind), "candidates_auto": int(len(auto["candidates"].accepted)),
+                         "candidates_declared": int(len(declared["candidates"].accepted)),
+                         "declared": {"admitted": d_decl["admitted"], "admitted_by": d_decl["admitted_by"],
+                                      "gates_pass": d_decl["gates"][0]["pass"]}, "phrase": phrase,
+                         "query_extrapolation": d_auto["gates"][0]["trust"]["query_extrapolation"]}
+    record("diagnosis_refuses_each_gate",
+           all(r["admitted"] is None and r["phrase"] in r["reason"] and r["next_step"] and all(r["independent"].values())
+               and r["candidates_auto"] == 0 and r["candidates_declared"] > 0
+               and r["declared"] == {"admitted": 1, "admitted_by": "declared", "gates_pass": False}
+               for r in refused.values())
+           # The counterexample's labels query the model far from its data, compared with the explored fixture's.
+           and refused["collinear_actions"]["query_extrapolation"]["median"]
+           > 10 * refused["trust"]["query_extrapolation"]["median"],
+           refusals=refused)
+
+    # Under declared assumptions the counterexample is admitted, but its bounds then exclude every label.
+    assumed = pipeline("collinear_assumed", collinear, [*cert_sets, "generation.action_noise_std=0.2"])
+    acert = read_certificates(stage(assumed["results"], "labels.certify").out(layout.CERTIFICATES))
+    asel = read_selection(stage(assumed["results"], "labels.curate").out(layout.SELECTION))
+    record("assumed_trust_is_still_curated",
+           assumed["diagnosis"]["admitted"] == 1 and assumed["diagnosis"]["gates"][0]["trust"]["evidence"] == "conditional"
+           and len(asel.mask) > 0 and not asel.mask.any() and float(np.nanmin(acert.total_error_value)) > 0.05
+           and float(np.nanmedian(acert.total_error_value)) > 1000 * 0.05,
+           admitted=assumed["diagnosis"]["admitted"], rows=int(len(asel.mask)), selected=int(asel.mask.sum()),
+           min_certified_bound=float(np.nanmin(acert.total_error_value)),
+           median_certified_bound=float(np.nanmedian(acert.total_error_value)), tolerance=0.05,
+           query_extrapolation=assumed["diagnosis"]["gates"][0]["trust"]["query_extrapolation"])
+
+    # The empty result, with a certificate and a selection, is complete and gives no synthetic row.
+    empty = pipeline("empty", nonlinear, [*cert_sets, "generation.action_noise_std=2.0"])
+    res = empty["results"]
+    cer, cur = stage(res, "labels.certify"), stage(res, "labels.curate")
+    ecert, esel = read_certificates(cer.out(layout.CERTIFICATES)), read_selection(cur.out(layout.SELECTION))
+    status = {r.stage: validate_run(r.run_dir)[0] for r in res}
+    esup = build_supervision(empty["dataset"], "ccil", representation=rep, candidates=stage(res, "labels.generate").out(layout.CANDIDATES),
+                             certificates=cer.out(layout.CERTIFICATES), selection=cur.out(layout.SELECTION), split=empty["split"])
+    record("empty_result_is_complete",
+           empty["diagnosis"]["admitted"] is None and len(empty["candidates"].accepted) == 0
+           and len(ecert.classification) == 0 and len(esel.mask) == 0 and set(status.values()) == {"complete"}
+           and esup.manifest()["counts"]["synthetic_rows"] == 0 and esup.manifest()["counts"]["demonstration_rows"] > 0,
+           stages=status, counts=esup.manifest()["counts"], reason=empty["diagnosis"]["reason"])
+
+    # A configuration written before version 3 keeps generating at 1, with a note.
+    old = diag / "version-2.yaml"
+    old.write_text("config_version: 2\ngeneration: {method: backward_euler_fast}\ntransition_model: {kind: linear}\n")
+    r2 = resolve(config=old, sets=[f"data.path={exact}"])
+    record("older_configuration_keeps_declared_length",
+           r2.values["generation.recovery_steps"] == "1" and any("recovery_steps" in n for n in r2.notes)
+           and resolve(sets=[f"data.path={exact}", "generation.method=backward_euler_fast"]).values["generation.recovery_steps"] == "auto",
+           notes=[n for n in r2.notes if "recovery_steps" in n])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases, "artifacts": artifacts,

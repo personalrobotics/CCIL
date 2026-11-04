@@ -202,7 +202,7 @@ def main():
     status = {n: validate_run(p)[0] for n, p in runs.items()}
     lab = next((p for n, p in runs.items() if n.startswith("labels-generate")), None)
     pc = read_candidates(lab / "labels/candidates.npz") if lab else None
-    record("noisy_action_fe_pipeline_run", r.returncode == 0 and set(status.values()) == {"complete"} and len(status) == 4
+    record("noisy_action_fe_pipeline_run", r.returncode == 0 and set(status.values()) == {"complete"} and len(status) == 5
            and pc is not None and pc.generator["name"] == "noisy_action_preimage" and pc.measurement_specs is not None,
            stages=status, generator=pc.generator if pc else None,
            artifact=f"<out>/pipeline/runs/{lab.name}/labels/candidates.npz" if lab else None, stderr=r.stderr[-300:])
@@ -496,7 +496,7 @@ def main():
     fstat = {n: validate_run(p)[0] for n, p in fruns.items()}
     flab = next((p for n, p in fruns.items() if n.startswith("labels-generate")), None)
     fmeta = file_meta(flab / "labels/candidates.npz") if flab else {}
-    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 5
+    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 6
            and fmeta.get("version") == "2.2" and MODEL_MISFIT in set(fmeta.get("reason_codes", []))
            and any(n.startswith("labels-certify") for n in fruns) and any(n.startswith("labels-curate") for n in fruns),
            stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
@@ -630,7 +630,7 @@ def main():
     legacy_chunk_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace("  epsilon:", "  chunk_size: 5\n  epsilon:"))
     rc5 = resolve(config=legacy_chunk_yml)
     record("action_chunks_pipeline_and_migration",
-           rcmd.returncode == 0 and set(cstat.values()) == {"complete"} and len(cstat) == 4
+           rcmd.returncode == 0 and set(cstat.values()) == {"complete"} and len(cstat) == 5
            and file_meta(clab / "labels/candidates.npz")["version"] == "2.3" and rc5["generation.action_chunk_size"] == 5,
            stages=cstat, migrated_chunk_size=rc5["generation.action_chunk_size"],
            artifact=f"<out>/pipeline_chunks/runs/{clab.name}/labels/candidates.npz" if clab else None, stderr=rcmd.stderr[-300:])

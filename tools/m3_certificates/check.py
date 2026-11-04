@@ -501,7 +501,7 @@ def main():
     psrc = Sources(cand_file, prepared.out("data/dataset.npz"), fitted.out("checkpoints/transition_model.npz"), rep,
                    references={"true": truth})
     record("pipeline_certify_stage",
-           set(status.values()) == {"complete"} and len(status) == 8 and sha(cand_file) == cand_sha
+           set(status.values()) == {"complete"} and len(status) == 9 and sha(cand_file) == cand_sha
            and pcert.candidates_sha256 == cand_sha and again.reused and again.run_dir == first_run.run_dir
            and first_run.run_dir != changed_ref.run_dir and curated.run_dir != changed_tol.run_dir
            and sha(cert_file) == cert_sha and psel.certificates_sha256 == cert_sha

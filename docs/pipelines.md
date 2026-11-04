@@ -39,7 +39,7 @@ Each stage writes its own run directory.
 
 ## Offline generation: `ccil labels generate`
 
-    data.prepare → transition.fit → labels.generate [→ labels.certify] → labels.curate
+    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify] → labels.curate
 
 The output is a label set, `labels-generate-*/labels/candidates.npz`, with
 accepted and rejected rows, plus a report in its `metrics.json`: counts by
@@ -130,9 +130,83 @@ the rows one policy selects (`curate.*`), and leaves the candidates and
 certificates unchanged, so a new tolerance reruns only this stage. See
 [certificates.md](certificates.md#curation).
 
+## Diagnosis: `labels.diagnose`
+
+`labels.diagnose` runs after `transition.fit` and before `labels.generate`. It
+writes `labels-diagnose-*/diagnosis/diagnosis.json` (`ccil.diagnosis` 1.0):
+the data-only decision whether one-step labels are worth generating. Its
+inputs are the prepared dataset and split, the label model, and, with
+`transition_model.fit_episodes all`, the evaluation model that
+`transition.fit` now saves (`checkpoints/evaluation_model.npz`), which never
+saw the held-out episodes.
+
+- **The metric.** Every distance is ‖(x − y) / s‖, where s is the
+  per-coordinate standard deviation of the training demonstration states.
+  The action is not a coordinate.
+- **τ_demo** is the `diagnose.tau_quantile` (0.95) of the distance from
+  held-out demonstration states to their nearest training state: the
+  demonstrations' own spacing. It uses at most `diagnose.tau_sample` (2048)
+  evenly spaced held-out states, so its cost is linear in the training set,
+  and records the sample. It needs held-out episodes.
+- **The probe** is stratified by training episode under
+  `diagnose.probe_transitions` (256). With at most that many episodes, each
+  gets an equal share of evenly spaced transitions. With more, that many
+  evenly spaced episodes get one transition each. The diagnosis records how
+  many episodes the probe covers. The configured generator and validators
+  label the probe, and only their summary is kept.
+- **The gates, for M = 1.** Each asks a distinct question, and M is admitted
+  only when all pass:
+
+  | Gate | Question | Passes when |
+  |---|---|---|
+  | yield | Did generation work? | at least `diagnose.min_yield` (1%) of the probe labels are accepted |
+  | displacement | How far did labels move from their sources? | the `diagnose.label_quantile` (0.9) of d_source is at least `diagnose.min_displacement` (1) τ_demo |
+  | novelty | Do they reach states the dataset does not cover? | the same quantile of d_demo, the exact distance to the nearest training state, is at least `diagnose.min_novelty` (1) τ_demo |
+  | fit | Does the model fit where it has data? | the `diagnose.fit_quantile` (0.95) of the held-out one-step error, over the median d_source, is at most `diagnose.fit_ratio` (0.5) |
+  | trust | Is the model credible at the proposed states? | a bound certificate profile supplies off-data evidence: constants that are declared assumptions or computed from the model, never from reference dynamics |
+
+  - **Displacement is not novelty.** A label can move far from its source and
+    land beside another demonstration.
+  - **Fit is necessary, never sufficient.** It is measured at demonstration
+    states, where the data are.
+  - **Trust cannot come from data alone.** A model can fit the
+    demonstrations' manifold and be wrong off it: when the demonstrator's
+    actions are an exact linear function of the state, the action response
+    is unidentified, fit passes, and labels land thousands of units away.
+    So `auto` admits only under a bound profile's recorded assumptions
+    (`conditional`), and refuses without one.
+  - **Query extrapolation is reported beside trust:** the distance of each
+    proposed (z_G, a_G) from the nearest training (z, a) pair.
+  - **The certificate follows admission.** Under declared assumptions, its
+    bound on each label then decides which labels curation keeps.
+
+- **`generation.recovery_steps`.**
+  - `auto` (the default) admits M = 1 only when every gate passes.
+  - `1` generates at M = 1 and still reports the gates. Configurations
+    written before `config_version` 3, including the shipped recipes,
+    resolve to `1`, with a note.
+- **When nothing is admitted,** the diagnosis names the first failing gate
+  and a next step. `labels.generate` then writes a schema-valid zero-row
+  candidate set, and certification and curation follow with zero rows. Every
+  run directory is complete, and supervision has no synthetic row.
+- **Also recorded:**
+  - `dt_ctrl`, from uniform timestamps, and the horizon H = M · dt_ctrl (null without timing);
+  - the accepted probe labels counted by d_demo / τ_demo;
+  - the recommended nested views for noisy generators;
+  - the configured certificate's data-only evidence class.
+- **Novelty on every label.** `labels.generate` adds `quality.d_source`, the
+  distance from the source state in the same metric, to every candidate. The
+  distance to the nearest training state, `quality.d_demo`, is the opt-in
+  validator `ccil.core.quality.NearestDemonstration`: a brute-force search
+  whose cost is candidates × training states, too slow for study-scale
+  datasets until it is indexed.
+- **Admission uses only data and declared assumptions.** Reference dynamics
+  and policy outcomes never enter it. The diagnosis records
+  `evidence_mode: data_only`.
+
 ## Experimental vector-policy harness: `ccil policy train`
 
-    data.prepare → transition.fit → labels.generate [→ labels.certify] → policy.train → policy.evaluate
+    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify] → labels.curate → policy.train → policy.evaluate
 
 Reference infrastructure for reproducing the vector BC, NoiseBC and CCIL
 arms. It needs the `ccil[torch]` extra, and CCIL does not require it. See
@@ -140,7 +214,7 @@ arms. It needs the `ccil[torch]` extra, and CCIL does not require it. See
 
 ## Integrated pipeline: `ccil pipeline integrated`
 
-    data.prepare → representation.fit → transition.fit → labels.generate → policy.train → policy.evaluate
+    data.prepare → representation.fit → transition.fit → labels.diagnose → labels.generate → policy.train → policy.evaluate
 
 CCIL owns stages 1–4. The downstream trainer plugs in through `PolicyTrainer`,
 either `policy.trainer` or `run_integrated(cfg, trainer=...)`. Changing only the

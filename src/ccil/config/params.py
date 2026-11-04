@@ -181,6 +181,41 @@ PARAMS = [
           "Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted.",
           "The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and "
           "recorded in every selection made under it.", "generation", choices=("data_only", "reference_assisted")),
+    Param("generation.recovery_steps", "choice", "auto",
+          "Recovery length M in recorded action intervals: auto admits the smallest M that passes every diagnosis "
+          "gate (labels.diagnose; trust needs a bound certificate profile), or none; an integer generates at that M "
+          "and still reports the gates.",
+          "The contract's data-in, more-data-out default (docs/contract.md); the ladder is {1} until #171. "
+          "Configurations before config_version 3 generated without the gates and resolve to 1.", "generation",
+          choices=("auto", "1")),
+    # diagnose ----------------------------------------------------------------
+    Param("diagnose.probe_transitions", "int", 256, "Training transitions in the fixed diagnosis probe.",
+          "Stratified by episode under this budget: every episode when there are at most this many, otherwise this "
+          "many evenly spaced episodes; the diagnosis records the coverage.", "diagnose", low=1),
+    Param("diagnose.tau_quantile", "float", 0.95,
+          "Quantile of held-out-to-training nearest demonstration distances that defines tau_demo.",
+          "The Pendulum studies' definition of the demonstrations' own spacing.", "diagnose", low=0.0, low_open=True,
+          high=1.0),
+    Param("diagnose.tau_sample", "int", 2048, "Held-out states, evenly spaced, used to estimate tau_demo.",
+          "Bounds tau_demo to linear work in the training set; the diagnosis records the sample.", "diagnose", low=1),
+    Param("diagnose.label_quantile", "float", 0.9,
+          "Quantile of the accepted probe labels' d_source and d_demo used by the displacement and novelty gates.",
+          "Decided 2026-11-03 (#167): what most labels attain, not the extreme one.", "diagnose", low=0.0,
+          low_open=True, high=1.0),
+    Param("diagnose.min_displacement", "float", 1.0, "Admit only if labels move at least this many tau_demo from their sources.",
+          "Displacement, not novelty: a label can move far and land beside another demonstration.", "diagnose", low=0.0),
+    Param("diagnose.min_novelty", "float", 1.0,
+          "Admit only if labels lie at least this many tau_demo from the nearest training demonstration state.",
+          "Below 1, the dataset already covers the states the labels reach (#167, #171).", "diagnose", low=0.0),
+    Param("diagnose.fit_quantile", "float", 0.95, "Quantile of the held-out one-step model error used by the fit gate.",
+          "Decided 2026-11-03 (#167).", "diagnose", low=0.0, low_open=True, high=1.0),
+    Param("diagnose.fit_ratio", "float", 0.5,
+          "Admit only if the held-out model error is at most this fraction of the median accepted d_source.",
+          "Decided 2026-11-03 (#167): the model must fit where it has data. Necessary, never sufficient.", "diagnose",
+          low=0.0, low_open=True),
+    Param("diagnose.min_yield", "float", 0.01, "Admit only if at least this fraction of the probe labels is accepted.",
+          "Decided 2026-11-03 (#167): a generator whose labels are nearly all rejected is degenerate.", "diagnose",
+          low=0.0, high=1.0),
     # curate ------------------------------------------------------------------
     Param("curate.tolerance", "float", None, "Select labels whose certificate error is at most this.",
           "Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical "

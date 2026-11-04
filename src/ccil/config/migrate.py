@@ -12,7 +12,8 @@ a version 0 or 1 file that does not set it resolves to raw, with a note.
 Version 3 (#167) moved label selection out of the certificate: a version 1 or
 2 file's certificate.max_total_error or score_threshold is read as
 curate.tolerance, selection_quantile as curate.quantile, and
-selection_population as curate.population, each with a note. Such a file's
+selection_population as curate.population, each with a note, and a file that
+does not set generation.recovery_steps generates at 1, as it did. Such a file's
 certificate.reference_dynamics made its selection reference-assisted, so it
 resolves generation.evidence_mode to reference_assisted unless it sets it.
 """
@@ -23,7 +24,9 @@ from .params import REGISTRY
 CONFIG_VERSION = 3
 # Defaults that changed with a version: an older file that does not set the key keeps the older meaning.
 CHANGED_DEFAULTS = {2: {"transition_model.lipschitz_coordinates": ("raw", "#125: version 2's default is "
-                                                                          "model_normalized")}}
+                                                                          "model_normalized")},
+                    3: {"generation.recovery_steps": ("1", "#167: version 3's default auto admits a recovery length "
+                                                           "only through the data-only gates")}}
 
 # Legacy keys dropped because they never affected behavior.
 DROPPED = {

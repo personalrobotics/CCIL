@@ -13,7 +13,7 @@
    bumped component version writes distinct runs and leaves the old ones intact;
    an unreadable implementation fails instead of reusing.
 2. Offline generation never imports the integrated pipeline or a policy trainer.
-3. Integrated stub flow on a synthetic state+image dataset: six complete stages,
+3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
    evaluation settings reuses stages 1-5, and the new evaluation, which loads
@@ -77,7 +77,9 @@ def image_dataset(path: Path) -> None:
 INTEGRATED = ["--set", "representation.kind=pca", "--set", "representation.modality=image.top", "--set", "representation.dim=4",
               "--set", "transition_model.kind=linear", "--set", "generation.method=backward_euler",
               "--set", "generation.support_radius=0.5", "--set", "data.validation_fraction=0.25",
-              "--set", "data.path=images.npz", "--set", "run.output_dir=runs"]
+              "--set", "data.path=images.npz", "--set", "run.output_dir=runs",
+              # The stub tests the latent-space handoff, not admission: declare the recovery length.
+              "--set", "generation.recovery_steps=1"]
 
 
 def main():
@@ -114,8 +116,8 @@ def main():
     rb = runs(wb / "runs")
     replay = sorted(ra) == sorted(rb) and all(tree(ra[n]) == tree(rb[n]) for n in ra)
     r3 = ccil(*offline_args, cwd=wa)
-    reused = r3.returncode == 0 and r3.stdout.count("reused") == 3 and r3.stdout.count("wrote") == 0
-    record("offline_analytic_run", r1.returncode == 0 and len(ra) == 3 and set(statuses.values()) == {"complete"}
+    reused = r3.returncode == 0 and r3.stdout.count("reused") == 5 and r3.stdout.count("wrote") == 0
+    record("offline_analytic_run", r1.returncode == 0 and len(ra) == 5 and set(statuses.values()) == {"complete"}
            and all(oracle_ok.values()) and replay and reused,
            stages=statuses, oracle=oracle_ok, replay_identical=replay, rerun_output=r3.stdout.strip().splitlines(),
            report=json.loads((labels_dir / layout.METRICS).read_text())["values"], stderr=r1.stderr[-400:])
@@ -161,14 +163,14 @@ def main():
                                                    f"import ccil; assert ccil.__file__.startswith({str(pkg)!r})")
     new_impl = {json.loads((wa / "runs" / n / layout.STAGE).read_text())["implementation"]["source_sha256"] for n in new}
     record("changed_implementation_writes_distinct_runs", r.returncode == 0 and set(status.values()) == {"wrote"}
-           and len(new) == 3 and new_impl and impl["source_sha256"] not in new_impl
+           and len(new) == 5 and new_impl and impl["source_sha256"] not in new_impl
            and all(tree(ra[n]) == h for n, h in originals.items()),
            stage_status=status, new_runs=new, stderr=r.stderr[-300:])
 
     r, status, new = variant_run("component_version", "from ccil.core import LinearTransitionModel\n"
                                                       "LinearTransitionModel.version = '2'")
     record("component_version_change_writes_distinct_runs", r.returncode == 0 and status.get("data.prepare") == "reused"
-           and status.get("transition.fit") == "wrote" and status.get("labels.generate") == "wrote" and len(new) == 2,
+           and status.get("transition.fit") == "wrote" and status.get("labels.generate") == "wrote" and len(new) == 4,
            stage_status=status, new_runs=new, stderr=r.stderr[-300:])
 
     (out / "empty_package").mkdir()
@@ -194,7 +196,7 @@ def main():
     ri = runs(wi / "runs")
     st = {n: validate_run(p)[0] for n, p in ri.items()}
     by_stage = {json.loads((p / layout.MANIFEST).read_text())["workflow"]: p for p in ri.values()}
-    ok = r.returncode == 0 and len(ri) == 6 and set(st.values()) == {"complete"}
+    ok = r.returncode == 0 and len(ri) == 7 and set(st.values()) == {"complete"}
     detail = {"stages": st, "stderr": r.stderr[-400:]}
     if ok:
         lab = by_stage["labels.generate"]
@@ -220,7 +222,7 @@ def main():
     reuse = {l[0]: l[1] for l in lines}
     record("downstream_trainer_replaceable", r.returncode == 0
            and all(reuse.get(s) == "reused" for s in ("data.prepare", "representation.fit", "transition.fit", "labels.generate"))
-           and reuse.get("policy.train") == "wrote" and reuse.get("policy.evaluate") == "wrote" and len(runs(wi / "runs")) == 8,
+           and reuse.get("policy.train") == "wrote" and reuse.get("policy.evaluate") == "wrote" and len(runs(wi / "runs")) == 9,
            stage_status=reuse)
 
     # 4b. Changing only evaluation settings reuses stages 1-5; the evaluation loads the reused policy.
@@ -270,8 +272,8 @@ def main():
         resumed = run_integrated(cfg, trainer=FlakyTrainer())
     finally:
         os.chdir(cwd)
-    resume_ok = [r.reused for r in resumed] == [True, True, True, True, False, False]
-    record("failure_leaves_earlier_stages_and_resumes", failed_stage == "policy.train" and len(after_fail) == 4
+    resume_ok = [r.reused for r in resumed] == [True, True, True, True, False, False, True]  # labels.diagnose is listed last
+    record("failure_leaves_earlier_stages_and_resumes", failed_stage == "policy.train" and len(after_fail) == 5
            and set(after_fail.values()) == {"complete"} and not staging and resume_ok,
            failed_stage=failed_stage, stages_after_failure=after_fail, staging_left=staging,
            resume=[[r.stage, r.reused] for r in resumed])
@@ -304,7 +306,7 @@ def main():
         os.chdir(cwd)
     record("evaluate_failure_resumes_with_reused_policy", failed_stage == "policy.evaluate"
            and [n.split("-")[1] for n in new_runs] == ["train"] and set(new_runs.values()) == {"complete"}
-           and [r.reused for r in resumed] == [True, True, True, True, True, False],
+           and [r.reused for r in resumed] == [True, True, True, True, True, False, True],
            failed_stage=failed_stage, runs_after_failure=new_runs, resume=[[r.stage, r.reused] for r in resumed],
            resume_error=resume_error)
     for name, extra in (("unsupported_method", ["--set", "generation.method=backward_model"]),

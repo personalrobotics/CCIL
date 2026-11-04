@@ -1,7 +1,7 @@
 """Generate the normative schema reference from the specs, its one canonical source."""
 from __future__ import annotations
 
-from . import certificates, io, labels, selection, trajectories
+from . import certificates, diagnosis, io, labels, selection, trajectories
 
 
 def _table(specs) -> list[str]:
@@ -78,6 +78,13 @@ def render() -> str:
         "### File layout (.npz)", "",
         f"Required: {', '.join(f'`{k}`' for k in sorted(io.SEL_REQUIRED))}. `meta` holds {_names(io.SEL_META)}, "
         "`error`, and `reason_codes`; no other array or meta field is accepted.", "",
+        f"## `{diagnosis.SCHEMA}` {diagnosis.VERSION[0]}.{diagnosis.VERSION[1]}",
+        "",
+        (diagnosis.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "),
+        "",
+        "### Fields (JSON)", "", *_fields(diagnosis.FIELDS), "",
+        f"A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "
+        f"\"{diagnosis.STATEMENT}\".", "",
         "## Compatibility", "",
         (io.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "), "",
     ]

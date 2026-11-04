@@ -152,6 +152,33 @@ Reason codes, in column order: `selection.not_accepted`, `selection.unsupported`
 
 Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_allowed`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted.
 
+## `ccil.diagnosis` 1.0
+
+A JSON document written before generation from the demonstrations, the dynamics evidence, and the configured certificate's declared assumptions. For each recovery length M on the ladder it records five distinct gates, every quantity in the demonstration metric (core/quality.py) with its raw value, quantile, and threshold: - yield: did generation work? the fraction of a fixed probe's labels the   validators accept; - displacement: how far labels move from their sources, q(d_source) / tau_demo; - novelty: whether they reach states the dataset does not already cover,   q(d_demo) / tau_demo, d_demo the distance to the nearest training state; - fit: the held-out M-step model error over the median d_source, from a model   that never saw the held-out episodes; measured at demonstration states, so   necessary but never sufficient; - trust: off-data evidence that the model is credible at the proposed states,   which data alone cannot give: a bound certificate profile whose constants are   declared assumptions or model-computed. The proposed queries' distance from   the training (z, a) pairs is reported beside it. The admitted M is the smallest whose gates all pass (recovery_steps auto), or the declared one (an integer, which skips the ladder but not this report). When none is admitted, the reason names the first failing gate and an actionable next step, and generation writes a valid empty synthetic view.  The diagnosis is data-only evidence: it supports curation and does not establish that the labels improve a downstream policy.
+
+### Fields (JSON)
+
+| Field | Type | Description |
+|---|---|---|
+| `evidence_mode` | `str` | Always data_only: no reference dynamics enter the diagnosis. |
+| `recovery_steps` | `dict` | requested (auto or an integer), ladder (the lengths probed), and cap. |
+| `metric` | `dict` | The demonstration metric: definition, units, per-coordinate scale, and the train and held-out episode and state counts. |
+| `timing` | `dict` | dt_ctrl (seconds, or null when the data carry no consistent timing), its source, and a note. |
+| `tau_demo` | `dict` | value (null without held-out episodes), quantile, sample (held-out states, and how many were used), and definition. |
+| `probe` | `dict` | The fixed probe: the stratification rule, the training episodes and how many it covers, its transitions, and the candidates it produced. |
+| `gates` | `list` | Per recovery length: M, horizon_s (M * dt_ctrl, or null), and each of yield, reach, trust with value, raw quantities, threshold, and pass; pass is all three. |
+| `admitted` | `int | null` | The admitted recovery length, or null. |
+| `admitted_by` | `str | null` | ['gates', 'declared'], or null when nothing is admitted. |
+| `reason` | `str | null` | Why nothing is admitted (the first failing gate); null when M is admitted. |
+| `next_step` | `str | null` | An actionable next step when nothing is admitted. |
+| `bands` | `dict | null` | Accepted probe labels counted by d_demo / tau_demo in the band edges; null without tau_demo. |
+| `nested_views` | `list | null` | Recommended labels_per_transition views for a downstream pilot (noisy generators). |
+| `evidence_class` | `dict` | The strongest evidence class the configured certificate can give, from data alone. |
+| `statement` | `str` | What the diagnosis does not establish. |
+| `inputs` | `dict[str, str]` | SHA-256 of the dataset, split, transition model, and evaluation model. |
+
+A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "data-only evidence supports curation; it does not establish downstream policy improvement".
+
 ## Compatibility
 
 Files are written atomically and read with allow_pickle=False. `meta` is a JSON string with schema, version "MAJOR.MINOR", and optional_fields. A file that cannot be decoded (not an archive, truncated, pickled arrays, non-JSON or mistyped meta, inconsistent array layout) raises SchemaError, never a raw decoding error. Compatibility: a minor version only adds optional fields; a reader accepts its own major version, ignores ext/<name> keys, ignores unknown keys only when the file declares them optional (written by a newer minor), and rejects anything else.

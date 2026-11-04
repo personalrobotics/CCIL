@@ -13,7 +13,7 @@ import numpy as np
 
 from ..schema import REASON_CODES, CandidateSet, TrajectoryDataset
 from ..schema.labels import canonical_reason_order, reason_code_problem
-from .batch import InterfaceError, check_candidates, concat
+from .batch import CandidateBatch, InterfaceError, check_candidates, concat
 from .chunks import SPEC as CHUNK_SPEC
 from .chunks import TARGET_FRAME_SPEC as CHUNK_TARGET_FRAME_SPEC
 from .chunks import action_chunks
@@ -30,9 +30,11 @@ class Uniform:
 
 
 def params_hash(generator, validators) -> str:
+    # A validator's private attributes (leading underscore) are data it summarizes in a public field, such as a hash.
     desc = {"generator": [generator.name, generator.version, generator.params],
             "validators": [[type(v).__name__, v.reason, {k: (x.tolist() if isinstance(x, np.ndarray) else x)
-                                                          for k, x in sorted(vars(v).items())}] for v in validators]}
+                                                          for k, x in sorted(vars(v).items()) if not k.startswith("_")}]
+                           for v in validators]}
     return hashlib.sha256(json.dumps(desc, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -128,7 +130,7 @@ def checkpoint_sha256(model) -> str:
 
 def generate_labels(dataset: TrajectoryDataset, representation, model, generator, validators, run_id: str, seed: int,
                     weighting=None, batch_size: int | None = None, inputs: dict | None = None,
-                    action_chunk_size: int | None = None) -> CandidateSet:
+                    action_chunk_size: int | None = None, rows=None) -> CandidateSet:
     """Generate, validate, and weight candidates; return a schema-valid CandidateSet.
 
     batch_size splits generation into chunks; generators are batch-invariant, so it
@@ -136,9 +138,14 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
     input names to SHA-256 digests for the candidate provenance; a missing
     transition_model entry is the hash of the checkpoint model.save() writes.
     action_chunk_size adds action chunks of that size (ccil.core.chunks).
+    rows, when given, are the indices of the dataset's transitions to generate
+    from (in transitions() order); an empty rows gives a schema-valid zero-row
+    set with the same generator, validators, and measurements.
     """
     dataset.validate()
     batch = transitions(dataset, representation)
+    if rows is not None:
+        batch = batch.take(np.asarray(rows, dtype=np.int64))
     size = batch_size or max(len(batch), 1)
     chunks, offsets = [], []
     for start in range(0, len(batch), size):
@@ -147,7 +154,14 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         check_candidates(part, out, f"{type(generator).__name__}.generate")
         chunks.append(out)
         offsets.append(start)
-    cands = concat(chunks, offsets)
+    if chunks:
+        cands = concat(chunks, offsets)
+    else:  # nothing to generate from: the generator's declared measurements, with no rows
+        D, A = batch.z.shape[1], batch.a.shape[1]
+        cands = CandidateBatch(source=np.zeros(0, np.int64), z=np.zeros((0, D), batch.z.dtype),
+                               a=np.zeros((0, A), batch.a.dtype), target=np.zeros((0, D), batch.z.dtype),
+                               failed=np.zeros(0, bool),
+                               measurements={k: np.zeros(0) for k in getattr(generator, "measurement_specs", {})})
 
     for v in validators:
         why = None if v.reason is None else reason_code_problem(v.reason)

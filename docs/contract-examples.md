@@ -51,7 +51,7 @@ In Python: `ccil.generate(ccil.resolve_config("analytic_double_integrator", over
 | `transition_model.kind` | `linear` | recipe |
 | `generation.method` | `backward_euler_fast` | recipe |
 | `generation.support_radius` | 0.01 | recipe |
-| `generation.recovery_steps` | `auto` (ladder {1}) | default, **specified** |
+| `generation.recovery_steps` | `1` | the recipe, written before `config_version` 3; a new configuration defaults to `auto` |
 
 **Output inventory.**
 
@@ -60,7 +60,7 @@ runs/
   data-prepare-<id>/data/dataset.npz        ccil.trajectories     today
   data-prepare-<id>/data/split.json         ccil.split            today: 4 train, 4 validation episodes
   transition-fit-<id>/checkpoints/          transition model      today: held-out max one-step error 6.7e-8
-  labels-generate-<id>/diagnosis.json       diagnosis             specified: per-M gates, admitted M, dt_ctrl 0.05 s, H 0.05 s
+  labels-diagnose-<id>/diagnosis/diagnosis.json  ccil.diagnosis 1.0  per-M gates, admitted M, dt_ctrl 0.05 s, H 0.05 s
   labels-generate-<id>/labels/candidates.npz  ccil.candidates 2.x today: 320 rows, 46 accepted, 274 out_of_support
   labels-certify-<id>/labels/certificates.npz  ccil.certificates 2.0  with certificate.profile
   labels-curate-<id>/labels/selection.npz   ccil.selection 1.0    today: the accepted rows, without certificates

@@ -129,7 +129,7 @@ def main():
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
                and prep.returncode == 0 and validated == "complete"
                and (metrics.get("train_episodes"), metrics.get("validation_episodes")) == (4, 1)
-               and labels.returncode == 0 and label_status == ["complete"] * 3,
+               and labels.returncode == 0 and label_status == ["complete"] * 5,
                python=info["python"], installed=installed, imported_from_venv=from_wheel,
                prepare_stderr=prep.stderr[-300:], run_status=validated, metrics=metrics,
                labels_generate_stages=label_status, labels_stderr=labels.stderr[-300:])
