@@ -171,10 +171,12 @@ saw the held-out episodes.
   - the accepted probe labels counted by d_source / τ_demo;
   - the recommended nested views for noisy generators;
   - the configured certificate's data-only evidence class.
-- **Novelty on every label.** `labels.generate` adds two measurements to
-  every candidate, in the same metric:
-  - `quality.d_source`, the distance from the source state;
-  - `quality.d_demo`, the distance to the nearest training state.
+- **Novelty on every label.** `labels.generate` adds `quality.d_source`, the
+  distance from the source state in the same metric, to every candidate. The
+  distance to the nearest training state, `quality.d_demo`, is the opt-in
+  validator `ccil.core.quality.NearestDemonstration`: a brute-force search
+  whose cost is candidates × training states, too slow for study-scale
+  datasets until it is indexed.
 - **What the trust gate cannot see.** The held-out error is measured at
   demonstration states. A model can fit the demonstrations' manifold and still
   be wrong off it, for example when the demonstrator's actions are a linear

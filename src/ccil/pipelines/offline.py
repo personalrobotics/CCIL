@@ -29,7 +29,7 @@ from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, 
 from ..core.batch import InterfaceError
 from ..core.curate import CurationPolicy, curate
 from ..core.diagnose import diagnose
-from ..core.quality import NearestDemonstration, SourceDisplacement, demo_metric
+from ..core.quality import SourceDisplacement, demo_metric
 from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
 from ..schema.selection import REASON_CODES
@@ -374,7 +374,8 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         if hasattr(model, "jacobian_memory_bytes"):
             model.jacobian_memory_bytes = v["compute.jacobian_memory_mb"] * 2**20
         metric = demo_metric(dataset, split, representation)
-        validators = build_validators(v) + [SourceDisplacement(metric), NearestDemonstration(metric)]
+        # d_source on every label; d_demo (NearestDemonstration) is a brute-force search, opt-in until it scales (#142).
+        validators = build_validators(v) + [SourceDisplacement(metric)]
         with _jacobian_budget():
             cands = generate_labels(dataset, representation, model, build_generator(v), validators,
                                     run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),

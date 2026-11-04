@@ -32,7 +32,7 @@ noise (dense, so tau_demo is small) under exact or nonlinear dynamics, each
 gate recomputed independently with numpy from the dataset, the split, the
 candidates, and the evaluation checkpoint:
 - admission: with exact dynamics, M = 1 passes every gate and labels are
-  generated, with d_source and d_demo on every row;
+  generated, with d_source on every row (and d_demo, opt-in, recomputed);
 - refusal: a tight support radius fails reach (eta_reach < 1), a linear model
   of nonlinear dynamics fails trust, and no held-out episodes leave tau_demo
   undefined; each names its gate and a next step;
@@ -68,8 +68,9 @@ from ccil.core.curate import CurationPolicy, curate, verify_selection  # noqa: E
 from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates,  # noqa: E402
-                         read_selection, write_candidates, write_certificates, write_selection, write_trajectories)
+                         read_selection, read_trajectories, write_candidates, write_certificates, write_selection, write_trajectories)
 from ccil.schema.diagnosis import read_diagnosis  # noqa: E402
+from ccil.core.quality import demo_metric, nearest_distance  # noqa: E402
 from ccil.runs import validate_run  # noqa: E402
 from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
@@ -398,11 +399,14 @@ def main():
     doc, c = admit["diagnosis"], admit["candidates"]
     agree = matches(doc, ind)
     train_rows = np.isin(c.source_episode_id.astype(str), json.loads(Path(admit["split"]).read_text())["train"])
+    metric = demo_metric(read_trajectories(admit["dataset"]), json.loads(Path(admit["split"]).read_text()), rep)
+    d_demo = nearest_distance(c.observations["state"], metric.train_states, metric.scale)
     rows_agree = {
         "d_source": bool(np.allclose(c.measurements["quality.d_source"], ind["d_source"], rtol=1e-6, atol=1e-9)),
-        "d_demo": bool(np.allclose(c.measurements["quality.d_demo"], ind["d_demo"], rtol=1e-6, atol=1e-9)),
+        # d_demo, the opt-in NearestDemonstration measurement, recomputed on the same rows.
+        "d_demo": bool(np.allclose(d_demo, ind["d_demo"], rtol=1e-6, atol=1e-9)),
         # The nearest training state is at most as far as the source, when the source is a training state.
-        "d_demo_le_d_source": bool((c.measurements["quality.d_demo"] <= c.measurements["quality.d_source"] + 1e-12)[train_rows].all())}
+        "d_demo_le_d_source": bool((d_demo <= c.measurements["quality.d_source"] + 1e-12)[train_rows].all())}
     record("diagnosis_admits_when_gates_pass",
            doc["admitted"] == 1 and doc["admitted_by"] == "gates" and doc["gates"][0]["pass"] and len(c.accepted) > 0
            and all(agree.values()) and all(rows_agree.values()) and np.isclose(doc["timing"]["dt_ctrl"], DT, rtol=1e-6)

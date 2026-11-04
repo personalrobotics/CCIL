@@ -110,7 +110,10 @@ class SourceDisplacement:
 
 
 class NearestDemonstration:
-    """Measures d_demo, the label state's distance to the nearest training demonstration state."""
+    """Measures d_demo, the label state's distance to the nearest training demonstration state.
+
+    A brute-force search over every training state: opt-in, since its cost is candidates x training states.
+    """
 
     reason = None
 
