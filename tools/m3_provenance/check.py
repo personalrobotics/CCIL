@@ -224,9 +224,9 @@ def main():
                and "the ccil source changed" in x["stderr"] for x in (se, ng)),
            git_clone=se, non_git_copy=ng)
     record("non_source_edit_fails_the_command_at_its_end",
-           ns["rc"] == 3 and len(ns["runs"]) == 3 and "git state" in ns["stderr"]
+           ns["rc"] == 3 and len(ns["runs"]) == 5 and "git state" in ns["stderr"]
            and "the ccil source changed" not in ns["stderr"], result=ns)
-    record("unedited_clone_finalizes", un["rc"] == 0 and len(un["runs"]) == 3, result=un)
+    record("unedited_clone_finalizes", un["rc"] == 0 and len(un["runs"]) == 5, result=un)
 
     direct = {}
     for name, edit in (("edited", copy / "ccil/core/generators.py"), ("unedited", "")):
@@ -285,7 +285,7 @@ def main():
                       "trees": {n: tree(w / "runs" / n) for n in runs(w / "runs")}, "stderr": r.stderr[-400:]}
     c, s = both["cached"], both["strict"]
     record("strict_and_cached_records_are_identical",
-           c["result"] is not None and s["result"] is not None and len(c["trees"]) == 3 and c["trees"] == s["trees"]
+           c["result"] is not None and s["result"] is not None and len(c["trees"]) == 5 and c["trees"] == s["trees"]
            and c["result"]["runs"] == s["result"]["runs"] and all(rc == 0 for rc, _ in c["result"]["runs"])
            and s["result"]["stats"]["cached"] == 0 and c["result"]["stats"]["cached"] > 0,
            cached_stats=(c["result"] or {}).get("stats"), strict_stats=(s["result"] or {}).get("stats"),

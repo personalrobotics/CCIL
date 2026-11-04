@@ -54,6 +54,8 @@ STAGE_KEYS = {
     "transition.fit": ("run.seed", "transition_model.", "representation.modality", "compute."),
     "labels.generate": ("run.seed", "generation.", "data.action_low", "data.action_high", "representation.modality",
                         "compute."),
+    "labels.diagnose": ("run.seed", "generation.", "diagnose.", "data.action_low", "data.action_high",
+                        "representation.modality", "compute.", "certificate.profile", "certificate.reference_dynamics"),
     "labels.certify": ("certificate.", "representation.modality", "compute."),
     "labels.curate": ("curate.", "generation.evidence_mode"),
     "policy.train": ("run.seed", "policy.", "compute."),
@@ -62,7 +64,8 @@ STAGE_KEYS = {
 
 
 # Keys a prefix above would include that the stage never reads: the evidence mode is curation's.
-STAGE_EXCLUDE = {"labels.generate": ("generation.evidence_mode",)}
+STAGE_EXCLUDE = {"labels.generate": ("generation.evidence_mode",),
+                 "labels.diagnose": ("generation.evidence_mode",)}
 
 
 def component(obj) -> dict:

@@ -76,6 +76,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `generation.model_error_threshold` | float | `null` | representation units | (0.0, inf] | implemented | Reject the candidates of transitions whose one-step model error is not below this. | Legacy aug.model_err_thresh (label-filtering). | `aug.model_err_thresh` |
 | `generation.support_radius` | float | `null` | state units | (0.0, inf] | implemented | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
 | `generation.evidence_mode` | choice | `"data_only"` | - | `data_only`, `reference_assisted` | implemented | Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted. | The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and recorded in every selection made under it. | - |
+| `generation.recovery_steps` | choice | `"auto"` | - | `auto`, `1` | implemented | Recovery length M in recorded action intervals: auto admits the smallest M that passes the data-only gates (labels.diagnose), or none; an integer generates at that M and still reports the gates. | The contract's data-in, more-data-out default (docs/contract.md); the ladder is {1} until #171. Configurations before config_version 3 generated without the gates and resolve to 1. | - |
 
 ## certificate
 
@@ -100,6 +101,18 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `curate.tolerance` | float | `null` | scaled state | (0.0, inf] | implemented | Select labels whose certificate error is at most this. | Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical scores and never presents them as bounds. Null admits every supported row. Legacy aug.max_label_err. | `aug.max_label_err` |
 | `curate.quantile` | float | `null` | - | (0.0, 1.0] | implemented | Select admitted, accepted labels whose error is at most this quantile of the population's. | A data budget; it never changes acceptance or classification. Legacy aug.label_err_quantile (0.3 in the label-filtering pendulum configs). | `aug.label_err_quantile` |
 | `curate.population` | choice | `"admitted"` | - | `admitted`, `produced` | implemented | Rows the selection quantile is taken over. | admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, independently of the tolerance and support radius, as the label-filtering branch did; migrated legacy configurations use it. | - |
+
+## diagnose
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `diagnose.probe_transitions` | int | `256` | - | [1, inf] | implemented | Training transitions in the fixed diagnosis probe. | Evenly spaced, so the probe covers each training episode; it bounds the probe's cost. | - |
+| `diagnose.tau_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of held-out-to-training nearest demonstration distances that defines tau_demo. | The Pendulum studies' definition of the demonstrations' own spacing. | - |
+| `diagnose.reach_quantile` | float | `0.9` | - | (0.0, 1.0] | implemented | Quantile of accepted probe d_source that defines r_reach. | Decided 2026-11-03 (#167): the reach most labels attain, not the extreme one. | - |
+| `diagnose.min_eta` | float | `1.0` | - | [0.0, inf] | implemented | Admit only if eta_reach = r_reach / tau_demo is at least this. | Below 1, labels stay within the demonstrations' own spacing and add no coverage (#167, #171). | - |
+| `diagnose.trust_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of the held-out one-step model error used by the trust gate. | Decided 2026-11-03 (#167). | - |
+| `diagnose.trust_ratio` | float | `0.5` | - | (0.0, inf] | implemented | Admit only if the held-out model error is at most this fraction of the median accepted d_source. | Decided 2026-11-03 (#167): the model's error must be small next to the correction it supports. | - |
+| `diagnose.min_yield` | float | `0.01` | - | [0.0, 1.0] | implemented | Admit only if at least this fraction of the probe labels is accepted. | Decided 2026-11-03 (#167): a generator whose labels are nearly all rejected is degenerate. | - |
 
 ## policy
 

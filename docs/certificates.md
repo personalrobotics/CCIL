@@ -363,6 +363,7 @@ On the analytic double integrator:
 - **Boundaries:** a certificate with forged totals is refused before any selection exists; a selection's recorded provenance is checked in both directions; a zero tolerance is refused.
 - **Refusals:** corrupted, forged and mismatched selections are refused by `build_supervision`.
 - **Legacy:** a 1.0 certificate's rows equal the same policy's selection.
+- **Diagnosis** ([pipelines.md](pipelines.md#diagnosis-labelsdiagnose)): each gate is recomputed independently with numpy from the dataset, split, candidates and evaluation checkpoint. M = 1 is admitted with exact dynamics, and refused for reach (a tight support radius), for trust (a linear model of nonlinear dynamics), and without held-out episodes. The empty result is complete: zero-row candidates, certificates and selection, every run complete, and no synthetic row.
 
 The certificate contract itself:
 

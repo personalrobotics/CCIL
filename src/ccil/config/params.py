@@ -181,6 +181,34 @@ PARAMS = [
           "Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted.",
           "The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and "
           "recorded in every selection made under it.", "generation", choices=("data_only", "reference_assisted")),
+    Param("generation.recovery_steps", "choice", "auto",
+          "Recovery length M in recorded action intervals: auto admits the smallest M that passes the data-only "
+          "gates (labels.diagnose), or none; an integer generates at that M and still reports the gates.",
+          "The contract's data-in, more-data-out default (docs/contract.md); the ladder is {1} until #171. "
+          "Configurations before config_version 3 generated without the gates and resolve to 1.", "generation",
+          choices=("auto", "1")),
+    # diagnose ----------------------------------------------------------------
+    Param("diagnose.probe_transitions", "int", 256, "Training transitions in the fixed diagnosis probe.",
+          "Evenly spaced, so the probe covers each training episode; it bounds the probe's cost.", "diagnose", low=1),
+    Param("diagnose.tau_quantile", "float", 0.95,
+          "Quantile of held-out-to-training nearest demonstration distances that defines tau_demo.",
+          "The Pendulum studies' definition of the demonstrations' own spacing.", "diagnose", low=0.0, low_open=True,
+          high=1.0),
+    Param("diagnose.reach_quantile", "float", 0.9, "Quantile of accepted probe d_source that defines r_reach.",
+          "Decided 2026-11-03 (#167): the reach most labels attain, not the extreme one.", "diagnose", low=0.0,
+          low_open=True, high=1.0),
+    Param("diagnose.min_eta", "float", 1.0, "Admit only if eta_reach = r_reach / tau_demo is at least this.",
+          "Below 1, labels stay within the demonstrations' own spacing and add no coverage (#167, #171).", "diagnose",
+          low=0.0),
+    Param("diagnose.trust_quantile", "float", 0.95, "Quantile of the held-out one-step model error used by the trust gate.",
+          "Decided 2026-11-03 (#167).", "diagnose", low=0.0, low_open=True, high=1.0),
+    Param("diagnose.trust_ratio", "float", 0.5,
+          "Admit only if the held-out model error is at most this fraction of the median accepted d_source.",
+          "Decided 2026-11-03 (#167): the model's error must be small next to the correction it supports.", "diagnose",
+          low=0.0, low_open=True),
+    Param("diagnose.min_yield", "float", 0.01, "Admit only if at least this fraction of the probe labels is accepted.",
+          "Decided 2026-11-03 (#167): a generator whose labels are nearly all rejected is degenerate.", "diagnose",
+          low=0.0, high=1.0),
     # curate ------------------------------------------------------------------
     Param("curate.tolerance", "float", None, "Select labels whose certificate error is at most this.",
           "Admission follows the profile: a bound profile admits only upper bounds, a score profile admits empirical "

@@ -1,13 +1,15 @@
 """Offline label generation: trajectories in, labels and a report out.
 
-Stages: data.prepare -> transition.fit -> labels.generate [-> labels.certify, with certificate.profile]
--> labels.curate. The selected rows of labels/candidates.npz (labels/selection.npz) together with the prepared
+Stages: data.prepare -> transition.fit -> labels.diagnose -> labels.generate [-> labels.certify, with
+certificate.profile] -> labels.curate. labels.generate generates only at the recovery length the diagnosis
+admits; when none is admitted, it writes a valid zero-row candidate set. The selected rows of labels/candidates.npz (labels/selection.npz) together with the prepared
 dataset are the augmentation; dataset writers (M4) turn them into training data. This module never imports a
 policy trainer or the integrated pipeline.
 """
 from __future__ import annotations
 
 import contextlib
+import json
 
 from pathlib import Path
 
@@ -26,13 +28,18 @@ from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, 
                                  Sources, certify, read_reference_dynamics)
 from ..core.batch import InterfaceError
 from ..core.curate import CurationPolicy, curate
+from ..core.diagnose import diagnose
+from ..core.quality import NearestDemonstration, SourceDisplacement, demo_metric
 from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
 from ..schema.selection import REASON_CODES
 from ..schema import read_trajectories, write_candidates, write_certificates, write_selection
+from ..schema.diagnosis import read_diagnosis, write_diagnosis
 from .stages import StageResult, run_stage
 
 MODEL_CHECKPOINT = f"{layout.CHECKPOINTS}/transition_model.npz"
+# With fit_episodes all: the model fitted on the train split only, which the diagnosis scores on held-out episodes.
+EVALUATION_CHECKPOINT = f"{layout.CHECKPOINTS}/evaluation_model.npz"
 
 
 def build_generator(v):
@@ -271,6 +278,8 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                 note = "evaluation model fitted on the train split; the label model saw every episode"
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
             metrics["held_out"]["note"] = note
+            if not clean:
+                evaluation.save(run.path(EVALUATION_CHECKPOINT))
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(z)} transitions")
@@ -289,33 +298,102 @@ def _jacobian_budget():
         raise
 
 
-def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
+def _split(prepared: StageResult):
+    path = prepared.out(layout.SPLIT)
+    return (path, json.loads(path.read_text())) if path.exists() else (None, None)
+
+
+def _device(v):
+    # compute.device places torch models; the numpy linear model always runs on cpu.
+    return "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
+
+
+def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
+    """labels.diagnose: write diagnosis/diagnosis.json, the data-only recovery-length decision (#167)."""
     v = cfg.values
-    inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT), **(extra_inputs or {})}
+    split_path, split = _split(prepared)
+    inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT),
+              **(extra_inputs or {})}
+    if split_path is not None:
+        inputs["split"] = split_path
+    if fitted.out(EVALUATION_CHECKPOINT).exists():
+        inputs["evaluation_model"] = fitted.out(EVALUATION_CHECKPOINT)
 
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
-        # compute.device places torch models; the numpy linear model always runs on cpu.
-        device = "cpu" if v["transition_model.kind"] == "linear" else v["compute.device"]
-        model = load_transition_model(inputs["transition_model"], device=device)
+        metric = demo_metric(dataset, split, representation)
+        model = load_transition_model(inputs["transition_model"], device=_device(v))
+        if "evaluation_model" in inputs:
+            evaluation = load_transition_model(inputs["evaluation_model"], device=_device(v))
+        else:  # fit_episodes train: the label model never saw the held-out episodes
+            evaluation = model if split is not None else None
+        held_out = None
+        if split is not None:
+            z, a, z_next, _, va = transition_data(v, inputs, representation)
+            held_out = (z[va], a[va], z_next[va])
+        params = {k.split(".", 1)[1]: v[k] for k in v if k.startswith("diagnose.")}
+        requested = v["generation.recovery_steps"]
+        with _jacobian_budget():
+            doc = diagnose(dataset, split, representation, model, evaluation, held_out, build_generator(v),
+                           build_validators(v), metric, requested=requested if requested == "auto" else int(requested),
+                           params=params, seed=v["run.seed"], inputs={k: sha256(p) for k, p in inputs.items()},
+                           profile=v["certificate.profile"], reference=v["certificate.reference_dynamics"] is not None,
+                           labels_per_transition=v["generation.labels_per_transition"])
+        write_diagnosis(doc, run.path(layout.DIAGNOSIS))
+        gate = doc["gates"][0]
+        run.metrics({"admitted": doc["admitted"], "admitted_by": doc["admitted_by"], "reason": doc["reason"],
+                     "tau_demo": doc["tau_demo"]["value"], "eta_reach": gate["reach"]["eta_reach"],
+                     "trust_ratio": gate["trust"]["ratio"], "yield": gate["yield"]["value"]})
+        run.log(f"diagnosis: admitted {doc['admitted']}" + (f" ({doc['reason']})" if doc["reason"] else ""))
+    return run_stage("labels.diagnose", cfg, inputs, body,
+                     components={"representation": representation, "transition_model": build_model(v),
+                                 "generator": build_generator(v)})
+
+
+def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None,
+                 diagnosed: StageResult | None = None) -> StageResult:
+    """labels.generate: write labels/candidates.npz at the admitted recovery length, or a zero-row set.
+
+    Without a diagnosis, generation.recovery_steps must declare the length. The
+    admitted length, not the diagnosis file, is part of the identity: the diagnosis also reports evidence
+    (such as the certificate's class) that does not change the labels.
+    """
+    v = cfg.values
+    if diagnosed is None and v["generation.recovery_steps"] == "auto":
+        raise ConfigError(["generation.recovery_steps auto needs labels.diagnose, which this pipeline does not run; "
+                           "set generation.recovery_steps 1"])
+    split_path, split = _split(prepared)
+    inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT), **(extra_inputs or {})}
+    if split_path is not None:
+        inputs["split"] = split_path
+    admitted = 1 if diagnosed is None else read_diagnosis(diagnosed.out(layout.DIAGNOSIS))["admitted"]
+
+    def body(run):
+        dataset = read_trajectories(inputs["dataset"])
+        model = load_transition_model(inputs["transition_model"], device=_device(v))
         if hasattr(model, "jacobian_memory_bytes"):
             model.jacobian_memory_bytes = v["compute.jacobian_memory_mb"] * 2**20
+        metric = demo_metric(dataset, split, representation)
+        validators = build_validators(v) + [SourceDisplacement(metric), NearestDemonstration(metric)]
         with _jacobian_budget():
-            cands = generate_labels(dataset, representation, model, build_generator(v), build_validators(v),
+            cands = generate_labels(dataset, representation, model, build_generator(v), validators,
                                     run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
                                     action_chunk_size=v["generation.action_chunk_size"],
-                                    inputs={name: sha256(path) for name, path in inputs.items()})
+                                    inputs={name: sha256(path) for name, path in inputs.items()},
+                                    rows=None if admitted is not None else [])
         write_candidates(cands, run.path(layout.CANDIDATES))
         counts = {r: int(cands.reasons[:, i].sum()) for i, r in enumerate(cands.reason_codes)}
         run.metrics({"candidates": int(len(cands.accepted)), "accepted": int(cands.accepted.sum()),
                      "acceptance_rate": float(cands.accepted.mean()) if len(cands.accepted) else 0.0,
-                     "rejections_by_reason": counts, "generator": cands.generator,
+                     "rejections_by_reason": counts, "generator": cands.generator, "recovery_steps": admitted,
                      "jacobian_chunking": getattr(model, "jacobian_chunking", None)})  # its last call
         run.log(f"generated {len(cands.accepted)} candidates with {cands.generator['name']}; "
-                f"accepted {int(cands.accepted.sum())}")
+                f"accepted {int(cands.accepted.sum())}" + ("" if admitted is not None else
+                                                            " (no recovery length admitted: an empty synthetic view)"))
     return run_stage("labels.generate", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v),
-                                 "generator": build_generator(v), "weighting": Uniform()})
+                                 "generator": build_generator(v), "weighting": Uniform()},
+                     parameters={"recovery_steps": admitted})
 
 
 def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: StageResult, representation, profile,
@@ -384,14 +462,16 @@ def generate_offline(cfg) -> list[StageResult]:
     representation = IdentityRepresentation(cfg["representation.modality"])
     prepared = prepare_stage(cfg)
     fitted = fit_transition_stage(cfg, prepared, representation)
-    labeled = labels_stage(cfg, prepared, fitted, representation)
+    diagnosed = diagnose_stage(cfg, prepared, fitted, representation)
+    labeled = labels_stage(cfg, prepared, fitted, representation, diagnosed=diagnosed)
     stages = [prepared, fitted, labeled]
     certified = None
     if cfg["certificate.profile"] is not None:
         profile, kwargs = build_certificate(cfg.values)
         certified = certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)
         stages.append(certified)
-    return stages + [curate_stage(cfg, labeled, certified, build_policy(cfg.values))]
+    # labels.diagnose ran before labels.generate; it is listed last so the first three results keep their places.
+    return stages + [curate_stage(cfg, labeled, certified, build_policy(cfg.values)), diagnosed]
 
 
 def stage(results: list[StageResult], name: str) -> StageResult | None:

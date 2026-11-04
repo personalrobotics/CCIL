@@ -22,7 +22,7 @@ from ..runs import layout
 from ..schema import read_trajectories
 from ..schema.io import _atomic_savez
 from ..supervision import build_supervision
-from .offline import fit_transition_stage, labels_stage, preflight
+from .offline import diagnose_stage, fit_transition_stage, labels_stage, preflight
 from .policy import TRAINERS
 from .stages import run_stage
 
@@ -106,7 +106,8 @@ def run_integrated(cfg, trainer=None):
     rep = PCARepresentation.load(rep_stage.out(REPRESENTATION_CHECKPOINT), modality, dim)
     rep_input = {"representation": rep_stage.out(REPRESENTATION_CHECKPOINT)}
     fitted = fit_transition_stage(cfg, prepared, rep, extra_inputs=rep_input)
-    labeled = labels_stage(cfg, prepared, fitted, rep, extra_inputs=rep_input)
+    diagnosed = diagnose_stage(cfg, prepared, fitted, rep, extra_inputs=rep_input)
+    labeled = labels_stage(cfg, prepared, fitted, rep, extra_inputs=rep_input, diagnosed=diagnosed)
     results += [fitted, labeled]
 
     split_path = prepared.out(layout.SPLIT)
@@ -139,4 +140,4 @@ def run_integrated(cfg, trainer=None):
         run.metrics({"held_out_transitions": int(held.sum()), "action_l2_mean": float(err.mean()),
                      "action_l2_max": float(err.max()), "note": "offline action error; simulator evaluation is M7"})
     results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": trainer}))
-    return results
+    return results + [diagnosed]  # labels.diagnose ran before labels.generate; listed last to keep the positions
