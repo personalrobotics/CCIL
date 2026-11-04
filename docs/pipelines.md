@@ -143,19 +143,42 @@ saw the held-out episodes.
 - **The metric.** Every distance is ‖(x − y) / s‖, where s is the
   per-coordinate standard deviation of the training demonstration states.
   The action is not a coordinate.
-- **τ_demo** is the `diagnose.tau_quantile` (0.95) of the distance from each
-  held-out demonstration state to its nearest training state: the
-  demonstrations' own spacing. It needs held-out episodes.
-- **The probe** is up to `diagnose.probe_transitions` (256) evenly spaced
-  training transitions. The configured generator and validators label them,
-  and only their summary is kept.
-- **The gates, for M = 1:**
+- **τ_demo** is the `diagnose.tau_quantile` (0.95) of the distance from
+  held-out demonstration states to their nearest training state: the
+  demonstrations' own spacing. It uses at most `diagnose.tau_sample` (2048)
+  evenly spaced held-out states, so its cost is linear in the training set,
+  and records the sample. It needs held-out episodes.
+- **The probe** is stratified by training episode under
+  `diagnose.probe_transitions` (256). With at most that many episodes, each
+  gets an equal share of evenly spaced transitions. With more, that many
+  evenly spaced episodes get one transition each. The diagnosis records how
+  many episodes the probe covers. The configured generator and validators
+  label the probe, and only their summary is kept.
+- **The gates, for M = 1.** Each asks a distinct question, and M is admitted
+  only when all pass:
 
-  | Gate | Passes when |
-  |---|---|
-  | yield | at least `diagnose.min_yield` (1%) of the probe labels are accepted |
-  | reach | η_reach = r_reach / τ_demo ≥ `diagnose.min_eta` (1), r_reach the `diagnose.reach_quantile` (0.9) of accepted d_source |
-  | trust | the `diagnose.trust_quantile` (0.95) of the held-out one-step error, over the median accepted d_source, is at most `diagnose.trust_ratio` (0.5) |
+  | Gate | Question | Passes when |
+  |---|---|---|
+  | yield | Did generation work? | at least `diagnose.min_yield` (1%) of the probe labels are accepted |
+  | displacement | How far did labels move from their sources? | the `diagnose.label_quantile` (0.9) of d_source is at least `diagnose.min_displacement` (1) τ_demo |
+  | novelty | Do they reach states the dataset does not cover? | the same quantile of d_demo, the exact distance to the nearest training state, is at least `diagnose.min_novelty` (1) τ_demo |
+  | fit | Does the model fit where it has data? | the `diagnose.fit_quantile` (0.95) of the held-out one-step error, over the median d_source, is at most `diagnose.fit_ratio` (0.5) |
+  | trust | Is the model credible at the proposed states? | a bound certificate profile supplies off-data evidence: constants that are declared assumptions or computed from the model, never from reference dynamics |
+
+  - **Displacement is not novelty.** A label can move far from its source and
+    land beside another demonstration.
+  - **Fit is necessary, never sufficient.** It is measured at demonstration
+    states, where the data are.
+  - **Trust cannot come from data alone.** A model can fit the
+    demonstrations' manifold and be wrong off it: when the demonstrator's
+    actions are an exact linear function of the state, the action response
+    is unidentified, fit passes, and labels land thousands of units away.
+    So `auto` admits only under a bound profile's recorded assumptions
+    (`conditional`), and refuses without one.
+  - **Query extrapolation is reported beside trust:** the distance of each
+    proposed (z_G, a_G) from the nearest training (z, a) pair.
+  - **The certificate follows admission.** Under declared assumptions, its
+    bound on each label then decides which labels curation keeps.
 
 - **`generation.recovery_steps`.**
   - `auto` (the default) admits M = 1 only when every gate passes.
@@ -168,7 +191,7 @@ saw the held-out episodes.
   run directory is complete, and supervision has no synthetic row.
 - **Also recorded:**
   - `dt_ctrl`, from uniform timestamps, and the horizon H = M · dt_ctrl (null without timing);
-  - the accepted probe labels counted by d_source / τ_demo;
+  - the accepted probe labels counted by d_demo / τ_demo;
   - the recommended nested views for noisy generators;
   - the configured certificate's data-only evidence class.
 - **Novelty on every label.** `labels.generate` adds `quality.d_source`, the
@@ -177,15 +200,9 @@ saw the held-out episodes.
   validator `ccil.core.quality.NearestDemonstration`: a brute-force search
   whose cost is candidates × training states, too slow for study-scale
   datasets until it is indexed.
-- **What the trust gate cannot see.** The held-out error is measured at
-  demonstration states. A model can fit the demonstrations' manifold and still
-  be wrong off it, for example when the demonstrator's actions are a linear
-  function of the state, so the action response is not identifiable. Labels
-  that move far then pass the trust gate easily, because the ratio uses their
-  distance. The gate rules out models that fail where they have data. It does
-  not certify them where they do not, which is the certificates' job.
-- **Admission uses only data.** Reference dynamics and policy outcomes never
-  enter it. The diagnosis records `evidence_mode: data_only`.
+- **Admission uses only data and declared assumptions.** Reference dynamics
+  and policy outcomes never enter it. The diagnosis records
+  `evidence_mode: data_only`.
 
 ## Experimental vector-policy harness: `ccil policy train`
 

@@ -144,18 +144,22 @@ CCIL is the case M = 1.
 - `auto` probes a fixed ladder up to a declared cap and admits the **smallest**
   M that passes the data-only gates. **The current ladder is {1}.** Raising the
   cap (#171) changes no field's meaning.
-- **The gates are data-only.** Their inputs are:
+- **The gates use no reference dynamics.** Their inputs are:
   - the demonstrations and their split;
   - the learned or loaded transition model and its held-out evaluation;
   - the user's declared constants, which are recorded as assumptions.
 
-  They measure:
-  - the held-out M-step model error ε_M;
-  - reach: η_reach(M) = r_reach(M) / τ_demo, where τ_demo is the
-    demonstration-support scale computed from the data;
-  - novelty: each synthetic state's distance to the nearest demonstration
-    state, d_demo, relative to τ_demo;
-  - the evidence class computed from those inputs alone.
+  They are distinct questions ([pipelines.md](pipelines.md#diagnosis-labelsdiagnose)):
+  - yield: did generation work?
+  - displacement: how far labels move from their sources, relative to τ_demo,
+    the demonstration-support scale computed from the data;
+  - novelty: whether they reach states the dataset does not cover, from
+    d_demo, the distance to the nearest demonstration state, relative to τ_demo;
+  - fit: the held-out M-step model error ε_M, at demonstration states;
+  - trust: off-data evidence that the model is credible at the proposed
+    states. Data alone cannot give it, so it comes only from a bound
+    certificate's declared or model-computed constants, recorded as
+    conditional.
 - No policy return, task reward or downstream outcome enters the selection. An
   integer `recovery_steps` skips the ladder but not the gates' report.
 - **When no M passes,** the command succeeds with an **empty synthetic view**

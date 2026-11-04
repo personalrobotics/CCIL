@@ -31,13 +31,18 @@ The diagnosis (part 2), on double-integrator demonstrations with exploration
 noise (dense, so tau_demo is small) under exact or nonlinear dynamics, each
 gate recomputed independently with numpy from the dataset, the split, the
 candidates, and the evaluation checkpoint:
-- admission: with exact dynamics, M = 1 passes every gate and labels are
+- admission: with exact dynamics and a bound profile's declared assumptions, M = 1 passes every gate and labels are
   generated, with d_source on every row (and d_demo, opt-in, recomputed);
-- refusal: a tight support radius fails reach (eta_reach < 1), a linear model
-  of nonlinear dynamics fails trust, and no held-out episodes leave tau_demo
-  undefined; each names its gate and a next step;
+- refusal: a tight support radius fails displacement, a linear model of
+  nonlinear dynamics fails fit, no certificate profile leaves trust without
+  off-data evidence, demonstrations whose actions are an exact linear function
+  of the state (an unidentified model whose labels query far from its data)
+  are refused, and no held-out episodes leave tau_demo undefined; each names
+  its gate and a next step;
 - the empty result is complete: zero-row candidates, certificates, and
   selection, every run directory complete, no synthetic supervision row;
+- under declared assumptions the counterexample is admitted, but its
+  certified bounds (median far above the tolerance) leave no label selected;
 - a declared recovery length generates and still reports failing gates, and
   a configuration written before version 3 keeps generating at 1.
 Writes DIR/report.json (the inspectable artifact) beside the selections it
@@ -75,7 +80,7 @@ from ccil.runs import validate_run  # noqa: E402
 from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261103, 6, 0.08
-DT, PROBE = 0.05, 256
+DT, PROBE, TAU_SAMPLE = 0.05, 256, 2048
 REF = Provided("linear_discrepancy", "true")
 DEMO = Provided("reference_residual", "true")
 
@@ -105,26 +110,43 @@ def demonstrations(path, k, n=20, spread=0.05, noise=0.3, T=41, seed=0):
     write_trajectories(TrajectoryDataset(eps), path)
 
 
+def spaced(n, k):
+    return np.arange(n) if k >= n else np.unique(np.round(np.linspace(0, n - 1, k)).astype(int))
+
+
 def independent_gates(dataset_path, split_path, cands, eval_ckpt):
-    """tau_demo, r_reach, median reach, and the held-out error, recomputed with numpy alone."""
+    """tau_demo, the probe's displacement and novelty, and the held-out error, recomputed with numpy alone.
+
+    The rules restated: tau_demo from at most TAU_SAMPLE evenly spaced held-out states (dataset order); the probe
+    stratified by training episode under PROBE transitions.
+    """
     with np.load(dataset_path, allow_pickle=False) as z:
         ids, lengths, states, actions = z["episode_ids"], z["episode_lengths"], z["obs/state"].astype(np.float64), z["actions"]
     split = json.loads(Path(split_path).read_text()) if split_path else None
     starts = np.concatenate([[0], np.cumsum(lengths)[:-1]])
     per = {str(e): (states[s:s + n], actions[s:s + n].astype(np.float64)) for e, s, n in zip(ids, starts, lengths)}
-    train = [str(e) for e in ids] if split is None else split["train"]
-    held = [] if split is None else split["validation"]
+    order = [str(e) for e in ids]
+    train = order if split is None else [e for e in order if e in set(split["train"])]
+    held = [] if split is None else [e for e in order if e in set(split["validation"])]
     tr = np.vstack([per[e][0] for e in train])
     scale = np.where(tr.std(axis=0) > 0, tr.std(axis=0), 1.0)
     near = lambda p, ref: np.sqrt(((p[:, None, :] / scale - ref[None, :, :] / scale) ** 2).sum(-1)).min(axis=1)  # noqa: E731
-    tau = float(np.quantile(near(np.vstack([per[e][0] for e in held]), tr), 0.95)) if held else None
-    train_tr = [(e, f) for e in [str(x) for x in ids] if e in set(train) for f in range(len(per[e][0]) - 1)]
-    idx = np.arange(len(train_tr)) if len(train_tr) <= PROBE else np.unique(np.round(np.linspace(0, len(train_tr) - 1, PROBE)).astype(int))
-    probe = {train_tr[i] for i in idx}
+    tau = None
+    if held:
+        hs = np.vstack([per[e][0] for e in held])
+        tau = float(np.quantile(near(hs[spaced(len(hs), TAU_SAMPLE)], tr), 0.95))
+    E = len(train)
+    if E <= PROBE:
+        quota = {e: PROBE // E + (i < PROBE % E) for i, e in enumerate(train)}
+        probe = {(e, int(f)) for e in train for f in spaced(len(per[e][0]) - 1, quota[e])}
+    else:
+        probe = {(train[i], (len(per[train[i]][0]) - 1) // 2) for i in spaced(E, PROBE)}
     in_probe = np.array([(str(e), int(f)) in probe for e, f in zip(cands.source_episode_id, cands.source_frame)])
     src = np.array([per[str(e)][0][int(f)] for e, f in zip(cands.source_episode_id, cands.source_frame)])
-    d_source = np.linalg.norm((cands.observations["state"].astype(np.float64) - src) / scale, axis=1)
-    d = d_source[in_probe & cands.accepted]
+    label = cands.observations["state"].astype(np.float64)
+    d_source = np.linalg.norm((label - src) / scale, axis=1)
+    rows = in_probe & cands.accepted
+    d, dd = d_source[rows], near(label[rows], tr) if rows.any() else np.zeros(0)
     eps = None
     if held:
         with np.load(eval_ckpt, allow_pickle=False) as m:
@@ -133,9 +155,10 @@ def independent_gates(dataset_path, split_path, cands, eval_ckpt):
         a = np.vstack([per[e][1][:-1] for e in held])
         zn = np.vstack([per[e][0][1:] for e in held])
         eps = float(np.quantile(np.linalg.norm((z + z @ A.T + a @ B.T + c - zn) / scale, axis=1), 0.95))
-    return {"tau": tau, "r_reach": float(np.quantile(d, 0.9)) if len(d) else None,
-            "median_reach": float(np.quantile(d, 0.5)) if len(d) else None, "epsilon": eps, "scale": scale,
-            "d_source": d_source, "d_demo": near(cands.observations["state"].astype(np.float64), tr)}
+    q = lambda x, p: float(np.quantile(x, p)) if len(x) else None  # noqa: E731
+    return {"tau": tau, "displacement": q(d, 0.9), "novelty": q(dd, 0.9), "median_d_source": q(d, 0.5),
+            "epsilon": eps, "scale": scale, "d_source": d_source, "d_demo": near(label, tr),
+            "episodes_probed": len({e for e, _ in probe})}
 
 
 def close(a, b):
@@ -388,13 +411,19 @@ def main():
 
     def matches(doc, ind):
         g = doc["gates"][0]
-        return {"tau_demo": close(doc["tau_demo"]["value"], ind["tau"]), "r_reach": close(g["reach"]["r_reach"], ind["r_reach"]),
-                "median_reach": close(g["trust"]["median_reach"], ind["median_reach"]),
-                "epsilon": close(g["trust"]["epsilon"], ind["epsilon"]),
-                "eta_reach": close(g["reach"]["eta_reach"], None if not ind["tau"] or ind["r_reach"] is None
-                                   else ind["r_reach"] / ind["tau"])}
+        ratio = lambda x: None if not ind["tau"] or x is None else x / ind["tau"]  # noqa: E731
+        return {"tau_demo": close(doc["tau_demo"]["value"], ind["tau"]),
+                "displacement": close(g["displacement"]["eta"], ratio(ind["displacement"])),
+                "novelty": close(g["novelty"]["eta"], ratio(ind["novelty"])),
+                "median_d_source": close(g["fit"]["median_d_source"], ind["median_d_source"]),
+                "epsilon": close(g["fit"]["epsilon"], ind["epsilon"]),
+                "episodes_probed": doc["probe"]["episodes_probed"] == ind["episodes_probed"]}
 
-    admit = pipeline("admit", exact)
+    # Declared assumptions about the true dynamics: the off-data evidence the trust gate needs (conditional).
+    cert_sets = ["certificate.profile=disturbed_action", "certificate.true_state_lipschitz=1.0",
+                 "certificate.true_action_lipschitz=0.2", "certificate.demonstration_residual_bound=0.0",
+                 "curate.tolerance=0.05"]
+    admit = pipeline("admit", exact, cert_sets)
     ind = independent_gates(admit["dataset"], admit["split"], admit["candidates"], admit["eval"])
     doc, c = admit["diagnosis"], admit["candidates"]
     agree = matches(doc, ind)
@@ -409,15 +438,24 @@ def main():
         "d_demo_le_d_source": bool((d_demo <= c.measurements["quality.d_source"] + 1e-12)[train_rows].all())}
     record("diagnosis_admits_when_gates_pass",
            doc["admitted"] == 1 and doc["admitted_by"] == "gates" and doc["gates"][0]["pass"] and len(c.accepted) > 0
+           and doc["gates"][0]["trust"]["evidence"] == "conditional"
            and all(agree.values()) and all(rows_agree.values()) and np.isclose(doc["timing"]["dt_ctrl"], DT, rtol=1e-6)
            and np.isclose(doc["gates"][0]["horizon_s"], DT, rtol=1e-6),
            independent=agree, rows=rows_agree, gates=doc["gates"][0], timing=doc["timing"], candidates=int(len(c.accepted)),
            bands=doc["bands"], nested_views=doc["nested_views"])
 
     # Each refusal recomputed from a declared run of the same configuration, whose candidates are persisted.
-    refusals = {"reach": (exact, ["generation.support_radius=0.01"], "eta_reach"),
-                "trust": (nonlinear, [], "held-out error"),
-                "no_held_out": (exact, ["data.validation_fraction=0"], "held-out")}
+    collinear, dense = diag / "demos-collinear.npz", diag / "demos-dense.npz"
+    # u = Kx exactly under nonlinear dynamics: the linear model's action response is not identifiable, so it fits
+    # the demonstrations and sends labels arbitrarily far (the counterexample the trust gate must refuse).
+    demonstrations(collinear, 4.0, noise=0.0)
+    demonstrations(dense, 0.0, n=60, spread=0.3)  # labels move far, but other demonstrations already cover them
+    refusals = {"displacement": (exact, ["generation.support_radius=0.01", *cert_sets], "from their sources"),
+                "novelty": (dense, cert_sets, "already covers"),
+                "fit": (nonlinear, [*cert_sets, "generation.action_noise_std=2.0"], "held-out error"),
+                "trust": (exact, [], "no off-data evidence"),
+                "collinear_actions": (collinear, ["generation.action_noise_std=0.2"], "no off-data evidence"),
+                "no_held_out": (exact, ["data.validation_fraction=0", *cert_sets], "held-out")}
     refused = {}
     for name, (data, extra, phrase) in refusals.items():
         auto = pipeline(name, data, extra)
@@ -428,19 +466,33 @@ def main():
                          "independent": matches(d_auto, ind), "candidates_auto": int(len(auto["candidates"].accepted)),
                          "candidates_declared": int(len(declared["candidates"].accepted)),
                          "declared": {"admitted": d_decl["admitted"], "admitted_by": d_decl["admitted_by"],
-                                      "gates_pass": d_decl["gates"][0]["pass"]}, "phrase": phrase}
+                                      "gates_pass": d_decl["gates"][0]["pass"]}, "phrase": phrase,
+                         "query_extrapolation": d_auto["gates"][0]["trust"]["query_extrapolation"]}
     record("diagnosis_refuses_each_gate",
            all(r["admitted"] is None and r["phrase"] in r["reason"] and r["next_step"] and all(r["independent"].values())
                and r["candidates_auto"] == 0 and r["candidates_declared"] > 0
                and r["declared"] == {"admitted": 1, "admitted_by": "declared", "gates_pass": False}
-               for r in refused.values()),
+               for r in refused.values())
+           # The counterexample's labels query the model far from its data, compared with the explored fixture's.
+           and refused["collinear_actions"]["query_extrapolation"]["median"]
+           > 10 * refused["trust"]["query_extrapolation"]["median"],
            refusals=refused)
 
+    # Under declared assumptions the counterexample is admitted, but its bounds then exclude every label.
+    assumed = pipeline("collinear_assumed", collinear, [*cert_sets, "generation.action_noise_std=0.2"])
+    acert = read_certificates(stage(assumed["results"], "labels.certify").out(layout.CERTIFICATES))
+    asel = read_selection(stage(assumed["results"], "labels.curate").out(layout.SELECTION))
+    record("assumed_trust_is_still_curated",
+           assumed["diagnosis"]["admitted"] == 1 and assumed["diagnosis"]["gates"][0]["trust"]["evidence"] == "conditional"
+           and len(asel.mask) > 0 and not asel.mask.any() and float(np.nanmin(acert.total_error_value)) > 0.05
+           and float(np.nanmedian(acert.total_error_value)) > 1000 * 0.05,
+           admitted=assumed["diagnosis"]["admitted"], rows=int(len(asel.mask)), selected=int(asel.mask.sum()),
+           min_certified_bound=float(np.nanmin(acert.total_error_value)),
+           median_certified_bound=float(np.nanmedian(acert.total_error_value)), tolerance=0.05,
+           query_extrapolation=assumed["diagnosis"]["gates"][0]["trust"]["query_extrapolation"])
+
     # The empty result, with a certificate and a selection, is complete and gives no synthetic row.
-    cert_sets = ["certificate.profile=disturbed_action", "certificate.true_state_lipschitz=1.0",
-                 "certificate.true_action_lipschitz=0.2", "certificate.demonstration_residual_bound=0.0",
-                 "curate.tolerance=0.05"]
-    empty = pipeline("empty", nonlinear, cert_sets)
+    empty = pipeline("empty", nonlinear, [*cert_sets, "generation.action_noise_std=2.0"])
     res = empty["results"]
     cer, cur = stage(res, "labels.certify"), stage(res, "labels.curate")
     ecert, esel = read_certificates(cer.out(layout.CERTIFICATES)), read_selection(cur.out(layout.SELECTION))

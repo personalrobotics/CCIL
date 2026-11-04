@@ -76,7 +76,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `generation.model_error_threshold` | float | `null` | representation units | (0.0, inf] | implemented | Reject the candidates of transitions whose one-step model error is not below this. | Legacy aug.model_err_thresh (label-filtering). | `aug.model_err_thresh` |
 | `generation.support_radius` | float | `null` | state units | (0.0, inf] | implemented | Labels farther than this from the demonstration state are rejected. | aug.epsilon; legacy applied it with distance < epsilon, unset meaning no check. | `aug.epsilon` |
 | `generation.evidence_mode` | choice | `"data_only"` | - | `data_only`, `reference_assisted` | implemented | Whether reference dynamics may shape the evidence curation uses: data_only or reference_assisted. | The contract's default decision is data-only (docs/contract.md); reference_assisted is declared, and recorded in every selection made under it. | - |
-| `generation.recovery_steps` | choice | `"auto"` | - | `auto`, `1` | implemented | Recovery length M in recorded action intervals: auto admits the smallest M that passes the data-only gates (labels.diagnose), or none; an integer generates at that M and still reports the gates. | The contract's data-in, more-data-out default (docs/contract.md); the ladder is {1} until #171. Configurations before config_version 3 generated without the gates and resolve to 1. | - |
+| `generation.recovery_steps` | choice | `"auto"` | - | `auto`, `1` | implemented | Recovery length M in recorded action intervals: auto admits the smallest M that passes every diagnosis gate (labels.diagnose; trust needs a bound certificate profile), or none; an integer generates at that M and still reports the gates. | The contract's data-in, more-data-out default (docs/contract.md); the ladder is {1} until #171. Configurations before config_version 3 generated without the gates and resolve to 1. | - |
 
 ## certificate
 
@@ -106,12 +106,14 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `diagnose.probe_transitions` | int | `256` | - | [1, inf] | implemented | Training transitions in the fixed diagnosis probe. | Evenly spaced, so the probe covers each training episode; it bounds the probe's cost. | - |
+| `diagnose.probe_transitions` | int | `256` | - | [1, inf] | implemented | Training transitions in the fixed diagnosis probe. | Stratified by episode under this budget: every episode when there are at most this many, otherwise this many evenly spaced episodes; the diagnosis records the coverage. | - |
 | `diagnose.tau_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of held-out-to-training nearest demonstration distances that defines tau_demo. | The Pendulum studies' definition of the demonstrations' own spacing. | - |
-| `diagnose.reach_quantile` | float | `0.9` | - | (0.0, 1.0] | implemented | Quantile of accepted probe d_source that defines r_reach. | Decided 2026-11-03 (#167): the reach most labels attain, not the extreme one. | - |
-| `diagnose.min_eta` | float | `1.0` | - | [0.0, inf] | implemented | Admit only if eta_reach = r_reach / tau_demo is at least this. | Below 1, labels stay within the demonstrations' own spacing and add no coverage (#167, #171). | - |
-| `diagnose.trust_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of the held-out one-step model error used by the trust gate. | Decided 2026-11-03 (#167). | - |
-| `diagnose.trust_ratio` | float | `0.5` | - | (0.0, inf] | implemented | Admit only if the held-out model error is at most this fraction of the median accepted d_source. | Decided 2026-11-03 (#167): the model's error must be small next to the correction it supports. | - |
+| `diagnose.tau_sample` | int | `2048` | - | [1, inf] | implemented | Held-out states, evenly spaced, used to estimate tau_demo. | Bounds tau_demo to linear work in the training set; the diagnosis records the sample. | - |
+| `diagnose.label_quantile` | float | `0.9` | - | (0.0, 1.0] | implemented | Quantile of the accepted probe labels' d_source and d_demo used by the displacement and novelty gates. | Decided 2026-11-03 (#167): what most labels attain, not the extreme one. | - |
+| `diagnose.min_displacement` | float | `1.0` | - | [0.0, inf] | implemented | Admit only if labels move at least this many tau_demo from their sources. | Displacement, not novelty: a label can move far and land beside another demonstration. | - |
+| `diagnose.min_novelty` | float | `1.0` | - | [0.0, inf] | implemented | Admit only if labels lie at least this many tau_demo from the nearest training demonstration state. | Below 1, the dataset already covers the states the labels reach (#167, #171). | - |
+| `diagnose.fit_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of the held-out one-step model error used by the fit gate. | Decided 2026-11-03 (#167). | - |
+| `diagnose.fit_ratio` | float | `0.5` | - | (0.0, inf] | implemented | Admit only if the held-out model error is at most this fraction of the median accepted d_source. | Decided 2026-11-03 (#167): the model must fit where it has data. Necessary, never sufficient. | - |
 | `diagnose.min_yield` | float | `0.01` | - | [0.0, 1.0] | implemented | Admit only if at least this fraction of the probe labels is accepted. | Decided 2026-11-03 (#167): a generator whose labels are nearly all rejected is degenerate. | - |
 
 ## policy

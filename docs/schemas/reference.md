@@ -154,7 +154,7 @@ Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `sou
 
 ## `ccil.diagnosis` 1.0
 
-A JSON document written before generation from the demonstrations and the dynamics evidence alone. For each recovery length M on the ladder it records three gates, every quantity in the demonstration metric (core/quality.py) with its raw value, quantile, and threshold: - yield: the fraction of a fixed probe's labels the validators accept; - reach: eta_reach = r_reach / tau_demo, r_reach a quantile of the accepted   probe labels' d_source; eta_reach < 1 means the labels stay within the   demonstrations' own spacing; - trust: a quantile of the held-out M-step model error over the median   accepted d_source, from a model that never saw the held-out episodes. The admitted M is the smallest whose gates all pass (recovery_steps auto), or the declared one (an integer, which skips the ladder but not this report). When none is admitted, the reason names the first failing gate and an actionable next step, and generation writes a valid empty synthetic view.  The diagnosis is data-only evidence: it supports curation and does not establish that the labels improve a downstream policy.
+A JSON document written before generation from the demonstrations, the dynamics evidence, and the configured certificate's declared assumptions. For each recovery length M on the ladder it records five distinct gates, every quantity in the demonstration metric (core/quality.py) with its raw value, quantile, and threshold: - yield: did generation work? the fraction of a fixed probe's labels the   validators accept; - displacement: how far labels move from their sources, q(d_source) / tau_demo; - novelty: whether they reach states the dataset does not already cover,   q(d_demo) / tau_demo, d_demo the distance to the nearest training state; - fit: the held-out M-step model error over the median d_source, from a model   that never saw the held-out episodes; measured at demonstration states, so   necessary but never sufficient; - trust: off-data evidence that the model is credible at the proposed states,   which data alone cannot give: a bound certificate profile whose constants are   declared assumptions or model-computed. The proposed queries' distance from   the training (z, a) pairs is reported beside it. The admitted M is the smallest whose gates all pass (recovery_steps auto), or the declared one (an integer, which skips the ladder but not this report). When none is admitted, the reason names the first failing gate and an actionable next step, and generation writes a valid empty synthetic view.  The diagnosis is data-only evidence: it supports curation and does not establish that the labels improve a downstream policy.
 
 ### Fields (JSON)
 
@@ -164,14 +164,14 @@ A JSON document written before generation from the demonstrations and the dynami
 | `recovery_steps` | `dict` | requested (auto or an integer), ladder (the lengths probed), and cap. |
 | `metric` | `dict` | The demonstration metric: definition, units, per-coordinate scale, and the train and held-out episode and state counts. |
 | `timing` | `dict` | dt_ctrl (seconds, or null when the data carry no consistent timing), its source, and a note. |
-| `tau_demo` | `dict` | value (null without held-out episodes), quantile, and definition. |
-| `probe` | `dict` | The fixed probe: transitions, the rule choosing them, and the candidates it produced. |
+| `tau_demo` | `dict` | value (null without held-out episodes), quantile, sample (held-out states, and how many were used), and definition. |
+| `probe` | `dict` | The fixed probe: the stratification rule, the training episodes and how many it covers, its transitions, and the candidates it produced. |
 | `gates` | `list` | Per recovery length: M, horizon_s (M * dt_ctrl, or null), and each of yield, reach, trust with value, raw quantities, threshold, and pass; pass is all three. |
 | `admitted` | `int | null` | The admitted recovery length, or null. |
 | `admitted_by` | `str | null` | ['gates', 'declared'], or null when nothing is admitted. |
 | `reason` | `str | null` | Why nothing is admitted (the first failing gate); null when M is admitted. |
 | `next_step` | `str | null` | An actionable next step when nothing is admitted. |
-| `bands` | `dict | null` | Accepted probe labels counted by d_source / tau_demo in the band edges; null without tau_demo. |
+| `bands` | `dict | null` | Accepted probe labels counted by d_demo / tau_demo in the band edges; null without tau_demo. |
 | `nested_views` | `list | null` | Recommended labels_per_transition views for a downstream pilot (noisy generators). |
 | `evidence_class` | `dict` | The strongest evidence class the configured certificate can give, from data alone. |
 | `statement` | `str` | What the diagnosis does not establish. |

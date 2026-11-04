@@ -342,8 +342,9 @@ def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representati
         write_diagnosis(doc, run.path(layout.DIAGNOSIS))
         gate = doc["gates"][0]
         run.metrics({"admitted": doc["admitted"], "admitted_by": doc["admitted_by"], "reason": doc["reason"],
-                     "tau_demo": doc["tau_demo"]["value"], "eta_reach": gate["reach"]["eta_reach"],
-                     "trust_ratio": gate["trust"]["ratio"], "yield": gate["yield"]["value"]})
+                     "tau_demo": doc["tau_demo"]["value"], "yield": gate["yield"]["value"],
+                     "displacement": gate["displacement"]["eta"], "novelty": gate["novelty"]["eta"],
+                     "fit": gate["fit"]["ratio"], "trust": gate["trust"]["evidence"]})
         run.log(f"diagnosis: admitted {doc['admitted']}" + (f" ({doc['reason']})" if doc["reason"] else ""))
     return run_stage("labels.diagnose", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v),
