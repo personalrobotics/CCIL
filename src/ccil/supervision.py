@@ -14,7 +14,9 @@ Arms (policy.method):
   draw (ccil.training.noise_bc), so nothing synthetic is stored.
 - ccil with a selection: the demonstrations and the candidates with
   accepted & selection.mask, at the selection's weights. A selection of
-  certified rows needs its certificates, which are checked with it.
+  certified rows needs its certificates, and a calibrated selection its
+  calibration, which are checked with it; calibrated rows are recorded as
+  calibrated.
 - ccil without a selection or certificates: the demonstrations and every
   accepted candidate, recorded as uncertified.
 - ccil with a legacy 1.0 certificate, which carries its own selection: the
@@ -141,7 +143,8 @@ def _valid_chunk_size(k) -> bool:
     return not isinstance(k, bool) and isinstance(k, (int, np.integer)) and k >= 1
 
 
-def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, selection=None, split=None,
+def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, selection=None,
+                      calibration=None, split=None,
                       representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
                       chunk_size: int | None = None, part: str = "train") -> Supervision:
     """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency.
@@ -159,6 +162,8 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
     if isinstance(demonstration_weight, bool) or not isinstance(demonstration_weight, (int, float)) or not (
             np.isfinite(demonstration_weight) and demonstration_weight >= 0):
         raise SupervisionError([f"demonstration_weight must be finite and >= 0, got {demonstration_weight!r}"])
+    if calibration is not None and selection is None:
+        raise SupervisionError(["a calibration enters through the selection curated with it; pass that selection"])
     if method != "ccil" and (candidates is not None or certificates is not None or selection is not None):
         raise SupervisionError([f"{method} trains on the demonstrations only; it takes no candidates, certificates, "
                                 "or selection"])
@@ -261,9 +266,14 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         if sel.certificates_sha256 != hashes.get("certificates"):
             problems.append(f"the selection was curated from certificates {sel.certificates_sha256}, not "
                             f"{hashes.get('certificates')}")
+        if calibration is not None:
+            hashes["calibration"] = sha256(calibration)
+        if sel.calibration_sha256 != hashes.get("calibration"):
+            problems.append(f"the selection was curated with calibration {sel.calibration_sha256}, not "
+                            f"{hashes.get('calibration')}")
         if not problems:
             from .core.curate import verify_selection
-            problems += [f"selection: {p}" for p in verify_selection(sel, candidates, certificates)]
+            problems += [f"selection: {p}" for p in verify_selection(sel, candidates, certificates, calibration)]
     if action_chunks == "consume" and cands is None and chunk_size is None:
         problems.append("action_chunks='consume' without candidates needs chunk_size")
     if action_chunks == "consume" and cands is not None and cands.action_chunks is None:
@@ -306,6 +316,8 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                           accepted_admissible_and_selected=int(usable.sum()))
         if cert is not None:
             classification = cert.classification
+            if sel is not None:
+                classification = np.where(sel.calibrated, "calibrated", classification)
             certification = {"profile": cert.descriptor["profile"], "version": cert.descriptor["version"]}
             if cert.legacy:
                 certification.update(legacy=True, admission=cert.admission, selection=cert.selection)
@@ -351,6 +363,8 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
         manifest["selection"] = {"policy": sel.policy, "policy_version": sel.policy_version, "threshold": sel.threshold,
                                  "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed,
                                  "uses": sel.uses, "caveats": sel.caveats}
+        if sel.calibration_sha256 is not None:
+            manifest["selection"]["calibration_sha256"] = sel.calibration_sha256
     if part != "train":  # recorded only when it differs, so training manifests are unchanged
         manifest["split_part"] = part
     return Supervision(arrays["observations"], arrays["actions"], arrays["weights"], arrays["source"], arrays["episode_id"],

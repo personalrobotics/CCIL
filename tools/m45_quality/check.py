@@ -45,6 +45,22 @@ candidates, and the evaluation checkpoint:
   certified bounds (median far above the tolerance) leave no label selected;
 - a declared recovery length generates and still reports failing gates, and
   a configuration written before version 3 keeps generating at 1.
+Calibration and the reference audit (part 3), on 40 double-integrator
+episodes with process noise, so labels have a real error under the Euler
+reference dynamics:
+- coverage: over 20 random episode splits, each calibration's bins are
+  recomputed with numpy, and the mean coverage of the remaining rows' true
+  error is at least the level less a slack declared before the run; the
+  pipeline's own calibration recomputes from its sources;
+- out of regime: rows outside the bins' score range, the calibration's own
+  rows, and bins too small for a bound stay empirical and unselected, and a
+  bound profile cannot be calibrated;
+- mode: data_only curation refuses a calibration in the library and the
+  configuration; a calibration of another certificate file or with moved bin
+  edges is refused before selection, halved bounds fail the source check, and
+  supervision needs the calibration and classifies its rows calibrated;
+- the audit annotates: adding it reuses every other run and leaves the
+  selection data_only, and its counts are recomputed from the true error.
 Writes DIR/report.json (the inspectable artifact) beside the selections it
 describes; the report records each selection's SHA-256.
 """
@@ -67,13 +83,16 @@ from system import DoubleIntegrator  # noqa: E402
 
 from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.core import Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel, NoisyAction, generate_labels  # noqa: E402
-from ccil.core.certificates import (ContinuityProfile, DisturbedActionPaperProxy, Provided, Sources,  # noqa: E402
-                                    audit_sources, certify, decide, resolved_of, write_reference_dynamics)
+from ccil.core.calibrate import calibrate, calibrated_rows, verify_calibration  # noqa: E402
+from ccil.core.certificates import (ContinuityProfile, DisturbedActionPaperProxy, LegacyLabelFiltering, Provided,  # noqa: E402
+                                    Sources, audit_sources, certify, decide, resolved_of, write_reference_dynamics)
 from ccil.core.curate import CurationPolicy, curate, verify_selection  # noqa: E402
 from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates,  # noqa: E402
                          read_selection, read_trajectories, write_candidates, write_certificates, write_selection, write_trajectories)
+from ccil.schema.audit import read_audit  # noqa: E402
+from ccil.schema.calibration import read_calibration, write_calibration  # noqa: E402
 from ccil.schema.diagnosis import read_diagnosis  # noqa: E402
 from ccil.core.quality import demo_metric, nearest_distance  # noqa: E402
 from ccil.runs import validate_run  # noqa: E402
@@ -81,6 +100,16 @@ from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261103, 6, 0.08
 DT, PROBE, TAU_SAMPLE = 0.05, 256, 2048
+# Part 3, declared before the run: the coverage level, the process noise, the random episode splits, and the shortfall
+# from the level the mean coverage over those splits may show (rows of one transition share its noise).
+LEVEL, PROCESS, SPLITS, COVERAGE_SLACK = 0.9, 0.01, 20, 0.02
+
+
+class DoubleIntegratorEuler:
+    """The part-3 demonstrations' Euler dynamics, without their process noise."""
+
+    def step_np(self, z, a):
+        return z + DT * np.stack([z[:, 1], a[:, 0]], axis=1)
 REF = Provided("linear_discrepancy", "true")
 DEMO = Provided("reference_residual", "true")
 
@@ -95,8 +124,11 @@ def true_label_error(c, sys_):
     return np.linalg.norm(sys_.step_np(z, a) - c.target_observations["state"].astype(np.float64), axis=1)
 
 
-def demonstrations(path, k, n=20, spread=0.05, noise=0.3, T=41, seed=0):
-    """Double-integrator demonstrations with exploration noise; k > 0 adds a -k sin(3x) force the linear model cannot fit."""
+def demonstrations(path, k, n=20, spread=0.05, noise=0.3, T=41, seed=0, process=0.0):
+    """Double-integrator demonstrations with exploration noise; k > 0 adds a -k sin(3x) force the linear model cannot fit.
+
+    process > 0 adds Gaussian process noise to every step, so labels have a real error under the reference dynamics.
+    """
     rng = np.random.default_rng(seed)
     eps = []
     for i in range(n):
@@ -106,6 +138,8 @@ def demonstrations(path, k, n=20, spread=0.05, noise=0.3, T=41, seed=0):
         for s in range(T - 1):
             u[s] = -1.0 * x[s, 0] - 1.5 * x[s, 1] + rng.normal(0, noise)
             x[s + 1] = x[s] + DT * np.array([x[s, 1], u[s, 0] - k * np.sin(3 * x[s, 0])])
+            if process:
+                x[s + 1] += rng.normal(0, process, 2)
         eps.append(Episode(f"ep{i:02d}", {"state": x}, u, timestamps=np.arange(T) * DT, termination_known=True))
     write_trajectories(TrajectoryDataset(eps), path)
 
@@ -513,6 +547,162 @@ def main():
            r2.values["generation.recovery_steps"] == "1" and any("recovery_steps" in n for n in r2.notes)
            and resolve(sets=[f"data.path={exact}", "generation.method=backward_euler_fast"]).values["generation.recovery_steps"] == "auto",
            notes=[n for n in r2.notes if "recovery_steps" in n])
+
+
+    # Part 3: calibration and the reference audit.
+    calib = out / "calibration"
+    calib.mkdir()
+    noisy = calib / "demos-process-noise.npz"
+    demonstrations(noisy, 0.0, n=40, process=PROCESS)  # the reference dynamics are exact up to the process noise
+    euler = calib / "euler-dynamics.npz"
+    write_reference_dynamics(euler, DT * np.array([[0.0, 1.0], [0.0, 0.0]]), DT * np.array([[0.0], [1.0]]),
+                             "Euler double integrator of the part-3 demonstrations, without their process noise")
+    score_sets = [f"data.path={noisy}", f"run.output_dir={calib / 'runs'}", *common, "generation.recovery_steps=1",
+                  "certificate.profile=disturbed_action_paper_proxy"]
+    calibrated_sets = [*score_sets, f"certificate.reference_dynamics={euler}", "generation.evidence_mode=reference_assisted",
+                       f"calibration.level={LEVEL}", f"audit.reference_dynamics={euler}", "curate.tolerance=0.05"]
+    res = generate_offline(resolve(sets=calibrated_sets))
+    lab, cer, cal_run, cur, aud = (stage(res, s) for s in ("labels.generate", "labels.certify", "labels.calibrate",
+                                                            "labels.curate", "labels.audit"))
+    cpath3, kpath3, calpath = lab.out(layout.CANDIDATES), cer.out(layout.CERTIFICATES), cal_run.out(layout.CALIBRATION)
+    spath3 = cur.out(layout.SELECTION)
+    split3 = json.loads(stage(res, "data.prepare").out(layout.SPLIT).read_text())
+    cands3, cert3, cal3, sel3 = (read_candidates(cpath3), read_certificates(kpath3), read_calibration(calpath),
+                                 read_selection(spath3))
+    err3 = true_label_error(cands3, DoubleIntegratorEuler())
+    episodes3 = cands3.source_episode_id.astype(str)
+    artifacts.update({"calibration/" + str(p.relative_to(calib)): sha(p) for p in (calpath, spath3, aud.out(layout.AUDIT))})
+
+    # Coverage: the pipeline's calibration on its training rows, and 20 random episode splits recomputed with numpy.
+    def numpy_bins(score, error, level, bins):
+        """The calibration rule restated: equal-count score bins, the ceil((n + 1) level)-th smallest error in each."""
+        edges = np.unique(np.quantile(score, np.linspace(0, 1, bins + 1)))
+        which = np.clip(np.searchsorted(edges, score, side="right") - 1, 0, len(edges) - 2)
+        out_ = []
+        for b in range(len(edges) - 1):
+            e = np.sort(error[which == b])
+            if len(e):
+                k = int(np.ceil((len(e) + 1) * level))
+                out_.append((len(e), k, float(e[k - 1]) if k <= len(e) else None))
+        return out_
+
+    rng = np.random.default_rng(SEED)
+    ids = sorted(set(episodes3))
+    splits = []
+    score = cert3.total_error_value
+    for i in range(SPLITS):
+        held = sorted(rng.choice(ids, size=len(ids) // 5, replace=False).tolist())
+        doc = calibrate(cpath3, kpath3, euler, held, level=LEVEL, bins=4)
+        mask, bound = calibrated_rows(doc, cands3, cert3)
+        pop = cands3.accepted & (cert3.classification != "unsupported") & np.isin(episodes3, held)
+        mine = [(b["count"], b["k"], b["bound"]) for b in doc["bins"]]
+        splits.append({"held_out": len(held), "calibrated_rows": int(mask.sum()),
+                       "coverage": float((err3[mask] <= bound[mask]).mean()),
+                       "numpy_agrees": mine == numpy_bins(score[pop], err3[pop], LEVEL, 4)})
+    coverage = [s_["coverage"] for s_ in splits]
+    pipeline_rows = sel3.calibrated
+    record("calibration_covers_held_out_error",
+           all(s_["numpy_agrees"] for s_ in splits) and np.mean(coverage) >= LEVEL - COVERAGE_SLACK
+           and verify_calibration(cal3, cpath3, kpath3, euler) == [] and cal3["evidence_mode"] == "reference_assisted"
+           and sorted(cal3["population"]["episodes"]) == sorted(split3["validation"]) and pipeline_rows.any(),
+           level=LEVEL, declared_slack=COVERAGE_SLACK, mean_coverage=float(np.mean(coverage)),
+           min_coverage=float(np.min(coverage)), max_coverage=float(np.max(coverage)), splits=splits,
+           pipeline={"bins": cal3["bins"], "calibrated_rows": int(pipeline_rows.sum()),
+                     "coverage_on_training_rows": float((err3[pipeline_rows] <= sel3.error[pipeline_rows]).mean())})
+
+    # Out of regime: rows outside the bins' score range, the calibration's own rows, bins too small for a bound,
+    # and bound profiles all keep their class.
+    lo, hi = cal3["regime"]["score_min"], cal3["regime"]["score_max"]
+    outside = (score < lo) | (score > hi)
+    own = np.isin(episodes3, cal3["population"]["episodes"])
+    strict = calibrate(cpath3, kpath3, euler, split3["validation"], level=0.999, bins=4)
+    strict_path = calib / "calibration-0.999.json"
+    write_calibration(strict, strict_path)
+    strict_sel = curate(cpath3, kpath3, CurationPolicy(admit="bound"), "reference_assisted", calibration=strict_path)
+    bound_run = pipeline("calibrated_bound_profile", noisy, ["generation.recovery_steps=1", *cert_sets])["results"]
+    bound_refusal = outcome(lambda: calibrate(stage(bound_run, "labels.generate").out(layout.CANDIDATES),
+                                              stage(bound_run, "labels.certify").out(layout.CERTIFICATES), euler,
+                                              split3["validation"]))
+    record("out_of_regime_stays_empirical",
+           outside.any() and not sel3.calibrated[outside].any() and not sel3.mask[outside].any()
+           and sel3.reasons[outside & cands3.accepted, 2].all()
+           and not sel3.calibrated[own].any() and not sel3.mask[own].any()
+           and all(b["bound"] is None for b in strict["bins"]) and not strict_sel.calibrated.any()
+           and not strict_sel.mask.any()
+           and bound_refusal.startswith("InterfaceError") and "gives bounds already" in bound_refusal,
+           regime=cal3["regime"], out_of_regime_rows=int(outside.sum()), out_of_regime_selected=int(sel3.mask[outside].sum()),
+           calibration_rows=int(own.sum()), calibration_rows_calibrated=int(sel3.calibrated[own].sum()),
+           strict_bins=[(b["count"], b["k"]) for b in strict["bins"]], strict_selected=int(strict_sel.mask.sum()),
+           bound_profile=bound_refusal)
+
+    # Mode: a calibration is reference-assisted evidence; data_only refuses it, before and inside the pipeline.
+    other = certify(Sources(cpath3, stage(res, "data.prepare").out(layout.DATASET),
+                            stage(res, "transition.fit").out("checkpoints/transition_model.npz"), rep),
+                    LegacyLabelFiltering())
+    other_path = calib / "certificates-legacy-label-filtering.npz"
+    write_certificates(other, other_path)
+    other_cal = calib / "calibration-of-other-certificates.json"
+    write_calibration(calibrate(cpath3, other_path, euler, split3["validation"], level=LEVEL), other_cal)
+    lowered = copy.deepcopy(cal3)
+    for b in lowered["bins"]:
+        b["bound"] = None if b["bound"] is None else b["bound"] / 2
+    lowered_path = calib / "calibration-bounds-halved.json"
+    write_calibration(lowered, lowered_path)
+    moved = copy.deepcopy(cal3)
+    moved["bins"][0]["upper"] = moved["bins"][1]["lower"] = (moved["bins"][0]["upper"] + moved["bins"][0]["lower"]) / 2
+    moved_path = calib / "calibration-edges-moved.json"
+    write_calibration(moved, moved_path)
+    sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "ccil", representation=rep,  # noqa: E731
+                                          candidates=cpath3, certificates=kpath3, selection=spath3,
+                                          split=stage(res, "data.prepare").out(layout.SPLIT), **kw)
+    policy = CurationPolicy(admit="bound", tolerance=0.05)
+    modes = {"data_only_library": outcome(lambda: curate(cpath3, kpath3, policy, calibration=calpath)),
+             "data_only_config": outcome(lambda: resolve(sets=[*score_sets, f"calibration.level={LEVEL}",
+                                                                f"certificate.reference_dynamics={euler}"])),
+             "score_admission": outcome(lambda: curate(cpath3, kpath3, CurationPolicy(admit="score"), "reference_assisted",
+                                                       calibration=calpath)),
+             "other_certificates": outcome(lambda: curate(cpath3, kpath3, policy, "reference_assisted", calibration=other_cal)),
+             "edges_moved": outcome(lambda: curate(cpath3, kpath3, policy, "reference_assisted", calibration=moved_path)),
+             "supervision_without_calibration": outcome(lambda: sup3()),
+             "supervision_with_calibration": outcome(lambda: sup3(calibration=calpath))}
+    halved = verify_calibration(lowered, cpath3, kpath3, euler)
+    sup_ok = sup3(calibration=calpath)
+    synthetic = sup_ok.source == "synthetic"
+    checks = {"selection_records_calibration": sel3.evidence_mode == "reference_assisted" and sel3.version == (1, 1)
+              and sel3.calibration_sha256 == sha(calpath) and verify_selection(sel3, cpath3, kpath3, calpath) == [],
+              "refused": all(modes[k].startswith(("InterfaceError", "ConfigError", "SupervisionError"))
+                             for k in modes if k != "supervision_with_calibration"),
+              "reasons": "reference_assisted" in modes["data_only_library"] and "reference_assisted" in modes["data_only_config"]
+              and "own certificate file" in modes["other_certificates"]
+              and "not follow from the certificate" in modes["edges_moved"],
+              "halved_bounds_fail_source_check": any("bin" in q for q in halved),
+              "supervision": modes["supervision_with_calibration"] == "accepted" and synthetic.sum() > 0
+              and set(sup_ok.classification[synthetic].tolist()) == {"calibrated"}
+              and sup_ok.manifest()["selection"].get("calibration_sha256") == sha(calpath)}
+    record("calibration_is_reference_assisted", all(checks.values()), checks=checks,
+           refusals=modes, halved_bounds_source_check=halved,
+           supervision={"synthetic_rows": int(synthetic.sum()), "classes": sorted(set(sup_ok.classification[synthetic]))})
+
+    # The audit annotates a data_only result: the same runs and selection with or without it, recomputed with numpy.
+    audit_sets = [*score_sets[:-1], *cert_sets]
+    plain = generate_offline(resolve(sets=audit_sets))
+    audited = generate_offline(resolve(sets=[*audit_sets, f"audit.reference_dynamics={euler}"]))
+    shared = ("data.prepare", "transition.fit", "labels.diagnose", "labels.generate", "labels.certify", "labels.curate")
+    same_runs = all(stage(plain, s_).run_dir == stage(audited, s_).run_dir and stage(audited, s_).reused for s_ in shared)
+    audit = read_audit(stage(audited, "labels.audit").out(layout.AUDIT))
+    asel3 = read_selection(stage(audited, "labels.curate").out(layout.SELECTION))
+    acands = read_candidates(stage(audited, "labels.generate").out(layout.CANDIDATES))
+    aerr = true_label_error(acands, DoubleIntegratorEuler())  # unit state scale: the declared profile's coordinates
+    m3 = asel3.mask
+    recomputed = {"selected_rows": audit["groups"]["selected"]["rows"] == int(m3.sum()),
+                  "selected_max": close(audit["groups"]["selected"]["max"], float(aerr[m3].max()) if m3.any() else None),
+                  "violations": audit["bounds"]["violations"] == int((aerr[m3] > asel3.error[m3]).sum()),
+                  "within_tolerance": audit["tolerance"]["within"] == int((aerr[m3] <= 0.05).sum())}
+    record("audit_annotates_without_deciding",
+           same_runs and stage(plain, "labels.audit") is None and audit["selection"]["evidence_mode"] == "data_only"
+           and asel3.evidence_mode == "data_only" and all(recomputed.values())
+           and audit["inputs"]["selection"] == sha(stage(plain, "labels.curate").out(layout.SELECTION)),
+           same_runs=same_runs, recomputed=recomputed, audit={k: audit[k] for k in ("groups", "bounds", "tolerance")})
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases, "artifacts": artifacts,

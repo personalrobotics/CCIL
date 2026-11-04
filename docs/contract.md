@@ -195,21 +195,34 @@ A run that lets reference dynamics shape admission or evidence must declare
 artifact it produces, shown by Inspect, and propagated into every selection
 made from those artifacts.
 
+Two artifacts carry reference dynamics as declared evidence
+([certificates.md](certificates.md#calibration-and-the-reference-audit)):
+- **The reference audit** (`audit.reference_dynamics`, `labels.audit`)
+  annotates a decided selection with the label error under the reference, in
+  any evidence mode. Nothing reads it back, so an audited `data_only` result
+  stays `data_only`.
+- **A calibration** (`calibration.level`, `labels.calibrate`) maps a score
+  profile's empirical scores to the error observed on the held-out episodes.
+  It is always `reference_assisted`, and only through it can a row become
+  `calibrated`.
+
 ## Artifacts and views
 
 | Artifact | Contents | Schema |
 |---|---|---|
 | Prepared dataset and split | the validated input, and the episode split | `ccil.trajectories`, `ccil.split` |
 | Dynamics checkpoint | the fitted or loaded model, and its held-out error | transition-model checkpoint |
-| Diagnosis | the per-M gates, the admitted M or the empty-result reason, the evidence class | #167 |
+| Diagnosis | the per-M gates, the admitted M or the empty-result reason, the evidence class | `ccil.diagnosis` 1.0 |
 | Candidates | every generated row, accepted and rejected, with source identity, generator identity, draw identity, measurements and rejection reasons | `ccil.candidates` 2.x |
 | Quality evidence | per-row error terms and classification (certified, conditional, empirical, unsupported), with every constant's provenance | `ccil.certificates` 2.0 |
-| Selection | one named curation policy, its tolerance, a mask and weights | `ccil.selection` 1.0 |
-| Reference audit (optional) | reference-dynamics annotations of a decided result; never an input to admission or selection in `data_only` mode | #167 |
+| Calibration (optional, `reference_assisted`) | a score's observed error on the held-out episodes, in score bins, with a coverage bound per bin | `ccil.calibration` 1.0 |
+| Selection | one named curation policy, its tolerance, a mask and weights, and with a calibration the rows it calibrated | `ccil.selection` 1.0, or 1.1 with a calibration |
+| Reference audit (optional) | reference-dynamics annotations of a decided result; never an input to admission, evidence or selection | `ccil.reference-audit` 1.0 |
 
 **Immutability.** No artifact is modified after it is written. Curate never
-changes candidates or quality evidence, and never promotes an empirical score
-to a bound. Every artifact records the SHA-256 of each input it was built from.
+changes candidates or quality evidence, and never silently promotes an
+empirical score to a bound: only a recorded, `reference_assisted` calibration
+makes a row `calibrated`, and the selection marks each such row. Every artifact records the SHA-256 of each input it was built from.
 
 **Views a consumer reads:**
 - **Pointwise (default):** the demonstration rows plus the selected synthetic

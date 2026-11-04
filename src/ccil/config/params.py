@@ -145,7 +145,8 @@ PARAMS = [
           "Score profiles: backtrack_paper_proxy, disturbed_action_paper_proxy, legacy_label_filtering.",
           "certificate", choices=CERTIFICATE_PROFILES, nullable=True),
     Param("certificate.reference_dynamics", "path", None,
-          "ccil.reference-dynamics file of the true dynamics: the source of analytic constants and demonstration residuals.",
+          "ccil.reference-dynamics file of the true dynamics: the source of a bound profile's analytic constants and "
+          "demonstration residuals, or of the observed errors calibration.level calibrates a score profile against.",
           "Known only for analytic systems; without it the true constants and the demonstration residual bound are "
           "declared, and the certificate is conditional.", "certificate", nullable=True),
     Param("certificate.true_state_lipschitz", "float", None, "Declared state Lipschitz constant K_z of the true dynamics.",
@@ -230,6 +231,20 @@ PARAMS = [
           "admitted: accepted, admissible rows. produced: every supported row a legacy run would have generated, "
           "independently of the tolerance and support radius, as the label-filtering branch did; migrated legacy "
           "configurations use it.", "curate", choices=("admitted", "produced")),
+    # calibration and the reference audit (#167) ---------------------------
+    Param("calibration.level", "float", None,
+          "Calibrate the score profile's errors at this coverage level (labels.calibrate); null skips it.",
+          "Reference-assisted: the observed errors come from certificate.reference_dynamics on the held-out episodes' "
+          "labels, so it needs generation.evidence_mode reference_assisted, a score profile, and held-out episodes. "
+          "Curation then admits the calibrated rows as bounds at this level (docs/certificates.md).", "calibration",
+          low=0.0, low_open=True, high=1.0, high_open=True, nullable=True),
+    Param("calibration.bins", "int", 4, "Score bins of equal calibration count, each with its own calibrated bound.",
+          "More bins follow the score more closely; each needs about 1 / (1 - level) rows for a bound.", "calibration",
+          low=1),
+    Param("audit.reference_dynamics", "path", None,
+          "ccil.reference-dynamics file to annotate the selection with (labels.audit); null skips it.",
+          "An annotation of the decided result, never an input to it, so it is allowed in data_only mode "
+          "(docs/contract.md).", "audit", nullable=True),
     # policy ----------------------------------------------------------------
     Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
           "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
@@ -378,9 +393,11 @@ def _certificate(v):
         problems.append(f"certificate.profile {prof} certifies {family} labels; generation.method {method} makes "
                         f"{METHOD_FAMILY[method]} labels")
     if prof not in BOUND_PROFILES:
-        extra = [k for k in settings if k in _VALUE_KEYS + ("certificate.reference_dynamics",)]
+        # A score profile's reference dynamics serve only its calibration.
+        calibrated = v["calibration.level"] is not None
+        extra = [k for k in settings if k in _VALUE_KEYS + (() if calibrated else ("certificate.reference_dynamics",))]
         if extra:
-            problems.append(f"score profile {prof} takes no constants or reference: unset {extra}")
+            problems.append(f"score profile {prof} takes no constants{'' if calibrated else ' or reference'}: unset {extra}")
         return "; ".join(problems) or None
     if ref is not None and v["certificate.demonstration_residual_bound"] is not None:
         problems.append("certificate.demonstration_residual_bound is declared, but certificate.reference_dynamics computes "
@@ -412,6 +429,25 @@ def _curate(v):
     return "; ".join(problems) or None
 
 
+def _calibration(v):
+    if v["calibration.level"] is None:
+        return "calibration.bins applies to calibration.level; set it" if v["calibration.bins"] != 4 else None
+    problems = []
+    prof = v["certificate.profile"]
+    if prof is None or prof in BOUND_PROFILES:
+        problems.append("calibration.level calibrates a score profile's errors; set certificate.profile to one of "
+                        f"{[p for p in CERTIFICATE_PROFILES if p not in BOUND_PROFILES]}")
+    if v["certificate.reference_dynamics"] is None:
+        problems.append("calibration.level measures observed error with certificate.reference_dynamics; set it")
+    if not v["data.validation_fraction"]:
+        problems.append("calibration.level calibrates on the held-out episodes: it needs data.validation_fraction > 0")
+    if v["generation.recovery_steps"] == "auto":
+        problems.append("generation.recovery_steps auto admits from data alone, and a score profile gives its trust gate "
+                        "no off-data evidence; a calibration is reference-assisted and cannot: set "
+                        "generation.recovery_steps 1")
+    return "; ".join(problems) or None
+
+
 # Settings each Lipschitz regularizer reads; legacy WorldModel failed on a missing one only mid-training.
 LIPSCHITZ_NEEDS = {
     "spectral_normalization": ("transition_model.lipschitz_constraint",),
@@ -439,8 +475,10 @@ RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
     ("noise_bc_scale", ("policy.method", "policy.noise_scale", "policy.balance_noisy_labels", "generation.method"), _noise),
-    ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind"),
-     _certificate),
+    ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind",
+                     "calibration.level"), _certificate),
+    ("calibration", ("calibration.level", "calibration.bins", "certificate.profile", "certificate.reference_dynamics",
+                     "data.validation_fraction", "generation.recovery_steps"), _calibration),
     ("curate", ("curate.tolerance", "curate.quantile", "curate.population", "certificate.profile",
                 "certificate.reference_dynamics", "generation.evidence_mode"), _curate),
 ]

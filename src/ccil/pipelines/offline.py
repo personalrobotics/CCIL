@@ -27,6 +27,7 @@ from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
 from ..core.batch import InterfaceError
+from ..core.calibrate import calibrate, reference_audit
 from ..core.curate import CurationPolicy, curate
 from ..core.diagnose import diagnose
 from ..core.quality import SourceDisplacement, demo_metric
@@ -34,6 +35,8 @@ from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
 from ..schema.selection import REASON_CODES
 from ..schema import read_trajectories, write_candidates, write_certificates, write_selection
+from ..schema.audit import write_audit
+from ..schema.calibration import write_calibration
 from ..schema.diagnosis import read_diagnosis, write_diagnosis
 from .stages import StageResult, run_stage
 
@@ -98,17 +101,21 @@ def build_certificate(v) -> tuple:
         else:
             profile = DisturbedActionProfile(true("certificate.true_state_lipschitz"),
                                              true("certificate.true_action_lipschitz"), demo, **nb)
-    else:
-        profile = PROFILES[name](**nb)
+    else:  # a score profile's reference dynamics serve its calibration (labels.calibrate), not certification
+        return PROFILES[name](**nb), {"references": {}}
     return profile, {"references": {REFERENCE: Path(ref)} if ref is not None else {}}
 
 
 def build_policy(v) -> CurationPolicy:
-    """The curation policy of curate.*: admission follows the certificate profile (none: every accepted row)."""
+    """The curation policy of curate.*: admission follows the certificate profile (none: every accepted row).
+
+    A calibrated score profile admits bounds: its calibrated rows, at calibration.level.
+    """
     name = v["certificate.profile"]
     if name is None:
         return CurationPolicy(admit="accepted")
-    return CurationPolicy(admit="bound" if name in BOUND_PROFILES else "score", tolerance=v["curate.tolerance"],
+    bound = name in BOUND_PROFILES or v["calibration.level"] is not None
+    return CurationPolicy(admit="bound" if bound else "score", tolerance=v["curate.tolerance"],
                           quantile=v["curate.quantile"], population=v["curate.population"])
 
 
@@ -139,12 +146,12 @@ def preflight(cfg) -> None:
             v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
         errors.append(f"generation.method {v['generation.method']} requires generation.labels_per_transition and "
                       "generation.action_noise_std")
-    ref = v["certificate.reference_dynamics"]
-    if ref is not None:
-        try:
-            read_reference_dynamics(ref)
-        except (OSError, SchemaError) as e:
-            errors.append(f"certificate.reference_dynamics {ref}: {str(e).splitlines()[-1].strip()}")
+    for key in ("certificate.reference_dynamics", "audit.reference_dynamics"):
+        if v[key] is not None:
+            try:
+                read_reference_dynamics(v[key])
+            except (OSError, SchemaError) as e:
+                errors.append(f"{key} {v[key]}: {str(e).splitlines()[-1].strip()}")
     if v["transition_model.fit_episodes"] == "train" and not v["data.validation_fraction"]:
         errors.append("transition_model.fit_episodes train fits the label model on the train split: it needs "
                       "data.validation_fraction > 0")
@@ -429,34 +436,93 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
                      parameters={"profile": profile.spec(), "scales": scales})
 
 
-def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, policy: CurationPolicy) -> StageResult:
+def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified: StageResult) -> StageResult:
+    """labels.calibrate: write labels/calibration.json, the score's calibration on the held-out episodes (#167).
+
+    Reference-assisted: the observed errors come from certificate.reference_dynamics.
+    """
+    v = cfg.values
+    split_path, split = _split(prepared)
+    if split is None or not split["validation"]:
+        raise ConfigError(["calibration.level calibrates on the held-out episodes; this split has none"])
+    inputs = {"candidates": labeled.out(layout.CANDIDATES), "certificates": certified.out(layout.CERTIFICATES),
+              "split": split_path, "reference": Path(v["certificate.reference_dynamics"])}
+
+    def body(run):
+        try:
+            cal = calibrate(inputs["candidates"], inputs["certificates"], inputs["reference"], split["validation"],
+                            level=float(v["calibration.level"]), bins=int(v["calibration.bins"]))
+        except InterfaceError as e:
+            raise ConfigError([str(e)]) from None
+        write_calibration(cal, run.path(layout.CALIBRATION))
+        run.metrics({"level": cal["level"], "population_rows": cal["population"]["rows"], "bins": len(cal["bins"]),
+                     "bins_with_bound": sum(b["bound"] is not None for b in cal["bins"]), "regime": cal["regime"]})
+        run.log(f"calibrated {cal['score']['profile']} on {cal['population']['rows']} held-out rows at level {cal['level']}")
+    return run_stage("labels.calibrate", cfg, inputs, body)
+
+
+def audit_stage(cfg, labeled: StageResult, certified: StageResult | None, calibrated: StageResult | None,
+                curated: StageResult) -> StageResult:
+    """labels.audit: write labels/audit.json, reference dynamics annotating the decided selection (#167).
+
+    Nothing reads it back: it is not an input of any other stage.
+    """
+    v = cfg.values
+    inputs = {"selection": curated.out(layout.SELECTION), "candidates": labeled.out(layout.CANDIDATES),
+              "reference": Path(v["audit.reference_dynamics"])}
+    if certified is not None:
+        inputs["certificates"] = certified.out(layout.CERTIFICATES)
+    if calibrated is not None:
+        inputs["calibration"] = calibrated.out(layout.CALIBRATION)
+
+    def body(run):
+        try:
+            doc = reference_audit(inputs["selection"], inputs["candidates"], inputs["reference"],
+                                  inputs.get("certificates"), inputs.get("calibration"), v["representation.modality"])
+        except InterfaceError as e:
+            raise ConfigError([str(e)]) from None
+        write_audit(doc, run.path(layout.AUDIT))
+        run.metrics({"selected": doc["groups"]["selected"], "bounds": doc["bounds"], "tolerance": doc["tolerance"],
+                     "calibrated": doc["calibrated"], "evidence_mode": doc["selection"]["evidence_mode"]})
+        run.log(f"audited the selection against {inputs['reference'].name}")
+    return run_stage("labels.audit", cfg, inputs, body)
+
+
+def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, policy: CurationPolicy,
+                 calibrated: StageResult | None = None) -> StageResult:
     """labels.curate: write labels/selection.npz, one policy's selection of the candidates (#167).
 
-    Neither input is modified, so a new tolerance writes a new selection run
-    and reuses the candidate and certificate runs unchanged.
+    No input is modified, so a new tolerance writes a new selection run
+    and reuses the candidate, certificate, and calibration runs unchanged.
     """
     v = cfg.values
     inputs = {"candidates": labeled.out(layout.CANDIDATES)}
     if certified is not None:
         inputs["certificates"] = certified.out(layout.CERTIFICATES)
+    if calibrated is not None:
+        inputs["calibration"] = calibrated.out(layout.CALIBRATION)
 
     def body(run):
         try:
-            sel = curate(inputs["candidates"], inputs.get("certificates"), policy, v["generation.evidence_mode"])
+            sel = curate(inputs["candidates"], inputs.get("certificates"), policy, v["generation.evidence_mode"],
+                         inputs.get("calibration"))
         except InterfaceError as e:
             raise ConfigError([str(e)]) from None
         write_selection(sel, run.path(layout.SELECTION))
         counts = {code: int(sel.reasons[:, i].sum()) for i, code in enumerate(REASON_CODES)}
         run.metrics({"rows": int(len(sel.mask)), "selected": int(sel.mask.sum()), "policy": sel.policy,
                      "evidence_mode": sel.evidence_mode, "evidence_allowed": sel.evidence_allowed,
-                     "threshold": sel.threshold, "reasons": counts,
+                     "threshold": sel.threshold, "reasons": counts, "calibrated": int(sel.calibrated.sum()),
                      "caveats": sel.caveats})
         run.log(f"selected {int(sel.mask.sum())} of {len(sel.mask)} candidates with {sel.policy}")
     return run_stage("labels.curate", cfg, inputs, body, parameters={"policy": policy.spec()})
 
 
 def generate_offline(cfg) -> list[StageResult]:
-    """Run the offline pipeline; return the stage results (reused or new): prepare, fit, labels, [certify,] curate."""
+    """Run the offline pipeline; return the stage results (reused or new).
+
+    In order: prepare, fit, labels, [certify, [calibrate,]] curate, diagnose, [audit].
+    """
     preflight(cfg)
     if cfg["representation.kind"] != "identity":
         raise ConfigError(["offline generation uses representation.kind=identity; learned representations are "
@@ -467,13 +533,20 @@ def generate_offline(cfg) -> list[StageResult]:
     diagnosed = diagnose_stage(cfg, prepared, fitted, representation)
     labeled = labels_stage(cfg, prepared, fitted, representation, diagnosed=diagnosed)
     stages = [prepared, fitted, labeled]
-    certified = None
+    certified = calibrated = None
     if cfg["certificate.profile"] is not None:
         profile, kwargs = build_certificate(cfg.values)
         certified = certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)
         stages.append(certified)
-    # labels.diagnose ran before labels.generate; it is listed last so the first three results keep their places.
-    return stages + [curate_stage(cfg, labeled, certified, build_policy(cfg.values)), diagnosed]
+    if cfg["calibration.level"] is not None:
+        calibrated = calibrate_stage(cfg, prepared, labeled, certified)
+        stages.append(calibrated)
+    curated = curate_stage(cfg, labeled, certified, build_policy(cfg.values), calibrated)
+    # labels.diagnose ran before labels.generate; it is listed after curation so the first three results keep their places.
+    stages += [curated, diagnosed]
+    if cfg["audit.reference_dynamics"] is not None:
+        stages.append(audit_stage(cfg, labeled, certified, calibrated, curated))
+    return stages
 
 
 def stage(results: list[StageResult], name: str) -> StageResult | None:

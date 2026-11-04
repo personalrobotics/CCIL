@@ -31,6 +31,12 @@ reference-assisted evidence. The selection records both the allowance and the
 provenance of the evidence it actually used, which is data_only whenever the
 certificate is data-only or there is none.
 
+Calibration: a ccil.calibration of the same certificate file
+(core/calibrate.py) turns the empirical rows in its regime into calibrated
+rows, whose error is their calibrated bound, for a bound policy. Its
+observed errors come from reference dynamics, so it needs a reference_assisted
+allowance and the selection records it (ccil.selection 1.1).
+
 Before deciding anything, curate verifies the certificate's structure against
 the candidates (core/certificates.py verify_structure): a certificate whose
 totals, classification, or reasons do not follow from its persisted terms
@@ -150,15 +156,29 @@ def reference_assisted(cert) -> bool:
 
 
 def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256: str, certificates_sha256: str | None,
-                     allow_evidence: str = "data_only") -> SelectionSet:
-    """The selection one policy makes, from loaded candidates and certificates; pure arithmetic over the files.
+                     allow_evidence: str = "data_only", calibration: dict | None = None,
+                     calibration_sha256: str | None = None) -> SelectionSet:
+    """The selection one policy makes, from loaded candidates, certificates, and calibration; pure arithmetic.
 
-    The recorded evidence mode is the certificate's provenance; reference-assisted
-    evidence under a data_only allowance raises InterfaceError.
+    The recorded evidence mode is the evidence's provenance; reference-assisted
+    evidence (certificate constants, or any calibration) under a data_only
+    allowance raises InterfaceError.
     """
+    from .calibrate import calibrated_rows, matching_calibration, structure_problems
     if allow_evidence not in EVIDENCE_MODES:
         raise InterfaceError(f"allow_evidence must be one of {list(EVIDENCE_MODES)}, got {allow_evidence!r}")
-    evidence_mode = "reference_assisted" if cert is not None and reference_assisted(cert) else "data_only"
+    if calibration is not None:
+        if policy.admit != "bound":
+            raise InterfaceError(f"a calibration gives bounds; it applies to admit bound, not {policy.admit}")
+        matching_calibration(calibration, candidates_sha256, certificates_sha256)
+        problems = structure_problems(calibration, candidates, cert)
+        if problems:
+            raise InterfaceError("the calibration does not verify against its certificate: " + "; ".join(problems))
+        if allow_evidence == "data_only":
+            raise InterfaceError("a calibration's observed errors come from reference dynamics, which data_only curation "
+                                 "cannot use; allow reference_assisted evidence (generation.evidence_mode)")
+    evidence_mode = ("reference_assisted" if calibration is not None or (cert is not None and reference_assisted(cert))
+                     else "data_only")
     if evidence_mode == "reference_assisted" and allow_evidence == "data_only":
         raise InterfaceError("the certificate's constants come from reference dynamics, which data_only curation cannot "
                              "use; allow reference_assisted evidence (generation.evidence_mode)")
@@ -167,13 +187,19 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
     reasons = np.zeros((n, len(REASON_CODES)), bool)
     reasons[:, 0] = ~accepted
     nan = np.full(n, np.nan)
+    calibrated = np.zeros(n, bool)
     if policy.admit == "accepted":
         mask = accepted
         error, ratio, rank, threshold, error_spec, uses = nan, nan.copy(), nan.copy(), None, None, []
         caveats = ["uncertified: rows are selected by acceptance alone; no error is compared"]
     else:
         total = np.asarray(cert.total_error_value, np.float64)
-        rows = admit_rows(cert.classification, total, accepted, policy.admit, policy.tolerance, policy.quantile,
+        classification = np.asarray(cert.classification)
+        if calibration is not None:
+            calibrated, bound = calibrated_rows(calibration, candidates, cert)
+            total = np.where(calibrated, bound, total)
+            classification = np.where(calibrated, "calibrated", classification)
+        rows = admit_rows(classification, total, accepted, policy.admit, policy.tolerance, policy.quantile,
                           produced_rows(candidates) if policy.population == "produced" else None)
         supported, threshold = rows["supported"], rows["threshold"]
         mask = rows["eligible"] & rows["selected"]
@@ -185,10 +211,12 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
         ratio = nan.copy() if policy.tolerance is None else np.where(supported, total / policy.tolerance, np.nan)
         rank = _ranks(total, rows["pool"] if policy.quantile is not None else rows["eligible"])
         units = cert.descriptor["units"]["error"]
-        error_spec = {"definition": "the certificate's total_error_value: "
-                                    + ("an upper bound on ||T(q) - y||" if policy.admit == "bound"
-                                       else "an empirical score, not a bound"),
-                      "units": units, "is_bound": policy.admit == "bound"}
+        definition = "the certificate's total_error_value: " + ("an upper bound on ||T(q) - y||" if policy.admit == "bound"
+                                                                 else "an empirical score, not a bound")
+        if calibration is not None:
+            definition += (f"; on calibrated rows, the calibration's bound, which covers ||T(q) - y|| with probability at "
+                           f"least {calibration['level']} (not a worst-case bound)")
+        error_spec = {"definition": definition, "units": units, "is_bound": policy.admit == "bound"}
         uses, caveats = ["fidelity"], [FIDELITY_CAVEAT]
     if evidence_mode == "data_only":
         caveats = caveats + [DATA_ONLY_CAVEAT]
@@ -197,24 +225,26 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
         source_episode_id=np.asarray(candidates.source_episode_id), source_frame=np.asarray(candidates.source_frame),
         mask=mask, weight=weight, error=error, ratio=ratio, rank=rank, reasons=reasons, policy=policy.spec(),
         policy_version=POLICY_VERSION, uses=uses, caveats=caveats, error_spec=error_spec, threshold=threshold,
-        evidence_mode=evidence_mode, evidence_allowed=allow_evidence, candidates_sha256=candidates_sha256, certificates_sha256=certificates_sha256).validate()
+        evidence_mode=evidence_mode, evidence_allowed=allow_evidence, candidates_sha256=candidates_sha256,
+        certificates_sha256=certificates_sha256, calibrated=calibrated, calibration_sha256=calibration_sha256).validate()
 
 
 def curate(candidates, certificates=None, policy: CurationPolicy = CurationPolicy(admit="accepted"),
-           allow_evidence: str = "data_only") -> SelectionSet:
-    """Select rows of the candidates file with policy; neither input is modified.
+           allow_evidence: str = "data_only", calibration=None) -> SelectionSet:
+    """Select rows of the candidates file with policy; no input is modified.
 
-    candidates and certificates are file paths. Raises InterfaceError when the
-    policy and inputs do not fit: a certificate policy without certificates,
-    certificates with admit accepted, a legacy 1.0 certificate, a certificate
-    that fails structural verification against these candidates, or
-    reference-assisted evidence under a data_only allowance.
+    candidates, certificates, and calibration are file paths. Raises
+    InterfaceError when the policy and inputs do not fit: a certificate policy
+    without certificates, certificates with admit accepted, a legacy 1.0
+    certificate, a certificate that fails structural verification against these
+    candidates, a calibration of another certificate file or without a bound
+    policy, or reference-assisted evidence under a data_only allowance.
     """
     cands = read_candidates(candidates)
     cand_sha = sha256(Path(candidates))
     if policy.admit == "accepted":
-        if certificates is not None:
-            raise InterfaceError("admit accepted selects by acceptance alone; it takes no certificates")
+        if certificates is not None or calibration is not None:
+            raise InterfaceError("admit accepted selects by acceptance alone; it takes no certificates or calibration")
         return decide_selection(cands, None, policy, cand_sha, None, allow_evidence)
     if certificates is None:
         raise InterfaceError(f"admit {policy.admit} compares certificate errors; it needs certificates")
@@ -224,7 +254,16 @@ def curate(candidates, certificates=None, policy: CurationPolicy = CurationPolic
     problems = _certificate_problems(cert, candidates)
     if problems:
         raise InterfaceError("the certificate does not verify against these candidates: " + "; ".join(problems))
-    return decide_selection(cands, cert, policy, cand_sha, sha256(Path(certificates)), allow_evidence)
+    cal, cal_sha = _calibration(calibration)
+    return decide_selection(cands, cert, policy, cand_sha, sha256(Path(certificates)), allow_evidence, cal, cal_sha)
+
+
+def _calibration(path):
+    """(document, SHA-256) of a calibration file, or (None, None)."""
+    if path is None:
+        return None, None
+    from ..schema.calibration import read_calibration
+    return read_calibration(path), sha256(Path(path))
 
 
 def _certificate_problems(cert, candidates_path) -> list[str]:
@@ -233,7 +272,7 @@ def _certificate_problems(cert, candidates_path) -> list[str]:
     return verify_structure(cert, candidates_path)
 
 
-def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None) -> list[str]:
+def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None, calibration_path=None) -> list[str]:
     """Problems found by recomputing the selection from its inputs (empty when consistent)."""
     problems = []
     cand_sha = sha256(Path(candidates_path))
@@ -242,6 +281,9 @@ def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None)
     cert_sha = None if certificates_path is None else sha256(Path(certificates_path))
     if cert_sha != sel.certificates_sha256:
         problems.append(f"certificates SHA-256 {cert_sha} != recorded {sel.certificates_sha256}")
+    cal_sha = None if calibration_path is None else sha256(Path(calibration_path))
+    if cal_sha != sel.calibration_sha256:
+        problems.append(f"calibration SHA-256 {cal_sha} != recorded {sel.calibration_sha256}")
     if problems:
         return problems
     try:
@@ -252,12 +294,14 @@ def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None)
             structural = _certificate_problems(cert, candidates_path)
             if structural:
                 return [f"certificate: {p}" for p in structural]
-        again = decide_selection(cands, cert, CurationPolicy(**sel.policy), cand_sha, cert_sha, sel.evidence_allowed)
+        cal, _ = _calibration(calibration_path)
+        again = decide_selection(cands, cert, CurationPolicy(**sel.policy), cand_sha, cert_sha, sel.evidence_allowed,
+                                 cal, cal_sha)
     except (SchemaError, InterfaceError) as e:
         return [str(e)]
     if sel.evidence_mode != again.evidence_mode:
         problems.append(f"evidence_mode {sel.evidence_mode!r} is not the certificate's provenance ({again.evidence_mode!r})")
-    for name in ("source_episode_id", "source_frame", "mask", "weight", "reasons"):
+    for name in ("source_episode_id", "source_frame", "mask", "weight", "reasons", "calibrated"):
         if not np.array_equal(np.asarray(getattr(sel, name)), np.asarray(getattr(again, name))):
             problems.append(f"{name} does not follow from the inputs and the policy")
     for name in ("error", "ratio", "rank"):

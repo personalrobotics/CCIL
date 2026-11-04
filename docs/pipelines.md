@@ -39,7 +39,11 @@ Each stage writes its own run directory.
 
 ## Offline generation: `ccil labels generate`
 
-    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify] → labels.curate
+    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify [→ labels.calibrate]]
+        → labels.curate [→ labels.audit]
+
+`labels.calibrate` and `labels.audit` read reference dynamics as declared
+evidence ([certificates.md](certificates.md#calibration-and-the-reference-audit)).
 
 The output is a label set, `labels-generate-*/labels/candidates.npz`, with
 accepted and rejected rows, plus a report in its `metrics.json`: counts by

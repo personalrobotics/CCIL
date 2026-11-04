@@ -27,7 +27,7 @@ other trainer. Using CCIL does not require it.
 |---|---|
 | `bc` | The demonstrations only |
 | `noise_bc` | The demonstrations only. The trainer perturbs them online at every draw ([`training/noise_bc.py`](../src/ccil/training/noise_bc.py)), so nothing synthetic is stored. |
-| `ccil`, with a selection | The demonstrations, and every candidate with `accepted ∧ selection.mask`, at the selection's weights. With certificates, each row keeps its certificate classification. The manifest records the profile and the selection's policy, threshold, evidence mode and caveats. |
+| `ccil`, with a selection | The demonstrations, and every candidate with `accepted ∧ selection.mask`, at the selection's weights. With certificates, each row keeps its certificate classification, except that a calibrated selection's calibrated rows are `calibrated`. The manifest records the profile and the selection's policy, threshold, evidence mode and caveats, and the calibration's SHA-256 when there is one. |
 | `ccil`, no selection or certificates | The demonstrations, and every candidate with `accepted`. Recorded as `certification: uncertified`, with each synthetic row classified `uncertified`. |
 | `ccil`, legacy 1.0 certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`, the selection a 1.0 certificate stored. Recorded with `legacy: true`. |
 
@@ -84,8 +84,9 @@ checkpoint.
 - a 2.0 certificate is given without a selection, or a 1.0 certificate with
   one;
 - the selection selects from other candidates, was curated from other
-  certificates (or from none, when certificates are given), or does not
-  recompute from its inputs (`verify_selection`);
+  certificates (or from none, when certificates are given), was curated with
+  a calibration other than the one given (or none), or does not recompute
+  from its inputs (`verify_selection`);
 - certificates or a selection are given without candidates, or any of them
   with `bc` or `noise_bc`;
 - the candidates carry action chunks that the consumer has not declared it
