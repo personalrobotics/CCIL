@@ -140,7 +140,7 @@ Each row's classification is the weakest of what it relies on.
 |---|---|---|
 | `certified` | Every constant is an `analytic_bound`, the demonstration residual is provided, and any model terms the total uses are `bounded`. | true |
 | `conditional` | Something rests on an assumption: a declared constant or demonstration bound, a `model_bound`, or `assumed_exact` model terms. | true, under that assumption |
-| `calibrated` | Reserved for #92. | true, at its stated confidence |
+| `calibrated` | An accepted `empirical` row outside a calibration's episodes, made so by curation with that calibration (below); certification never writes it. | true, as a coverage statement at the calibration's level |
 | `empirical` | A score profile. | false |
 | `unsupported` | A required term or the total is not finite, or the label is outside the neighborhood. | false |
 
@@ -201,9 +201,78 @@ stay the same.
   the provenance of what it used (`evidence_mode`), which is `data_only`
   whenever the certificate is data-only or absent
   ([contract.md](contract.md#reference-dynamics)).
+- **Calibration:** with a calibration of the same certificate file, a `bound`
+  policy also admits its calibrated rows, at their calibrated bound (next
+  section). The selection, then `ccil.selection` 1.1, records the
+  calibration's SHA-256 and marks each calibrated row.
 - **Verification:** `verify_selection` verifies the certificate's structure,
-  then recomputes every mask, weight, error, ratio, rank, reason, threshold and
-  the evidence provenance from the selection's inputs.
+  then recomputes every mask, weight, error, ratio, rank, reason, threshold,
+  calibrated row and the evidence provenance from the selection's inputs.
+
+## Calibration and the reference audit
+
+Both read reference dynamics (`ccil.reference-dynamics`), so both are
+declared evidence ([contract.md](contract.md#reference-dynamics)):
+[`src/ccil/core/calibrate.py`](../src/ccil/core/calibrate.py).
+
+**Calibration** (`calibrate(candidates, certificates, reference, episodes,
+level)`, `ccil.calibration` 1.0) gives one bound on the label error observed
+under the reference, ‖(T(z_G, a_G) − y) / state_scale‖, in the certificate's
+units, for a score profile's rows.
+- **Eligible rows:** accepted rows the certificate classifies `empirical`.
+- **Unit: the episode.** Rows of one trajectory, and the labels of one
+  transition, are not independent, so rows are not the conformal unit. Each
+  calibration episode with an eligible row is scored by the largest observed
+  error over those rows. The pipeline calibrates on the split's held-out
+  episodes.
+- **Bound:** the k-th smallest of the n episode scores,
+  k = ⌈(n + 1) · level⌉, the split-conformal rule, or none when k > n. At
+  level 0.9 that needs at least 9 held-out episodes with eligible rows.
+- **What it guarantees.** Two conditions must hold:
+  - the calibration episodes are a random draw from the dataset's
+    episodes, independent of the labels;
+  - the labels and certificate do not depend on the draw, as with
+    `transition_model.fit_episodes all`, which the configuration requires.
+
+  Then the expected fraction of the other episodes whose every eligible row
+  has true error at most the bound is at least `level`.
+  - The probability is over the draw. It is not conditional on one split, a
+    row or a score.
+  - It covers every eligible row of an episode at once, so it holds for any
+    subset of them, including the rows curation selects.
+  - It is not a worst-case bound. It does not transfer to other datasets,
+    tasks, model families or certificate files.
+  - With `fit_episodes train` the label model is fitted on the rows the
+    bound is applied to but not on the calibration rows, so the two errors
+    are not exchangeable.
+- **Which rows become calibrated:** an eligible row of the same certificate
+  file whose episode is not a calibration episode, when the bound exists.
+  Every other row keeps its class: the calibration's own episodes,
+  ineligible rows, and every row of another certificate file.
+- **Curation:**
+  - A calibration needs `admit bound` and a `reference_assisted` allowance.
+    `data_only` curation refuses it, in the library and in the configuration.
+  - Curate first recomputes everything in the calibration that does not
+    depend on the reference: the certificate, population, n and k. A
+    calibration that disagrees with its certificate is refused.
+  - `verify_calibration` recomputes the observed errors from the reference.
+- **Supervision:** `build_supervision` needs the calibration of a calibrated
+  selection, verifies the selection with it, and classifies those rows
+  `calibrated`.
+- **What it does not establish:** that the calibration transfers to another
+  task, model family or certificate file.
+
+**The reference audit** (`reference_audit(selection, candidates, reference,
+certificates, calibration)`, `ccil.reference-audit` 1.0) verifies a selection
+against its inputs, then records the observed error beside it:
+- the selected and the accepted-but-unselected rows' error quantiles;
+- where the error is a bound, how many selected rows exceed it;
+- with a tolerance, how many selected rows lie within it;
+- on calibrated rows, how many the bound covers, by row and by episode. This
+  is an observation of one draw, not evidence for the guarantee.
+
+It is never an input to admission, generation, evidence or selection, so it
+is allowed in `data_only` mode.
 
 ## Profiles
 
@@ -289,9 +358,26 @@ action_scale=None)`.
   new run. A changed tolerance does not.
 - **Metrics:** counts by classification.
 
-`curate_stage(cfg, labeled, certified, policy)` (`labels.curate`) follows it
-and writes `labels/selection.npz`. Its identity is the policy and its input
-hashes; its metrics are the selected rows and the count of each reason.
+`curate_stage(cfg, labeled, certified, policy, calibrated=None)`
+(`labels.curate`) follows it and writes `labels/selection.npz`. Its identity
+is the policy and its input hashes; its metrics are the selected and
+calibrated rows and the count of each reason.
+
+Two optional stages read reference dynamics:
+- **`labels.calibrate`** (`calibrate_stage`, with `calibration.level`) runs
+  between certification and curation and writes `labels/calibration.json`.
+  It needs:
+  - a score profile;
+  - `certificate.reference_dynamics`;
+  - `generation.evidence_mode reference_assisted`;
+  - held-out episodes;
+  - `generation.recovery_steps 1`: the diagnosis admits from data alone, and
+    a score profile gives its trust gate no off-data evidence.
+
+  The pipeline then curates that profile with `admit bound`.
+- **`labels.audit`** (`audit_stage`, with `audit.reference_dynamics`) runs
+  last and writes `labels/audit.json`. No other stage reads it, so adding it
+  reuses every other run.
 
 **Configuration.** With `certificate.profile` set, `ccil labels generate` runs
 `labels.certify` after `labels.generate`; it always ends with `labels.curate`.
@@ -363,6 +449,17 @@ On the analytic double integrator:
 - **Boundaries:** a certificate with forged totals is refused before any selection exists; a selection's recorded provenance is checked in both directions; a zero tolerance is refused.
 - **Refusals:** corrupted, forged and mismatched selections are refused by `build_supervision`.
 - **Legacy:** a 1.0 certificate's rows equal the same policy's selection.
+- **Calibration** (on 40 double-integrator episodes with process noise, 20 held out, at level 0.9):
+  - **Precondition.** Under another split the labels and certificate are identical, so each episode's score is fixed.
+  - **The guarantee, at its unit.** The check draws 20 random sets of n + 1 = 21 episodes. In each, calibrating on 20 and applying to the remaining one must cover every eligible row of that episode for at least k = 19 of the 21 choices.
+    - This acceptance rule is exact, with no slack: it is what makes the expected coverage over random draws at least the level.
+    - Each bound is recomputed with numpy.
+  - **The pipeline's calibration** recomputes from its sources. Its audit's coverage of the training episodes is reported as an observation of that one draw, not as evidence.
+  - **Uncalibrated rows:** the calibration's own episodes, ineligible rows and a level with k > n keep their class and stay unselected, and a bound profile is refused.
+  - **Refusals:** data-only curation (library and configuration), `fit_episodes train` (configuration), a calibration of another certificate file, and an altered population (before any selection exists).
+  - **Source check:** a halved bound fails it.
+  - **Supervision** requires the calibration and classifies its rows `calibrated`.
+- **Reference audit:** adding it reuses every other run and leaves the selection data-only. Its counts are recomputed from the true error.
 - **Diagnosis** ([pipelines.md](pipelines.md#diagnosis-labelsdiagnose)): each gate is recomputed independently with numpy from the dataset, split, candidates and evaluation checkpoint. M = 1 is admitted with exact dynamics under a bound profile's declared assumptions. It is refused, each time for the named gate, for displacement (a tight support radius), for novelty (dense demonstrations that already cover the labels), for fit (a linear model of nonlinear dynamics), for trust (no certificate profile), for collinear demonstrator actions (an unidentified model whose labels land thousands of units away), and without held-out episodes. Under declared assumptions the collinear case is admitted, but its certified bounds leave no label selected. The empty result is complete.
 
 The certificate contract itself:

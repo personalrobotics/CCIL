@@ -12,6 +12,8 @@ CANDIDATES = "labels/candidates.npz"
 CERTIFICATES = "labels/certificates.npz"  # labels.certify; candidates are never modified
 SELECTION = "labels/selection.npz"  # labels.curate; candidates and certificates are never modified
 DIAGNOSIS = "diagnosis/diagnosis.json"  # labels.diagnose: the data-only recovery-length decision
+CALIBRATION = "labels/calibration.json"  # labels.calibrate: reference-assisted score calibration
+AUDIT = "labels/audit.json"  # labels.audit: reference dynamics annotating the selection; never an input
 CHECKPOINTS = "checkpoints"   # checkpoints/<name>.pt
 PLOTS = "plots"               # plots/<name>.png
 LOG = "logs/run.log"
@@ -28,6 +30,8 @@ READABLE = {
     "ccil.certificates": 2,
     "ccil.selection": 1,
     "ccil.diagnosis": 1,
+    "ccil.calibration": 1,
+    "ccil.reference-audit": 1,
     "ccil.config": 1,
     "ccil.split": 1,
     METRICS_SCHEMA: 1,

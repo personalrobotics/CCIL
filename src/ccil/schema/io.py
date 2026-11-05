@@ -335,25 +335,35 @@ def read_certificates(path) -> CertificateSet:
 SEL_REQUIRED = {"source_episode_id", "source_frame", "mask", "weight", "error", "ratio", "rank", "reasons"}
 SEL_META = ("policy", "policy_version", "uses", "caveats", "threshold", "evidence_mode", "evidence_allowed",
             "candidates_sha256", "certificates_sha256")
+# Version 1.1, with a calibration.
+SEL_CALIBRATED_ARRAYS, SEL_CALIBRATED_META = {"calibrated"}, ("calibration_sha256",)
 
 
 def write_selection(sel: SelectionSet, path) -> None:
     sel.validate()
-    arrays = {k: getattr(sel, k) for k in sorted(SEL_REQUIRED)}
-    arrays["meta"] = _meta(selection.SCHEMA, selection.VERSION, set(), **{k: getattr(sel, k) for k in SEL_META},
-                           error=sel.error_spec, reason_codes=list(selection.REASON_CODES))
+    calibrated = sel.calibration_sha256 is not None
+    arrays = {k: getattr(sel, k) for k in sorted(SEL_REQUIRED | (SEL_CALIBRATED_ARRAYS if calibrated else set()))}
+    meta = {k: getattr(sel, k) for k in SEL_META + (SEL_CALIBRATED_META if calibrated else ())}
+    arrays["meta"] = _meta(selection.SCHEMA, sel.version, set(), **meta, error=sel.error_spec,
+                           reason_codes=list(selection.REASON_CODES))
     _atomic_savez(path, arrays)
 
 
 def read_selection(path) -> SelectionSet:
     """Read and validate a ccil.selection file."""
     s = selection.SCHEMA
-    z, meta = _open(path, s, selection.VERSION, SEL_REQUIRED, ())
+    z, meta = _open(path, s, selection.VERSION, SEL_REQUIRED | SEL_CALIBRATED_ARRAYS, ())
     problems = []
-    missing = sorted(SEL_REQUIRED - set(z))
+    calibrated = meta.get("calibration_sha256") is not None
+    if calibrated and meta.get("version") == "1.0":
+        problems.append("a 1.0 selection has no calibration")
+    missing = sorted((SEL_REQUIRED | (SEL_CALIBRATED_ARRAYS if calibrated else set())) - set(z))
     if missing:
         problems.append(f"missing required fields {missing}")
-    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "reason_codes", "error", *SEL_META})
+    if not calibrated and SEL_CALIBRATED_ARRAYS & set(z):
+        problems.append("calibrated rows need a recorded calibration_sha256")
+    unknown = sorted(set(meta) - {"schema", "version", "optional_fields", "reason_codes", "error", *SEL_META,
+                                  *SEL_CALIBRATED_META})
     if unknown:
         problems.append(f"unknown meta fields {unknown}")
     if meta.get("reason_codes") != list(selection.REASON_CODES):
@@ -361,4 +371,5 @@ def read_selection(path) -> SelectionSet:
     if problems:
         raise _format_error(s, path, problems)
     return SelectionSet(**{k: z[k] for k in SEL_REQUIRED}, **{k: meta.get(k) for k in SEL_META},
-                        error_spec=meta.get("error")).validate()
+                        error_spec=meta.get("error"), calibrated=z["calibrated"] if calibrated else None,
+                        calibration_sha256=meta.get("calibration_sha256")).validate()

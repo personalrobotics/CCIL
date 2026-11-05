@@ -83,7 +83,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
 | `certificate.profile` | choice | `null` | - | `continuity`, `backtrack`, `disturbed_action`, `backtrack_paper_proxy`, `disturbed_action_paper_proxy`, `legacy_label_filtering` | implemented | Certify the labels with this profile (labels.certify); null skips it. | Replaces the label-filtering estimate (#88). Bound profiles: continuity, backtrack, disturbed_action. Score profiles: backtrack_paper_proxy, disturbed_action_paper_proxy, legacy_label_filtering. | - |
-| `certificate.reference_dynamics` | path | `null` | - | - | implemented | ccil.reference-dynamics file of the true dynamics: the source of analytic constants and demonstration residuals. | Known only for analytic systems; without it the true constants and the demonstration residual bound are declared, and the certificate is conditional. | - |
+| `certificate.reference_dynamics` | path | `null` | - | - | implemented | ccil.reference-dynamics file of the true dynamics: the source of a bound profile's analytic constants and demonstration residuals, or of the observed errors calibration.level calibrates a score profile against. | Known only for analytic systems; without it the true constants and the demonstration residual bound are declared, and the certificate is conditional. | - |
 | `certificate.true_state_lipschitz` | float | `null` | error per scaled state | [0.0, inf] | implemented | Declared state Lipschitz constant K_z of the true dynamics. | An assumption, recorded as such (conditional); used without certificate.reference_dynamics. | - |
 | `certificate.true_action_lipschitz` | float | `null` | error per scaled action | [0.0, inf] | implemented | Declared action Lipschitz constant K_a of the true dynamics. | An assumption, recorded as such (conditional); used without certificate.reference_dynamics. | - |
 | `certificate.learned_lipschitz_source` | choice | `"model"` | - | `model`, `declared` | implemented | Source of the learned state constant K_hat_z. | model computes it from the frozen checkpoint (verified for linear models, conditional for MLPs); declared uses certificate.learned_state_lipschitz. | - |
@@ -115,6 +115,18 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `diagnose.fit_quantile` | float | `0.95` | - | (0.0, 1.0] | implemented | Quantile of the held-out one-step model error used by the fit gate. | Decided 2026-11-03 (#167). | - |
 | `diagnose.fit_ratio` | float | `0.5` | - | (0.0, inf] | implemented | Admit only if the held-out model error is at most this fraction of the median accepted d_source. | Decided 2026-11-03 (#167): the model must fit where it has data. Necessary, never sufficient. | - |
 | `diagnose.min_yield` | float | `0.01` | - | [0.0, 1.0] | implemented | Admit only if at least this fraction of the probe labels is accepted. | Decided 2026-11-03 (#167): a generator whose labels are nearly all rejected is degenerate. | - |
+
+## calibration
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `calibration.level` | float | `null` | - | (0.0, 1.0) | implemented | Calibrate the score profile's errors at this coverage level (labels.calibrate); null skips it. | Reference-assisted: one bound, conformal over the held-out episodes, on the largest observed error under certificate.reference_dynamics of each episode's empirical rows. It needs generation.evidence_mode reference_assisted, a score profile, held-out episodes (at least level / (1 - level) of them for a bound), and transition_model.fit_episodes all, so the labels do not depend on the split. Curation then admits the training episodes' empirical rows as bounds at this level (docs/certificates.md). | - |
+
+## audit
+
+| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
+|---|---|---|---|---|---|---|---|---|
+| `audit.reference_dynamics` | path | `null` | - | - | implemented | ccil.reference-dynamics file to annotate the selection with (labels.audit); null skips it. | An annotation of the decided result, never an input to it, so it is allowed in data_only mode (docs/contract.md). | - |
 
 ## policy
 
@@ -165,5 +177,6 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 - `pca_dim`: `representation.kind`, `representation.dim`
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `noise_bc_scale`: `policy.method`, `policy.noise_scale`, `policy.balance_noisy_labels`, `generation.method`
-- `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`
+- `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`, `calibration.level`
+- `calibration`: `calibration.level`, `certificate.profile`, `certificate.reference_dynamics`, `transition_model.fit_episodes`, `data.validation_fraction`, `generation.recovery_steps`
 - `curate`: `curate.tolerance`, `curate.quantile`, `curate.population`, `certificate.profile`, `certificate.reference_dynamics`, `generation.evidence_mode`

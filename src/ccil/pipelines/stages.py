@@ -58,6 +58,8 @@ STAGE_KEYS = {
                         "representation.modality", "compute.", "certificate.profile", "certificate.reference_dynamics"),
     "labels.certify": ("certificate.", "representation.modality", "compute."),
     "labels.curate": ("curate.", "generation.evidence_mode"),
+    "labels.calibrate": ("calibration.",),
+    "labels.audit": ("audit.", "representation.modality"),
     "policy.train": ("run.seed", "policy.", "compute."),
     "policy.evaluate": ("run.seed", "policy.", "evaluation."),
 }

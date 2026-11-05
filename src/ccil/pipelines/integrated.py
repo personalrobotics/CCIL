@@ -90,6 +90,9 @@ def run_integrated(cfg, trainer=None):
     if v["certificate.profile"] is not None:
         raise ConfigError(["certificate.profile: the integrated pipeline's policy stage does not consume certificates "
                            "yet (#89); certify with ccil labels generate"])
+    if v["audit.reference_dynamics"] is not None:
+        raise ConfigError(["audit.reference_dynamics: the integrated pipeline does not curate; audit with ccil labels "
+                           "generate"])
     trainer = trainer or TRAINERS[v["policy.trainer"]]()
     modality, dim = v["representation.modality"], v["representation.dim"]
     results = [prepare_stage(cfg)]

@@ -91,6 +91,7 @@ def unit_supervision(cfg):
     results = generate_offline(cfg)
     prepared, labeled = stage(results, "data.prepare"), stage(results, "labels.generate")
     certified, curated = stage(results, "labels.certify"), stage(results, "labels.curate")
+    calibrated = stage(results, "labels.calibrate")
     rep = IdentityRepresentation(v["representation.modality"])
     inputs = {"dataset": prepared.out(layout.DATASET)}
     split_path = prepared.out(layout.SPLIT)
@@ -101,9 +102,12 @@ def unit_supervision(cfg):
         if certified is not None:
             inputs["certificates"] = certified.out(layout.CERTIFICATES)
         inputs["selection"] = curated.out(layout.SELECTION)
+        if calibrated is not None:
+            inputs["calibration"] = calibrated.out(layout.CALIBRATION)
     sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
                             candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
-                            selection=inputs.get("selection"), split=inputs.get("split"),
+                            selection=inputs.get("selection"), calibration=inputs.get("calibration"),
+                            split=inputs.get("split"),
                             demonstration_weight=v["policy.demonstration_weight"])
     noise = None
     if v["policy.method"] == "noise_bc":

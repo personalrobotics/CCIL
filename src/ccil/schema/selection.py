@@ -20,6 +20,13 @@ dynamics computed a constant or residual of the certificate the selection
 used. evidence_allowed is what the curation run permitted; a data_only
 allowance never records reference-assisted evidence.
 
+Version 1.1 adds calibration: a selection curated with a ccil.calibration
+records its SHA-256 and which rows it calibrated. A calibrated row's error is
+its calibrated bound, a coverage statement at the calibration's level rather
+than a worst-case bound, so such a selection is always reference_assisted and
+admits bounds only. Without a calibration a selection is written as 1.0, and
+1.0 files are read with no calibrated rows.
+
 A consumer trains on candidate.accepted & mask, with weight.
 """
 from __future__ import annotations
@@ -33,7 +40,8 @@ import numpy as np
 from .fields import ArraySpec, Violations
 
 SCHEMA = "ccil.selection"
-VERSION = (1, 0)
+VERSION = (1, 1)
+BASE_VERSION = (1, 0)  # written when no calibration is used
 ADMIT = ("accepted", "bound", "score")
 POPULATIONS = ("admitted", "produced")
 EVIDENCE_MODES = ("data_only", "reference_assisted")
@@ -54,7 +62,10 @@ RANK = ArraySpec("rank", "float", ("N",), "-",
                  "Relative rank of error within the named population, in [0, 1] (the fraction of that population with "
                  "error at most this row's); NaN outside it.")
 REASONS = ArraySpec("reasons", "bool", ("N", "R"), "-", "reasons[i, r] is True when reason_codes[r] applies to row i.")
-ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, MASK, WEIGHT, ERROR, RATIO, RANK, REASONS]
+CALIBRATED = ArraySpec("calibrated", "bool", ("N",), "-",
+                       "1.1, with a calibration: the row's error is its calibrated bound (an eligible empirical row "
+                       "outside the calibration's episodes). Absent in 1.0.")
+ARRAY_SPECS = [SOURCE_EPISODE, SOURCE_FRAME, MASK, WEIGHT, ERROR, RATIO, RANK, REASONS, CALIBRATED]
 FIELDS = [
     ("policy", "dict", f"admit {list(ADMIT)}, tolerance (null or finite > 0, in error.units), quantile (null or in "
                        f"(0, 1]), and population {list(POPULATIONS)} the quantile is taken over."),
@@ -69,6 +80,7 @@ FIELDS = [
                                 "reference-assisted evidence."),
     ("candidates_sha256", "str", "SHA-256 of the candidates file."),
     ("certificates_sha256", "str | null", "SHA-256 of the certificates file; null for admit accepted."),
+    ("calibration_sha256", "str | null", "1.1: SHA-256 of the ccil.calibration used; null or absent without one."),
     ("reason_codes", "list[str]", f"Exactly {list(REASON_CODES)}."),
 ]
 
@@ -97,6 +109,12 @@ class SelectionSet:
     evidence_allowed: str
     candidates_sha256: str
     certificates_sha256: str | None
+    calibrated: np.ndarray | None = None  # None: no calibration (all False)
+    calibration_sha256: str | None = None
+
+    @property
+    def version(self) -> tuple:
+        return VERSION if self.calibration_sha256 is not None else BASE_VERSION
 
     def validate(self) -> "SelectionSet":
         """Raise SchemaError listing every violation of the structure and its invariants."""
@@ -109,6 +127,9 @@ class SelectionSet:
                   *(s.check(x, w, dims, out, finite=False) for s, x in
                     ((ERROR, self.error), (RATIO, self.ratio), (RANK, self.rank)))])
         ok = REASONS.check(self.reasons, w, {**dims, "R": len(REASON_CODES)}, out) and ok
+        if self.calibrated is None and "N" in dims:
+            self.calibrated = np.zeros(dims["N"], bool)
+        ok = CALIBRATED.check(self.calibrated, w, dims, out) and ok
         self._check_meta(out)
         if ok and not out.items:
             self._check_rows(out)
@@ -157,6 +178,11 @@ class SelectionSet:
         c = self.certificates_sha256
         if accepted_only != (c is None) or not (c is None or (isinstance(c, str) and SHA256.match(c))):
             out.add("inputs", w, "certificates_sha256 is 64 lowercase hex for admit bound or score, and null for accepted")
+        k = self.calibration_sha256
+        if k is not None and not (isinstance(k, str) and SHA256.match(k)):
+            out.add("calibration", w, "calibration_sha256 must be null or 64 lowercase hex")
+        elif k is not None and (p["admit"] != "bound" or self.evidence_mode != "reference_assisted"):
+            out.add("calibration", w, "a calibrated selection admits bounds only and is reference_assisted")
 
     def _check_rows(self, out):
         """Invariants between the arrays; recomputing them from the inputs is verify_selection's job."""
@@ -166,6 +192,9 @@ class SelectionSet:
         rule("mask", ~self.mask & ~self.reasons.any(axis=1), "an unselected row needs a reason")
         rule("weight", ~(np.isfinite(self.weight) & (self.weight >= 0)), "weight must be finite and >= 0")
         rule("weight", ~self.mask & (self.weight != 0), "weight must be 0 on unselected rows")
+        if self.calibration_sha256 is None:
+            rule("calibrated", self.calibrated, "a row is calibrated only through a recorded calibration")
+        rule("calibrated", self.calibrated & self.reasons[:, 1:3].any(axis=1), "a calibrated row is a supported bound")
         with np.errstate(invalid="ignore"):
             rule("rank", ~np.isnan(self.rank) & ~((self.rank >= 0) & (self.rank <= 1)), "rank must be in [0, 1] or NaN")
             rule("error", ~np.isnan(self.error) & ~(np.isfinite(self.error) & (self.error >= 0)),

@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 STAGES = ("run", "compute", "data", "representation", "transition_model", "generation", "certificate", "curate",
-          "diagnose", "validation", "policy", "evaluation", "environment")
+          "diagnose", "calibration", "audit", "validation", "policy", "evaluation", "environment")
 TYPES = ("int", "float", "bool", "str", "path", "floats", "ints", "choice")
 STATUS = ("implemented", "declared")  # declared: validated and documented, consumed by a later milestone
 

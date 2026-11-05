@@ -113,9 +113,9 @@ Classifications: `certified`, `conditional`, `calibrated`, `empirical`, `unsuppo
 
 Required: `classification`, `in_neighborhood`, `is_upper_bound`, `model_error_value`, `reasons`, `source_episode_id`, `source_frame`, `total_error_value`, and `term/<name>` for exactly the descriptor's terms. `meta` holds `candidates_sha256`, `components`, `descriptor`, `inputs`, `classification_codes`, and `reason_codes`; no other array or meta field is accepted. A legacy 1.0 file also holds `admissible`, `selected` and, in `meta`, `admission`, `selection`, with the reason codes `certificate.unsupported`, `certificate.not_upper_bound`, `certificate.exceeds_threshold`, `certificate.not_selected`.
 
-## `ccil.selection` 1.0
+## `ccil.selection` 1.1
 
-A selection is the output of one curation policy applied to one candidate set and, optionally, its certificates (#167). It never modifies either: changing a tolerance writes a new selection and leaves both hashes unchanged. One row per candidate row, in the same order, with the source identity repeated for joining.  Per row it records the mask and weight, the raw error the policy compared (the certificate's total_error_value, in the certificate's units), the error-to-tolerance ratio, the relative rank of that error within the named population, and every reason the row was not selected. A ratio of at most one means exactly that the recorded error is within the declared tolerance, which is strictly positive; it is a bound only when the error is (`error.is_bound`). Ranks are relative to the named population of this candidate set, not universal quantities.  evidence_mode is provenance: reference_assisted exactly when reference dynamics computed a constant or residual of the certificate the selection used. evidence_allowed is what the curation run permitted; a data_only allowance never records reference-assisted evidence.  A consumer trains on candidate.accepted & mask, with weight.
+A selection is the output of one curation policy applied to one candidate set and, optionally, its certificates (#167). It never modifies either: changing a tolerance writes a new selection and leaves both hashes unchanged. One row per candidate row, in the same order, with the source identity repeated for joining.  Per row it records the mask and weight, the raw error the policy compared (the certificate's total_error_value, in the certificate's units), the error-to-tolerance ratio, the relative rank of that error within the named population, and every reason the row was not selected. A ratio of at most one means exactly that the recorded error is within the declared tolerance, which is strictly positive; it is a bound only when the error is (`error.is_bound`). Ranks are relative to the named population of this candidate set, not universal quantities.  evidence_mode is provenance: reference_assisted exactly when reference dynamics computed a constant or residual of the certificate the selection used. evidence_allowed is what the curation run permitted; a data_only allowance never records reference-assisted evidence.  Version 1.1 adds calibration: a selection curated with a ccil.calibration records its SHA-256 and which rows it calibrated. A calibrated row's error is its calibrated bound, a coverage statement at the calibration's level rather than a worst-case bound, so such a selection is always reference_assisted and admits bounds only. Without a calibration a selection is written as 1.0, and 1.0 files are read with no calibrated rows.  A consumer trains on candidate.accepted & mask, with weight.
 
 ### Fields
 
@@ -131,6 +131,7 @@ A selection is the output of one curation policy applied to one candidate set an
 | `evidence_allowed` | `str` | ['data_only', 'reference_assisted']: the evidence the curation run permitted; data_only permits no reference-assisted evidence. |
 | `candidates_sha256` | `str` | SHA-256 of the candidates file. |
 | `certificates_sha256` | `str | null` | SHA-256 of the certificates file; null for admit accepted. |
+| `calibration_sha256` | `str | null` | 1.1: SHA-256 of the ccil.calibration used; null or absent without one. |
 | `reason_codes` | `list[str]` | Exactly ['selection.not_accepted', 'selection.unsupported', 'selection.not_bound', 'selection.exceeds_tolerance', 'selection.not_selected']. |
 
 ### Arrays
@@ -145,12 +146,13 @@ A selection is the output of one curation policy applied to one candidate set an
 | `ratio` | float | (N,) | - | yes | error / tolerance (tolerance > 0); NaN exactly without a tolerance or a finite error. |
 | `rank` | float | (N,) | - | yes | Relative rank of error within the named population, in [0, 1] (the fraction of that population with error at most this row's); NaN outside it. |
 | `reasons` | bool | (N, R) | - | yes | reasons[i, r] is True when reason_codes[r] applies to row i. |
+| `calibrated` | bool | (N,) | - | yes | 1.1, with a calibration: the row's error is its calibrated bound (an eligible empirical row outside the calibration's episodes). Absent in 1.0. |
 
 Reason codes, in column order: `selection.not_accepted`, `selection.unsupported`, `selection.not_bound`, `selection.exceeds_tolerance`, `selection.not_selected`.
 
 ### File layout (.npz)
 
-Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_allowed`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted.
+Required: `error`, `mask`, `rank`, `ratio`, `reasons`, `source_episode_id`, `source_frame`, `weight`. `meta` holds `candidates_sha256`, `caveats`, `certificates_sha256`, `evidence_allowed`, `evidence_mode`, `policy`, `policy_version`, `threshold`, `uses`, `error`, and `reason_codes`; no other array or meta field is accepted. A 1.1 file, written only with a calibration, also holds `calibrated` and, in `meta`, `calibration_sha256`.
 
 ## `ccil.diagnosis` 1.0
 
@@ -178,6 +180,46 @@ A JSON document written before generation from the demonstrations, the dynamics 
 | `inputs` | `dict[str, str]` | SHA-256 of the dataset, split, transition model, and evaluation model. |
 
 A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "data-only evidence supports curation; it does not establish downstream policy improvement".
+
+## `ccil.calibration` 1.0
+
+A JSON document that bounds the label error, observed under reference dynamics, of one certificate file's eligible rows: accepted rows the certificate classifies empirical. The sampling unit is the episode, since rows of one trajectory, and the labels of one transition, are not independent. Each calibration episode with an eligible row is scored by the largest observed error over its eligible rows; the bound is the k-th smallest of those n scores, k = ceil((n + 1) * level), the split-conformal rule, or null when k > n.  What it guarantees: when the calibration episodes are a random subset of the dataset's episodes, drawn independently of the labels, and the labels and the certificate do not depend on which episodes were drawn (the label model is fitted on every episode: transition_model.fit_episodes all), the expected fraction of the other episodes whose every eligible row has observed error at most the bound is at least level. The probability is over the draw of the calibration episodes; it is not conditional on one draw, a row, or a score. Because it covers every eligible row of an episode at once, it holds for any subset of those rows, including the ones curation selects. It is not a worst-case bound, and it does not transfer to other datasets, tasks, model families, or certificate files.  A row of that certificate file is calibrated exactly when it is eligible, its episode is not a calibration episode, and the bound is not null. Every other row keeps its class.  The observed errors come from reference dynamics, so a calibration is always reference_assisted evidence.
+
+### Fields (JSON)
+
+| Field | Type | Description |
+|---|---|---|
+| `evidence_mode` | `str` | Always reference_assisted: the observed errors come from reference dynamics. |
+| `method` | `dict` | name and version of the calibration rule (split_conformal_by_episode 1). |
+| `level` | `float` | The declared coverage level, in (0, 1). |
+| `unit` | `dict` | The exchangeable unit (episode) and its score (the largest observed error over the episode's eligible rows). |
+| `certificate` | `dict` | The calibrated certificate's profile, version, and neighborhood; its eligible rows are its accepted, empirical rows. |
+| `error` | `dict` | The observed error: definition (||(T(z_G, a_G) - y) / state_scale|| under the reference dynamics) and units, the certificate's. |
+| `population` | `dict` | rule, the calibration episodes, and their eligible row count. |
+| `bound` | `dict` | n (calibration episodes with an eligible row), k = ceil((n + 1) * level), their scores in increasing order, and value: the k-th score, or null when k > n. |
+| `statement` | `str` | What the bound guarantees and does not establish. |
+| `inputs` | `dict[str, str]` | SHA-256 of ['candidates', 'certificates', 'reference']; a calibration applies to that certificate file only. |
+
+A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "when the calibration episodes are drawn at random, independently of the labels, and the labels and certificate do not depend on the draw (transition_model.fit_episodes all), the expected fraction of the dataset's other episodes whose every eligible row has true label error at most the bound is at least the level; the probability is over the draw, not conditional on one draw, a row, or a score, and it holds for any subset of an episode's eligible rows; it is not a worst-case bound, and it does not transfer to other datasets, tasks, model families, or certificate files".
+
+## `ccil.reference-audit` 1.0
+
+A JSON document that compares one selection with the label error observed under reference dynamics, ||(T(z_G, a_G) - y) / state_scale||. It records the observed error of the selected and of the accepted but unselected rows; where the selection's error is a bound, how many selected rows exceed their bound; with a tolerance, how many selected rows are within it; and on calibrated rows, the observed coverage of their calibrated bound, by row and by episode. That coverage is an observation of one draw of the calibration episodes, not evidence for the calibration's guarantee, which is over the draw.  An audit is an annotation, written after the selection: it is never an input to admission, generation, quality evidence, or selection, so a data_only result stays data_only when it is audited (docs/contract.md).
+
+### Fields (JSON)
+
+| Field | Type | Description |
+|---|---|---|
+| `selection` | `dict` | The audited selection's policy, evidence_mode, and evidence_allowed, as recorded. |
+| `error` | `dict` | definition and units of the observed error. |
+| `groups` | `dict` | ['selected', 'accepted_unselected']: rows, and the observed error's median, q90, and max (null without rows). |
+| `bounds` | `dict | null` | Where the selection's error is a bound: selected rows, violations (observed error above the recorded bound), and the largest observed-to-bound ratio; null otherwise. |
+| `tolerance` | `dict | null` | With a tolerance: its value, and the selected rows whose observed error is within it. |
+| `calibrated` | `dict | null` | With a calibration: its level; the calibrated rows (selected or not) and how many the bound covers; their episodes and how many have every calibrated row covered. |
+| `statement` | `str` | The audit's role. |
+| `inputs` | `dict[str, str | null]` | SHA-256 of the selection, candidates, certificates (null without), calibration (null without), and reference. |
+
+A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "an annotation of a decided result: it is never an input to admission, generation, quality evidence, or selection".
 
 ## Compatibility
 
