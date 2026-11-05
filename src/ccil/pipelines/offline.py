@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 
 from pathlib import Path
 
@@ -555,3 +556,39 @@ def generate_offline(cfg) -> list[StageResult]:
 def stage(results: list[StageResult], name: str) -> StageResult | None:
     """The result of the named stage among a pipeline's results, or None when it did not run."""
     return next((r for r in results if r.stage == name), None)
+
+
+RESULT_SCHEMA, RESULT_VERSION = "ccil.labels-result", "1.0"
+# Each artifact of a run, by name: the stage that writes it and its path in that stage's run directory.
+RESULT_ARTIFACTS = {"dataset": ("data.prepare", layout.DATASET), "split": ("data.prepare", layout.SPLIT),
+                    "transition_model": ("transition.fit", MODEL_CHECKPOINT),
+                    "diagnosis": ("labels.diagnose", layout.DIAGNOSIS),
+                    "candidates": ("labels.generate", layout.CANDIDATES),
+                    "certificates": ("labels.certify", layout.CERTIFICATES),
+                    "calibration": ("labels.calibrate", layout.CALIBRATION),
+                    "selection": ("labels.curate", layout.SELECTION), "audit": ("labels.audit", layout.AUDIT)}
+
+
+def labels_result(cfg, results: list[StageResult]) -> dict:
+    """The machine-readable result of `ccil labels generate --result` (ccil.labels-result 1.0): the resolved
+    configuration record, each stage's run directory and whether it was reused, and the absolute path of each
+    artifact the run produced (an artifact whose stage did not run, or that its stage did not write, is absent)."""
+    artifacts = {}
+    for name, (stage_name, rel) in RESULT_ARTIFACTS.items():
+        r = stage(results, stage_name)
+        if r is not None and r.out(rel).exists():
+            artifacts[name] = str(r.out(rel).resolve())
+    return {"schema": RESULT_SCHEMA, "version": RESULT_VERSION, "config": cfg.to_dict(),
+            "stages": [{"stage": r.stage, "run_dir": str(r.run_dir.resolve()), "reused": r.reused} for r in results],
+            "artifacts": artifacts}
+
+
+def write_labels_result(result: dict, path) -> None:
+    """Write a labels result whole: to a temporary file beside it, then renamed into place."""
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    try:
+        tmp.write_text(json.dumps(result, indent=1, sort_keys=True) + "\n")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)

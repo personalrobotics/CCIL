@@ -124,6 +124,21 @@ imports the integrated pipeline or a policy trainer.
 uv run ccil labels generate --recipe analytic_double_integrator --set data.path=fixture.npz
 ```
 
+**Machine-readable result.** `--result PATH` also writes the run's result as
+JSON (`ccil.labels-result` 1.0), whole, so a harness never parses the printed
+lines:
+- `config`: the resolved configuration record, as each stage's `config.json`
+  holds it;
+- `stages`: each stage in order, with its absolute `run_dir` and whether it was
+  `reused`;
+- `artifacts`: the absolute path of each artifact the run produced, by name:
+  `dataset`, `split`, `transition_model`, `diagnosis`, `candidates`,
+  `certificates`, `calibration`, `selection` and `audit`. A name whose stage did
+  not run, or whose file the stage did not write (a split with
+  `data.validation_fraction` 0), is absent.
+
+A new field is a minor version; a changed or removed one is a major version.
+
 A `labels.certify` stage follows `labels.generate` when `certificate.profile`
 is set. It writes `labels-certify-*/labels/certificates.npz`, the labels'
 quality evidence, and leaves the candidates unchanged. The profile's
