@@ -122,6 +122,13 @@ def _run_pipeline(args, which) -> int:
         return 2
     for r in results:
         print(f"{r.stage:18s} {'reused' if r.reused else 'wrote '} {r.run_dir}")
+    if getattr(args, "result", None):
+        from .pipelines.offline import labels_result, write_labels_result
+        try:
+            write_labels_result(labels_result(cfg, results), args.result)
+        except OSError as e:
+            print(f"could not write the result {args.result}: {e}", file=sys.stderr)
+            return 2
     return 0
 
 
@@ -213,9 +220,11 @@ def main(argv=None) -> int:
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
     labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
-    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran',
+    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran',
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(gen)
+    gen.add_argument("--result", metavar="PATH",
+                     help="also write the machine-readable result (ccil.labels-result 1.0) to PATH")
     gen.set_defaults(fn=lambda a: _run_pipeline(a, "offline"))
     pipeline = groups.add_parser("pipeline", help="integrated pipelines").add_subparsers(dest="command", required=True)
     integ = pipeline.add_parser("integrated", help="representation, labels, and downstream policy",

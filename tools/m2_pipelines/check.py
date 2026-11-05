@@ -11,7 +11,10 @@
    configuration, components with versions, implementation source hash and
    dependency versions, input hashes). Changed source, even a comment, or a
    bumped component version writes distinct runs and leaves the old ones intact;
-   an unreadable implementation fails instead of reusing.
+   an unreadable implementation fails instead of reusing. With --result, a
+   ccil.labels-result 1.0 file names the same stages, reuse and run
+   directories the printed lines do, the absolute path of each artifact, and
+   the labels stage's configuration record (#168).
 2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
    the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
    code, policy harness or SciPy (#168).
@@ -146,6 +149,23 @@ def main():
                      for n, st in recorded.items())
     record("stage_identity_recorded_and_rederives_run_id", consistent and reused,
            implementation=impl, components={n: st["components"] for n, st in recorded.items()})
+
+    # 1d. The machine-readable result names every stage and artifact the printed lines name.
+    r4 = ccil(*offline_args, "--result", "result.json", cwd=wa)
+    res = json.loads((wa / "result.json").read_text())
+    printed = {ln.split()[0]: (ln.split()[1], (wa / ln.split()[2]).resolve()) for ln in r4.stdout.splitlines()}
+    named = {s["stage"]: ("reused" if s["reused"] else "wrote", Path(s["run_dir"])) for s in res["stages"]}
+    gen_dir = named["labels.generate"][1]
+    want = {"dataset": ra[next(n for n in ra if n.startswith("data-prepare"))] / layout.DATASET,
+            "split": ra[next(n for n in ra if n.startswith("data-prepare"))] / layout.SPLIT,
+            "candidates": gen_dir / layout.CANDIDATES, "selection": named["labels.curate"][1] / layout.SELECTION}
+    arts = {k: Path(v) for k, v in res["artifacts"].items()}
+    record("labels_result_names_stages_and_artifacts",
+           r4.returncode == 0 and (res["schema"], res["version"]) == ("ccil.labels-result", "1.0")
+           and named == printed and all(arts[k] == v.resolve() for k, v in want.items())
+           and all(p.is_absolute() and p.exists() for p in arts.values())
+           and res["config"] == json.loads((gen_dir / layout.CONFIG).read_text()),
+           artifacts=sorted(arts), stages=sorted(named))
 
     def variant_run(name, prelude):
         """Rerun the offline pipeline in work_a from a child process that first runs prelude."""
