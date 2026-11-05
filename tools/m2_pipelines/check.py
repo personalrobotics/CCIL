@@ -12,7 +12,9 @@
    dependency versions, input hashes). Changed source, even a comment, or a
    bumped component version writes distinct runs and leaves the old ones intact;
    an unreadable implementation fails instead of reusing.
-2. Offline generation never imports the integrated pipeline or a policy trainer.
+2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
+   the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
+   code, policy harness or SciPy (#168).
 3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
@@ -187,6 +189,20 @@ def main():
     p = subprocess.run([sys.executable, "-c", probe], cwd=wa, capture_output=True, text=True)
     mods = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
     record("offline_imports_no_trainer", mods == [], loaded=mods, stderr=p.stderr[-300:])
+
+    # The ownership boundary (#168): CCIL's core, supervision, offline pipeline and dynamics fitters load no
+    # downstream trainer, experiment code, policy harness or SciPy, also with torch installed.
+    probe = ("import sys, json; import ccil, ccil.core, ccil.supervision, ccil.pipelines.offline, "
+             "ccil.models.mlp, ccil.models.mlp_batched; "
+             "bad = ('ccil.training', 'ccil.experiments', 'ccil.pipelines.policy_harness', 'scipy'); "
+             "print(json.dumps({'forbidden': sorted(m for m in sys.modules if m.startswith(bad)), "
+             "'torch_loaded': 'torch' in sys.modules}))")
+    p = subprocess.run([sys.executable, "-c", probe], cwd=wa, capture_output=True, text=True)
+    got = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
+    record("core_loads_no_downstream_learner", got is not None and got["forbidden"] == [] and got["torch_loaded"],
+           invariant="ccil, ccil.core, ccil.supervision, ccil.pipelines.offline and ccil.models.mlp(_batched) load "
+                     "nothing under ccil.training, ccil.experiments, ccil.pipelines.policy_harness, or scipy",
+           result=got, stderr=p.stderr[-300:])
 
     # 3. Integrated stub flow.
     wi = out / "integrated"

@@ -33,8 +33,7 @@ from torch.func import grad, stack_module_state, vmap
 
 from torch.utils._pytree import tree_map
 
-from ..training.vector_bc_v2 import (CUDA_GRAPHS, _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64,
-                                     _Streams)
+from .engine import CUDA_GRAPHS, _M64, _block_key, _bucket, _Engine, _lsr, _mix, _Precision, _s64, _Streams
 from .mlp import MLPTransitionModel, lipschitz_record, one_step_metrics
 
 SUPPORTED = ("none", "slack", "soft_sampling", "soft_sampling_slack")
