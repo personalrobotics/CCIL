@@ -202,17 +202,18 @@ def robustness(device) -> dict:
         and [m["seed"] for m in grouped["group"]["members"]] == [1, 2, 3] and grouped["group"]["padding"] == 1,
         "buckets": [alone["execution"]["bucket"], grouped["execution"]["bucket"]]}
     # A compiler failure on the first step falls back to eager, is recorded, and changes nothing.
-    original_compiled = v2._compiled
+    from ccil.models import engine  # the step is compiled by the shared engine (#168)
+    original_compiled = engine._compiled
 
     def broken(fn):
         def raising(*a, **k):
             raise RuntimeError("injected compiler failure")
         return raising
-    v2._compiled = broken
+    engine._compiled = broken
     try:
         fb = v2.train_group(j, SETTINGS, device=device, compile=True)
     finally:
-        v2._compiled = original_compiled
+        engine._compiled = original_compiled
     eager = v2.train_group(j, SETTINGS, device=device, compile=False)
     same = all(torch.equal(a.net.state_dict()[k], b.net.state_dict()[k]) for (a, _), (b, _) in zip(fb, eager)
                for k in a.net.state_dict())

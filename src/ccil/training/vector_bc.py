@@ -37,6 +37,7 @@ import torch
 import torch.nn as nn
 
 from ..core.transition import CheckpointError, checkpoint_meta
+from ..models.engine import EngineError
 from ..schema.io import _atomic_savez
 from .noise_bc import NoiseTrace
 
@@ -46,7 +47,7 @@ ADAM = {"betas": (0.9, 0.999), "eps": 1e-8, "weight_decay": 0.0}
 SCALERS = {"observation": ("standard", "none"), "action": ("min_max", "none")}
 
 
-class TrainingError(ValueError):
+class TrainingError(EngineError):
     """The supervision or settings cannot be trained as declared."""
 
 

@@ -247,6 +247,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
     """
     from ..core import IdentityRepresentation
     from ..data.prepare import prepare_stage
+    from ..models import engine
     from ..models.mlp_batched import FitJob, fit_group
     from ..pipelines import offline
     from ..pipelines.policy_harness import (POLICY_CHECKPOINT, VectorMLP, run_policy_harness, settings_of,
@@ -258,7 +259,7 @@ def run_phase(root, study, phase: str, suite: Suite, *, gate: dict, smoke: bool,
 
     from ..runs.provenance import capture_code_state
     capture_code_state()  # before any unit's work: what each record's check compares against (#127)
-    vector_bc_v2.EAGER_FALLBACK = False  # every unit runs the engine it requests (#134)
+    engine.EAGER_FALLBACK = False  # every unit, fit or policy, runs the engine it requests (#134)
     root = Path(root).resolve()
     timing = {}
     t_phase = time.time()

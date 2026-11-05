@@ -235,14 +235,15 @@ from ccil.experiments import plan, runner
 from ccil.models import mlp_batched
 from ccil.training import vector_bc_v2
 from ccil.training.vector_bc_v2 import CompilationRefused
-real_compiled = vector_bc_v2._compiled
+from ccil.models import engine  # the shared engine compiles both steps (#168)
+real_compiled = engine._compiled
 def compiled(fn):  # the fit step's compiler fails on its first step (injected)
     if fn is not mlp_batched._step:
         return real_compiled(fn)
     def broken(*a, **k):
         raise RuntimeError("injected compiler failure")
     return broken
-vector_bc_v2._compiled = compiled
+engine._compiled = compiled
 root, device = Path(sys.argv[2]), sys.argv[3]
 study = plan.from_dict({
     "study": "compile-check", "version": 1, "tasks": ["continuous"],

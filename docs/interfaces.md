@@ -71,6 +71,20 @@ its `distance` measured.
 
 M3 ports the full legacy generator set onto these interfaces (#22).
 
+## Library APIs for downstream harnesses
+
+A benchmark harness (#168) may also use these. They are public: a change to
+their signature or results is a versioned change, recorded here. Every other
+module outside `ccil.core`, `ccil.schema`, `ccil.supervision` and
+`ccil.lerobot` is internal.
+
+| API | Contract |
+|---|---|
+| `ccil.models.mlp_batched.FitJob(z, a, z_next, seed)`, `fit_group(jobs, settings, *, device, compile, chunk_steps, deterministic)` | Fits many `MLPTransitionModel`s of one shape as one batched program (`transition_model.trainer_version 2`, [pipelines.md](pipelines.md)). Returns `[(model, fit record)]` in job order. Needs `ccil[torch]`. A group of more than 128 fits, or an unsupported `lipschitz_type`, raises `ValueError`. |
+| `ccil.models.mlp_batched.fit_identity(z, a, z_next, settings, seed)`, `model_sha256(model)` | Content identity of one fit (its rows, settings, seed and engine), and SHA-256 of a fitted model's payload. The labels stage compares both before it accepts a model fitted elsewhere. |
+| `ccil.data.split.make_split(episode_ids, validation_fraction, seed)` | The `ccil.split` 1.0 record that `data.prepare` writes: whole episodes, a seeded permutation. Raises `SplitError` when either part would be empty. |
+| `ccil.core.transition.checkpoint_meta(path, component)`, `CheckpointError` | The meta of a component checkpoint, read without unpickling. A file that is not one raises `CheckpointError`. |
+
 ## The image path (M5)
 
 A learned encoder implements `Representation` with
