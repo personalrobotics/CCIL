@@ -75,8 +75,8 @@ from torch.func import grad, stack_module_state, vmap
 
 from ..core.identity import identity_words64
 from ..models import engine
-# The shared batched engine (models/engine.py); BUCKETS, CompilationRefused and the classes stay reachable here.
-from ..models.engine import (_M64, _SHUFFLE, BUCKETS, COMPILE_MODE, CUDA_GRAPHS, CompilationRefused, EngineError,  # noqa: F401
+# The shared batched engine (models/engine.py); BUCKETS and the classes stay reachable here.
+from ..models.engine import (_M64, _SHUFFLE, BUCKETS, COMPILE_MODE, CUDA_GRAPHS, EngineError,  # noqa: F401
                              _block_key, _dynamo, _Engine, _lsr, _mix, _Precision, _s64, _Streams, permute, shuffle_key)
 from .vector_bc import ACT_EPS, ADAM, OBS_EPS, TrainingError, VectorBCPolicy, training_identity
 
@@ -339,6 +339,10 @@ def _step_resident(params, m1, m2, t, ema, X, Y, W, WORDS, idx, active, gstep, c
     """_step with the minibatch gathered from the device-resident table inside the step (no chunk of rows)."""
     return _step(params, m1, m2, t, ema, X[idx], Y[idx], W[idx], WORDS[idx] if noisy else None, active, gstep, c,
                  layers, noisy, scale_obs, scale_act, recipe)
+
+
+class CompilationRefused(engine.CompilationRefused, TrainingError):
+    """A compiled policy step would have run uncompiled: a TrainingError, as before the engine moved (#168)."""
 
 
 def _bucket(m: int) -> int:
@@ -610,7 +614,7 @@ def train_group(jobs: list[Job], settings: dict, *, device: str = "cpu", compile
     statics = {"layers": layers, "noisy": noisy, "scale_obs": scale_obs, "scale_act": scale_act, "recipe": recipe_key}
     validation = (_validation_rows(padded, D, A, stream_chunk_bytes) if recipe["checkpoint_selection"] == "validation"
                   else None)
-    step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile)
+    step_fn = _Engine(_step_resident if data_mode == "resident" else _step, compile, CompilationRefused)
 
     def epoch_steps(epoch: int, i: int) -> int:
         """Model i's optimizer steps in this epoch: a full epoch, or what remains of its budget."""

@@ -208,8 +208,8 @@ sup = supervision(16 * 7, 0, "bc")  # 7 steps: chunks of 5 and 2
 try:
     res = v2.train_group([v2.Job(sup, 1)], settings, device=device, compile=True, chunk_steps=5)
     print(json.dumps({"returned": True, "compilation": res[0][1]["execution"]["compilation"], "engine_calls": len(calls)}))
-except v2.CompilationRefused as e:
-    print(json.dumps({"returned": False, "refused": str(e), "engine_calls": len(calls)}))
+except v2.TrainingError as e:  # a refusal is still a TrainingError after the engine moved (#168)
+    print(json.dumps({"returned": False, "refused": str(e), "refusal_class": type(e).__name__, "engine_calls": len(calls)}))
 '''
 
 
@@ -218,7 +218,8 @@ def refusal(device: str) -> dict:
     g, c = res["guard"], res["control"]
     # Five steps of the first chunk ran compiled; the sixth (the short chunk's first) was refused before it ran.
     res["refused_on_the_short_chunk_first_step"] = (not g["returned"] and g["engine_calls"] == 6
-                                                     and "refused before it ran" in g["refused"])
+                                                     and "refused before it ran" in g["refused"]
+                                                     and g["refusal_class"] == "CompilationRefused")
     res["control_claims_compiled_with_one_specialization"] = (
         c["returned"] and c["engine_calls"] == 7 and c["compilation"]["effective"] == "compiled (default)"
         and c["compilation"]["specializations"] == 1)
@@ -234,8 +235,8 @@ from pendulum_suite import PendulumSuite
 from ccil.experiments import plan, runner
 from ccil.models import mlp_batched
 from ccil.training import vector_bc_v2
-from ccil.training.vector_bc_v2 import CompilationRefused
 from ccil.models import engine  # the shared engine compiles both steps (#168)
+from ccil.models.engine import CompilationRefused  # a fit's refusal, and the base of a policy's
 real_compiled = engine._compiled
 def compiled(fn):  # the fit step's compiler fails on its first step (injected)
     if fn is not mlp_batched._step:

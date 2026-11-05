@@ -190,7 +190,8 @@ class _Engine:
     and a step that would still exceed it is refused (fail_on_recompile_limit_hit, process-wide) before it runs,
     so an engine that says compiled ran compiled on every step. compilation() is the record."""
 
-    def __init__(self, fn, compile: bool):
+    def __init__(self, fn, compile: bool, refusal: type = CompilationRefused):
+        self.refusal = refusal  # the caller's CompilationRefused subclass, so its own error class catches it
         self.requested = f"compiled ({COMPILE_MODE})" if compile else "eager"
         self.fn, self.eager, self.state, self.first = (_compiled(fn) if compile else fn), fn, self.requested, compile
         self.limit_hit, self.before, self.fresh = (), None, None
@@ -204,7 +205,7 @@ class _Engine:
         try:
             return self.fn(*args, **kwargs)
         except self.limit_hit as e:
-            raise CompilationRefused(
+            raise self.refusal(
                 f"{self.eager.__module__}.{self.eager.__qualname__} needs more than torch.compile's "
                 f"{_dynamo().config.recompile_limit} specializations in this process, so this step would run "
                 "uncompiled; refused before it ran") from e
@@ -212,7 +213,7 @@ class _Engine:
             if not first:
                 raise
             if not EAGER_FALLBACK:
-                raise CompilationRefused(f"compilation failed on the first step: {type(e).__name__}: {e}"[:300]) from e
+                raise self.refusal(f"compilation failed on the first step: {type(e).__name__}: {e}"[:300]) from e
             self.fn, self.state = self.eager, f"eager (compilation failed on the first step: {type(e).__name__}: {e})"[:300]
         return self.fn(*args, **kwargs)
 
