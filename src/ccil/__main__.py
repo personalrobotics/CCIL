@@ -100,12 +100,19 @@ def _run_validate(args) -> int:
     return 0 if status == "complete" else 1
 
 
+POLICY_MOVED = ("warning: ccil policy train moved to il-supervision-benchmarks (#168) and is removed in the next "
+                "release. Use: ilsb policy train CONFIG (an ilsb.policy-train 1 configuration; "
+                "personalrobotics/il-supervision-benchmarks, f1e2b30 or later).")
+
+
 def _run_pipeline(args, which) -> int:
     from .config import ConfigError
     from .core import InterfaceError
     from .pipelines.stages import StageError
     from .schema import SchemaError
     from .supervision import SupervisionError
+    if which == "policy":
+        print(POLICY_MOVED, file=sys.stderr)
     try:
         cfg = _resolve(args)
         if which == "offline":

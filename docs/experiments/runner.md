@@ -1,5 +1,9 @@
 # Predeclared studies: `ccil.experiments`
 
+> **Moved to il-supervision-benchmarks (#168),** whose study harness
+> (`ilsb run SPEC`) replaces it. Importing `ccil.experiments` warns in this
+> release; the next release removes it.
+
 `ccil.experiments` runs predeclared studies: many seeds × arms × tuning values
 of the CCIL pipeline. A predeclaration is the scientific contract. The complete
 historical Pendulum example is preserved at tag `pendulum-evidence-archive-v1`.

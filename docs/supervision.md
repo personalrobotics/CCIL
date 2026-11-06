@@ -15,21 +15,33 @@ document defines exactly which rows such a trainer may use, and with which
 weights. [`src/ccil/supervision.py`](../src/ccil/supervision.py) implements
 it as `build_supervision`. It trains nothing and imports no trainer.
 
-The maintained vector-policy trainer (#89,
-[policy-harness.md](policy-harness.md)) is experimental reference
-infrastructure. It exists to reproduce the paper's experiments and to show
-that the artifacts are consumable, and it consumes this contract like any
-other trainer. Using CCIL does not require it.
+The vector-policy trainers that consume this contract moved to
+il-supervision-benchmarks (#168): `ilsb policy train` and `ilsb.learners.vector`.
+Using CCIL does not require them.
 
-## Arms
+## Sources
 
-| `method` | Rows |
+`build_supervision(dataset, source, ...)` takes what the policy learns from:
+
+| `source` | Rows |
 |---|---|
-| `bc` | The demonstrations only |
-| `noise_bc` | The demonstrations only. The trainer perturbs them online at every draw ([`training/noise_bc.py`](../src/ccil/training/noise_bc.py)), so nothing synthetic is stored. |
-| `ccil`, with a selection | The demonstrations, and every candidate with `accepted ∧ selection.mask`, at the selection's weights. With certificates, each row keeps its certificate classification, except that a calibrated selection's calibrated rows are `calibrated`. The manifest records the profile and the selection's policy, threshold, evidence mode and caveats, and the calibration's SHA-256 when there is one. |
-| `ccil`, no selection or certificates | The demonstrations, and every candidate with `accepted`. Recorded as `certification: uncertified`, with each synthetic row classified `uncertified`. |
-| `ccil`, legacy 1.0 certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`, the selection a 1.0 certificate stored. Recorded with `legacy: true`. |
+| `demonstrations` | The demonstrations only |
+| `demonstrations`, `perturbation="noise_bc"` | The demonstrations only, declared to be perturbed online by the consumer's trainer at every draw (NoiseBC, in il-supervision-benchmarks), so nothing synthetic is stored. |
+| `demonstrations_plus_selection`, with a selection | The demonstrations, and every candidate with `accepted ∧ selection.mask`, at the selection's weights. With certificates, each row keeps its certificate classification, except that a calibrated selection's calibrated rows are `calibrated`. The manifest records the profile and the selection's policy, threshold, evidence mode and caveats, and the calibration's SHA-256 when there is one. |
+| `demonstrations_plus_selection`, no selection or certificates | The demonstrations, and every candidate with `accepted`. Recorded as `certification: uncertified`, with each synthetic row classified `uncertified`. |
+| `demonstrations_plus_selection`, legacy 1.0 certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`, the selection a 1.0 certificate stored. Recorded with `legacy: true`. |
+
+The manifest's `method` records the arm as before: `bc`, `noise_bc` or `ccil`.
+
+**Former names (#168).** The source names `bc`, `noise_bc` and `ccil`, and the
+`method=` keyword, still work in this release with a `FutureWarning` naming the
+replacement. They are refused in the next release.
+
+| Former | Now |
+|---|---|
+| `bc` | `demonstrations` |
+| `noise_bc` | `demonstrations`, `perturbation="noise_bc"` |
+| `ccil` | `demonstrations_plus_selection` |
 
 **Usable rows only.** A rejected or unselected candidate never appears,
 whatever its weight. There is no weight-only path into the loss.
@@ -88,7 +100,8 @@ checkpoint.
   a calibration other than the one given (or none), or does not recompute
   from its inputs (`verify_selection`);
 - certificates or a selection are given without candidates, or any of them
-  with `bc` or `noise_bc`;
+  with the `demonstrations` source;
+- the `noise_bc` perturbation is given with `demonstrations_plus_selection`;
 - the candidates carry action chunks that the consumer has not declared it
   will consume.
 

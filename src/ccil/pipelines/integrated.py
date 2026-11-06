@@ -21,7 +21,7 @@ from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..schema import read_trajectories
 from ..schema.io import _atomic_savez
-from ..supervision import build_supervision
+from ..supervision import FORMER_SOURCES, build_supervision
 from .offline import diagnose_stage, fit_transition_stage, labels_stage, preflight
 from .policy import TRAINERS
 from .stages import run_stage
@@ -121,7 +121,8 @@ def run_integrated(cfg, trainer=None):
 
     def train(run):
         # The trainer-neutral supervision contract (ccil.supervision) decides which rows reach the loss.
-        sup = build_supervision(policy_inputs["dataset"], v["policy.method"], representation=rep,
+        source, perturbation = FORMER_SOURCES[v["policy.method"]]
+        sup = build_supervision(policy_inputs["dataset"], source, perturbation=perturbation, representation=rep,
                                 representation_checkpoint=policy_inputs["representation"],
                                 candidates=policy_inputs["candidates"] if v["policy.method"] == "ccil" else None,
                                 split=policy_inputs.get("split"))

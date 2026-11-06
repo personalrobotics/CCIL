@@ -227,9 +227,9 @@ saw the held-out episodes.
 
     data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify] → labels.curate → policy.train → policy.evaluate
 
-Reference infrastructure for reproducing the vector BC, NoiseBC and CCIL
-arms. It needs the `ccil[torch]` extra, and CCIL does not require it. See
-[policy-harness.md](policy-harness.md).
+Moved to il-supervision-benchmarks as `ilsb policy train` (#168). In this
+release it prints that warning to stderr and still runs; the next release
+removes it. See [policy-harness.md](policy-harness.md).
 
 ## Integrated pipeline: `ccil pipeline integrated`
 

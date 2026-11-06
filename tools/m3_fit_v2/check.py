@@ -227,7 +227,7 @@ def stage_hooks(out: Path) -> dict:
     offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[1])
     res["own_fit_accepted"] = True
     offline.generate_offline(c1)
-    sup = build_supervision(prepared[1].out("data/dataset.npz"), "bc", representation=rep,
+    sup = build_supervision(prepared[1].out("data/dataset.npz"), "demonstrations", representation=rep,
                             demonstration_weight=c1["policy.demonstration_weight"])
     [own, other] = v2.train_group([v2.Job(sup, 1), v2.Job(sup, 2)], policy_harness.settings_of(c1.values),
                                   device="cpu", compile=False)
@@ -256,8 +256,8 @@ def stage_hooks(out: Path) -> dict:
         p_ = prepare_stage(c)
         ds, split = p_.out("data/dataset.npz"), p_.out("data/split.json")
         w = c["policy.demonstration_weight"]
-        return (build_supervision(ds, "bc", representation=rep, split=split, demonstration_weight=w),
-                build_supervision(ds, "bc", representation=rep, split=split, part="validation", demonstration_weight=w))
+        return (build_supervision(ds, "demonstrations", representation=rep, split=split, demonstration_weight=w),
+                build_supervision(ds, "demonstrations", representation=rep, split=split, part="validation", demonstration_weight=w))
     m1, m2 = modern(1), modern(2)
     (sup1, held1), (_, held2) = unit(m1), unit(m2)
     st = policy_harness.settings_of(m1.values)
