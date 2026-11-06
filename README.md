@@ -94,6 +94,8 @@ End-to-end pipeline scripts are provided for each task suite in `scripts/`, but 
 
 ## Training Baselines
 
+The maintained vector BC, NoiseBC and CCIL trainers moved to [il-supervision-benchmarks](https://github.com/personalrobotics/il-supervision-benchmarks) as `ilsb policy train` (#168). The commands below are the legacy ones.
+
 Some baselines can be trained in this repository, namely vanilla BC and NoiseBC. Training vanilla bc is handled simply by overriding some parameters when training a BC model, replacing `<CONFIG PATH>` with the path to the config file:
 
 ```bash

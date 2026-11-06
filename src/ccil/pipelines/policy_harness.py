@@ -17,7 +17,7 @@ from ..config import ConfigError
 from ..core import IdentityRepresentation
 from ..runs import layout
 from ..runs.writer import dump_json
-from ..supervision import build_supervision
+from ..supervision import FORMER_SOURCES, build_supervision
 from .offline import generate_offline, stage
 from .stages import StageResult, run_stage
 
@@ -104,7 +104,8 @@ def unit_supervision(cfg):
         inputs["selection"] = curated.out(layout.SELECTION)
         if calibrated is not None:
             inputs["calibration"] = calibrated.out(layout.CALIBRATION)
-    sup = build_supervision(inputs["dataset"], v["policy.method"], representation=rep,
+    source, perturbation = FORMER_SOURCES[v["policy.method"]]
+    sup = build_supervision(inputs["dataset"], source, perturbation=perturbation, representation=rep,
                             candidates=inputs.get("candidates"), certificates=inputs.get("certificates"),
                             selection=inputs.get("selection"), calibration=inputs.get("calibration"),
                             split=inputs.get("split"),
@@ -116,7 +117,7 @@ def unit_supervision(cfg):
                         units="standardized observation units (after the observation scaler)")
     held = None
     if v["policy.checkpoint_selection"] == "validation":  # the held-out episodes' demonstrations
-        held = build_supervision(inputs["dataset"], "bc", representation=rep, split=split_path, part="validation",
+        held = build_supervision(inputs["dataset"], "demonstrations", representation=rep, split=split_path, part="validation",
                                  demonstration_weight=v["policy.demonstration_weight"])
     return results, inputs, sup, noise, held
 

@@ -1,5 +1,13 @@
 # The experimental vector-policy harness
 
+> **Moved to il-supervision-benchmarks (#168).** `ilsb policy train CONFIG`
+> replaces `ccil policy train`, and `ilsb.learners.vector` replaces
+> `ccil.training`, with the same trainer names, versions and training
+> identities ([contract.md](contract.md#dispositions-of-the-current-surface)
+> has the migration table). In this release the command prints a warning and
+> still runs; the next release removes it. This page describes the code as it
+> was moved.
+
 > **Experimental reference infrastructure.** CCIL ends at its supervision
 > artifacts, and users train downstream policies with any trainer
 > ([supervision.md](supervision.md)). This harness exists to reproduce the

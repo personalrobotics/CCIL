@@ -8,20 +8,24 @@ resolves, from those files, exactly the rows a trainer may use, fails closed
 when the artifacts do not belong together, and records a manifest that
 reconciles every row count. It trains nothing and imports no trainer.
 
-Arms (policy.method):
-- bc: the demonstrations only.
-- noise_bc: the demonstrations only; the trainer perturbs them online at every
-  draw (ccil.training.noise_bc), so nothing synthetic is stored.
-- ccil with a selection: the demonstrations and the candidates with
-  accepted & selection.mask, at the selection's weights. A selection of
-  certified rows needs its certificates, and a calibrated selection its
-  calibration, which are checked with it; calibrated rows are recorded as
-  calibrated.
-- ccil without a selection or certificates: the demonstrations and every
-  accepted candidate, recorded as uncertified.
-- ccil with a legacy 1.0 certificate, which carries its own selection: the
-  candidates with accepted & admissible & selected. A 2.0 certificate selects
-  nothing by itself and needs a selection.
+Sources (what the policy learns from):
+- demonstrations: the demonstrations only. With perturbation="noise_bc", the
+  consumer's trainer perturbs them online at every draw (NoiseBC, in
+  il-supervision-benchmarks), so nothing synthetic is stored.
+- demonstrations_plus_selection with a selection: the demonstrations and the
+  candidates with accepted & selection.mask, at the selection's weights. A
+  selection of certified rows needs its certificates, and a calibrated
+  selection its calibration, which are checked with it; calibrated rows are
+  recorded as calibrated.
+- demonstrations_plus_selection without a selection or certificates: the
+  demonstrations and every accepted candidate, recorded as uncertified.
+- demonstrations_plus_selection with a legacy 1.0 certificate, which carries
+  its own selection: the candidates with accepted & admissible & selected. A
+  2.0 certificate selects nothing by itself and needs a selection.
+The manifest's method records the arm as before: bc, noise_bc (demonstrations
+with the noise_bc perturbation) or ccil. The former source names bc, ccil and
+noise_bc still work, with a FutureWarning naming the replacement; they are
+refused in the next release (#168).
 A rejected or unselected candidate never appears, whatever its weight: there
 is no weight-only path into the loss.
 
@@ -42,6 +46,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -53,7 +58,14 @@ from .data.split import SplitError, check_split
 from .runs.provenance import sha256
 from .schema import SchemaError, read_candidates, read_certificates, read_selection, read_trajectories
 
-METHODS = ("bc", "noise_bc", "ccil")
+METHODS = ("bc", "noise_bc", "ccil")  # the manifest's method
+SOURCES = ("demonstrations", "demonstrations_plus_selection")
+PERTURBATIONS = ("noise_bc",)
+# Each former source name (policy.method): its source and perturbation; and the manifest method of each pair.
+FORMER_SOURCES = {"bc": ("demonstrations", None), "ccil": ("demonstrations_plus_selection", None),
+                  "noise_bc": ("demonstrations", "noise_bc")}
+_FORMER = FORMER_SOURCES
+_METHOD = {former: name for name, former in _FORMER.items()}
 CHUNK_POLICIES = ("refuse", "consume")
 DEMONSTRATION, SYNTHETIC = "demonstration", "synthetic"
 
@@ -143,20 +155,49 @@ def _valid_chunk_size(k) -> bool:
     return not isinstance(k, bool) and isinstance(k, (int, np.integer)) and k >= 1
 
 
-def build_supervision(dataset, method: str, *, representation, candidates=None, certificates=None, selection=None,
-                      calibration=None, split=None,
-                      representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
-                      chunk_size: int | None = None, part: str = "train") -> Supervision:
-    """Resolve the usable rows for method from artifact files; raise SupervisionError on any inconsistency.
+def _resolve_source(source, perturbation, method) -> str:
+    """The manifest method of (source, perturbation); a former name warns and maps to its replacement."""
+    via_method = method is not None
+    if via_method:
+        if source is not None:
+            raise SupervisionError(["pass the source once: positionally, not also as method="])
+        source = method
+    if source in _FORMER:
+        new, implied = _FORMER[source]
+        if perturbation is not None:
+            raise SupervisionError([f"the former source {source!r} takes no perturbation; use {new!r}"])
+        hint = f"build_supervision(dataset, {new!r}" + (f", perturbation={implied!r}" if implied else "") + ", ...)"
+        former = f"build_supervision(method={source!r})" if via_method else f"supervision source {source!r}"
+        warnings.warn(f"{former} is deprecated: use {hint}; the former form is refused in the next release (#168)",
+                      FutureWarning, stacklevel=3)
+        source, perturbation = new, implied
+    elif via_method:
+        warnings.warn(f"build_supervision(method={source!r}) is deprecated: use build_supervision(dataset, {source!r}, "
+                      "...); method= is refused in the next release (#168)", FutureWarning, stacklevel=3)
+    if source not in SOURCES:
+        raise SupervisionError([f"source must be one of {list(SOURCES)}, got {source!r}"])
+    if perturbation is not None and perturbation not in PERTURBATIONS:
+        raise SupervisionError([f"perturbation must be one of {list(PERTURBATIONS)} or None, got {perturbation!r}"])
+    if perturbation is not None and source != "demonstrations":
+        raise SupervisionError([f"the {perturbation} perturbation applies to the demonstrations source"])
+    return _METHOD[(source, perturbation)]
 
-    With a split, part selects its "train" episodes (the default) or its "validation" episodes (held-out
-    supervision, for example for validation-based checkpoint selection); the manifest records which.
+
+def build_supervision(dataset, source: str | None = None, *, representation, candidates=None, certificates=None,
+                      selection=None, calibration=None, split=None, perturbation: str | None = None,
+                      representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
+                      chunk_size: int | None = None, part: str = "train", method: str | None = None) -> Supervision:
+    """Resolve the usable rows for a source from artifact files; raise SupervisionError on any inconsistency.
+
+    source is demonstrations or demonstrations_plus_selection; perturbation="noise_bc" declares demonstrations
+    that the consumer's trainer perturbs online. With a split, part selects its "train" episodes (the default) or
+    its "validation" episodes (held-out supervision, for example for validation-based checkpoint selection); the
+    manifest records which. method= and the former source names bc, ccil and noise_bc are deprecated (#168).
     """
     problems = []
     if part not in ("train", "validation"):
         raise SupervisionError([f"part must be train or validation, got {part!r}"])
-    if method not in METHODS:
-        raise SupervisionError([f"method must be one of {list(METHODS)}, got {method!r}"])
+    method = _resolve_source(source, perturbation, method)
     if action_chunks not in CHUNK_POLICIES:
         raise SupervisionError([f"action_chunks must be one of {list(CHUNK_POLICIES)}, got {action_chunks!r}"])
     if isinstance(demonstration_weight, bool) or not isinstance(demonstration_weight, (int, float)) or not (
@@ -165,12 +206,12 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
     if calibration is not None and selection is None:
         raise SupervisionError(["a calibration enters through the selection curated with it; pass that selection"])
     if method != "ccil" and (candidates is not None or certificates is not None or selection is not None):
-        raise SupervisionError([f"{method} trains on the demonstrations only; it takes no candidates, certificates, "
-                                "or selection"])
+        raise SupervisionError(["the demonstrations source trains on the demonstrations only; it takes no "
+                                "candidates, certificates, or selection"])
     if (certificates is not None or selection is not None) and candidates is None:
         raise SupervisionError(["certificates and selections need the candidates file they describe"])
     if method == "ccil" and candidates is None:
-        raise SupervisionError(["ccil needs a candidates file"])
+        raise SupervisionError(["demonstrations_plus_selection needs a candidates file"])
 
     if chunk_size is not None and not _valid_chunk_size(chunk_size):
         raise SupervisionError([f"chunk_size must be an integer >= 1, got {chunk_size!r}"])
@@ -372,4 +413,5 @@ def build_supervision(dataset, method: str, *, representation, candidates=None, 
                        arrays.get("action_chunks"), arrays.get("action_chunk_mask"))
 
 
-__all__ = ["build_supervision", "Supervision", "SupervisionError", "METHODS", "CHUNK_POLICIES"]
+__all__ = ["build_supervision", "Supervision", "SupervisionError", "METHODS", "SOURCES", "PERTURBATIONS", "FORMER_SOURCES",
+           "CHUNK_POLICIES"]

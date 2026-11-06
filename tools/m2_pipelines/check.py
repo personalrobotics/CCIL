@@ -17,7 +17,9 @@
    the labels stage's configuration record (#168).
 2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
    the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
-   code, policy harness or SciPy (#168).
+   code, policy harness or SciPy, and raise no deprecation warning (#168). The moved code still imports
+   and runs, with a FutureWarning on import of ccil.training or ccil.experiments and a stderr notice from
+   ccil policy train, each naming its il-supervision-benchmarks replacement.
 3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
@@ -217,12 +219,27 @@ def main():
              "bad = ('ccil.training', 'ccil.experiments', 'ccil.pipelines.policy_harness', 'scipy'); "
              "print(json.dumps({'forbidden': sorted(m for m in sys.modules if m.startswith(bad)), "
              "'torch_loaded': 'torch' in sys.modules}))")
-    p = subprocess.run([sys.executable, "-c", probe], cwd=wa, capture_output=True, text=True)
+    p = subprocess.run([sys.executable, "-W", "error::FutureWarning", "-c", probe], cwd=wa, capture_output=True,
+                       text=True)  # and with no deprecation warning: the core never touches moved code
     got = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
     record("core_loads_no_downstream_learner", got is not None and got["forbidden"] == [] and got["torch_loaded"],
            invariant="ccil, ccil.core, ccil.supervision, ccil.pipelines.offline and ccil.models.mlp(_batched) load "
                      "nothing under ccil.training, ccil.experiments, ccil.pipelines.policy_harness, or scipy",
            result=got, stderr=p.stderr[-300:])
+
+    # Moved code (#168) still works for one release and says where it went: a FutureWarning on import, and a
+    # stderr notice from ccil policy train before it runs.
+    moved = {}
+    for mod, replacement in (("ccil.training", "ilsb.learners.vector"), ("ccil.experiments", "ilsb run")):
+        p = subprocess.run([sys.executable, "-c", f"import {mod}"], cwd=wa, capture_output=True, text=True)
+        moved[mod] = {"exit": p.returncode, "warns": "FutureWarning" in p.stderr and replacement in p.stderr}
+    p = ccil("policy", "train", "--recipe", "analytic_double_integrator", "--set", "data.path=missing.npz", cwd=wa)
+    first = p.stderr.splitlines()[0] if p.stderr else ""
+    moved["ccil policy train"] = {"exit": p.returncode, "warns": first.startswith("warning: ccil policy train moved")
+                                  and "ilsb policy train CONFIG" in first}
+    record("moved_code_warns_naming_its_replacement",
+           all(v["warns"] for v in moved.values()) and moved["ccil.training"]["exit"] == 0
+           and moved["ccil.experiments"]["exit"] == 0 and moved["ccil policy train"]["exit"] == 2, moved=moved)
 
     # 3. Integrated stub flow.
     wi = out / "integrated"

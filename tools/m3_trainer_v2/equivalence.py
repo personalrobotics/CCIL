@@ -20,6 +20,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 STUDY = REPO / "tools" / "m3_pendulum"
 ARMS = ("bc", "ccil")
+SOURCES = {"bc": "demonstrations", "ccil": "demonstrations_plus_selection"}
 MARGIN_SEEDS = tuple(range(211, 251))
 MARGIN = 250.0  # return units; about a third of the per-seed CCIL - BC effects of the v4 run
 
@@ -27,7 +28,7 @@ MARGIN = 250.0  # return units; about a third of the per-seed CCIL - BC effects 
 def _supervision(paths: dict, arm: str):
     from ccil.core import IdentityRepresentation
     from ccil.supervision import build_supervision
-    return build_supervision(paths["dataset"], arm, representation=IdentityRepresentation("state"),
+    return build_supervision(paths["dataset"], SOURCES[arm], representation=IdentityRepresentation("state"),
                              candidates=paths["candidates"] if arm == "ccil" else None)
 
 

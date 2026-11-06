@@ -7,8 +7,9 @@ Artifacts come from the real offline pipeline (generate_offline, with and
 without certificates, with action chunks) on rollouts of the analytic double
 integrator with a train/validation split. For each arm the rows are recomputed
 independently from the files and compared with build_supervision:
-- bc and noise_bc are the training demonstrations only; ccil without
-  certificates adds every accepted candidate, labelled uncertified; ccil with
+- demonstrations (bc), alone or with the noise_bc perturbation, is the training
+  demonstrations only; demonstrations_plus_selection (ccil) without
+  certificates adds every accepted candidate, labelled uncertified, and with
   certificates and the labels.curate selection adds exactly accepted & mask;
 - accepted candidates that are inadmissible or unselected, with positive
   weights, never reach a trainer: an instrumented trainer sees exactly the
@@ -26,7 +27,13 @@ independently from the files and compared with build_supervision:
 - the integrated pipeline trains through the contract, and supervision is
   bound to the exact representation checkpoint: a same-modality PCA whose
   parameters differ, another checkpoint, or a missing one is refused;
-- chunked supervision is handed off only through chunk_arrays().
+- chunked supervision is handed off only through chunk_arrays();
+- the former source names bc, noise_bc and ccil, positionally or as method=,
+  each emit exactly one FutureWarning naming their replacement (demonstrations,
+  demonstrations with perturbation noise_bc, demonstrations_plus_selection)
+  and build the same manifest; the new names warn nothing, and a perturbation
+  on the selection source, an unknown perturbation or source, a former name
+  with a perturbation, and both a source and method= are refused (#168).
 Writes DIR/report.json and DIR/manifests/<arm>.json (the inspectable artifacts).
 """
 import argparse
@@ -146,9 +153,9 @@ def main():
     accepted = np.asarray(cands.accepted)
     usable_cert = accepted & sel.mask
     expect = {"bc": [], "noise_bc": [], "ccil_uncertified": synthetic(accepted), "ccil_certified": synthetic(usable_cert)}
-    arms = {"bc": dict(method="bc"), "noise_bc": dict(method="noise_bc"),
-            "ccil_uncertified": dict(method="ccil", candidates=P["candidates"]),
-            "ccil_certified": dict(method="ccil", candidates=P["candidates"], certificates=P["certificates"],
+    arms = {"bc": dict(source="demonstrations"), "noise_bc": dict(source="demonstrations", perturbation="noise_bc"),
+            "ccil_uncertified": dict(source="demonstrations_plus_selection", candidates=P["candidates"]),
+            "ccil_certified": dict(source="demonstrations_plus_selection", candidates=P["candidates"], certificates=P["certificates"],
                                    selection=P["selection"])}
     sups, arm_results = {}, {}
     for arm, kw in arms.items():
@@ -189,7 +196,7 @@ def main():
            rows_seen_by_trainer=int(len(rec.w)))
 
     # Weights, explicit demonstration weight, and reconciliation.
-    s2 = build_supervision(P["dataset"], "ccil", representation=rep, candidates=P["candidates"],
+    s2 = build_supervision(P["dataset"], "demonstrations_plus_selection", representation=rep, candidates=P["candidates"],
                            certificates=P["certificates"], selection=P["selection"], split=P["split"],
                            demonstration_weight=2.0)
     syn = s2.source == "synthetic"
@@ -245,37 +252,37 @@ def main():
     base = dict(representation=rep, split=P["split"])
     certified_base = dict(base, selection=P["selection"])
     refused = {
-        "candidates_from_another_dataset": outcome(lambda: build_supervision(P["dataset"], "ccil", candidates=PO["candidates"], **base)),
+        "candidates_from_another_dataset": outcome(lambda: build_supervision(P["dataset"], "demonstrations_plus_selection", candidates=PO["candidates"], **base)),
         "certificates_for_other_candidates": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=PC["candidates"], certificates=P["certificates"], action_chunks="consume", **base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=PC["candidates"], certificates=P["certificates"], action_chunks="consume", **base)),
         "certificate_rows_reordered": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-reordered.npz", **certified_base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=out / "certificates-reordered.npz", **certified_base)),
         "certificate_from_another_dataset": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=out / "certificates-other-dataset.npz", **certified_base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=out / "certificates-other-dataset.npz", **certified_base)),
         "selection_tampered": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=P["certificates"],
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=P["certificates"],
             selection=out / "selection-flipped.npz", **base)),
         "selection_of_other_candidates": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=PO["candidates"], certificates=P["certificates"], **certified_base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=PO["candidates"], certificates=P["certificates"], **certified_base)),
         "certificate_without_its_selection": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], certificates=P["certificates"], **base)),
-        "split_of_another_dataset": outcome(lambda: build_supervision(P["dataset"], "bc", representation=rep,
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=P["certificates"], **base)),
+        "split_of_another_dataset": outcome(lambda: build_supervision(P["dataset"], "demonstrations", representation=rep,
                                                                       split=out / "split-foreign.json")),
         "representation_cannot_encode_dataset": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], representation=IdentityRepresentation("velocity"), split=P["split"])),
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], representation=IdentityRepresentation("velocity"), split=P["split"])),
         "representation_modality_mismatch": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=P["candidates"], representation=StateAsOther(), split=P["split"])),
-        "bc_with_candidates": outcome(lambda: build_supervision(P["dataset"], "bc", candidates=P["candidates"], **base)),
-        "noise_bc_with_certificates": outcome(lambda: build_supervision(P["dataset"], "noise_bc", certificates=P["certificates"], **base)),
-        "certificates_without_candidates": outcome(lambda: build_supervision(P["dataset"], "ccil", certificates=P["certificates"], **base)),
-        "ccil_without_candidates": outcome(lambda: build_supervision(P["dataset"], "ccil", **base)),
-        "negative_demonstration_weight": outcome(lambda: build_supervision(P["dataset"], "bc", demonstration_weight=-1.0, **base)),
-        "chunked_candidates_refused_by_default": outcome(lambda: build_supervision(P["dataset"], "ccil", candidates=PC["candidates"],
+            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], representation=StateAsOther(), split=P["split"])),
+        "bc_with_candidates": outcome(lambda: build_supervision(P["dataset"], "demonstrations", candidates=P["candidates"], **base)),
+        "noise_bc_with_certificates": outcome(lambda: build_supervision(P["dataset"], "demonstrations", perturbation="noise_bc", certificates=P["certificates"], **base)),
+        "certificates_without_candidates": outcome(lambda: build_supervision(P["dataset"], "demonstrations_plus_selection", certificates=P["certificates"], **base)),
+        "ccil_without_candidates": outcome(lambda: build_supervision(P["dataset"], "demonstrations_plus_selection", **base)),
+        "negative_demonstration_weight": outcome(lambda: build_supervision(P["dataset"], "demonstrations", demonstration_weight=-1.0, **base)),
+        "chunked_candidates_refused_by_default": outcome(lambda: build_supervision(P["dataset"], "demonstrations_plus_selection", candidates=PC["candidates"],
                                                                                   representation=rep, split=PC["split"])),
         "candidate_action_width_mismatch": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=out / "candidates-wide-actions.npz", **base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=out / "candidates-wide-actions.npz", **base)),
         "candidate_observation_shape_mismatch": outcome(lambda: build_supervision(
-            P["dataset"], "ccil", candidates=out / "candidates-tall-observations.npz", **base)),
+            P["dataset"], "demonstrations_plus_selection", candidates=out / "candidates-tall-observations.npz", **base)),
     }
     reason = {"candidates_from_another_dataset": "candidates were generated from dataset",
               "certificates_for_other_candidates": "certificates certify candidates",
@@ -286,10 +293,10 @@ def main():
               "certificate_without_its_selection": "selects nothing by itself",
               "split_of_another_dataset": "split episode ids", "representation_modality_mismatch": "not the representation's",
               "representation_cannot_encode_dataset": "cannot encode the dataset",
-              "bc_with_candidates": "bc trains on the demonstrations only",
-              "noise_bc_with_certificates": "noise_bc trains on the demonstrations only",
+              "bc_with_candidates": "the demonstrations source trains on the demonstrations only",
+              "noise_bc_with_certificates": "the demonstrations source trains on the demonstrations only",
               "certificates_without_candidates": "need the candidates file",
-              "ccil_without_candidates": "ccil needs a candidates file",
+              "ccil_without_candidates": "demonstrations_plus_selection needs a candidates file",
               "negative_demonstration_weight": "demonstration_weight", "chunked_candidates_refused_by_default": "action chunks",
               "candidate_action_width_mismatch": "candidate actions have shape",
               "candidate_observation_shape_mismatch": "candidate observations have shape"}
@@ -297,10 +304,49 @@ def main():
            set(reason) == set(refused) and all(v.startswith("SupervisionError") and reason[k] in v for k, v in refused.items()),
            refused=refused)
 
+    # Former source names (#168): each warns exactly once, names its replacement, and builds the same manifest.
+    import warnings
+    former = {"bc": (dict(source="demonstrations"), "(dataset, 'demonstrations', ...)"),
+              "noise_bc": (dict(source="demonstrations", perturbation="noise_bc"),
+                           "(dataset, 'demonstrations', perturbation='noise_bc', ...)"),
+              "ccil": (dict(source="demonstrations_plus_selection", candidates=P["candidates"],
+                            certificates=P["certificates"], selection=P["selection"]), "(dataset, 'demonstrations_plus_selection', ...)")}
+    names = {}
+    for old, (new, hint) in former.items():
+        extra = {k: v for k, v in new.items() if k not in ("source", "perturbation")}
+        for label, call in ((old, lambda: build_supervision(P["dataset"], old, **base, **extra)),
+                            (f"method={old}", lambda: build_supervision(P["dataset"], method=old, **base, **extra))):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                got = call()
+            future = [str(w.message) for w in caught if issubclass(w.category, FutureWarning)]
+            with warnings.catch_warnings(record=True) as quiet:
+                warnings.simplefilter("always")
+                want = build_supervision(P["dataset"], **base, **new)
+            names[label] = {"warnings": future, "new_name_warns": bool(quiet),
+                            "same_manifest": got.manifest() == want.manifest(),
+                            "names_replacement": any(hint in m for m in future),
+                            "manifest_method": want.manifest()["method"]}
+    combos = {
+        "perturbation_on_selection": outcome(lambda: build_supervision(
+            P["dataset"], "demonstrations_plus_selection", perturbation="noise_bc", candidates=P["candidates"], **base)),
+        "unknown_perturbation": outcome(lambda: build_supervision(P["dataset"], "demonstrations",
+                                                                  perturbation="gaussian", **base)),
+        "former_name_with_perturbation": outcome(lambda: build_supervision(P["dataset"], "bc", perturbation="noise_bc",
+                                                                           **base)),
+        "source_and_method": outcome(lambda: build_supervision(P["dataset"], "demonstrations", method="bc", **base)),
+        "unknown_source": outcome(lambda: build_supervision(P["dataset"], "labels", **base))}
+    record("former_source_names_warn_and_match",
+           all(v["same_manifest"] and v["names_replacement"] and len(v["warnings"]) == 1 and not v["new_name_warns"]
+               for v in names.values())
+           and [names[k]["manifest_method"] for k in ("bc", "noise_bc", "ccil")] == ["bc", "noise_bc", "ccil"]
+           and all(v.startswith("SupervisionError") for v in combos.values()),
+           names=names, refused=combos)
+
     # Chunks: consumed, never silently reduced.
     dsc = read_trajectories(PC["dataset"])
     cc = read_candidates(PC["candidates"], dsc)
-    sc = build_supervision(PC["dataset"], "ccil", representation=rep, candidates=PC["candidates"], split=PC["split"],
+    sc = build_supervision(PC["dataset"], "demonstrations_plus_selection", representation=rep, candidates=PC["candidates"], split=PC["split"],
                            action_chunks="consume")
     syn = sc.source == "synthetic"
     eps = {ep.episode_id: ep for ep in dsc.episodes}
@@ -311,12 +357,12 @@ def main():
             inside = t + k <= ep.length - 1
             demo_ok &= bool(sc.action_chunk_mask[i, k] == inside)
             demo_ok &= bool(np.array_equal(sc.action_chunks[i, k], ep.actions[t + k] if inside else np.zeros(1, np.float32)))
-    bc_chunks = build_supervision(PC["dataset"], "bc", representation=rep, split=PC["split"], action_chunks="consume",
+    bc_chunks = build_supervision(PC["dataset"], "demonstrations", representation=rep, split=PC["split"], action_chunks="consume",
                                   chunk_size=3)
     handoff = {
         "single_action_handoff_of_chunked_supervision": outcome(lambda: sc.arrays()),
         "chunk_handoff_without_chunks": outcome(lambda: sups["bc"].chunk_arrays()),
-        **{f"chunk_size_{v!r}": outcome(lambda v=v: build_supervision(PC["dataset"], "bc", representation=rep,
+        **{f"chunk_size_{v!r}": outcome(lambda v=v: build_supervision(PC["dataset"], "demonstrations", representation=rep,
                                                                         action_chunks="consume", chunk_size=v))
            for v in (0, True, 2.5)}}
     record("action_chunks_consumed_or_refused",
@@ -324,7 +370,7 @@ def main():
            and np.array_equal(sc.action_chunk_mask[syn], cc.action_chunk_mask[sc.candidate_row[syn]])
            and demo_ok and (~sc.action_chunk_mask[~syn]).any() and np.array_equal(sc.action_chunks[:, 0], sc.actions)
            and bc_chunks.action_chunks.shape[1] == 3
-           and outcome(lambda: build_supervision(PC["dataset"], "bc", representation=rep, action_chunks="consume")).startswith("SupervisionError")
+           and outcome(lambda: build_supervision(PC["dataset"], "demonstrations", representation=rep, action_chunks="consume")).startswith("SupervisionError")
            and refused["chunked_candidates_refused_by_default"].startswith("SupervisionError")
            and all("chunk" in v for v in handoff.values()) and all(v.startswith("SupervisionError") for v in handoff.values())
            and [x.shape for x in sc.chunk_arrays()] == [sc.observations.shape, sc.action_chunks.shape,
@@ -367,16 +413,16 @@ def main():
     other_ckpt = out / "pca-moved.npz"
     moved.save(other_ckpt)
     ib = dict(candidates=labels_stage_.out(layout.CANDIDATES), split=prep.out(layout.SPLIT))
-    bound = build_supervision(prep.out(layout.DATASET), "ccil", representation=pca, representation_checkpoint=ckpt, **ib)
+    bound = build_supervision(prep.out(layout.DATASET), "demonstrations_plus_selection", representation=pca, representation_checkpoint=ckpt, **ib)
     rep_refused = {
         "same_modality_object_differs_from_checkpoint": outcome(lambda: build_supervision(
-            prep.out(layout.DATASET), "ccil", representation=moved, representation_checkpoint=ckpt, **ib)),
+            prep.out(layout.DATASET), "demonstrations_plus_selection", representation=moved, representation_checkpoint=ckpt, **ib)),
         "same_modality_other_checkpoint": outcome(lambda: build_supervision(
-            prep.out(layout.DATASET), "ccil", representation=moved, representation_checkpoint=other_ckpt, **ib)),
+            prep.out(layout.DATASET), "demonstrations_plus_selection", representation=moved, representation_checkpoint=other_ckpt, **ib)),
         "fitted_representation_without_checkpoint": outcome(lambda: build_supervision(
-            prep.out(layout.DATASET), "ccil", representation=pca, **ib)),
+            prep.out(layout.DATASET), "demonstrations_plus_selection", representation=pca, **ib)),
         "fixed_representation_with_checkpoint": outcome(lambda: build_supervision(
-            P["dataset"], "bc", representation=rep, representation_checkpoint=ckpt, split=P["split"])),
+            P["dataset"], "demonstrations", representation=rep, representation_checkpoint=ckpt, split=P["split"])),
     }
     rep_reason = {"same_modality_object_differs_from_checkpoint": "not the checkpoint",
                   "same_modality_other_checkpoint": "candidates were generated in representation",

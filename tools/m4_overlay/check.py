@@ -74,7 +74,7 @@ def bundle(work: Path, src: Path, conv: Path, chunk: int | None, extra=()):
     runs = labels(work, conv / "trajectories.npz", chunk, extra)
     prepared, labelled = runs["data.prepare"], runs["labels.generate"]
     cands_path = labelled / "labels" / "candidates.npz"
-    sup = build_supervision(prepared / "data" / "dataset.npz", "ccil", representation=IdentityRepresentation("state"),
+    sup = build_supervision(prepared / "data" / "dataset.npz", "demonstrations_plus_selection", representation=IdentityRepresentation("state"),
                             candidates=cands_path, split=prepared / "data" / "split.json",
                             action_chunks="consume" if chunk else "refuse")  # the chunk size is the candidates'
     cands = read_candidates(cands_path, read_trajectories(prepared / "data" / "dataset.npz"))
@@ -139,7 +139,7 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared,
     kw_other = {**kw, "conversion_manifest": work / "other-conversion.json"}
     attempt("no_link_to_the_conversion", lambda: export_overlay(src, work / "o2", sup, prepared_run=prepared, **kw_other),
             "is not the conversion's output")
-    bc = build_supervision(prepared / "data" / "dataset.npz", "bc", representation=IdentityRepresentation("state"),
+    bc = build_supervision(prepared / "data" / "dataset.npz", "demonstrations", representation=IdentityRepresentation("state"),
                            split=prepared / "data" / "split.json")
     attempt("non_ccil_supervision", lambda: export_overlay(src, work / "o3", bc, prepared_run=prepared, **kw), "method")
     attempt("candidates_not_the_supervisions", lambda: export_overlay(src, work / "o5", sup, prepared_run=prepared,

@@ -82,7 +82,7 @@ def pipeline(work: Path, extra=()) -> dict:
     dataset = read_trajectories(prepared / "data" / "dataset.npz")
     cands = read_candidates(cands_path, dataset)
     split_path = prepared / "data" / "split.json"  # absent when no episode is held out
-    sup = build_supervision(prepared / "data" / "dataset.npz", "ccil", representation=IdentityRepresentation("state"),
+    sup = build_supervision(prepared / "data" / "dataset.npz", "demonstrations_plus_selection", representation=IdentityRepresentation("state"),
                             candidates=cands_path, split=split_path if split_path.exists() else None,
                             action_chunks="consume")
     meta = export_overlay(FIXTURE, work / "bundle", sup, conversion_manifest=conv / "manifest.json",

@@ -385,7 +385,7 @@ def main():
            reference_in_data_only=refused, moved_key=moved)
 
     # 7. Corruption refusal at the consumer.
-    sup = lambda **kw: build_supervision(data_path, "ccil", representation=rep, candidates=cpath, **kw)  # noqa: E731
+    sup = lambda **kw: build_supervision(data_path, "demonstrations_plus_selection", representation=rep, candidates=cpath, **kw)  # noqa: E731
     flipped = out / "selection-flipped.npz"
     raw = spath.read_bytes()
     flipped.write_bytes(raw[:len(raw) // 2] + bytes([raw[len(raw) // 2] ^ 1]) + raw[len(raw) // 2 + 1:])
@@ -538,7 +538,7 @@ def main():
     cer, cur = stage(res, "labels.certify"), stage(res, "labels.curate")
     ecert, esel = read_certificates(cer.out(layout.CERTIFICATES)), read_selection(cur.out(layout.SELECTION))
     status = {r.stage: validate_run(r.run_dir)[0] for r in res}
-    esup = build_supervision(empty["dataset"], "ccil", representation=rep, candidates=stage(res, "labels.generate").out(layout.CANDIDATES),
+    esup = build_supervision(empty["dataset"], "demonstrations_plus_selection", representation=rep, candidates=stage(res, "labels.generate").out(layout.CANDIDATES),
                              certificates=cer.out(layout.CERTIFICATES), selection=cur.out(layout.SELECTION), split=empty["split"])
     record("empty_result_is_complete",
            empty["diagnosis"]["admitted"] is None and len(empty["candidates"].accepted) == 0
@@ -676,7 +676,7 @@ def main():
     altered["population"]["rows"] += 1
     altered_path = calib / "calibration-population-altered.json"
     write_calibration(altered, altered_path)
-    sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "ccil", representation=rep,  # noqa: E731
+    sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "demonstrations_plus_selection", representation=rep,  # noqa: E731
                                           candidates=cpath3, certificates=kpath3, selection=spath3,
                                           split=stage(res, "data.prepare").out(layout.SPLIT), **kw)
     policy = CurationPolicy(admit="bound", tolerance=0.05)

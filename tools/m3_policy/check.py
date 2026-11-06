@@ -136,14 +136,14 @@ def main():
     d = work / "runs"
     P = {k: next(d.glob(f"{k}-*")) for k in ("data-prepare", "labels-generate", "labels-certify")}
     P["labels-curate"] = work / runs["ccil"]["stages"]["labels.curate"]  # the ccil arm's selection (bc's selects all)
-    sup = {"bc": build_supervision(P["data-prepare"] / "data/dataset.npz", "bc", representation=rep,
+    sup = {"bc": build_supervision(P["data-prepare"] / "data/dataset.npz", "demonstrations", representation=rep,
                                    split=P["data-prepare"] / "data/split.json"),
-           "ccil": build_supervision(P["data-prepare"] / "data/dataset.npz", "ccil", representation=rep,
+           "ccil": build_supervision(P["data-prepare"] / "data/dataset.npz", "demonstrations_plus_selection", representation=rep,
                                      candidates=P["labels-generate"] / "labels/candidates.npz",
                                      certificates=P["labels-certify"] / "labels/certificates.npz",
                                      selection=P["labels-curate"] / "labels/selection.npz",
                                      split=P["data-prepare"] / "data/split.json")}
-    sup["noise_bc"] = build_supervision(P["data-prepare"] / "data/dataset.npz", "noise_bc", representation=rep,
+    sup["noise_bc"] = build_supervision(P["data-prepare"] / "data/dataset.npz", "demonstrations", perturbation="noise_bc", representation=rep,
                                         split=P["data-prepare"] / "data/split.json")
 
     def noise(mode="symmetric_uniform_half_batch", scale=0.1, seed=SEED):
@@ -188,7 +188,7 @@ def main():
     # 3. Weights: the declared formula, and zero-weight batches take no step.
     w = torch.rand(32)
     manual = float((w.numpy() * ((pred - target).numpy() ** 2).mean(axis=1)).sum() / w.numpy().sum())
-    zero = build_supervision(P["data-prepare"] / "data/dataset.npz", "bc", representation=rep,
+    zero = build_supervision(P["data-prepare"] / "data/dataset.npz", "demonstrations", representation=rep,
                              split=P["data-prepare"] / "data/split.json", demonstration_weight=0.0)
     torch.manual_seed(SEED)
     init = vector_bc.VectorBCPolicy(2, 1, [256, 256])
@@ -359,7 +359,7 @@ def main():
         "other_batch_size": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], {**SETTINGS, "batch_size": 16}, seed=SEED, resume=ck[2])),
         "other_balancing": refused(lambda: vector_bc.train_vector_bc(sup["ccil"], {**SETTINGS, "epochs": 8, "balance_labels": 4}, seed=SEED, resume=ck[2])),
         "other_supervision": refused(lambda: vector_bc.train_vector_bc(
-            build_supervision(P["data-prepare"] / "data/dataset.npz", "ccil", representation=rep,
+            build_supervision(P["data-prepare"] / "data/dataset.npz", "demonstrations_plus_selection", representation=rep,
                               candidates=P["labels-generate"] / "labels/candidates.npz",
                               split=P["data-prepare"] / "data/split.json"), SETTINGS, seed=SEED, resume=ck[2])),
         "other_noise_scale": refused(lambda: vector_bc.train_vector_bc(sup["noise_bc"], SETTINGS, seed=SEED, noise=noise(scale=0.2), resume=nb_ck[2])),

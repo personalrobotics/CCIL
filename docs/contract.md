@@ -303,7 +303,19 @@ is constructed.
 | `ccil data convert`, `ccil config convert` | **Keep**, as one-way legacy migration. |
 | `ccil schema validate`, `ccil run validate`, `ccil config show` | **Keep.** |
 | `ccil schema docs`, `ccil config docs`, `ccil config audit` | **Keep** as maintainer tools that regenerate references. |
-| `ccil policy train`, `ccil.experiments`, `ccil.training` | **Deprecate** and move to the benchmark harness (#168). |
+| `ccil policy train`, `ccil.experiments`, `ccil.training` | **Moved** to il-supervision-benchmarks (#168). They still run in this release, with a warning naming the replacement (below), and are removed in the next. |
 | `ccil pipeline integrated` | **Keep** as the level-4 reference, outside the default product. |
-| `ccil.supervision.build_supervision`, `ccil.schema` readers, `ccil.lerobot` | **Keep** as the consumer interfaces. |
+| `ccil.supervision.build_supervision`, `ccil.schema` readers, `ccil.lerobot` | **Keep** as the consumer interfaces. The supervision sources are renamed (below). |
 | `policy.*`, `evaluation.*`, `environment.*` | **Move** to the benchmark harness (#168). |
+
+**Migration (#168).** Each former name below warns in this release and is refused in the next.
+
+| Former | Replacement |
+|---|---|
+| `ccil policy train --recipe R --set policy.…` | `ilsb policy train CONFIG`: an `ilsb.policy-train` 1 configuration in il-supervision-benchmarks, whose `labels` section takes this command's `--recipe`, `--config` and `--set` |
+| `ccil.training.vector_bc`, `vector_bc_v2`, `noise_bc` | `ilsb.learners.vector.vector_bc`, `vector_bc_v2`, `noise_bc`, with the same trainer names, versions and training identities |
+| `ccil.experiments` | the il-supervision-benchmarks study harness (`ilsb run SPEC`) |
+| `build_supervision(d, "bc")` | `build_supervision(d, "demonstrations")` |
+| `build_supervision(d, "noise_bc")` | `build_supervision(d, "demonstrations", perturbation="noise_bc")` |
+| `build_supervision(d, "ccil", …)` | `build_supervision(d, "demonstrations_plus_selection", …)` |
+| `build_supervision(d, method=…)` | the source, positionally |
