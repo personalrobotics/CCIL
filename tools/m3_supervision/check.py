@@ -29,7 +29,7 @@ independently from the files and compared with build_supervision:
   parameters differ, another checkpoint, or a missing one is refused;
 - chunked supervision is handed off only through chunk_arrays();
 - the former source names bc, noise_bc and ccil, positionally or as method=,
-  each emit a FutureWarning naming their replacement (demonstrations,
+  each emit exactly one FutureWarning naming their replacement (demonstrations,
   demonstrations with perturbation noise_bc, demonstrations_plus_selection)
   and build the same manifest; the new names warn nothing, and a perturbation
   on the selection source, an unknown perturbation or source, a former name
@@ -304,13 +304,13 @@ def main():
            set(reason) == set(refused) and all(v.startswith("SupervisionError") and reason[k] in v for k, v in refused.items()),
            refused=refused)
 
-    # Former source names (#168): each warns once, names its replacement, and builds the same manifest.
+    # Former source names (#168): each warns exactly once, names its replacement, and builds the same manifest.
     import warnings
-    former = {"bc": (dict(source="demonstrations"), "'demonstrations'"),
+    former = {"bc": (dict(source="demonstrations"), "(dataset, 'demonstrations', ...)"),
               "noise_bc": (dict(source="demonstrations", perturbation="noise_bc"),
-                           "'demonstrations' with perturbation='noise_bc'"),
+                           "(dataset, 'demonstrations', perturbation='noise_bc', ...)"),
               "ccil": (dict(source="demonstrations_plus_selection", candidates=P["candidates"],
-                            certificates=P["certificates"], selection=P["selection"]), "'demonstrations_plus_selection'")}
+                            certificates=P["certificates"], selection=P["selection"]), "(dataset, 'demonstrations_plus_selection', ...)")}
     names = {}
     for old, (new, hint) in former.items():
         extra = {k: v for k, v in new.items() if k not in ("source", "perturbation")}
@@ -337,7 +337,8 @@ def main():
         "source_and_method": outcome(lambda: build_supervision(P["dataset"], "demonstrations", method="bc", **base)),
         "unknown_source": outcome(lambda: build_supervision(P["dataset"], "labels", **base))}
     record("former_source_names_warn_and_match",
-           all(v["same_manifest"] and v["names_replacement"] and not v["new_name_warns"] for v in names.values())
+           all(v["same_manifest"] and v["names_replacement"] and len(v["warnings"]) == 1 and not v["new_name_warns"]
+               for v in names.values())
            and [names[k]["manifest_method"] for k in ("bc", "noise_bc", "ccil")] == ["bc", "noise_bc", "ccil"]
            and all(v.startswith("SupervisionError") for v in combos.values()),
            names=names, refused=combos)

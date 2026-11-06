@@ -157,20 +157,23 @@ def _valid_chunk_size(k) -> bool:
 
 def _resolve_source(source, perturbation, method) -> str:
     """The manifest method of (source, perturbation); a former name warns and maps to its replacement."""
-    if method is not None:
+    via_method = method is not None
+    if via_method:
         if source is not None:
             raise SupervisionError(["pass the source once: positionally, not also as method="])
-        warnings.warn("build_supervision(method=...) is deprecated: pass the source positionally; method= is refused "
-                      "in the next release (#168)", FutureWarning, stacklevel=3)
         source = method
     if source in _FORMER:
         new, implied = _FORMER[source]
         if perturbation is not None:
             raise SupervisionError([f"the former source {source!r} takes no perturbation; use {new!r}"])
-        hint = f"{new!r}" + (f" with perturbation={implied!r}" if implied else "")
-        warnings.warn(f"supervision source {source!r} is deprecated: use {hint}; the former name is refused in the "
-                      "next release (#168)", FutureWarning, stacklevel=3)
+        hint = f"build_supervision(dataset, {new!r}" + (f", perturbation={implied!r}" if implied else "") + ", ...)"
+        former = f"build_supervision(method={source!r})" if via_method else f"supervision source {source!r}"
+        warnings.warn(f"{former} is deprecated: use {hint}; the former form is refused in the next release (#168)",
+                      FutureWarning, stacklevel=3)
         source, perturbation = new, implied
+    elif via_method:
+        warnings.warn(f"build_supervision(method={source!r}) is deprecated: use build_supervision(dataset, {source!r}, "
+                      "...); method= is refused in the next release (#168)", FutureWarning, stacklevel=3)
     if source not in SOURCES:
         raise SupervisionError([f"source must be one of {list(SOURCES)}, got {source!r}"])
     if perturbation is not None and perturbation not in PERTURBATIONS:

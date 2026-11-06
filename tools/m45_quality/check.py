@@ -676,7 +676,7 @@ def main():
     altered["population"]["rows"] += 1
     altered_path = calib / "calibration-population-altered.json"
     write_calibration(altered, altered_path)
-    sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "ccil", representation=rep,  # noqa: E731
+    sup3 = lambda **kw: build_supervision(stage(res, "data.prepare").out(layout.DATASET), "demonstrations_plus_selection", representation=rep,  # noqa: E731
                                           candidates=cpath3, certificates=kpath3, selection=spath3,
                                           split=stage(res, "data.prepare").out(layout.SPLIT), **kw)
     policy = CurationPolicy(admit="bound", tolerance=0.05)

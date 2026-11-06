@@ -71,7 +71,9 @@ def run(out: Path, device: str) -> dict:
             group = []
             for s in SEEDS[:n]:
                 d, c = paths[(task, s)]
-                sup = build_supervision(d, arm, representation=rep, candidates=c if arm == "ccil" else None)
+                sup = build_supervision(d, "demonstrations_plus_selection" if arm == "ccil" else "demonstrations",
+                                        representation=rep, candidates=c if arm == "ccil" else None,
+                                        perturbation="noise_bc" if arm == "noise_bc" else None)
                 group.append(v2.Job(sup, s, NoiseBC("symmetric_uniform_half_batch", 1e-4, seed=s) if arm == "noise_bc"
                                     else None))
             torch.cuda.synchronize()
