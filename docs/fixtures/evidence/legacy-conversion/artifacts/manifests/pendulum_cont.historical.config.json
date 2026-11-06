@@ -1,10 +1,10 @@
 {
- "config_hash": "46faaba0edf84575b0dfa805eef5be6304278ad328ec1da2369f3970c0040459",
- "converter": "ccil.config.convert/1",
+ "config_hash": "1c70186c04c7cb2c8af70d9ad2c7c71e32a415dad2d04cf5170ab8dfb3cbe7ef",
+ "converter": "ccil.config.convert/2",
  "counts": {
-  "derived": 4,
-  "dropped": 6,
-  "renamed": 25
+  "derived": 3,
+  "dropped": 12,
+  "renamed": 20
  },
  "dataset": {
   "canonical": "data/pendulum_cont_100.npz",
@@ -14,10 +14,9 @@
  },
  "dispositions": [
   {
-   "canonical": "policy.balance_noisy_labels",
-   "disposition": "renamed",
+   "disposition": "dropped",
    "legacy": "aug.balance_data",
-   "resolved": false,
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": false
   },
   {
@@ -183,28 +182,15 @@
    "value": 1e-05
   },
   {
-   "canonical": "environment.id",
-   "disposition": "renamed",
+   "disposition": "dropped",
    "legacy": "env",
-   "resolved": "PendulumSwingupCont-v0",
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": "PendulumSwingupCont-v0"
   },
   {
-   "canonical": [
-    "evaluation.noise_levels"
-   ],
-   "disposition": "derived",
+   "disposition": "dropped",
    "legacy": "eval.noise",
-   "resolved": {
-    "evaluation.noise_levels": [
-     0.0
-    ]
-   },
-   "result": {
-    "evaluation.noise_levels": [
-     0.0
-    ]
-   },
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": [
     0.0
    ]
@@ -237,56 +223,49 @@
    "value": "output/"
   },
   {
-   "canonical": "policy.batch_size",
-   "disposition": "renamed",
+   "disposition": "dropped",
    "legacy": "policy.batch_size",
-   "resolved": 512,
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": 512
   },
   {
-   "canonical": "policy.learning_rate",
-   "disposition": "renamed",
+   "disposition": "dropped",
    "legacy": "policy.lr",
-   "resolved": 0.001,
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": 0.001
   },
   {
    "canonical": [
-    "policy.method",
-    "policy.noise_scale"
+    "supervision.source"
    ],
    "disposition": "derived",
    "legacy": "policy.naive",
    "resolved": {
-    "policy.method": "ccil",
-    "policy.noise_scale": null
+    "supervision.source": "demonstrations_plus_selection"
    },
    "result": {
-    "policy.method": "ccil"
+    "supervision.source": "demonstrations_plus_selection"
    },
    "value": false
   },
   {
    "canonical": [
-    "policy.method",
-    "policy.noise_scale"
+    "supervision.source"
    ],
    "disposition": "derived",
    "legacy": "policy.noise_bc",
    "resolved": {
-    "policy.method": "ccil",
-    "policy.noise_scale": null
+    "supervision.source": "demonstrations_plus_selection"
    },
    "result": {
-    "policy.method": "ccil"
+    "supervision.source": "demonstrations_plus_selection"
    },
    "value": 0.0
   },
   {
-   "canonical": "policy.epochs",
-   "disposition": "renamed",
+   "disposition": "dropped",
    "legacy": "policy.train_epochs",
-   "resolved": 100,
+   "reason": "policy training and evaluation moved to il-supervision-benchmarks (#168)",
    "value": 100
   },
   {
@@ -301,23 +280,16 @@
  "implicit_legacy_behavior": [
   {
    "canonical_default": true,
-   "key": "policy.exclude_validation_episodes",
+   "key": "supervision.exclude_validation_episodes",
    "legacy_behavior": false,
-   "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical harness holds the split's validation episodes out of policy training.",
+   "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical supervision holds the split's validation episodes out.",
    "written": false
-  },
-  {
-   "canonical_default": "symmetric_uniform_half_batch",
-   "key": "policy.noise_model",
-   "legacy_behavior": "legacy_uniform_half_batch",
-   "why": "legacy CustomBC added noise_bc * U[0, 1), always positive; the canonical default is the zero-centered symmetric_uniform_half_batch (#22).",
-   "written": "legacy_uniform_half_batch"
   }
  ],
  "invocation": {
-  "correct_il/eval_bc_policy.py CONFIG": "simulator evaluation: #24 and M7",
+  "correct_il/eval_bc_policy.py CONFIG": "simulator evaluation: il-supervision-benchmarks (#168)",
   "correct_il/gen_aug_label.py CONFIG": "ccil labels generate --config CANON (stages labels.generate, labels.certify)",
-  "correct_il/train_bc_policy.py CONFIG": "ccil policy train --config CANON (experimental harness, #89)",
+  "correct_il/train_bc_policy.py CONFIG": "ilsb policy train (il-supervision-benchmarks, #168)",
   "correct_il/train_dynamics_model.py CONFIG": "ccil labels generate --config CANON (stage transition.fit)"
  },
  "non_configurable_corrections": [
@@ -331,7 +303,7 @@
  "notes": [
   "seed -> run.seed",
   "no_gpu -> compute.device",
-  "env -> environment.id",
+  "dropped env: policy training and evaluation moved to il-supervision-benchmarks (#168)",
   "output.location -> run.output_dir",
   "dropped output.folder_suffix: run directories are named by run ID",
   "dropped data.expert: never read by the legacy code",
@@ -356,82 +328,78 @@
   "aug.num_labels -> generation.labels_per_transition",
   "aug.delta -> generation.action_noise_std",
   "aug.epsilon -> generation.support_radius",
-  "aug.balance_data -> policy.balance_noisy_labels",
+  "dropped aug.balance_data: policy training and evaluation moved to il-supervision-benchmarks (#168)",
   "dropped aug.use_expert_label: never read by the legacy code",
-  "policy.lr -> policy.learning_rate",
-  "policy.batch_size -> policy.batch_size",
-  "policy.train_epochs -> policy.epochs",
-  "eval.noise -> evaluation.noise_levels",
-  "policy.naive + policy.noise_bc -> policy.method (+ policy.noise_scale)"
+  "dropped policy.lr: policy training and evaluation moved to il-supervision-benchmarks (#168)",
+  "dropped policy.batch_size: policy training and evaluation moved to il-supervision-benchmarks (#168)",
+  "dropped policy.train_epochs: policy training and evaluation moved to il-supervision-benchmarks (#168)",
+  "dropped eval.noise: policy training and evaluation moved to il-supervision-benchmarks (#168)",
+  "policy.naive + policy.noise_bc -> supervision.source",
+  "transition_model.lipschitz_coordinates = 'raw': the legacy meaning (#125: version 2's default is model_normalized)",
+  "generation.recovery_steps = '1': the legacy meaning (#167: version 3's default auto admits a recovery length only through the data-only gates)"
  ],
  "output": {
   "path": "pendulum_cont.historical.yaml",
-  "sha256": "cbaf71ead34d08d758621676e8db9d2520b561c6f676cfbc7ed6bc844d1800ff"
+  "sha256": "c63e0435e1d8456ab32d746e309f1adbcb1dce8ffc5a94bb57e71853afd1be64"
  },
  "resolved": {
+  "audit.reference_dynamics": null,
+  "calibration.level": null,
   "certificate.demonstration_residual_bound": null,
   "certificate.discrepancy_action_lipschitz": null,
   "certificate.discrepancy_state_lipschitz": null,
   "certificate.learned_lipschitz_source": "model",
   "certificate.learned_state_lipschitz": null,
-  "certificate.max_total_error": null,
   "certificate.neighborhood_action": null,
   "certificate.neighborhood_state": null,
   "certificate.profile": null,
   "certificate.reference_dynamics": null,
-  "certificate.score_threshold": null,
-  "certificate.selection_population": "admitted",
-  "certificate.selection_quantile": null,
   "certificate.true_action_lipschitz": null,
   "certificate.true_state_lipschitz": null,
   "compute.deterministic": false,
   "compute.device": "cuda",
+  "compute.jacobian_memory_mb": 2048,
+  "curate.population": "admitted",
+  "curate.quantile": null,
+  "curate.tolerance": null,
   "data.action_high": null,
   "data.action_low": null,
   "data.path": "data/pendulum_cont_100.npz",
   "data.validation_fraction": 0.2,
-  "environment.id": "PendulumSwingupCont-v0",
-  "evaluation.episodes": 100,
-  "evaluation.max_episode_steps": null,
-  "evaluation.noise_levels": [
-   0.0
-  ],
-  "evaluation.noise_model": "legacy_uniform_mix",
+  "diagnose.fit_quantile": 0.95,
+  "diagnose.fit_ratio": 0.5,
+  "diagnose.label_quantile": 0.9,
+  "diagnose.min_displacement": 1.0,
+  "diagnose.min_novelty": 1.0,
+  "diagnose.min_yield": 0.01,
+  "diagnose.probe_transitions": 256,
+  "diagnose.tau_quantile": 0.95,
+  "diagnose.tau_sample": 2048,
   "generation.action_chunk_size": null,
   "generation.action_noise_std": 1e-05,
+  "generation.evidence_mode": "data_only",
   "generation.labels_per_transition": 20,
   "generation.max_iterations": 30,
   "generation.method": "noisy_action",
   "generation.model_error_threshold": null,
+  "generation.recovery_steps": "1",
   "generation.root_tolerance": 0.0001,
   "generation.support_radius": 1.0,
-  "policy.action_scaler": "min_max",
-  "policy.balance_noisy_labels": false,
-  "policy.batch_size": 512,
-  "policy.demonstration_weight": 1.0,
-  "policy.epochs": 100,
-  "policy.exclude_validation_episodes": false,
-  "policy.hidden_layers": [
-   256,
-   256
-  ],
-  "policy.learning_rate": 0.001,
-  "policy.method": "ccil",
-  "policy.noise_mask_probability": 0.5,
-  "policy.noise_model": "legacy_uniform_half_batch",
-  "policy.noise_scale": null,
-  "policy.observation_scaler": "standard",
-  "policy.trainer": "linear_least_squares",
+  "integrated.trainer": "linear_least_squares",
   "representation.dim": null,
   "representation.kind": "identity",
   "representation.modality": "state",
   "run.output_dir": "output/",
   "run.overwrite": false,
   "run.seed": 42,
+  "supervision.demonstration_weight": 1.0,
+  "supervision.exclude_validation_episodes": false,
+  "supervision.source": "demonstrations_plus_selection",
   "transition_model.activation": "relu",
   "transition_model.batch_size": 512,
   "transition_model.direction": "forward",
   "transition_model.epochs": 100,
+  "transition_model.fit_episodes": "all",
   "transition_model.hidden_layers": [
    512,
    512
@@ -439,11 +407,13 @@
   "transition_model.kind": "mlp",
   "transition_model.learning_rate": 0.001,
   "transition_model.lipschitz_constraint": 2.0,
+  "transition_model.lipschitz_coordinates": "raw",
   "transition_model.lipschitz_type": "soft_sampling",
   "transition_model.slack_weight": 1.0,
   "transition_model.soft_penalty_weight": 0.001,
   "transition_model.soft_samples": 5,
   "transition_model.soft_sampling_eps": 0.0003,
+  "transition_model.trainer_version": "1",
   "transition_model.weight_decay": 1e-05
  },
  "source": {

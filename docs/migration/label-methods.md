@@ -23,7 +23,7 @@ applies NoiseBC.
 |---|---|---|
 | `gen_noisy_action_be` (`aug.type: noisy_action`) | `ccil.core.NoisyAction` (`generation.method=noisy_action`, version 2) | Same mathematics: for k draws ã = a + N(0, σ²), z_G = z_{t+1} − f(z_{t+1}, ã). Version 2 adds the measurements below. |
 | `gen_noisy_action_fe` (`aug.type: noisy_action_fe`) | `ccil.core.NoisyActionPreimage` (`generation.method=noisy_action_fe`) | Same mathematics: solve z_G + f(z_G, ã) = z_{t+1} by Newton from z_t. Uses the row-wise solver of `ExactPreimage` (#17). A failed proposal is rejected as `generation_failed` and never refilled. |
-| `CustomBC.compute_loss_weight` with `noise_cov` (NoiseBC) | `ccil.training.noise_bc.NoiseBC` | Corrected (below). Training integration is #89. |
+| `CustomBC.compute_loss_weight` with `noise_cov` (NoiseBC) | `ilsb.learners.vector.noise_bc.NoiseBC` in il-supervision-benchmarks (moved, #168) | Corrected (below). |
 
 ## Measurements every noisy-action proposal records
 

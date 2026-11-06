@@ -1,6 +1,6 @@
 """Versioned configuration migration.
 
-Current files declare `config_version: 3`. A file without a version is read as
+Current files declare `config_version: 4`. A file without a version is read as
 version 0, the legacy correct_il YAML, and migrated: renamed keys move to their
 canonical key; keys that never affected behavior are dropped with a note; keys
 that did affect behavior but have no supported home yet fail with guidance.
@@ -16,12 +16,20 @@ selection_population as curate.population, each with a note, and a file that
 does not set generation.recovery_steps generates at 1, as it did. Such a file's
 certificate.reference_dynamics made its selection reference-assisted, so it
 resolves generation.evidence_mode to reference_assisted unless it sets it.
+
+Version 4 (#168) moved policy training and evaluation to il-supervision-benchmarks.
+An older file's policy.method is read as supervision.source (bc as
+demonstrations, ccil as demonstrations_plus_selection), its
+policy.demonstration_weight and policy.exclude_validation_episodes as their
+supervision keys, and its policy.trainer as integrated.trainer, each with a
+note. Its other policy, evaluation and environment keys are dropped with a
+note, and policy.method noise_bc fails, naming the replacement.
 """
 from __future__ import annotations
 
 from .params import REGISTRY
 
-CONFIG_VERSION = 3
+CONFIG_VERSION = 4
 # Defaults that changed with a version: an older file that does not set the key keeps the older meaning.
 CHANGED_DEFAULTS = {2: {"transition_model.lipschitz_coordinates": ("raw", "#125: version 2's default is "
                                                                           "model_normalized")},
@@ -45,6 +53,18 @@ UNSUPPORTED = {
     "state_encoder": "image-observation encoder from the fork image branch; deferred to M5",
     "policy.layers": "policy encoder width from label-filtering; ported with the policy stage in M3",
 }
+MOVED_TO = "policy training and evaluation moved to il-supervision-benchmarks (#168)"
+# Legacy keys whose canonical keys moved with the policy harness (#168): dropped with a note.
+MOVED_LEGACY = {"env": MOVED_TO, "eval.noise": MOVED_TO, "policy.lr": MOVED_TO, "policy.batch_size": MOVED_TO,
+                "policy.train_epochs": MOVED_TO, "aug.balance_data": MOVED_TO}
+# Version 1 to 3 keys kept under a new name (#168), and the sections dropped with the policy harness.
+MOVED_V4 = {"policy.method": "supervision.source", "policy.demonstration_weight": "supervision.demonstration_weight",
+            "policy.exclude_validation_episodes": "supervision.exclude_validation_episodes",
+            "policy.trainer": "integrated.trainer"}
+REMOVED_V4 = ("policy", "evaluation", "environment")
+SOURCE_V4 = {"bc": "demonstrations", "ccil": "demonstrations_plus_selection"}
+NOISE_BC = ("NoiseBC moved to il-supervision-benchmarks (#168): train it with ilsb policy train (supervision.source "
+            "demonstrations, policy.noise); CCIL's supervision for it is supervision.source demonstrations")
 # Keys withdrawn in favour of the certificate layer (#88) and of curation (#167).
 WITHDRAWN = {
     "generation.max_label_error": "label-error filtering moved to certificates and curation: set certificate.profile "
@@ -57,7 +77,7 @@ MOVED_V3 = {"certificate.max_total_error": "curate.tolerance", "certificate.scor
             "certificate.selection_quantile": "curate.quantile", "certificate.selection_population": "curate.population"}
 WITHDRAWN.update({old: f"selection moved out of the certificate (#167): set {new}" for old, new in MOVED_V3.items()})
 RENAMED = {legacy: p.key for p in REGISTRY.values() for legacy in p.legacy
-           if legacy not in ("no_gpu", "dynamics.backward", "policy.naive", "policy.noise_bc", "data.pkl", "eval.noise")}
+           if legacy not in ("no_gpu", "dynamics.backward", "policy.naive", "policy.noise_bc", "data.pkl")}
 
 
 def flatten(d: dict, prefix: str = "") -> dict:
@@ -80,6 +100,8 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
         top = key.split(".")[0]
         if key in DROPPED:
             notes.append(f"dropped {key}: {DROPPED[key]}")
+        elif key in MOVED_LEGACY:
+            notes.append(f"dropped {key}: {MOVED_LEGACY[key]}")
         elif key in UNSUPPORTED or top in UNSUPPORTED:
             errors.append(f"{key} has no supported equivalent: {UNSUPPORTED.get(key) or UNSUPPORTED[top]}")
         elif key == "no_gpu":
@@ -91,9 +113,6 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
         elif key == "data.pkl":
             values["data.path"] = v[:-4] + ".npz" if isinstance(v, str) and v.endswith(".pkl") else v
             notes.append("data.pkl -> data.path (.pkl replaced by the converted .npz; see convert_legacy_dataset.py)")
-        elif key == "eval.noise":
-            values["evaluation.noise_levels"] = v if v else [0.0]
-            notes.append("eval.noise -> evaluation.noise_levels")
         elif key in ("policy.naive", "policy.noise_bc"):
             continue  # combined below
         elif key in RENAMED:
@@ -112,14 +131,14 @@ def migrate_v0(raw: dict) -> tuple[dict, list[str], list[str]]:
     if "policy.naive" in flat or "policy.noise_bc" in flat:
         naive, noise = flat.get("policy.naive", False), flat.get("policy.noise_bc", 0.0)
         if naive is True and noise:
-            values["policy.method"], values["policy.noise_scale"] = "noise_bc", noise
+            errors.append(f"policy.naive with policy.noise_bc={noise!r}: {NOISE_BC}")
         elif naive is True:
-            values["policy.method"] = "bc"
+            values["supervision.source"] = "demonstrations"
         elif naive is False and not noise:
-            values["policy.method"] = "ccil"
+            values["supervision.source"] = "demonstrations_plus_selection"
         else:
             errors.append(f"policy.naive={naive!r} with policy.noise_bc={noise!r} has no supported equivalent")
-        notes.append("policy.naive + policy.noise_bc -> policy.method (+ policy.noise_scale)")
+        notes.append("policy.naive + policy.noise_bc -> supervision.source")
     return values, notes, errors
 
 
@@ -142,6 +161,30 @@ def _move_selection(values: dict, version: int) -> tuple[dict, list[str], list[s
     return out, notes, errors
 
 
+def _move_policy(values: dict, version: int) -> tuple[dict, list[str], list[str]]:
+    """A version 1 to 3 layer's policy, evaluation and environment keys: renamed, or dropped (#168)."""
+    out, notes, errors = {}, [], []
+    for key, v in values.items():
+        new = MOVED_V4.get(key)
+        if new is None and key.split(".")[0] in REMOVED_V4:
+            notes.append(f"dropped {key} (config_version {version}): {MOVED_TO}")
+            continue
+        if new is None:
+            out[key] = v
+            continue
+        if key == "policy.method":
+            if v == "noise_bc":
+                errors.append(f"policy.method noise_bc (config_version {version}): {NOISE_BC}")
+                continue
+            v = SOURCE_V4.get(v, v)
+        if new in values or new in out:
+            errors.append(f"{key} and {new} both set {new}")
+            continue
+        out[new] = v
+        notes.append(f"{key} -> {new} (config_version {version}; #168)")
+    return out, notes, errors
+
+
 def read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
     """A parsed YAML layer -> (canonical flat values, notes, errors), migrating when needed."""
     if not isinstance(raw, dict):
@@ -161,6 +204,9 @@ def _read_layer(raw: dict) -> tuple[dict, list[str], list[str]]:
         values, notes, errors = flatten({k: v for k, v in raw.items() if k != "config_version"}), [], []
         if version < 3:
             values, notes, errors = _move_selection(values, version)
+        if version < 4:
+            values, more_notes, more_errors = _move_policy(values, version)
+            notes, errors = notes + more_notes, errors + more_errors
     else:
         return {}, [], [f"config_version {version!r} is not supported (this version reads 0 to {CONFIG_VERSION})"]
     for changed, keys in CHANGED_DEFAULTS.items():

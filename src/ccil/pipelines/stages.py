@@ -60,8 +60,8 @@ STAGE_KEYS = {
     "labels.curate": ("curate.", "generation.evidence_mode"),
     "labels.calibrate": ("calibration.",),
     "labels.audit": ("audit.", "representation.modality"),
-    "policy.train": ("run.seed", "policy.", "compute."),
-    "policy.evaluate": ("run.seed", "policy.", "evaluation."),
+    "policy.train": ("run.seed", "supervision.", "integrated.", "compute."),
+    "policy.evaluate": ("run.seed", "supervision.", "integrated."),
 }
 
 

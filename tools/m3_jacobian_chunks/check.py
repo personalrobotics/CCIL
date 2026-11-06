@@ -122,7 +122,7 @@ def cuda_part(out: Path, task: str, device: str) -> dict:
     study.prepare(out)
     data = out / "inputs" / "data" / f"{study.DATASETS[task]}.npz"
     sets = [f"run.seed={SEED}", f"compute.device={device}", f"data.path={data}", f"run.output_dir={out / 'stages'}",
-            "policy.exclude_validation_episodes=false", "certificate.profile=disturbed_action_paper_proxy",
+            "supervision.exclude_validation_episodes=false", "certificate.profile=disturbed_action_paper_proxy",
             "curate.quantile=0.3"]
     cwd = os.getcwd()
     os.chdir(out / "inputs")

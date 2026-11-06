@@ -4,14 +4,14 @@
 
 Every behavior-affecting value recorded in the reproducibility ledger, and every key the legacy code read, with its canonical key and status. Generation fails if any value is unclassified.
 
-Status counts: declared 6, deferred 7, derived 3, dropped 8, implemented 40, invariant 1, retired 5.
+Status counts: declared 1, deferred 7, derived 1, dropped 8, implemented 34, invariant 1, moved 13, retired 5.
 
 | Legacy value | Ledger class | Canonical key | Status | Note |
 |---|---|---|---|---|
-| `env` | invariant | `environment.id` | declared | M3/M7 |
+| `env` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `data.pkl` | invariant | `data.path` | implemented |  |
 | `seed` | invariant | `run.seed` | implemented |  |
-| `eval.noise` | invariant | `evaluation.noise_levels` | declared | M7 |
+| `eval.noise` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `data.num_traj` | derived | - | dropped | derived placeholder ('...') filled in at load time |
 | `data.horizon` | derived | - | dropped | derived placeholder ('...') filled in at load time |
 | `data.num_datapoints` | derived | - | dropped | derived placeholder ('...') filled in at load time |
@@ -37,14 +37,14 @@ Status counts: declared 6, deferred 7, derived 3, dropped 8, implemented 40, inv
 | `aug.num_labels` | tunable | `generation.labels_per_transition` | implemented |  |
 | `aug.delta` | tunable | `generation.action_noise_std` | implemented |  |
 | `aug.epsilon` | tunable | `generation.support_radius` | implemented |  |
-| `aug.balance_data` | tunable | `policy.balance_noisy_labels` | implemented |  |
+| `aug.balance_data` | tunable | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `aug.label_err_quantile` | tunable | `curate.quantile` | implemented |  |
 | `aug.max_label_err` | tunable | `curate.tolerance` | implemented |  |
 | `aug.model_err_thresh` | tunable | `generation.model_error_threshold` | implemented |  |
 | `aug.chunk_size` | tunable | `generation.action_chunk_size` | implemented |  |
-| `policy.lr` | tunable | `policy.learning_rate` | implemented |  |
-| `policy.batch_size` | tunable | `policy.batch_size` | implemented |  |
-| `policy.train_epochs` | tunable | `policy.epochs` | implemented |  |
+| `policy.lr` | tunable | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `policy.batch_size` | tunable | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `policy.train_epochs` | tunable | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `policy.layers` | tunable | - | deferred | policy encoder width from label-filtering; ported with the policy stage in M3 |
 | `state_encoder.latent_dim` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
 | `state_encoder.layers` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
@@ -53,20 +53,20 @@ Status counts: declared 6, deferred 7, derived 3, dropped 8, implemented 40, inv
 | `state_encoder.target_network_tau` | tunable | - | deferred | image-observation encoder from the fork image branch; deferred to M5 |
 | `dynamics.val_percentage` | tunable | - | dropped | never read by the legacy code (#13) |
 | `aug.use_expert_label` | tunable | - | dropped | never read by the legacy code |
-| `policy.naive` | invariant | `policy.method` | implemented |  |
-| `policy.noise_bc` | invariant | `policy.noise_scale` | implemented |  |
-| `literal:eval.n_trials=100` | invariant | `evaluation.episodes` | declared |  |
-| `literal:eval.success_denominator=100` | derived | - | derived | equals evaluation.episodes |
-| `literal:eval.noise_model` | invariant | `evaluation.noise_model` | declared |  |
-| `literal:metaworld.max_steps=500` | invariant | `evaluation.max_episode_steps` | declared |  |
+| `policy.naive` | invariant | `supervision.source` | implemented |  |
+| `policy.noise_bc` | invariant | `supervision.source` | implemented |  |
+| `literal:eval.n_trials=100` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `literal:eval.success_denominator=100` | derived | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `literal:eval.noise_model` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `literal:metaworld.max_steps=500` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `literal:pendulum.constants` | invariant | - | invariant | environment definition (l, g, dt, RK4, action range); ported with the Pendulum environment in M3 |
 | `literal:f1.horizon=800` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
 | `literal:f1.eval_map=maps/random/map0` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
 | `literal:f1.eval_n_traj=100` | invariant | - | retired | F1TENTH retired by the migration contract, section 3 |
-| `literal:noise_bc.noise_model` | invariant | `policy.noise_model` | implemented |  |
-| `literal:bc.action_scaler=min_max` | tunable | `policy.action_scaler` | implemented |  |
+| `literal:noise_bc.noise_model` | invariant | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
+| `literal:bc.action_scaler=min_max` | tunable | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `literal:bc.tycho_loss_weights` | tunable | - | retired | real-robot special case; real-robot results are cited as published (contract, section 3) |
-| `literal:bc.epoch_scaling` | derived | - | derived | policy epochs divided by labels per transition when noisy labels are balanced |
+| `literal:bc.epoch_scaling` | derived | - | moved | policy training and evaluation moved to il-supervision-benchmarks (#168) |
 | `literal:root_finder.threshold=1e-4` | tunable | `generation.root_tolerance` | implemented |  |
 | `literal:backward_euler_fast.fail_distance=0.01` | derived | - | retired | diagnostic counter removed in #11 |
 | `literal:dynamics.input_normalization` | derived | - | derived | shift and scale computed from the training data |

@@ -74,8 +74,8 @@ uv run ccil config convert config/pendulum_disc.yml --out pendulum_disc.yaml --m
 | Disposition | Meaning |
 |---|---|
 | `renamed` | The value moves unchanged to its canonical key, for example `aug.num_labels` → `generation.labels_per_transition`. |
-| `derived` | Computed from legacy keys: `policy.naive` + `policy.noise_bc` → `policy.method` (+ `policy.noise_scale`); `no_gpu` → `compute.device`; `eval.noise` → `evaluation.noise_levels`; `data.pkl` → `data.path`. |
-| `dropped` | The key never affected behavior, for example `data.num_traj` (a `'...'` placeholder) or `output.folder_suffix`. The reason is recorded. |
+| `derived` | Computed from legacy keys: `policy.naive` + `policy.noise_bc` → `supervision.source` (NoiseBC, `policy.naive` with a nonzero `policy.noise_bc`, fails: it moved to il-supervision-benchmarks, #168); `no_gpu` → `compute.device`; `data.pkl` → `data.path`. |
+| `dropped` | The key never affected behavior, for example `data.num_traj` (a `'...'` placeholder) or `output.folder_suffix`, or it configured policy training or evaluation, which moved to il-supervision-benchmarks (#168): `env`, `eval.noise`, `policy.lr`, `policy.batch_size`, `policy.train_epochs`, `aug.balance_data`. The reason is recorded. |
 | `unsupported`, `unknown` | Conversion fails. |
 
 **Never substitute a supplied value.** Every supplied value must appear
@@ -93,20 +93,23 @@ mistyped settings exit 2. Each diagnostic names the legacy key, and nothing
 is written.
 
 **Output.**
-- A `config_version: 1` YAML, with a header recording the source SHA-256 and
-  the fidelity.
+- A current-version YAML (`config_version: 4`, converter
+  `ccil.config.convert/2`), with a header recording the source SHA-256 and
+  the fidelity. Defaults that changed since the legacy code ran
+  (`transition_model.lipschitz_coordinates`, `generation.recovery_steps`) are
+  written with their legacy values. Converter 1 wrote version 1 and left them
+  implicit; its files still resolve to the same values (#168).
 - It is written only after it resolves.
 - The manifest holds the resolved configuration and its hash.
 
 ### Fidelity: what legacy did without saying so
 
-Two legacy behaviors are written in no legacy configuration, and the
-canonical defaults differ:
+One legacy behavior is written in no legacy configuration, and the
+canonical default differs:
 
 | Key | Legacy behavior | Canonical default |
 |---|---|---|
-| `policy.exclude_validation_episodes` | `false`: BC trained on every expert transition. `dynamics.validation_fraction` (#13) only held out episodes for evaluating the dynamics model. | `true`: the harness also holds the split's validation episodes out of policy training. |
-| `policy.noise_model` | `legacy_uniform_half_batch`: `noise_bc · U[0, 1)`, always positive | `symmetric_uniform_half_batch` (#22) |
+| `supervision.exclude_validation_episodes` | `false`: BC trained on every expert transition. `dynamics.validation_fraction` (#13) only held out episodes for evaluating the dynamics model. | `true`: the supervision also holds the split's validation episodes out. |
 
 - **`historical`** writes the legacy behavior.
 - **`corrected`** (the default) keeps the canonical defaults.
@@ -135,8 +138,8 @@ argument:
 |---|---|
 | `python correct_il/train_dynamics_model.py CONFIG` | `ccil labels generate --config CANON` (stage `transition.fit`) |
 | `python correct_il/gen_aug_label.py CONFIG` | `ccil labels generate --config CANON` (`labels.generate`, `labels.certify`) |
-| `python correct_il/train_bc_policy.py CONFIG` | `ccil policy train --config CANON` (experimental harness, [policy-harness.md](../policy-harness.md)) |
-| `python correct_il/eval_bc_policy.py CONFIG` | Simulator evaluation: #24 and M7 |
+| `python correct_il/train_bc_policy.py CONFIG` | `ilsb policy train` in il-supervision-benchmarks (#168) |
+| `python correct_il/eval_bc_policy.py CONFIG` | Simulator evaluation in il-supervision-benchmarks (#168) |
 
 ## Evidence
 
@@ -146,7 +149,7 @@ uv run --group evidence python tools/legacy_conversion/check.py --out <new-dir>
 
 The report is
 [`../fixtures/evidence/legacy-conversion/report.json`](../fixtures/evidence/legacy-conversion/report.json),
-with `report-siddh.json` from the CUDA host. The manifests and converted
+with `report-siddh.json` from the CUDA host (converter 1, before #168). The manifests and converted
 configurations are under `artifacts/`; datasets are recorded by SHA-256 only.
 The report shows:
 - **Datasets.** Both datasets equal the unpickled legacy arrays exactly, with
@@ -159,5 +162,6 @@ The report shows:
 - **Malformed inputs.** Twelve cases fail, each naming its problem. Nothing
   is written, and no pickle executes.
 - **Inspection.** The converted artifacts prepare complete runs.
-- **Hold-out flag.** It controls whether the harness holds validation
-  episodes out of policy training.
+- **Hold-out flag.** The historical conversion writes
+  `supervision.exclude_validation_episodes: false`. Its effect on the
+  integrated pipeline's supervision is shown by `tools/m2_pipelines`.

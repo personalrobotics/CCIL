@@ -29,7 +29,7 @@ composes the stages.
 **Identity and persistence.**
 - A transition model's `kind` is its `transition_model.kind` value, and a
   representation's is its `representation.kind` value. Policy trainers use
-  `name` (the `policy.trainer` value).
+  `name` (the `integrated.trainer` value).
 - A component's `version` changes whenever its checkpoints or fitted results
   would change.
 - A checkpoint records `component`, `kind` and `version`.

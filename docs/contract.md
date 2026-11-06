@@ -303,12 +303,12 @@ is constructed.
 | `ccil data convert`, `ccil config convert` | **Keep**, as one-way legacy migration. |
 | `ccil schema validate`, `ccil run validate`, `ccil config show` | **Keep.** |
 | `ccil schema docs`, `ccil config docs`, `ccil config audit` | **Keep** as maintainer tools that regenerate references. |
-| `ccil policy train`, `ccil.experiments`, `ccil.training` | **Moved** to il-supervision-benchmarks (#168). They still run in this release, with a warning naming the replacement (below), and are removed in the next. |
-| `ccil pipeline integrated` | **Keep** as the level-4 reference, outside the default product. |
+| `ccil policy train`, `ccil.experiments`, `ccil.training` | **Moved** to il-supervision-benchmarks (#168) and removed. `ccil policy train` exits 2 and the two packages raise `ImportError`, each naming the replacement (below), until #169 deletes these stubs. |
+| `ccil pipeline integrated` | **Keep** as the level-4 reference, outside the default product: the one CCIL command that trains a policy, with its own reference trainers (`integrated.trainer`). |
 | `ccil.supervision.build_supervision`, `ccil.schema` readers, `ccil.lerobot` | **Keep** as the consumer interfaces. The supervision sources are renamed (below). |
-| `policy.*`, `evaluation.*`, `environment.*` | **Move** to the benchmark harness (#168). |
+| `policy.*`, `evaluation.*`, `environment.*` | **Moved** to the benchmark harness (#168). The keys the integrated pipeline reads are renamed (below). `config_version` 4 reads an older file's renamed keys with a note, drops its other `policy.*`, `evaluation.*` and `environment.*` keys with a note, and refuses `policy.method noise_bc`; a version 4 file that sets any of them is refused. |
 
-**Migration (#168).** Each former name below warns in this release and is refused in the next.
+**Migration (#168).** Each former name below is refused, naming its replacement; a former configuration key in a version 1 to 3 file is converted.
 
 | Former | Replacement |
 |---|---|
@@ -319,3 +319,8 @@ is constructed.
 | `build_supervision(d, "noise_bc")` | `build_supervision(d, "demonstrations", perturbation="noise_bc")` |
 | `build_supervision(d, "ccil", …)` | `build_supervision(d, "demonstrations_plus_selection", …)` |
 | `build_supervision(d, method=…)` | the source, positionally |
+| `policy.method: bc`, `ccil` | `supervision.source: demonstrations`, `demonstrations_plus_selection` |
+| `policy.method: noise_bc` | `ilsb policy train` with `policy.noise`; CCIL's supervision for it is `supervision.source: demonstrations` |
+| `policy.demonstration_weight`, `policy.exclude_validation_episodes` | `supervision.demonstration_weight`, `supervision.exclude_validation_episodes` |
+| `policy.trainer` | `integrated.trainer` |
+| other `policy.*`, `evaluation.*`, `environment.id` | the `ilsb.policy-train` configuration's `policy` section |
