@@ -128,55 +128,24 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 |---|---|---|---|---|---|---|---|---|
 | `audit.reference_dynamics` | path | `null` | - | - | implemented | ccil.reference-dynamics file to annotate the selection with (labels.audit); null skips it. | An annotation of the decided result, never an input to it, so it is allowed in data_only mode (docs/contract.md). | - |
 
-## policy
+## supervision
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `policy.method` | choice | `"ccil"` | - | `ccil`, `bc`, `noise_bc` | implemented | Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3). | Replaces the policy.naive and policy.noise_bc flag combination. | `policy.naive`, `policy.noise_bc` |
-| `policy.trainer` | choice | `"linear_least_squares"` | - | `linear_least_squares`, `mean_action` | implemented | Downstream policy trainer of the integrated pipeline. | Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. | - |
-| `policy.noise_scale` | float | `null` | standardized observation units | [0.0, inf] | implemented | NoiseBC observation-noise scale: the maximum noise magnitude. | Set per suite by the legacy scripts; applied after the observation scaler, as legacy CustomBC did. | `policy.noise_bc` |
-| `policy.noise_model` | choice | `"symmetric_uniform_half_batch"` | - | `symmetric_uniform_half_batch`, `legacy_uniform_half_batch` | implemented | NoiseBC noise distribution. | symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity. | - |
-| `policy.noise_mask_probability` | float | `0.5` | - | [0.0, 1.0] | implemented | Probability that NoiseBC perturbs a sample in a minibatch. | Legacy CustomBC rand > 0.5. | - |
-| `policy.learning_rate` | float | `0.001` | - | (0.0, inf] | implemented | Policy learning rate. | Same value in every legacy config. | `policy.lr` |
-| `policy.batch_size` | int | `null` | - | [1, inf] | implemented | Policy minibatch size. | Task-specific in legacy configs. | `policy.batch_size` |
-| `policy.epochs` | int | `null` | - | [1, inf] | implemented | Policy training epochs. | Task-specific in legacy configs. | `policy.train_epochs` |
-| `policy.balance_noisy_labels` | bool | `false` | - | - | implemented | Repeat expert data num_labels times for noisy-action labels. | Legacy aug.balance_data: demonstrations appear labels_per_transition + 1 times and epochs are divided by labels_per_transition, for ccil with noisy-action labels. | `aug.balance_data` |
-| `policy.action_scaler` | choice | `"min_max"` | - | `min_max`, `none` | implemented | Action normalization during policy training. | Legacy literal in train_bc_policy.py (d3rlpy MinMaxActionScaler to [-1, 1]). | - |
-| `policy.observation_scaler` | choice | `"standard"` | - | `standard`, `none` | implemented | Observation normalization during policy training. | Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std. | - |
-| `policy.trainer_version` | choice | `"2"` | - | `1`, `2` | implemented | Experimental vector-policy trainer version (#108). | 2 trains groups of policies as one batched, compiled program on the device (vector_bc_v2.py); 1 is the original per-step loop (vector_bc.py), kept for comparison. Same protocol, not bit-compatible. | - |
-| `policy.optimizer` | choice | `"adam"` | - | `adam`, `adamw` | implemented | Optimizer of the trainer v2 recipe (#115). | adam is v1's (no weight decay); adamw applies decoupled weight decay. | - |
-| `policy.weight_decay` | float | `0.0` | - | [0.0, inf] | implemented | AdamW decoupled weight decay (#115). | 0 is v1's protocol; nonzero needs policy.optimizer adamw. | - |
-| `policy.lr_schedule` | choice | `"constant"` | - | `constant`, `cosine` | implemented | Learning-rate schedule (#115). | constant is v1's; cosine warms up linearly over policy.warmup_steps, then decays to 0 at the last step. | - |
-| `policy.warmup_steps` | int | `0` | - | [0, inf] | implemented | Linear warm-up steps of the cosine schedule (#115). | Used with policy.lr_schedule cosine. | - |
-| `policy.step_budget` | int | `null` | - | [1, inf] | implemented | Optimizer steps per model, replacing policy.epochs (#115). | A budget independent of the dataset size; the last epoch is cut at the budget. Null keeps epochs. | - |
-| `policy.grad_clip_norm` | float | `null` | - | (0.0, inf] | implemented | Global gradient-norm clipping per model (#115). | Null disables clipping (v1's). | - |
-| `policy.ema_decay` | float | `null` | - | (0.0, 1.0] | implemented | Exponential moving average of the weights (#115). | When set, the averaged weights are the policy that is selected and returned. Null disables it (v1's). | - |
-| `policy.checkpoint_selection` | choice | `"last"` | - | `last`, `validation` | implemented | Which epoch's weights are returned (#115). | last is v1's; validation keeps the epoch with the lowest loss on the split's validation-episode demonstrations, never on evaluation data, and needs policy.exclude_validation_episodes. | - |
-| `policy.validation_interval_steps` | int | `null` | - | [1, inf] | implemented | With checkpoint_selection validation: validate every this many optimizer steps and at the last step, rather than once per epoch (#115). | A step cadence gives arms of very different dataset sizes the same number of selection points. | - |
-| `policy.hidden_layers` | ints | `[256, 256]` | - | [1, inf] | implemented | Hidden-layer widths of the experimental vector policy. | d3rlpy's default VectorEncoderFactory, which legacy BC used. | - |
-| `policy.exclude_validation_episodes` | bool | `true` | - | - | implemented | Train the policy on the training episodes only, holding out the split's validation episodes. | Legacy BC trained on every expert transition; its validation split (#13) only evaluated the dynamics model. Converted legacy configurations with fidelity historical set false. | - |
-| `policy.demonstration_weight` | float | `1.0` | - | [0.0, inf] | implemented | Loss weight of every demonstration row. | Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). | - |
+| `supervision.source` | choice | `"demonstrations_plus_selection"` | - | `demonstrations`, `demonstrations_plus_selection` | implemented | Rows the integrated pipeline's policy learns from: the demonstrations, or the demonstrations plus the selected labels (docs/supervision.md). | Replaces policy.method (#168): bc is demonstrations, ccil is demonstrations_plus_selection; NoiseBC moved to il-supervision-benchmarks. | `policy.naive`, `policy.noise_bc` |
+| `supervision.demonstration_weight` | float | `1.0` | - | [0.0, inf] | implemented | Loss weight of every demonstration row. | Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). Replaces policy.demonstration_weight (#168). | - |
+| `supervision.exclude_validation_episodes` | bool | `true` | - | - | implemented | Build the supervision from the training episodes only, holding out the split's validation episodes. | Legacy BC trained on every expert transition; its validation split (#13) only evaluated the dynamics model. Replaces policy.exclude_validation_episodes (#168). | - |
 
-## evaluation
+## integrated
 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
-| `evaluation.episodes` | int | `100` | - | [1, inf] | declared (M7) | Evaluation episodes per policy. | Legacy literal in eval_bc_policy.py. | - |
-| `evaluation.noise_levels` | floats | `[0.0]` | - | [0.0, inf] | declared (M7) | Observation and action noise levels to evaluate. | Legacy eval.noise (empty meant [0]). | `eval.noise` |
-| `evaluation.noise_model` | choice | `"legacy_uniform_mix"` | - | `legacy_uniform_mix`, `gaussian` | declared (M7 (#51)) | Evaluation noise distribution. | Legacy mixes in a uniform sample of the space; M7 (#51) predeclares zero-mean Gaussian. | - |
-| `evaluation.max_episode_steps` | int | `null` | steps | [1, inf] | declared (M7) | Episode step cap; unset uses the environment's own limit. | Legacy hard-coded 500 for Meta-World. | - |
-
-## environment
-
-| Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
-|---|---|---|---|---|---|---|---|---|
-| `environment.id` | str | `null` | - | - | declared (M3/M7) | Simulator task identifier used for evaluation. | Task-specific; set by recipes. | `env` |
+| `integrated.trainer` | choice | `"linear_least_squares"` | - | `linear_least_squares`, `mean_action` | implemented | Downstream policy trainer of the integrated pipeline. | Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. Replaces policy.trainer (#168). | - |
 
 ## Cross-field rules
 
 - `pca_dim`: `representation.kind`, `representation.dim`
 - `action_bounds`: `data.action_low`, `data.action_high`
-- `noise_bc_scale`: `policy.method`, `policy.noise_scale`, `policy.balance_noisy_labels`, `generation.method`
 - `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`, `calibration.level`
 - `calibration`: `calibration.level`, `certificate.profile`, `certificate.reference_dynamics`, `transition_model.fit_episodes`, `data.validation_fraction`, `generation.recovery_steps`
 - `curate`: `curate.tolerance`, `curate.quantile`, `curate.population`, `certificate.profile`, `certificate.reference_dynamics`, `generation.evidence_mode`

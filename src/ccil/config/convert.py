@@ -9,8 +9,9 @@ records what happened to every legacy key:
 
 - renamed: the value moves unchanged to its canonical key;
 - derived: the canonical value is computed from one or more legacy keys
-  (policy.naive + policy.noise_bc -> policy.method; no_gpu -> compute.device);
-- dropped: the key never affected behavior (with the reason);
+  (policy.naive + policy.noise_bc -> supervision.source; no_gpu -> compute.device);
+- dropped: the key never affected behavior, or its canonical key moved to
+  il-supervision-benchmarks with policy training (#168) (with the reason);
 - unsupported or unknown: conversion fails.
 
 Every explicitly supplied value that affected behavior must appear unchanged
@@ -37,31 +38,26 @@ from pathlib import Path
 
 import yaml
 
-from .migrate import DROPPED, RENAMED, UNSUPPORTED, flatten, migrate_v0
+from .migrate import CHANGED_DEFAULTS, DROPPED, MOVED_LEGACY, RENAMED, UNSUPPORTED, flatten, migrate_v0
 from .params import REGISTRY
 from .resolve import _load_yaml, resolve
 from .spec import ConfigError, coerce
 
 
-# Converted legacy configurations are written as version 1, their meaning (#23): their bytes are pinned by the
-# committed conversion, and version 1 resolves the coordinates of sampled Lipschitz penalties to raw (#125).
-CONFIG_VERSION = 1
+# Converted legacy configurations are written in the current version, with the legacy meaning of every default
+# that changed since (CHANGED_DEFAULTS) spelled out: converter 1 wrote version 1 and left those implicit (#168).
+CONFIG_VERSION = 4
 
-CONVERTER = "ccil.config.convert/1"
+CONVERTER = "ccil.config.convert/2"
 FIDELITIES = ("corrected", "historical")
 
 # Canonical keys absent from every legacy config whose default differs from what the legacy code did.
 LEGACY_IMPLICIT = {
-    "policy.exclude_validation_episodes": {
+    "supervision.exclude_validation_episodes": {
         "legacy": False,
         "why": "legacy trained the BC policy on every expert transition (utils.load_demo_for_policy); its validation "
-               "split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical harness "
-               "holds the split's validation episodes out of policy training.",
-    },
-    "policy.noise_model": {
-        "legacy": "legacy_uniform_half_batch",
-        "why": "legacy CustomBC added noise_bc * U[0, 1), always positive; the canonical default is the zero-centered "
-               "symmetric_uniform_half_batch (#22).",
+               "split (dynamics.validation_fraction, #13) only evaluated the dynamics model. The canonical supervision "
+               "holds the split's validation episodes out.",
     },
 }
 # Behavior changes that are not configuration; the #24 faithful-port arm (commit 50cfc535) isolates them.
@@ -77,14 +73,13 @@ NON_CONFIGURABLE = [
 LEGACY_SCRIPTS = {
     "correct_il/train_dynamics_model.py CONFIG": "ccil labels generate --config CANON (stage transition.fit)",
     "correct_il/gen_aug_label.py CONFIG": "ccil labels generate --config CANON (stages labels.generate, labels.certify)",
-    "correct_il/train_bc_policy.py CONFIG": "ccil policy train --config CANON (experimental harness, #89)",
-    "correct_il/eval_bc_policy.py CONFIG": "simulator evaluation: #24 and M7",
+    "correct_il/train_bc_policy.py CONFIG": "ilsb policy train (il-supervision-benchmarks, #168)",
+    "correct_il/eval_bc_policy.py CONFIG": "simulator evaluation: il-supervision-benchmarks (#168)",
 }
 # Legacy keys handled by migrate_v0 outside RENAMED, with the canonical keys they produce.
 DERIVED = {
     "no_gpu": ["compute.device"], "dynamics.backward": ["transition_model.direction"], "data.pkl": ["data.path"],
-    "eval.noise": ["evaluation.noise_levels"], "policy.naive": ["policy.method", "policy.noise_scale"],
-    "policy.noise_bc": ["policy.method", "policy.noise_scale"],
+    "policy.naive": ["supervision.source"], "policy.noise_bc": ["supervision.source"],
 }
 
 
@@ -117,8 +112,9 @@ def _dispositions(flat: dict, values: dict, dataset_map: dict) -> tuple[list[dic
     rows, errors = [], []
     for key, value in sorted(flat.items()):
         top = key.split(".")[0]
-        if key in DROPPED:
-            rows.append({"legacy": key, "value": value, "disposition": "dropped", "reason": DROPPED[key]})
+        if key in DROPPED or key in MOVED_LEGACY:
+            rows.append({"legacy": key, "value": value, "disposition": "dropped",
+                         "reason": DROPPED.get(key) or MOVED_LEGACY[key]})
         elif key in UNSUPPORTED or top in UNSUPPORTED:
             rows.append({"legacy": key, "value": value, "disposition": "unsupported",
                          "reason": UNSUPPORTED.get(key) or UNSUPPORTED[top]})
@@ -177,6 +173,11 @@ def convert_config(src, out, manifest, fidelity: str = "corrected", dataset_map:
     if errors:
         raise ConfigError(sorted(set(errors)))
 
+    for changed, keys in CHANGED_DEFAULTS.items():  # a version 0 file's meaning, written in the current version
+        for key, (old, why) in keys.items():
+            if key not in values:
+                values[key] = old
+                notes.append(f"{key} = {old!r}: the legacy meaning ({why})")
     implicit = []
     for key, spec in LEGACY_IMPLICIT.items():
         if key in values:

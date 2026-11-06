@@ -121,10 +121,10 @@ def main():
     fails("misspelled_key", ["data.validaton_fraction=0.3"], "did you mean 'data.validation_fraction'")
     fails("wrong_type", ["run.seed=abc"], "is not a valid integer")
     fails("ambiguous_boolean", ["run.overwrite=yes"], "expected true or false")
-    fails("wrong_unit", ["evaluation.max_episode_steps=10 s"], "does not match the declared unit 'steps'")
+    fails("wrong_unit", ["compute.jacobian_memory_mb=10 GiB"], "does not match the declared unit 'MiB'")
     fails("out_of_range", ["data.validation_fraction=1.5"], "outside [0.0, 1.0)")
     fails("incompatible_combination", ["data.action_low=-1"], "must be declared together")
-    fails("noise_bc_without_scale", ["policy.method=noise_bc"], "requires a positive policy.noise_scale")
+    fails("moved_policy_key", ["policy.method=ccil"], "unknown key 'policy.method'")  # moved to ilsb (#168)
     fails("unknown_recipe_value", ["generation.method=magic"], "is not one of")
     fails("action_bounds_wrong_dimension", ["data.action_low=-3,-3", "data.action_high=3,3"],
           "data.action_low has 2 values but data/pendulum_cont_100.npz has 1-dimensional actions")
@@ -165,11 +165,11 @@ def main():
            and not (bad / "runs").exists(), error=r.stderr.strip()[-300:])
 
     # --- typed parsing and units --------------------------------------------
-    cfg = resolve(recipe="pendulum_cont", sets=["run.overwrite=false", "evaluation.max_episode_steps=500 steps",
+    cfg = resolve(recipe="pendulum_cont", sets=["run.overwrite=false", "compute.jacobian_memory_mb=512 MiB",
                                                 "data.action_low=[-3, -3]", "data.action_high=3,3"])
-    record("typed_parsing", cfg["run.overwrite"] is False and cfg["evaluation.max_episode_steps"] == 500
+    record("typed_parsing", cfg["run.overwrite"] is False and cfg["compute.jacobian_memory_mb"] == 512
            and cfg["data.action_low"] == [-3.0, -3.0] and cfg["data.action_high"] == [3.0, 3.0],
-           values={k: cfg[k] for k in ("run.overwrite", "evaluation.max_episode_steps", "data.action_low", "data.action_high")})
+           values={k: cfg[k] for k in ("run.overwrite", "compute.jacobian_memory_mb", "data.action_low", "data.action_high")})
     py = resolve(recipe="pendulum_cont", overrides={"data.validation_fraction": 0.3})
     record("python_interface_precedence", py["data.validation_fraction"] == 0.3
            and py.sources["data.validation_fraction"] == "python")

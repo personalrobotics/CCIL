@@ -17,14 +17,15 @@
    the labels stage's configuration record (#168).
 2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
    the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
-   code, policy harness or SciPy, and raise no deprecation warning (#168). The moved code still imports
-   and runs, with a FutureWarning on import of ccil.training or ccil.experiments and a stderr notice from
-   ccil policy train, each naming its il-supervision-benchmarks replacement.
+   code, policy harness or SciPy, and raise no deprecation warning (#168). The moved code is refused,
+   naming its il-supervision-benchmarks replacement: importing ccil.training or ccil.experiments raises
+   ImportError, and ccil policy train exits 2 without a traceback.
 3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
-   evaluation settings reuses stages 1-5, and the new evaluation, which loads
-   the reused policy checkpoint, reproduces the original metrics.
+   supervision.exclude_validation_episodes reuses them too, and the new
+   supervision holds no episode out where the default held the split's
+   validation episodes out.
 5. A failure in policy.train leaves earlier stages valid; the rerun resumes there.
    A failure in policy.evaluate leaves policy.train complete; the rerun reuses
    it and completes.
@@ -227,19 +228,16 @@ def main():
                      "nothing under ccil.training, ccil.experiments, ccil.pipelines.policy_harness, or scipy",
            result=got, stderr=p.stderr[-300:])
 
-    # Moved code (#168) still works for one release and says where it went: a FutureWarning on import, and a
-    # stderr notice from ccil policy train before it runs.
+    # Moved code (#168) is refused and says where it went: an ImportError, and ccil policy train exits 2.
     moved = {}
     for mod, replacement in (("ccil.training", "ilsb.learners.vector"), ("ccil.experiments", "ilsb run")):
         p = subprocess.run([sys.executable, "-c", f"import {mod}"], cwd=wa, capture_output=True, text=True)
-        moved[mod] = {"exit": p.returncode, "warns": "FutureWarning" in p.stderr and replacement in p.stderr}
+        last = p.stderr.strip().splitlines()[-1] if p.stderr.strip() else ""
+        moved[mod] = {"exit": p.returncode, "refused": last.startswith("ImportError:") and replacement in last}
     p = ccil("policy", "train", "--recipe", "analytic_double_integrator", "--set", "data.path=missing.npz", cwd=wa)
-    first = p.stderr.splitlines()[0] if p.stderr else ""
-    moved["ccil policy train"] = {"exit": p.returncode, "warns": first.startswith("warning: ccil policy train moved")
-                                  and "ilsb policy train CONFIG" in first}
-    record("moved_code_warns_naming_its_replacement",
-           all(v["warns"] for v in moved.values()) and moved["ccil.training"]["exit"] == 0
-           and moved["ccil.experiments"]["exit"] == 0 and moved["ccil policy train"]["exit"] == 2, moved=moved)
+    moved["ccil policy train"] = {"exit": p.returncode, "refused": p.returncode == 2 and "Traceback" not in p.stderr
+                                  and "ilsb policy train CONFIG" in p.stderr}
+    record("moved_code_refused_naming_its_replacement", all(v["refused"] for v in moved.values()), moved=moved)
 
     # 3. Integrated stub flow.
     wi = out / "integrated"
@@ -270,7 +268,7 @@ def main():
     record("integrated_stub_flow", ok, **detail)
 
     # 4. Replacing the downstream trainer reuses the four CCIL stages.
-    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "policy.trainer=mean_action", cwd=wi)
+    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "integrated.trainer=mean_action", cwd=wi)
     lines = [l.split() for l in r.stdout.strip().splitlines()]
     reuse = {l[0]: l[1] for l in lines}
     record("downstream_trainer_replaceable", r.returncode == 0
@@ -278,22 +276,24 @@ def main():
            and reuse.get("policy.train") == "wrote" and reuse.get("policy.evaluate") == "wrote" and len(runs(wi / "runs")) == 9,
            stage_status=reuse)
 
-    # 4b. Changing only evaluation settings reuses stages 1-5; the evaluation loads the reused policy.
-    first_eval = {n: p for n, p in runs(wi / "runs").items() if n.startswith("policy-evaluate")}
-    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "evaluation.episodes=7", cwd=wi)
-    lines = [l.split() for l in r.stdout.strip().splitlines()]
-    status = {l[0]: l[1] for l in lines if len(l) > 1}
-    new_eval = [p for n, p in runs(wi / "runs").items() if n.startswith("policy-evaluate") and n not in first_eval]
-    same_metrics = None
-    if r.returncode == 0 and len(new_eval) == 1:
-        orig = json.loads((by_stage["policy.evaluate"] / layout.METRICS).read_text())["values"]
-        same_metrics = json.loads((new_eval[0] / layout.METRICS).read_text())["values"] == orig
-    record("evaluation_only_change_reuses_trained_policy", r.returncode == 0 and len(new_eval) == 1 and same_metrics
+    # 4b. Changing only supervision.exclude_validation_episodes reuses the CCIL stages; the supervision then
+    # holds no episode out.
+    def held_out(train_dir):
+        return json.loads((train_dir / layout.METRICS).read_text())["values"]["supervision"]["counts"]
+    first_train = {n for n in runs(wi / "runs") if n.startswith("policy-train")}
+    r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "supervision.exclude_validation_episodes=false", cwd=wi)
+    status = {l.split()[0]: l.split()[1] for l in r.stdout.strip().splitlines() if len(l.split()) > 1}
+    new_train = [p for n, p in runs(wi / "runs").items() if n.startswith("policy-train") and n not in first_train]
+    counts = {"default": held_out(by_stage["policy.train"]) if ok else None,
+              "false": held_out(new_train[0]) if r.returncode == 0 and len(new_train) == 1 else None}
+    record("supervision_holdout_follows_the_flag", r.returncode == 0 and len(new_train) == 1
            and all(status.get(s) == "reused" for s in ("data.prepare", "representation.fit", "transition.fit",
-                                                        "labels.generate", "policy.train"))
-           and status.get("policy.evaluate") == "wrote",
-           stage_status=status, new_evaluate_runs=len(new_eval), metrics_equal_original=same_metrics,
-           stderr=r.stderr.strip()[-300:])
+                                                        "labels.generate"))
+           and status.get("policy.train") == "wrote" and counts["default"] is not None and counts["false"] is not None
+           and counts["default"]["demonstration_rows_held_out"] > 0 and counts["false"]["demonstration_rows_held_out"] == 0
+           and counts["false"]["demonstration_rows"] == counts["default"]["demonstration_rows"]
+           + counts["default"]["demonstration_rows_held_out"],
+           stage_status=status, counts=counts, stderr=r.stderr.strip()[-300:])
 
     # 5. Failure in policy.train, then resume; unsupported configs fail before writing.
     wf = out / "failure"

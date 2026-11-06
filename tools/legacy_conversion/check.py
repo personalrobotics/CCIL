@@ -17,9 +17,10 @@
   problem, write nothing, and (for pickles) execute nothing.
 - The converted dataset and configuration prepare a complete run, so they can
   be inspected before any model is trained.
-- policy.exclude_validation_episodes (written false by the historical
-  fidelity) trains the experimental policy on every episode, as legacy BC did;
-  true holds the split's validation episodes out.
+- The historical fidelity writes supervision.exclude_validation_episodes
+  false, as legacy BC trained on every episode (its effect on the integrated
+  pipeline's supervision: tools/m2_pipelines). Policy training moved to
+  il-supervision-benchmarks (#168).
 Writes DIR/report.json and DIR/artifacts/ (manifests and converted configurations).
 """
 import argparse
@@ -207,36 +208,8 @@ def main():
     hist = resolve(config=a / "config" / "pendulum_disc.historical.yaml")
     record("converted_artifacts_prepare_a_complete_run",
            all(v["exit"] == 0 and v["status"] == "complete" for v in prep.values())
-           and hist["policy.exclude_validation_episodes"] is False and hist["policy.noise_model"] == "legacy_uniform_half_batch",
-           runs=prep, historical_policy={"exclude_validation_episodes": hist["policy.exclude_validation_episodes"],
-                                         "noise_model": hist["policy.noise_model"]})
-
-    # 5. policy.exclude_validation_episodes: historical (false) trains on every episode, corrected holds validation out.
-    sys.path.insert(0, str(REPO / "tools" / "m3_supervision"))
-    sys.path.insert(0, str(REPO / "tools" / "analytic_fixture"))
-    from check import rollouts  # noqa: E402  (tools/m3_supervision/check.py)
-    from system import DoubleIntegrator  # noqa: E402
-    from ccil.schema import write_trajectories  # noqa: E402
-    h = out / "harness"
-    h.mkdir()
-    write_trajectories(rollouts(DoubleIntegrator(0.1), 20261026), h / "rollouts.npz")
-    held = {}
-    for flag in ("true", "false"):
-        r = ccil("policy", "train", "--recipe", "analytic_double_integrator", "--set", "data.path=rollouts.npz",
-                 "--set", "run.output_dir=runs", "--set", "data.validation_fraction=0.25", "--set", "compute.device=cpu",
-                 "--set", "policy.method=bc", "--set", "policy.batch_size=16", "--set", "policy.epochs=1",
-                 "--set", f"policy.exclude_validation_episodes={flag}", cwd=h)
-        stages = {ln.split()[0]: ln.split()[-1] for ln in r.stdout.splitlines() if ln.strip()}
-        counts = json.loads((h / stages["policy.train"] / "supervision.json").read_text())["counts"] if r.returncode == 0 else {}
-        ev = json.loads((h / stages["policy.evaluate"] / "metrics.json").read_text())["values"] if r.returncode == 0 else {}
-        held[flag] = {"exit": r.returncode, "demonstration_rows": counts.get("demonstration_rows"),
-                      "held_out": counts.get("demonstration_rows_held_out"),
-                      "validation_episodes_in_training": ev.get("validation_episodes_in_training")}
-    record("policy_validation_holdout_follows_the_flag",
-           held["true"]["exit"] == 0 and held["false"]["exit"] == 0 and held["true"]["held_out"] > 0
-           and held["false"]["held_out"] == 0 and held["false"]["demonstration_rows"] == held["true"]["demonstration_rows"] + held["true"]["held_out"]
-           and held["false"]["validation_episodes_in_training"] is True and held["true"]["validation_episodes_in_training"] is False,
-           runs=held)
+           and hist["supervision.exclude_validation_episodes"] is False,
+           runs=prep, historical_supervision={"exclude_validation_episodes": hist["supervision.exclude_validation_episodes"]})
 
     art = out / "artifacts"
     shutil.copytree(a / "manifests", art / "manifests")

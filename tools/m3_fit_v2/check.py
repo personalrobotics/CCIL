@@ -11,10 +11,10 @@
    the two engines give the same loss and gradients (float64); a rerun is identical; fit_group refuses the
    regularizers it does not support, and so does preflight for trainer_version 2; compute.deterministic is
    honored, recorded and restored.
-1b. stage_hooks (any host): fit_transition_stage(prefit=...) and run_policy_harness(trained=...) accept a
-   group's result for its own unit and refuse another unit's (a swapped fit, a swapped policy), a model or
-   policy whose weights are not its record's, and a result run differently from the unit's request (a unit
-   asking for compute.deterministic given non-deterministic fits and policy).
+1b. stage_hooks (any host): fit_transition_stage(prefit=...) accepts a group's fits for their own unit and
+   refuses another unit's (a swapped fit), a model whose weights are not its record's, and fits run differently
+   from the unit's request (a unit asking for compute.deterministic given non-deterministic fits). The policy
+   harness's hook moved with it to il-supervision-benchmarks (#168).
 2. pendulum (CUDA host; declared before running): on each task's training transitions (the ordinary
    pipeline's data.prepare at seed 501), with the task's paper settings (continuous soft_sampling,
    discontinuous slack) and with lipschitz_type none, fit seeds 401-405 per-fit (MLPTransitionModel.fit)
@@ -170,17 +170,15 @@ def _rows(prepared, rep):
 
 
 def stage_hooks(out: Path) -> dict:
-    """A group's fit and policy are accepted for their own unit and refused for another's."""
+    """A group's fits are accepted for their own unit and refused for another's."""
     import study
 
     from ccil.config import resolve
     from ccil.core import IdentityRepresentation
     from ccil.data.prepare import prepare_stage
-    from ccil.pipelines import offline, policy_harness
+    from ccil.pipelines import offline
     from ccil.schema import read_trajectories, write_trajectories
     from ccil.schema.trajectories import TrajectoryDataset
-    from ccil.supervision import build_supervision
-    from ccil.training import vector_bc_v2 as v2
     root = out / "hooks"
     study.prepare(root)
     full = read_trajectories(root / "inputs" / "data" / f"{study.DATASETS['continuous']}.npz")
@@ -193,9 +191,7 @@ def stage_hooks(out: Path) -> dict:
         return resolve(config=config, sets=[f"run.seed={seed}", "compute.device=cpu", f"data.path={data}",
                                             f"compute.deterministic={str(deterministic).lower()}",
                                             f"run.output_dir={root / 'stages'}", "transition_model.epochs=1",
-                                            "transition_model.trainer_version=2", "policy.trainer_version=2",
-                                            "policy.method=bc", "policy.epochs=1",
-                                            "policy.exclude_validation_episodes=false",
+                                            "transition_model.trainer_version=2",
                                             "generation.labels_per_transition=2"])
     c1, c2 = cfg(1), cfg(2)
     rep = IdentityRepresentation("state")
@@ -226,47 +222,6 @@ def stage_hooks(out: Path) -> dict:
         lambda: offline.fit_transition_stage(c1_det, prepare_stage(c1_det), rep, prefit=fits[1]), "deterministic")
     offline.fit_transition_stage(c1, prepared[1], rep, prefit=fits[1])
     res["own_fit_accepted"] = True
-    offline.generate_offline(c1)
-    sup = build_supervision(prepared[1].out("data/dataset.npz"), "demonstrations", representation=rep,
-                            demonstration_weight=c1["policy.demonstration_weight"])
-    [own, other] = v2.train_group([v2.Job(sup, 1), v2.Job(sup, 2)], policy_harness.settings_of(c1.values),
-                                  device="cpu", compile=False)
-    for name, trained, needle in (("swapped_policy_refused", other, "not this unit"),
-                                  ("tampered_weights_refused", (other[0], {**own[1]}), "not the ones")):
-        res[name] = refused(lambda t=trained: policy_harness.run_policy_harness(c1, trained=t), needle)
-    res["policy_wrong_execution_refused"] = refused(lambda: policy_harness.run_policy_harness(c1_det, trained=own),
-                                                    "deterministic")
-    policy_harness.run_policy_harness(c1, trained=own)
-    res["own_policy_accepted"] = True
-
-    # Validation is part of the training identity (#124): a modern-recipe unit accepts a policy selected on its
-    # own held-out episodes and refuses one selected on another unit's.
-    def modern(seed):
-        return resolve(config=config, sets=[f"run.seed={seed}", "compute.device=cpu", f"data.path={data}",
-                                            f"run.output_dir={root / 'stages-modern'}", "transition_model.epochs=1",
-                                            "transition_model.trainer_version=2", "policy.trainer_version=2",
-                                            "policy.method=bc", "policy.exclude_validation_episodes=true",
-                                            "policy.optimizer=adamw", "policy.lr_schedule=cosine",
-                                            "policy.warmup_steps=5", "policy.step_budget=40",
-                                            "policy.checkpoint_selection=validation",
-                                            "policy.validation_interval_steps=10",
-                                            "generation.labels_per_transition=2"])
-
-    def unit(c):  # what the harness trains on, and the held-out supervision that selects its checkpoint
-        p_ = prepare_stage(c)
-        ds, split = p_.out("data/dataset.npz"), p_.out("data/split.json")
-        w = c["policy.demonstration_weight"]
-        return (build_supervision(ds, "demonstrations", representation=rep, split=split, demonstration_weight=w),
-                build_supervision(ds, "demonstrations", representation=rep, split=split, part="validation", demonstration_weight=w))
-    m1, m2 = modern(1), modern(2)
-    (sup1, held1), (_, held2) = unit(m1), unit(m2)
-    st = policy_harness.settings_of(m1.values)
-    [own_v] = v2.train_group([v2.Job(sup1, 1, None, held1)], st, device="cpu", compile=False)
-    [other_v] = v2.train_group([v2.Job(sup1, 1, None, held2)], st, device="cpu", compile=False)
-    res["changed_validation_refused"] = refused(
-        lambda: policy_harness.run_policy_harness(m1, trained=other_v), "not this unit")
-    policy_harness.run_policy_harness(m1, trained=own_v)
-    res["own_validation_accepted"] = True
     return {"pass": all(res.values()), **res}
 
 
