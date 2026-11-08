@@ -62,7 +62,7 @@ stage manifest.
   scored. Held-out episodes then influence no training label: a clean
   holdout, for studies that select or tune on those episodes. Labels are
   still generated for held-out episodes' transitions; supervision excludes
-  them when `policy.exclude_validation_episodes` is true.
+  them when `supervision.exclude_validation_episodes` is true.
 - **`transition_model.trainer_version 2`** fits mlp models with the batched
   engine (`models/mlp_batched.py`): the same protocol (initialization,
   regularizers, Adam with L2 decay, epochs and batch), vmapped and compiled so a
@@ -223,29 +223,28 @@ saw the held-out episodes.
   and policy outcomes never enter it. The diagnosis records
   `evidence_mode: data_only`.
 
-## Experimental vector-policy harness: `ccil policy train`
+## Policy training: il-supervision-benchmarks
 
-    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify] → labels.curate → policy.train → policy.evaluate
-
-Moved to il-supervision-benchmarks as `ilsb policy train` (#168). In this
-release it prints that warning to stderr and still runs; the next release
-removes it. See [policy-harness.md](policy-harness.md).
+`ccil policy train` moved to il-supervision-benchmarks as `ilsb policy train`
+(#168), which runs `ccil labels generate` and trains on its supervision. The
+command now exits 2 naming it. See [policy-harness.md](policy-harness.md).
 
 ## Integrated pipeline: `ccil pipeline integrated`
 
     data.prepare → representation.fit → transition.fit → labels.diagnose → labels.generate → policy.train → policy.evaluate
 
 CCIL owns stages 1–4. The downstream trainer plugs in through `PolicyTrainer`,
-either `policy.trainer` or `run_integrated(cfg, trainer=...)`. Changing only the
-trainer reuses stages 1–4 and reruns the two policy stages.
+either `integrated.trainer` or `run_integrated(cfg, trainer=...)`. Changing only the
+trainer, or only `supervision.*`, reuses stages 1–4 and reruns the two policy
+stages.
 
 A trainer implements `fit`, `predict`, `save` and `load`. `policy.train` takes
 its rows from the supervision contract ([supervision.md](supervision.md)),
-and records the supervision manifest (arm, input hashes, row-count
+built from `supervision.source`, `supervision.demonstration_weight` and
+`supervision.exclude_validation_episodes`, and records the supervision manifest (arm, input hashes, row-count
 reconciliation) as its metrics. `policy.evaluate`
 always loads the policy from the `policy.train` checkpoint, so it evaluates the
-same policy whether training ran now or was reused. Changing only
-`evaluation.*` settings reuses stages 1–5.
+same policy whether training ran now or was reused.
 
 The reference components stand in for what M5 and later milestones will
 provide, and claim no image-CCIL parity:
@@ -269,8 +268,7 @@ provide, and claim no image-CCIL parity:
 | `transition_model.kind` | `linear` | Implemented |
 | `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |
-| `policy.method` | `ccil`, `bc` | Implemented |
-| `policy.method` | `noise_bc` | The input perturbation is implemented (`ccil.training.noise_bc`, #22). Training integration arrives with #89. |
+| `supervision.source` | `demonstrations_plus_selection`, `demonstrations` | Implemented (integrated pipeline). Replaces `policy.method` (#168); NoiseBC moved to il-supervision-benchmarks. |
 
 ## Evidence
 

@@ -24,8 +24,7 @@ Sources (what the policy learns from):
   2.0 certificate selects nothing by itself and needs a selection.
 The manifest's method records the arm as before: bc, noise_bc (demonstrations
 with the noise_bc perturbation) or ccil. The former source names bc, ccil and
-noise_bc still work, with a FutureWarning naming the replacement; they are
-refused in the next release (#168).
+noise_bc, and method=, are refused with their replacement (#168).
 A rejected or unselected candidate never appears, whatever its weight: there
 is no weight-only path into the loss.
 
@@ -46,7 +45,6 @@ from __future__ import annotations
 
 import json
 import tempfile
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,7 +59,7 @@ from .schema import SchemaError, read_candidates, read_certificates, read_select
 METHODS = ("bc", "noise_bc", "ccil")  # the manifest's method
 SOURCES = ("demonstrations", "demonstrations_plus_selection")
 PERTURBATIONS = ("noise_bc",)
-# Each former source name (policy.method): its source and perturbation; and the manifest method of each pair.
+# Each former source name (policy.method; refused, #168): its source and perturbation; and each pair's manifest method.
 FORMER_SOURCES = {"bc": ("demonstrations", None), "ccil": ("demonstrations_plus_selection", None),
                   "noise_bc": ("demonstrations", "noise_bc")}
 _FORMER = FORMER_SOURCES
@@ -156,24 +154,12 @@ def _valid_chunk_size(k) -> bool:
 
 
 def _resolve_source(source, perturbation, method) -> str:
-    """The manifest method of (source, perturbation); a former name warns and maps to its replacement."""
-    via_method = method is not None
-    if via_method:
-        if source is not None:
-            raise SupervisionError(["pass the source once: positionally, not also as method="])
-        source = method
+    """The manifest method of (source, perturbation); a former name or method= is refused with its replacement."""
+    if method is not None:
+        hint = _replacement(method) if method in _FORMER else f"build_supervision(dataset, {method!r}, ...)"
+        raise SupervisionError([f"build_supervision(method={method!r}) was removed (#168): use {hint}"])
     if source in _FORMER:
-        new, implied = _FORMER[source]
-        if perturbation is not None:
-            raise SupervisionError([f"the former source {source!r} takes no perturbation; use {new!r}"])
-        hint = f"build_supervision(dataset, {new!r}" + (f", perturbation={implied!r}" if implied else "") + ", ...)"
-        former = f"build_supervision(method={source!r})" if via_method else f"supervision source {source!r}"
-        warnings.warn(f"{former} is deprecated: use {hint}; the former form is refused in the next release (#168)",
-                      FutureWarning, stacklevel=3)
-        source, perturbation = new, implied
-    elif via_method:
-        warnings.warn(f"build_supervision(method={source!r}) is deprecated: use build_supervision(dataset, {source!r}, "
-                      "...); method= is refused in the next release (#168)", FutureWarning, stacklevel=3)
+        raise SupervisionError([f"supervision source {source!r} was renamed (#168): use {_replacement(source)}"])
     if source not in SOURCES:
         raise SupervisionError([f"source must be one of {list(SOURCES)}, got {source!r}"])
     if perturbation is not None and perturbation not in PERTURBATIONS:
@@ -181,6 +167,11 @@ def _resolve_source(source, perturbation, method) -> str:
     if perturbation is not None and source != "demonstrations":
         raise SupervisionError([f"the {perturbation} perturbation applies to the demonstrations source"])
     return _METHOD[(source, perturbation)]
+
+
+def _replacement(former: str) -> str:
+    new, implied = _FORMER[former]
+    return f"build_supervision(dataset, {new!r}" + (f", perturbation={implied!r}" if implied else "") + ", ...)"
 
 
 def build_supervision(dataset, source: str | None = None, *, representation, candidates=None, certificates=None,
@@ -192,7 +183,7 @@ def build_supervision(dataset, source: str | None = None, *, representation, can
     source is demonstrations or demonstrations_plus_selection; perturbation="noise_bc" declares demonstrations
     that the consumer's trainer perturbs online. With a split, part selects its "train" episodes (the default) or
     its "validation" episodes (held-out supervision, for example for validation-based checkpoint selection); the
-    manifest records which. method= and the former source names bc, ccil and noise_bc are deprecated (#168).
+    manifest records which. method= and the former source names bc, ccil and noise_bc are refused (#168).
     """
     problems = []
     if part not in ("train", "validation"):

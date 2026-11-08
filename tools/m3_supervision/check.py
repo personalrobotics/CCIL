@@ -29,11 +29,10 @@ independently from the files and compared with build_supervision:
   parameters differ, another checkpoint, or a missing one is refused;
 - chunked supervision is handed off only through chunk_arrays();
 - the former source names bc, noise_bc and ccil, positionally or as method=,
-  each emit exactly one FutureWarning naming their replacement (demonstrations,
-  demonstrations with perturbation noise_bc, demonstrations_plus_selection)
-  and build the same manifest; the new names warn nothing, and a perturbation
-  on the selection source, an unknown perturbation or source, a former name
-  with a perturbation, and both a source and method= are refused (#168).
+  are refused, each naming its replacement call (demonstrations, demonstrations
+  with perturbation noise_bc, demonstrations_plus_selection); a perturbation on
+  the selection source, an unknown perturbation or source, a former name with a
+  perturbation, and both a source and method= are refused too (#168).
 Writes DIR/report.json and DIR/manifests/<arm>.json (the inspectable artifacts).
 """
 import argparse
@@ -304,29 +303,16 @@ def main():
            set(reason) == set(refused) and all(v.startswith("SupervisionError") and reason[k] in v for k, v in refused.items()),
            refused=refused)
 
-    # Former source names (#168): each warns exactly once, names its replacement, and builds the same manifest.
-    import warnings
-    former = {"bc": (dict(source="demonstrations"), "(dataset, 'demonstrations', ...)"),
-              "noise_bc": (dict(source="demonstrations", perturbation="noise_bc"),
-                           "(dataset, 'demonstrations', perturbation='noise_bc', ...)"),
-              "ccil": (dict(source="demonstrations_plus_selection", candidates=P["candidates"],
-                            certificates=P["certificates"], selection=P["selection"]), "(dataset, 'demonstrations_plus_selection', ...)")}
+    # Former source names (#168): each, positionally or as method=, is refused naming its full replacement.
+    former = {"bc": "(dataset, 'demonstrations', ...)",
+              "noise_bc": "(dataset, 'demonstrations', perturbation='noise_bc', ...)",
+              "ccil": "(dataset, 'demonstrations_plus_selection', ...)"}
     names = {}
-    for old, (new, hint) in former.items():
-        extra = {k: v for k, v in new.items() if k not in ("source", "perturbation")}
-        for label, call in ((old, lambda: build_supervision(P["dataset"], old, **base, **extra)),
-                            (f"method={old}", lambda: build_supervision(P["dataset"], method=old, **base, **extra))):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                got = call()
-            future = [str(w.message) for w in caught if issubclass(w.category, FutureWarning)]
-            with warnings.catch_warnings(record=True) as quiet:
-                warnings.simplefilter("always")
-                want = build_supervision(P["dataset"], **base, **new)
-            names[label] = {"warnings": future, "new_name_warns": bool(quiet),
-                            "same_manifest": got.manifest() == want.manifest(),
-                            "names_replacement": any(hint in m for m in future),
-                            "manifest_method": want.manifest()["method"]}
+    for old, hint in former.items():
+        for label, call in ((old, lambda: build_supervision(P["dataset"], old, **base)),
+                            (f"method={old}", lambda: build_supervision(P["dataset"], method=old, **base))):
+            got = outcome(call)
+            names[label] = {"outcome": got, "refused": got.startswith("SupervisionError"), "names_replacement": hint in got}
     combos = {
         "perturbation_on_selection": outcome(lambda: build_supervision(
             P["dataset"], "demonstrations_plus_selection", perturbation="noise_bc", candidates=P["candidates"], **base)),
@@ -336,10 +322,8 @@ def main():
                                                                            **base)),
         "source_and_method": outcome(lambda: build_supervision(P["dataset"], "demonstrations", method="bc", **base)),
         "unknown_source": outcome(lambda: build_supervision(P["dataset"], "labels", **base))}
-    record("former_source_names_warn_and_match",
-           all(v["same_manifest"] and v["names_replacement"] and len(v["warnings"]) == 1 and not v["new_name_warns"]
-               for v in names.values())
-           and [names[k]["manifest_method"] for k in ("bc", "noise_bc", "ccil")] == ["bc", "noise_bc", "ccil"]
+    record("former_source_names_refused",
+           all(v["refused"] and v["names_replacement"] for v in names.values())
            and all(v.startswith("SupervisionError") for v in combos.values()),
            names=names, refused=combos)
 

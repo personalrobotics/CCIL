@@ -52,9 +52,6 @@ PARAMS = [
           "Vector CCIL reads the state modality.", "representation"),
     Param("representation.dim", "int", None, "Latent dimension of a learned representation.",
           "Required by pca; unused by identity.", "representation", low=1, nullable=True),
-    # environment -----------------------------------------------------------
-    Param("environment.id", "str", None, "Simulator task identifier used for evaluation.",
-          "Task-specific; set by recipes.", "environment", nullable=True, legacy=("env",), status=D, milestone="M3/M7"),
     # transition model ------------------------------------------------------
     Param("transition_model.trainer_version", "choice", "1", "How mlp transition models are fitted (#110).",
           "1 fits each model with its own loop (MLPTransitionModel.fit); 2 with the batched engine "
@@ -244,86 +241,24 @@ PARAMS = [
           "ccil.reference-dynamics file to annotate the selection with (labels.audit); null skips it.",
           "An annotation of the decided result, never an input to it, so it is allowed in data_only mode "
           "(docs/contract.md).", "audit", nullable=True),
-    # policy ----------------------------------------------------------------
-    Param("policy.method", "choice", "ccil", "Policy training data: expert plus accepted labels, expert only, or NoiseBC (ported in M3).",
-          "Replaces the policy.naive and policy.noise_bc flag combination.", "policy", choices=("ccil", "bc", "noise_bc"),
+    # supervision -------------------------------------------------------------
+    Param("supervision.source", "choice", "demonstrations_plus_selection",
+          "Rows the integrated pipeline's policy learns from: the demonstrations, or the demonstrations plus the "
+          "selected labels (docs/supervision.md).",
+          "Replaces policy.method (#168): bc is demonstrations, ccil is demonstrations_plus_selection; NoiseBC moved "
+          "to il-supervision-benchmarks.", "supervision", choices=("demonstrations", "demonstrations_plus_selection"),
           legacy=("policy.naive", "policy.noise_bc")),
-    Param("policy.trainer", "choice", "linear_least_squares", "Downstream policy trainer of the integrated pipeline.",
-          "Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer.",
-          "policy", choices=("linear_least_squares", "mean_action")),
-    Param("policy.noise_scale", "float", None, "NoiseBC observation-noise scale: the maximum noise magnitude.",
-          "Set per suite by the legacy scripts; applied after the observation scaler, as legacy CustomBC did.", "policy",
-          units="standardized observation units", low=0.0, nullable=True, legacy=("policy.noise_bc",)),
-    Param("policy.noise_model", "choice", "symmetric_uniform_half_batch", "NoiseBC noise distribution.",
-          "symmetric_uniform_half_batch adds scale*(2U-1) to half of each batch, zero-centered (#22). "
-          "legacy_uniform_half_batch reproduces legacy CustomBC's scale*U[0,1), which is always positive, for parity.",
-          "policy", choices=("symmetric_uniform_half_batch", "legacy_uniform_half_batch")),
-    Param("policy.noise_mask_probability", "float", 0.5, "Probability that NoiseBC perturbs a sample in a minibatch.",
-          "Legacy CustomBC rand > 0.5.", "policy", low=0.0, high=1.0),
-    Param("policy.learning_rate", "float", 0.001, "Policy learning rate.", "Same value in every legacy config.", "policy",
-          low=0.0, low_open=True, legacy=("policy.lr",)),
-    Param("policy.batch_size", "int", None, "Policy minibatch size.", "Task-specific in legacy configs.", "policy",
-          low=1, nullable=True, legacy=("policy.batch_size",)),
-    Param("policy.epochs", "int", None, "Policy training epochs.", "Task-specific in legacy configs.", "policy", low=1,
-          nullable=True, legacy=("policy.train_epochs",)),
-    Param("policy.balance_noisy_labels", "bool", False, "Repeat expert data num_labels times for noisy-action labels.",
-          "Legacy aug.balance_data: demonstrations appear labels_per_transition + 1 times and epochs are divided by "
-          "labels_per_transition, for ccil with noisy-action labels.", "policy", legacy=("aug.balance_data",)),
-    Param("policy.action_scaler", "choice", "min_max", "Action normalization during policy training.",
-          "Legacy literal in train_bc_policy.py (d3rlpy MinMaxActionScaler to [-1, 1]).", "policy",
-          choices=("min_max", "none")),
-    Param("policy.observation_scaler", "choice", "standard", "Observation normalization during policy training.",
-          "Legacy literal scaler='standard' in train_bc_policy.py: (x - mean) / (std + 1e-3), population std.",
-          "policy", choices=("standard", "none")),
-    Param("policy.trainer_version", "choice", "2", "Experimental vector-policy trainer version (#108).",
-          "2 trains groups of policies as one batched, compiled program on the device (vector_bc_v2.py); 1 is the "
-          "original per-step loop (vector_bc.py), kept for comparison. Same protocol, not bit-compatible.",
-          "policy", choices=("1", "2")),
-    Param("policy.optimizer", "choice", "adam", "Optimizer of the trainer v2 recipe (#115).",
-          "adam is v1's (no weight decay); adamw applies decoupled weight decay.", "policy", choices=("adam", "adamw")),
-    Param("policy.weight_decay", "float", 0.0, "AdamW decoupled weight decay (#115).",
-          "0 is v1's protocol; nonzero needs policy.optimizer adamw.", "policy", low=0.0),
-    Param("policy.lr_schedule", "choice", "constant", "Learning-rate schedule (#115).",
-          "constant is v1's; cosine warms up linearly over policy.warmup_steps, then decays to 0 at the last step.",
-          "policy", choices=("constant", "cosine")),
-    Param("policy.warmup_steps", "int", 0, "Linear warm-up steps of the cosine schedule (#115).",
-          "Used with policy.lr_schedule cosine.", "policy", low=0),
-    Param("policy.step_budget", "int", None, "Optimizer steps per model, replacing policy.epochs (#115).",
-          "A budget independent of the dataset size; the last epoch is cut at the budget. Null keeps epochs.",
-          "policy", low=1, nullable=True),
-    Param("policy.grad_clip_norm", "float", None, "Global gradient-norm clipping per model (#115).",
-          "Null disables clipping (v1's).", "policy", low=0.0, low_open=True, nullable=True),
-    Param("policy.ema_decay", "float", None, "Exponential moving average of the weights (#115).",
-          "When set, the averaged weights are the policy that is selected and returned. Null disables it (v1's).",
-          "policy", low=0.0, low_open=True, high=1.0, nullable=True),
-    Param("policy.checkpoint_selection", "choice", "last", "Which epoch's weights are returned (#115).",
-          "last is v1's; validation keeps the epoch with the lowest loss on the split's validation-episode "
-          "demonstrations, never on evaluation data, and needs policy.exclude_validation_episodes.",
-          "policy", choices=("last", "validation")),
-    Param("policy.validation_interval_steps", "int", None,
-          "With checkpoint_selection validation: validate every this many optimizer steps and at the last step, "
-          "rather than once per epoch (#115).",
-          "A step cadence gives arms of very different dataset sizes the same number of selection points.",
-          "policy", low=1, nullable=True),
-    Param("policy.hidden_layers", "ints", [256, 256], "Hidden-layer widths of the experimental vector policy.",
-          "d3rlpy's default VectorEncoderFactory, which legacy BC used.", "policy", low=1),
-    Param("policy.exclude_validation_episodes", "bool", True,
-          "Train the policy on the training episodes only, holding out the split's validation episodes.",
+    Param("supervision.demonstration_weight", "float", 1.0, "Loss weight of every demonstration row.",
+          "Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md). "
+          "Replaces policy.demonstration_weight (#168).", "supervision", low=0.0),
+    Param("supervision.exclude_validation_episodes", "bool", True,
+          "Build the supervision from the training episodes only, holding out the split's validation episodes.",
           "Legacy BC trained on every expert transition; its validation split (#13) only evaluated the dynamics model. "
-          "Converted legacy configurations with fidelity historical set false.", "policy"),
-    Param("policy.demonstration_weight", "float", 1.0, "Loss weight of every demonstration row.",
-          "Legacy weighted every row equally; synthetic rows keep their recorded weights (docs/supervision.md).",
-          "policy", low=0.0),
-    # evaluation --------------------------------------------------------------
-    Param("evaluation.episodes", "int", 100, "Evaluation episodes per policy.", "Legacy literal in eval_bc_policy.py.",
-          "evaluation", low=1, status=D, milestone="M7"),
-    Param("evaluation.noise_levels", "floats", [0.0], "Observation and action noise levels to evaluate.",
-          "Legacy eval.noise (empty meant [0]).", "evaluation", low=0.0, legacy=("eval.noise",), status=D, milestone="M7"),
-    Param("evaluation.noise_model", "choice", "legacy_uniform_mix", "Evaluation noise distribution.",
-          "Legacy mixes in a uniform sample of the space; M7 (#51) predeclares zero-mean Gaussian.", "evaluation",
-          choices=("legacy_uniform_mix", "gaussian"), status=D, milestone="M7 (#51)"),
-    Param("evaluation.max_episode_steps", "int", None, "Episode step cap; unset uses the environment's own limit.",
-          "Legacy hard-coded 500 for Meta-World.", "evaluation", units="steps", low=1, nullable=True, status=D, milestone="M7"),
+          "Replaces policy.exclude_validation_episodes (#168).", "supervision"),
+    # integrated ------------------------------------------------------------
+    Param("integrated.trainer", "choice", "linear_least_squares", "Downstream policy trainer of the integrated pipeline.",
+          "Reference trainers for the integrated pipeline (#19); real policy classes plug in through PolicyTrainer. "
+          "Replaces policy.trainer (#168).", "integrated", choices=("linear_least_squares", "mean_action")),
 ]
 REGISTRY = {p.key: p for p in PARAMS}
 
@@ -339,17 +274,6 @@ def _bounds(v):
             return f"data.action_low has {len(lo)} values but data.action_high has {len(hi)}"
         if any(a > b for a, b in zip(lo, hi)):
             return "data.action_low must not exceed data.action_high"
-    return None
-
-
-def _noise(v):
-    if v["policy.method"] == "noise_bc" and not v["policy.noise_scale"]:
-        return "policy.method noise_bc requires a positive policy.noise_scale"
-    if v["policy.method"] != "noise_bc" and v["policy.noise_scale"] is not None:
-        return f"policy.noise_scale applies to policy.method noise_bc, not {v['policy.method']}"
-    if v["policy.balance_noisy_labels"] and (v["policy.method"] != "ccil"
-                                             or v["generation.method"] not in ("noisy_action", "noisy_action_fe")):
-        return "policy.balance_noisy_labels applies to policy.method ccil with noisy-action labels"
     return None
 
 
@@ -476,7 +400,6 @@ def mlp_settings_problem(v):
 RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
-    ("noise_bc_scale", ("policy.method", "policy.noise_scale", "policy.balance_noisy_labels", "generation.method"), _noise),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind",
                      "calibration.level"), _certificate),
     ("calibration", ("calibration.level", "certificate.profile", "certificate.reference_dynamics", "transition_model.fit_episodes",

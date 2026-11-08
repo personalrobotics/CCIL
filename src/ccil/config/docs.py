@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from . import resolve as resolve_mod
-from .migrate import DROPPED, UNSUPPORTED
+from .migrate import DROPPED, MOVED_LEGACY, MOVED_TO, UNSUPPORTED
 from .params import REGISTRY, RULES
 from .spec import STAGES
 
@@ -46,18 +46,18 @@ def render_parameters() -> str:
 
 # Legacy code literals recorded in the ledger, and keys the legacy code read that the ledger omitted.
 LITERALS = {
-    "literal:eval.n_trials=100": ("evaluation.episodes", ""),
-    "literal:eval.success_denominator=100": ("derived", "equals evaluation.episodes"),
-    "literal:eval.noise_model": ("evaluation.noise_model", ""),
-    "literal:metaworld.max_steps=500": ("evaluation.max_episode_steps", ""),
+    "literal:eval.n_trials=100": ("moved", MOVED_TO),
+    "literal:eval.success_denominator=100": ("moved", MOVED_TO),
+    "literal:eval.noise_model": ("moved", MOVED_TO),
+    "literal:metaworld.max_steps=500": ("moved", MOVED_TO),
     "literal:pendulum.constants": ("invariant", "environment definition (l, g, dt, RK4, action range); ported with the Pendulum environment in M3"),
     "literal:f1.horizon=800": ("retired", "F1TENTH retired by the migration contract, section 3"),
     "literal:f1.eval_map=maps/random/map0": ("retired", "F1TENTH retired by the migration contract, section 3"),
     "literal:f1.eval_n_traj=100": ("retired", "F1TENTH retired by the migration contract, section 3"),
-    "literal:noise_bc.noise_model": ("policy.noise_model", ""),
-    "literal:bc.action_scaler=min_max": ("policy.action_scaler", ""),
+    "literal:noise_bc.noise_model": ("moved", MOVED_TO),
+    "literal:bc.action_scaler=min_max": ("moved", MOVED_TO),
     "literal:bc.tycho_loss_weights": ("retired", "real-robot special case; real-robot results are cited as published (contract, section 3)"),
-    "literal:bc.epoch_scaling": ("derived", "policy epochs divided by labels per transition when noisy labels are balanced"),
+    "literal:bc.epoch_scaling": ("moved", MOVED_TO),
     "literal:root_finder.threshold=1e-4": ("generation.root_tolerance", ""),
     "literal:backward_euler_fast.fail_distance=0.01": ("retired", "diagnostic counter removed in #11"),
     "literal:dynamics.input_normalization": ("derived", "shift and scale computed from the training data"),
@@ -85,6 +85,8 @@ def audit_rows(ledger_path: str | Path) -> list[dict]:
             target = target if target in REGISTRY else "-"
         elif key in DROPPED:
             target, status, note = "-", "dropped", DROPPED[key]
+        elif key in MOVED_LEGACY:
+            target, status, note = "-", "moved", MOVED_LEGACY[key]
         elif key in UNSUPPORTED or top in UNSUPPORTED:
             target, status, note = "-", "deferred", UNSUPPORTED.get(key) or UNSUPPORTED[top]
         else:

@@ -166,7 +166,8 @@ because it clones HEAD.
 - **Strict mode:** cached and strict runs write byte-identical run
   directories, and strict mode never uses the cache.
 
-**Study-scale cost** (`tools/m3_provenance/shard_timing.py`). The tool times one
+**Study-scale cost** (`tools/m3_provenance/shard_timing.py`, removed with the study runner in #168; it is at tag
+`pendulum-evidence-archive-v1`). The tool timed one
 full shard of the v6 study phase: 300 units, development seeds 9401–9420,
 timing only. The three runs below ran on siddh, one at a time on one GPU, each
 with fresh compile caches, and are recorded in `shard-timing-*-siddh.json`:

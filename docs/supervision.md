@@ -34,8 +34,7 @@ Using CCIL does not require them.
 The manifest's `method` records the arm as before: `bc`, `noise_bc` or `ccil`.
 
 **Former names (#168).** The source names `bc`, `noise_bc` and `ccil`, and the
-`method=` keyword, still work in this release with a `FutureWarning` naming the
-replacement. They are refused in the next release.
+`method=` keyword, are refused with a `SupervisionError` naming the replacement.
 
 | Former | Now |
 |---|---|

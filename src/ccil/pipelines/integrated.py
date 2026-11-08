@@ -21,7 +21,7 @@ from ..data.prepare import prepare_stage
 from ..runs import layout
 from ..schema import read_trajectories
 from ..schema.io import _atomic_savez
-from ..supervision import FORMER_SOURCES, build_supervision
+from ..supervision import build_supervision
 from .offline import diagnose_stage, fit_transition_stage, labels_stage, preflight
 from .policy import TRAINERS
 from .stages import run_stage
@@ -80,20 +80,18 @@ class PCARepresentation:
 
 
 def run_integrated(cfg, trainer=None):
-    """Run all six stages; trainer overrides policy.trainer (any PolicyTrainer)."""
+    """Run all six stages; trainer overrides integrated.trainer (any PolicyTrainer)."""
     v = cfg.values
     preflight(cfg)
     if v["representation.kind"] != "pca":
         raise ConfigError(["the integrated pipeline fits a learned representation; set representation.kind=pca"])
-    if v["policy.method"] == "noise_bc":
-        raise ConfigError(["policy.method noise_bc is ported in M3"])
     if v["certificate.profile"] is not None:
         raise ConfigError(["certificate.profile: the integrated pipeline's policy stage does not consume certificates "
                            "yet (#89); certify with ccil labels generate"])
     if v["audit.reference_dynamics"] is not None:
         raise ConfigError(["audit.reference_dynamics: the integrated pipeline does not curate; audit with ccil labels "
                            "generate"])
-    trainer = trainer or TRAINERS[v["policy.trainer"]]()
+    trainer = trainer or TRAINERS[v["integrated.trainer"]]()
     modality, dim = v["representation.modality"], v["representation.dim"]
     results = [prepare_stage(cfg)]
     prepared = results[0]
@@ -121,11 +119,13 @@ def run_integrated(cfg, trainer=None):
 
     def train(run):
         # The trainer-neutral supervision contract (ccil.supervision) decides which rows reach the loss.
-        source, perturbation = FORMER_SOURCES[v["policy.method"]]
-        sup = build_supervision(policy_inputs["dataset"], source, perturbation=perturbation, representation=rep,
+        source = v["supervision.source"]
+        sup = build_supervision(policy_inputs["dataset"], source, representation=rep,
                                 representation_checkpoint=policy_inputs["representation"],
-                                candidates=policy_inputs["candidates"] if v["policy.method"] == "ccil" else None,
-                                split=policy_inputs.get("split"))
+                                candidates=policy_inputs["candidates"] if source == "demonstrations_plus_selection"
+                                else None,
+                                split=policy_inputs.get("split") if v["supervision.exclude_validation_episodes"] else None,
+                                demonstration_weight=v["supervision.demonstration_weight"])
         trainer.fit(*sup.arrays())
         trainer.save(run.path(POLICY_CHECKPOINT))
         run.metrics({"trainer": trainer.name, "supervision": sup.manifest()})
