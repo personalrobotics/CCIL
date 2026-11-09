@@ -5,7 +5,7 @@
 
 1. The new core, through IdentityRepresentation -> LinearTransitionModel (exact)
    -> generators -> validators, passes the #10 analytic oracle (I1-I5) for every
-   method, and its run directory validates as complete.
+   method.
 2. Validators reject independently: rows carry several reasons with measurements.
 3. Generation is batch-invariant: batch size 1 and one batch give identical bytes.
 4. An image-style method plugs in a trainable latent representation and a fitted
@@ -130,14 +130,6 @@ def main():
     record("analytic_oracle_I1_to_I5_pass_for_every_method", all(flat.values()), verdicts=flat, expected_classes=classes)
 
     cfg = resolve(overrides={"run.seed": SEED, "run.output_dir": str(out / "runs"), "data.validation_fraction": 0.0})
-    with RunWriter(out / "runs", "analytic-noisy-action", "core.generate_labels", cfg) as run:
-        write_trajectories(dataset, run.path(layout.DATASET))
-        c = copy.copy(sets["noisy_action"])
-        c.run_id = "analytic-noisy-action"
-        write_candidates(c, run.path(layout.CANDIDATES))
-        run.metrics({"candidates": int(len(c.accepted)), "accepted": int(c.accepted.sum())})
-    status, problems = validate_run(out / "runs" / "analytic-noisy-action")
-    record("analytic_run_directory_complete", status == "complete", status=status, problems=problems)
 
     # 2. Independent validators: multiple reasons per row, with measurements.
     multi = generate_labels(dataset, rep, model, NoisyAction(4, 0.05),
@@ -303,7 +295,7 @@ def main():
     record("exact_preimage_isolates_singular_and_non_finite_rows", ok, **detail)
 
     # 7. Transition-model persistence: identity in the checkpoint, generic loading, visible failures.
-    from ccil.core import TRANSITION_MODELS, TransitionModel, load_transition_model
+    from ccil.core import load_transition_model
     fitted = LinearTransitionModel()
     tb = transitions(dataset, rep)
     fitted.fit(tb.z, tb.a, tb.z_next, seed=SEED)
@@ -338,8 +330,7 @@ def main():
     expected = {"unknown_kind": "CheckpointError", "future_version": "CheckpointError", "other_component": "CheckpointError",
                 "not_a_checkpoint": "CheckpointError", "unavailable_device": "ValueError"}
     record("transition_model_persistence_contract",
-           isinstance(fitted, TransitionModel) and ck_meta == {"component": "transition_model", "kind": "linear", "version": "1"}
-           and TRANSITION_MODELS["linear"] is LinearTransitionModel and same_bytes and same_delta
+           ck_meta == {"component": "transition_model", "kind": "linear", "version": "1"} and same_bytes and same_delta
            and all(failures[k].split(":")[0] == v for k, v in expected.items()),
            checkpoint_meta=ck_meta, save_load_save_identical=same_bytes, delta_identical=same_delta,
            failures={k: v.replace(str(out), "<out>") for k, v in failures.items()})

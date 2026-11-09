@@ -100,28 +100,5 @@ needed. Trajectories still store only `state` and `image` modalities.
 uv run --group evidence python tools/m2_interfaces/check.py --out <new-dir>
 ```
 
-[`fixtures/evidence/m2-interfaces/report.json`](fixtures/evidence/m2-interfaces/report.json)
-has 10 cases:
-
-- **The #10 oracle:** the new core passes the analytic oracle (I1–I5) for every
-  method, and its run directory validates as complete.
-- **Multiple reasons:** rows carry two independent reasons with measurements.
-- **Batch invariance:** generation produces byte-identical output at batch size
-  1 and at full size.
-- **Image plug-in:** a stub trainable latent encoder with a fitted latent model
-  goes through the unchanged schema path.
-- **Interface failures:** four malformed-stage failures raise before anything is
-  written.
-- **Per-candidate solver failures:** in one batch, `ExactPreimage` marks rows
-  with a singular Newton system or non-finite model output as
-  `generation_failed`. The solvable rows match the exact solution, with
-  byte-identical output at batch sizes 1, 4 and all.
-- **Persistence:** a fitted model's checkpoint records its kind and version,
-  loads through `load_transition_model`, and re-saves byte for byte. Unknown
-  kinds, other versions or components, and files that aren't checkpoints raise
-  `CheckpointError`. An unavailable device raises the model's own `ValueError`.
-- **Extension reasons:** a custom `example.low_confidence` validator writes a
-  complete run, and its candidates (version 2.1) reload with the same reason
-  order and row assignments. Built-in-only files stay 2.0. Ten malformed
-  declarations, from validators or in a candidate set, fail before any artifact
-  is written.
+Reports: [`m2-interfaces/report.json`](fixtures/evidence/m2-interfaces/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m2_interfaces`](../tools/m2_interfaces/).

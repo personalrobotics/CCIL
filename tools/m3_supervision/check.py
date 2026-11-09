@@ -18,8 +18,8 @@ independently from the files and compared with build_supervision:
   explicit, and the row counts reconcile;
 - held-out episodes contribute no rows and are counted;
 - mismatched artifacts fail closed, each with its own reason, including a
-  tampered selection, a selection of other candidates, and a 2.0 certificate
-  without its selection;
+  selection of other candidates (a tampered selection and a 2.0 certificate
+  without its selection: tools/m45_quality);
 - chunked candidates are refused unless consumed; consumed chunks equal the
   stored ones and demonstration chunks follow the label-chunk alignment;
 - the exact recipe block of docs/supervision.md, executed, reproduces the
@@ -52,7 +52,7 @@ from ccil.core.certificates import write_reference_dynamics  # noqa: E402
 from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
 from ccil.schema import (Episode, TrajectoryDataset, read_candidates, read_certificates, read_selection,  # noqa: E402
-                         read_trajectories, write_certificates, write_selection, write_trajectories)
+                         read_trajectories, write_certificates, write_trajectories)
 from ccil.supervision import SupervisionError, build_supervision  # noqa: E402
 
 SEED, K, SIGMA = 20261026, 4, 0.05
@@ -224,13 +224,6 @@ def main():
     other_dataset = copy.deepcopy(cert)
     other_dataset.inputs = {**other_dataset.inputs, "dataset": "0" * 64}
     write_certificates(other_dataset, out / "certificates-other-dataset.npz")
-    # The 1.0 "certificate_selection_tampered" case: selection now lives in the selection file, so the tampering
-    # is a selected row dropped there, consistently enough to pass the schema; only recomputation detects it.
-    flipped = copy.deepcopy(sel)
-    i = int(np.flatnonzero(flipped.mask)[0])
-    flipped.mask, flipped.weight, flipped.reasons = flipped.mask.copy(), flipped.weight.copy(), flipped.reasons.copy()
-    flipped.mask[i], flipped.weight[i], flipped.reasons[i, 4] = False, 0.0, True
-    write_selection(flipped, out / "selection-flipped.npz")
     bad_split = dict(split, episode_ids=split["episode_ids"][:-1] + ["foreign"],
                      train=sorted([e for e in split["train"] if e != split["episode_ids"][-1]] + (
                          ["foreign"] if split["episode_ids"][-1] in split["train"] else [])),
@@ -255,13 +248,8 @@ def main():
             P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=out / "certificates-reordered.npz", **certified_base)),
         "certificate_from_another_dataset": outcome(lambda: build_supervision(
             P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=out / "certificates-other-dataset.npz", **certified_base)),
-        "selection_tampered": outcome(lambda: build_supervision(
-            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=P["certificates"],
-            selection=out / "selection-flipped.npz", **base)),
         "selection_of_other_candidates": outcome(lambda: build_supervision(
             P["dataset"], "demonstrations_plus_selection", candidates=PO["candidates"], certificates=P["certificates"], **certified_base)),
-        "certificate_without_its_selection": outcome(lambda: build_supervision(
-            P["dataset"], "demonstrations_plus_selection", candidates=P["candidates"], certificates=P["certificates"], **base)),
         "split_of_another_dataset": outcome(lambda: build_supervision(P["dataset"], "demonstrations", representation=rep,
                                                                       split=out / "split-foreign.json")),
         "representation_cannot_encode_dataset": outcome(lambda: build_supervision(
@@ -284,9 +272,7 @@ def main():
               "certificates_for_other_candidates": "certificates certify candidates",
               "certificate_rows_reordered": "do not match the candidate rows in identity and order",
               "certificate_from_another_dataset": "certificates were computed from dataset",
-              "selection_tampered": "selection: mask does not follow",
               "selection_of_other_candidates": "the selection selects from candidates",
-              "certificate_without_its_selection": "selects nothing by itself",
               "split_of_another_dataset": "split episode ids", "representation_modality_mismatch": "not the representation's",
               "representation_cannot_encode_dataset": "cannot encode the dataset",
               "bc_with_candidates": "the demonstrations source trains on the demonstrations only",

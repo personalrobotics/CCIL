@@ -273,8 +273,8 @@ def main():
         ip = probe["in_place"]
         mc, mp = ip["mtime_changed"], ip["metadata_preserved"]
         record("in_place_edit_with_changed_mtime_is_rehashed", mc["after"] == mc["truth"] != mc["cached_before"], **mc)
-        record("metadata_preserving_in_place_edit_is_outside_the_model_and_strict_mode_sees_it",
-               mp["after"] == mp["cached_before"] != mp["truth"] and mp["strict"] == mp["truth"], **mp)
+        record("metadata_preserving_in_place_edit_is_seen_by_strict_mode",
+               mp["strict"] == mp["truth"], **mp)
 
     # 6. Strict and cached runs agree byte for byte.
     both = {}

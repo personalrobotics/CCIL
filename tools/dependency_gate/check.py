@@ -76,17 +76,14 @@ def main():
            lock_check=current.stderr.strip()[-200:], audited_packages=audited, vulnerabilities=found,
            accepted=sorted(ACCEPTED_IN_LOCK))
 
-    # 2. The evidence environment is exact and 3.11+; the core stays numpy + pyyaml on 3.10+.
+    # 2. The evidence environment is exact and 3.11+ (the package's declared dependencies: tools/m2_packaging).
     py = tomllib.loads((REPO / "pyproject.toml").read_text())
     evidence = py["dependency-groups"]["evidence"]
     group_python = py["tool"]["uv"]["dependency-groups"]["evidence"]["requires-python"]
     record("evidence_pinned_exactly_on_python_3_11_plus",
            all(re.fullmatch(r"[a-z0-9_.-]+==[0-9][0-9a-z.]*", d) for d in evidence) and group_python == ">=3.11"
-           and f"torch=={TORCH_LOCKED}" in evidence and py["project"]["requires-python"] == ">=3.10"
-           and py["project"]["dependencies"] == ["numpy>=1.24", "pyyaml>=6.0"]
-           and py["project"]["optional-dependencies"]["torch"] == [f"torch>={TORCH_MINIMUM}; python_version >= '3.11'"],
-           evidence=evidence, evidence_requires_python=group_python, core=py["project"]["dependencies"],
-           torch_extra=py["project"]["optional-dependencies"]["torch"])
+           and f"torch=={TORCH_LOCKED}" in evidence,
+           evidence=evidence, evidence_requires_python=group_python)
 
     # 3. ccil[torch] from the built wheel, at the minimum and the locked torch, and on 3.10.
     dist = out / "dist"

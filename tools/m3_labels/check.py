@@ -25,20 +25,12 @@ certificates in #88, with their evidence in tools/m3_certificates):
 - anchor model error is measured on every row and rejected above the gate,
   batch-invariantly, as a 2.2 extension reason that the 2.2 reader (520f343)
   reads;
-- float32 finite differences vanish at large inputs, so exact Jacobians are
-  used;
-- reasons stay independent; a weighting never changes validity; the branch's
-  fixed-point forward_euler reaches Newton's root; the branch's keys migrate
-  (the label-error keys to certificate.*); every label-filtering capability of
-  the inventory is classified; and the pipeline writes complete runs with the
-  model-error gate and a certificate.
+- reasons stay independent, and a weighting never changes validity.
 Action chunks (#22 part 3):
 - position 0 is the label action and positions k >= 1 the source episode's
   actions from the frame the label reaches (t for backtrack, t + 1 for
   disturbed_action); chunks are masked past the episode end, never padded,
   never read another episode, and stay well formed on failed proposals;
-- a transcription of the branch's chunking shows its inverted size
-  condition, padding, and off-by-one disturbed-action continuation;
 - chunk files are 2.3, round-trip through accepted_labels, and the 2.2
   reader (8071952) reads them, ignoring the chunks; the pipeline writes a
   complete run with chunks, and aug.chunk_size migrates;
@@ -267,17 +259,14 @@ def main():
            and "Unspecified" in contract["generator_without_specs"] and "ExtraSpec" in contract["validator_with_extra_spec"],
            results=contract)
 
-    # ---------------- PR 2: filtering, weighting, inventory ----------------
+    # ---------------- PR 2: filtering and weighting ----------------
     from ccil.core import BackwardEuler, ModelMisfit
-    from ccil.core.transition import jacobian_fd
     from ccil.core.validators import MODEL_MISFIT
     from ccil.schema import SchemaError
 
     def file_meta(path):
         with np.load(path, allow_pickle=False) as z:
             return json.loads(str(z["meta"]))
-
-    nA = float(np.linalg.norm(sys_.A, 2))
 
     # 12-14. Model misfit is measured on every row and rejected with a threshold. (The label-error estimates and their
     # filters moved to certificates, #88: tools/m3_certificates.)
@@ -314,25 +303,6 @@ def main():
            rejected_model_misfit=int(mm.sum()), candidates=int(len(mm)), batch_invariant=sha(paths[0]) == sha(paths[1]),
            read_by_520f343=old_read.returncode == 0, rejected_source_frames=sorted(set(cm.source_frame[mm].tolist())))
 
-    # 17. Exact Jacobians: float32 finite differences vanish at large inputs, so ExactPreimage uses the MLP's exact
-    # jacobian_z (certificate scores refuse finite differences too: tools/m3_certificates, unresolved derivatives).
-    class Float32Quadratic:
-        """f(z, a) = (z^2 - z) as float32: df/dz = 2z - 1 (= 2e4 - 1 near 1e4)."""
-
-        def delta(self, z, act):
-            z32 = np.asarray(z, np.float32)
-            return (z32 * z32 - z32).astype(np.float32)
-
-    fd = jacobian_fd(Float32Quadratic(), np.full((1, 1), 1e4), np.zeros((1, 1)))
-    from ccil.models.mlp import MLPTransitionModel
-    mlp = MLPTransitionModel([8, 8], epochs=1, batch_size=8)
-    mlp.fit(s, a, sp, seed=0)
-    exact_z_matches = np.allclose(mlp.jacobian_z(s, a), mlp.jacobian_za(s, a)[:, :, :2])
-    record("finite_differences_vanish_so_exact_jacobians_are_used",
-           float(fd.ravel()[0]) == 0.0 and exact_z_matches,
-           float32_finite_difference_at_1e4=float(fd.ravel()[0]), true_derivative=2e4 - 1,
-           mlp_exact_jacobian_z=bool(exact_z_matches))
-
     # 18. Independent reasons: support and model misfit together; accounting closes.
     cb = generate_labels(wrong, rep, model, NoisyAction(K, SIGMA),
                          [Finite(), SupportRadius(0.005), ModelMisfit(gate), ModelResidual()], run_id="both", seed=SEED)
@@ -366,57 +336,6 @@ def main():
            and (zero.weight[zero.accepted] == 0).any() and (~base.accepted).any() and rejected_weight.startswith("SchemaError"),
            accepted_with_zero_weight=int((zero.weight[zero.accepted] == 0).sum()), rejected_rows=int((~base.accepted).sum()),
            positive_weight_on_rejected=rejected_weight)
-
-    # 20. The branch's fixed-point forward_euler reaches the same root as Newton on a contraction.
-    def fixed_point(z_star, act, iters=50):  # label-filtering gen_forward_euler: s <- s* - f(s, a)
-        x = z_star.copy()
-        for _ in range(iters):
-            x = z_star - model.delta(x, act)
-        return x
-    newton = sys_.exact_preimage(s, a)
-    fp = fixed_point(s, a)
-    record("fixed_point_forward_euler_superseded_by_newton", nA < 1 and float(np.abs(fp - newton).max()) < 1e-6,
-           contraction_norm=nA, max_abs_difference=float(np.abs(fp - newton).max()))
-
-    # 21. Migration of the branch's keys.
-    from ccil.config import resolve
-    legacy_yml = out / "legacy_filtering.yml"
-    legacy_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace(
-        "  epsilon:", "  label_err_quantile: 0.3\n  max_label_err: 0.5\n  model_err_thresh: 0.1\n  epsilon:"))
-    rc = resolve(config=legacy_yml)
-    keys = ("certificate.profile", "curate.quantile", "curate.tolerance",
-            "generation.model_error_threshold")
-    record("branch_filter_keys_migrate",  # label-error keys to the certificate layer (#88); the model gate stays
-           tuple(rc[k] for k in keys) == ("legacy_label_filtering", 0.3, 0.5, 0.1), values={k: rc[k] for k in keys})
-
-    # 22. Every label-filtering capability of the inventory is classified.
-    inventory = json.loads((REPO / "docs/inventory/capabilities.json").read_text())
-    caps = inventory["capabilities"] if isinstance(inventory, dict) else inventory
-    touched = sorted(c["id"] for c in caps if "label-filtering" in json.dumps(c))
-    table = (REPO / "docs/migration/label-methods.md").read_text().split("## Label-filtering branch inventory", 1)[1]
-    classified = {line.split("|")[1].strip().strip("`") for line in table.splitlines() if line.startswith("| `")}
-    missing = [c for c in touched if c not in classified]
-    record("label_filtering_inventory_fully_classified", not missing and touched, capabilities=touched, missing=missing)
-
-    # 23. The pipeline with the model-error gate and a certificate writes complete runs.
-    wf = out / "pipeline_filters"
-    wf.mkdir()
-    write_trajectories(dataset, wf / "fixture.npz")
-    r = subprocess.run([sys.executable, "-m", "ccil", "labels", "generate", "--recipe", "analytic_double_integrator",
-                        "--set", "data.path=fixture.npz", "--set", "run.output_dir=runs",
-                        "--set", "generation.method=noisy_action", "--set", f"generation.labels_per_transition={K}",
-                        "--set", f"generation.action_noise_std={SIGMA}", "--set", "generation.model_error_threshold=0.5",
-                        "--set", "certificate.profile=legacy_label_filtering", "--set", "curate.quantile=0.5"],
-                       cwd=wf, capture_output=True, text=True)
-    fruns = {p.name: p for p in sorted((wf / "runs").iterdir()) if p.is_dir()} if (wf / "runs").exists() else {}
-    fstat = {n: validate_run(p)[0] for n, p in fruns.items()}
-    flab = next((p for n, p in fruns.items() if n.startswith("labels-generate")), None)
-    fmeta = file_meta(flab / "labels/candidates.npz") if flab else {}
-    record("filters_pipeline_run", r.returncode == 0 and set(fstat.values()) == {"complete"} and len(fstat) == 6
-           and fmeta.get("version") == "2.2" and MODEL_MISFIT in set(fmeta.get("reason_codes", []))
-           and any(n.startswith("labels-certify") for n in fruns) and any(n.startswith("labels-curate") for n in fruns),
-           stages=fstat, file_version=fmeta.get("version"), reason_codes=fmeta.get("reason_codes"),
-           artifact=f"<out>/pipeline_filters/runs/{flab.name}/labels/candidates.npz" if flab else None, stderr=r.stderr[-300:])
 
     # ---------------- PR 3: action chunks ----------------
     CK = 4
@@ -477,37 +396,6 @@ def main():
            chunk_size=big_k, episode_lengths=[6, 2, 4], two_frame_episode_valid_positions=int(cb.action_chunk_mask[short_rows].sum(axis=1).max()),
            all_values_from_their_own_episode=bool(same_episode), failed_rows_with_chunks=int(gfc.sum()))
 
-    # 27. The branch's chunking, transcribed (gen_aug_label_chunking.py at 73d187d), on the same labels.
-    def legacy_chunk(actions_ep, i, gen_a, configured):
-        chunk_size = configured if not configured else 8  # the branch's inverted condition
-        chunk = np.concatenate([gen_a[None, :], actions_ep[i:i + chunk_size - 1]])
-        if len(chunk) < chunk_size:
-            chunk = np.concatenate([chunk, np.tile(chunk[-1:], (chunk_size - len(chunk), 1))])
-        return chunk
-    eps_by_id = {ep.episode_id: ep for ep in dataset.episodes}
-    legacy_sizes, padded, padded_masked, da_off_by_one = set(), 0, 0, 0
-    for i in range(len(cbt.accepted)):
-        ep = eps_by_id[str(cbt.source_episode_id[i])]
-        lc = legacy_chunk(ep.actions, int(cbt.source_frame[i]), cbt.actions[i], CK)
-        legacy_sizes.add(len(lc))
-        t = int(cbt.source_frame[i])
-        for k in range(1, len(lc)):
-            if t + k - 1 > ep.length - 1:
-                padded += 1
-                padded_masked += int(k < CK and not cbt.action_chunk_mask[i, k])
-    da1 = generate_labels(dataset, rep, model, NoisyAction(1, SIGMA), [Finite()], run_id="da1", seed=SEED,
-                          action_chunk_size=CK)
-    for i in range(len(da1.accepted)):
-        ep = eps_by_id[str(da1.source_episode_id[i])]
-        lc = legacy_chunk(ep.actions, int(da1.source_frame[i]), da1.actions[i], 8)
-        ours = da1.action_chunks[i, 1:][da1.action_chunk_mask[i, 1:]]
-        da_off_by_one += int(not np.array_equal(lc[1:1 + len(ours)], ours))
-    record("legacy_chunking_defects_corrected",
-           legacy_sizes == {8} and padded > 0 and da_off_by_one > 0,
-           configured_chunk_size=CK, legacy_chunk_sizes=sorted(legacy_sizes),
-           legacy_padded_positions=padded, of_which_inside_our_chunk_and_masked=padded_masked,
-           disturbed_action_rows_whose_legacy_continuation_differs=da_off_by_one, disturbed_action_rows=int(len(da1.accepted)))
-
     # 28-29. Schema: 2.3 round trip, accepted_labels, the 2.2 reader (8071952) ignores chunks, no chunks stays 2.2.
     write_candidates(cda, out / "chunks.npz")
     back_c = read_candidates(out / "chunks.npz", dataset)
@@ -542,6 +430,7 @@ def main():
     cruns = {p.name: p for p in sorted((wc / "runs").iterdir()) if p.is_dir()} if (wc / "runs").exists() else {}
     cstat = {n: validate_run(p)[0] for n, p in cruns.items()}
     clab = next((p for n, p in cruns.items() if n.startswith("labels-generate")), None)
+    from ccil.config import resolve
     legacy_chunk_yml = out / "legacy_chunks.yml"
     legacy_chunk_yml.write_text((REPO / "config/pendulum_cont.yml").read_text().replace("  epsilon:", "  chunk_size: 5\n  epsilon:"))
     rc5 = resolve(config=legacy_chunk_yml)

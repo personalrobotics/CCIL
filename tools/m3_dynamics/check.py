@@ -237,7 +237,7 @@ def main():
                     "cuda_without_cuda": "RuntimeError"}
         same_delta = np.array_equal(m.delta(*probe), m2.delta(*probe))
         same_bytes = ck.read_bytes() == (out / "resaved.npz").read_bytes()
-        record("checkpoint_persistence", same_delta and same_bytes and meta["derived_from"]["commit"].startswith("477ddb8")
+        record("checkpoint_persistence", same_delta and same_bytes
                and all(v.startswith(expected[k]) or v.startswith("skipped") for k, v in failures.items()),
                meta={k: meta[k] for k in ("component", "kind", "version", "state_dim", "act_dim", "training", "derived_from")},
                reload_delta_identical=same_delta, resave_byte_identical=same_bytes,

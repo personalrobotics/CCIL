@@ -82,18 +82,5 @@ in the [standard layout](../runs.md): `data/dataset.npz`, `data/split.json`,
 uv run python tools/m2_config/check.py --out <new-dir>
 ```
 
-[`../fixtures/evidence/m2-config/report.json`](../fixtures/evidence/m2-config/report.json)
-has 23 cases:
-
-- **Provenance:** default and override runs, with per-value sources, run IDs,
-  the seed and output hashes.
-- **Replay:** byte-identical from another working directory.
-- **Overwrite:** an existing run is refused, then replaced atomically.
-- **Failures before output:** twelve misconfigurations and a corrupt dataset.
-  These include duplicate YAML keys at three levels and wrong-dimension action
-  bounds, each with no traceback. The public `TrajectoryDataset.validate`
-  reports wrong-dimension bounds as a `SchemaError`.
-- **Parsing:** typed values and units, and Python-interface precedence.
-- **Migration:** the legacy config replays to the recipe's values; an
-  unsupported key fails with guidance; an unknown config version is rejected.
-- **No docs drift.**
+Reports: [`m2-config/report.json`](../fixtures/evidence/m2-config/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m2_config`](../../tools/m2_config/).

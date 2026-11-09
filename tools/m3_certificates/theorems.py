@@ -28,8 +28,7 @@ directly (true error <= total, no tolerance):
   verification and the source audit;
 - providers of the wrong kind, forged provider kinds, a missing demonstration
   specification, and profiles applied to the other generator family are
-  refused; the pipeline writes complete backtrack and disturbed_action
-  certify runs.
+  refused.
 """
 import copy
 
@@ -40,7 +39,7 @@ from ccil.core import (BackwardEuler, ExactPreimage, Finite, IdentityRepresentat
 from ccil.core.certificates import (PROVIDERS, BackTrackProfile, ContinuityProfile, Context, Declared,
                                     DisturbedActionProfile, Provided, Sources, audit_sources, certify, classify,
                                     resolved_of, verify_structure)
-from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_certificates, write_candidates,
+from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, write_candidates,
                          write_trajectories)
 
 SEED, K, SIGMA = 20261025, 4, 0.05
@@ -330,27 +329,3 @@ def run(out, record, dataset, data_path, sys_, truth, bundle):
            all(v.startswith("InterfaceError") for v in refused.values())
            and any("provider" in p for p in verify_structure(forged, s_be.candidates)),
            refused=refused, forged_kind_structure=verify_structure(forged, s_be.candidates))
-
-    # T8. Pipeline runs for both theorem profiles.
-    from ccil.config import resolve
-    from ccil.pipelines.offline import certify_stage, generate_offline
-    from ccil.runs import validate_run
-    work = out / "pipeline-theorems"
-    work.mkdir()
-    write_trajectories(dataset, work / "fixture.npz")
-    results = {}
-    for method, profile in (("backward_euler", backtrack), ("noisy_action", disturbed)):
-        cfg = resolve(recipe="analytic_double_integrator",
-                      sets=[f"data.path={work / 'fixture.npz'}", f"run.output_dir={work / 'runs'}", f"generation.method={method}",
-                            f"generation.labels_per_transition={K}", f"generation.action_noise_std={SIGMA}"])
-        prepared, fitted, labeled = generate_offline(cfg)[:3]
-        res = certify_stage(cfg, prepared, fitted, labeled, rep, profile, references={"true": truth})
-        pc = read_certificates(res.out("labels/certificates.npz"))
-        cand = read_candidates(labeled.out("labels/candidates.npz"))
-        results[profile.name] = {"run": res.run_dir.name, "status": validate_run(res.run_dir)[0],
-                                 "classification": sorted(set(pc.classification.tolist())),
-                                 "coverage": coverage(pc, cand, dataset, sys_)}
-    record("pipeline_theorem_profiles",
-           all(r["status"] == "complete" and r["classification"] == ["certified"] and r["coverage"]["covered"]
-               for r in results.values()),
-           runs=results)

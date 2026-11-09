@@ -243,27 +243,8 @@ LeRobot APIs.
 
 ```bash
 uv run --extra lerobot python tools/m4_ingest/check.py --out <new-dir> [--hub]
-```
-
-[`fixtures/evidence/m4-ingest/report.json`](fixtures/evidence/m4-ingest/report.json) covers ingestion (#27):
-- **Endings:** unknown by default; an explicit terminal and an explicit
-  truncation; an early terminal flag, a non-boolean feature and a missing
-  feature, each refused; the Push-T pattern.
-- **Dispositions, identity and conversion:** every feature's disposition; the
-  identity refusals and the identical-frames case; the conversion manifest,
-  with the source unchanged and nothing written on refusal.
-- **Compatibility:** a 1.1 file read by the 1.0 reader.
-- **With `--hub`:** the real Push-T data.
-
-The compatibility workflow for #26:
-
-```bash
 uv run --extra lerobot python tools/m4_lerobot/check.py --out <new-dir> [--hub]
 ```
 
-[`fixtures/evidence/m4-lerobot/report.json`](fixtures/evidence/m4-lerobot/report.json)
-records the matrix and the installed versions of each environment. With
-`--hub`, it also fetches `lerobot/pusht_keypoints` at a recorded revision.
-That dataset is refused as it is, because `next.reward`, `next.done` and
-`next.success` have no CCIL slot. It reads once the caller names them in
-`ignore`. Mapping terminal information is #27's job.
+Reports: [`m4-ingest/report.json`](fixtures/evidence/m4-ingest/report.json), [`m4-lerobot/report.json`](fixtures/evidence/m4-lerobot/report.json).
+Each case, and the contract it protects, is listed in the docstrings of [`tools/m4_ingest`](../tools/m4_ingest/), [`tools/m4_lerobot`](../tools/m4_lerobot/).

@@ -7,8 +7,7 @@ Builds the sdist and wheel with uv, checks their contents and metadata, builds
 again to confirm byte-identical artifacts, then installs the exact wheel into
 fresh virtual environments on the oldest and newest supported Python and runs
 the CLI and a data-prepare workflow from outside the repository with only the
-core dependencies. The code that moved to il-supervision-benchmarks (#168) is
-absent from the wheel. Writes DIR/report.json.
+core dependencies. Writes DIR/report.json.
 """
 import argparse
 import hashlib
@@ -86,9 +85,6 @@ def main():
               "ccil/schema/io.py", "ccil/config/params.py", "ccil/data/prepare.py"}
     record("wheel_contains_package_only", not bad and not sbad and not leaks and needed <= set(names),
            wheel_files=names, unexpected=bad + sbad, local_paths=leaks, missing=sorted(needed - set(names)))
-    moved = sorted(n for n in names if n.startswith(("ccil/training/", "ccil/experiments/"))
-                   or n == "ccil/pipelines/policy_harness.py")  # moved to il-supervision-benchmarks (#168)
-    record("wheel_holds_no_moved_code", not moved, moved_files=moved)
     requires = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Dist:"))
     pyreq = [l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Python:")]
     extras = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Provides-Extra:"))

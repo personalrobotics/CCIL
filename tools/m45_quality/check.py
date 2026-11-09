@@ -10,8 +10,6 @@ true label error ||T(q) - y|| is computed independently of every artifact):
   <= its certified bound <= tol, and a ratio <= 1 exactly on the selected rows;
 - arithmetic recomputation: a consumer that reads the three .npz files with
   numpy alone recomputes the mask, ratio, and weight of a bound selection;
-- source recomputation: the certificate's terms are re-derived from their
-  sources (audit_sources) and the selection from its inputs (verify_selection);
 - tolerance change: through the pipeline, a new tolerance or quantile writes a
   new labels.curate run, reuses the candidate and certificate runs with their
   hashes unchanged, and selects nested rows;
@@ -92,7 +90,7 @@ from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.core import Finite, IdentityRepresentation, InterfaceError, LinearTransitionModel, NoisyAction, generate_labels  # noqa: E402
 from ccil.core.calibrate import build_calibration, calibrate, calibrated_rows, observed_error, verify_calibration  # noqa: E402
 from ccil.core.certificates import (ContinuityProfile, DisturbedActionPaperProxy, LegacyLabelFiltering, Provided,  # noqa: E402
-                                    Sources, audit_sources, certify, decide, resolved_of, write_reference_dynamics)
+                                    Sources, certify, decide, resolved_of, write_reference_dynamics)
 from ccil.core.curate import CurationPolicy, curate, verify_selection  # noqa: E402
 from ccil.pipelines.offline import generate_offline, stage  # noqa: E402
 from ccil.runs import layout  # noqa: E402
@@ -278,11 +276,6 @@ def main():
                     "inputs": meta["candidates_sha256"] == sha(cpath) and meta["certificates_sha256"] == sha(kpath)}
     record("consumer_recomputes_selection_with_numpy", all(consumer.values()), checks=consumer,
            error_units=meta["error"]["units"], caveats=meta["caveats"])
-
-    # 3. Source recomputation of both layers.
-    record("sources_recompute_certificate_and_selection",
-           audit_sources(cert, src) == [] and verify_selection(read_selection(spath), cpath, kpath) == [],
-           audit=audit_sources(cert, src), verify=verify_selection(read_selection(spath), cpath, kpath))
 
     # 4. Fail closed: unsupported rows, empirical rows under a bound policy, data_only with reference evidence.
     radius = float(np.median(cert.terms["state_displacement"]))

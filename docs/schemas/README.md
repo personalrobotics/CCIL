@@ -46,24 +46,5 @@ uv run ccil schema validate TRAJ.npz [--candidates CANDS.npz]
 uv run --group evidence python tools/m2_schemas/check.py --out <new-dir>
 ```
 
-[`../fixtures/evidence/m2-schemas/report.json`](../fixtures/evidence/m2-schemas/report.json)
-has 38 cases:
-
-- **Valid examples round-trip exactly:** vector, multimodal image, action
-  chunks, and multi-reason candidates.
-- **One invalid example per rule,** each with the expected diagnostic and the
-  input left unmodified.
-- **File-level compatibility rules.**
-- **The analytic fixture, end to end** from trajectories to accepted labels,
-  with source identity and measurements intact.
-- **All 15 shipped datasets** converted from the M1 format exactly.
-- **Provenance:**
-  - the seed, input hashes, weighting and weights survive a write–read round
-    trip and `accepted_labels`;
-  - missing or malformed provenance fails;
-  - a 1.0 candidates file is rejected by its major version.
-- **Mixed optional fields:** timestamps or action chunks on only some episodes,
-  or differing chunk lengths, fail validation. The writer refuses them with a
-  `SchemaError`.
-- **Malformed files:** 13 trajectory, 5 candidate and 1 legacy file, each
-  rejected with exit 1 and a `SchemaError` diagnostic, and no traceback.
+Reports: [`m2-schemas/report.json`](../fixtures/evidence/m2-schemas/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m2_schemas`](../../tools/m2_schemas/).

@@ -115,53 +115,8 @@ read or vouch for a file outside the run.
 
 ```bash
 uv run --group evidence python tools/m2_runs/check.py --out <new-dir>
-```
-
-[`fixtures/evidence/m2-runs/report.json`](fixtures/evidence/m2-runs/report.json)
-has 24 cases:
-
-- **Analytic run:** written twice and byte-identical; accepted and rejected
-  rows trace to the stored dataset.
-- **`data prepare`** validates as complete, and a 1.0 manifest as incompatible.
-- **Interruption:** an exception mid-write, and a SIGKILL mid-write.
-- **Commit boundaries,** each in its own process:
-  - a failed second rename leaves the old run in place;
-  - a SIGKILL after the first fallback rename is restored by recovery;
-  - a SIGKILL right after the atomic exchange leaves the new run complete.
-
-  The next writer also recovers before checking whether the destination exists.
-- **Fifteen damaged copies,** each classified correctly, including:
-  - entries that traverse with `..`, are absolute, or are non-canonical;
-  - a symlinked file or directory that points outside the run;
-  - mistyped `files` mappings and entries, which give a diagnostic rather than a
-    traceback.
-
-```bash
 uv run --group evidence python tools/m3_provenance/check.py --out <new-dir>
 ```
 
-[`fixtures/evidence/m3-provenance/report.json`](fixtures/evidence/m3-provenance/report.json)
-covers the code state and the hash cache (#127). Run it from a clean commit,
-because it clones HEAD.
-
-- **Code state:**
-  - a ccil source edit between two stages exits 3 and commits no later stage,
-    both in a git clone and in a non-git copy;
-  - an edit to a tracked file outside the source exits 3 when the command
-    ends;
-  - an unedited clone exits 0;
-  - a direct `RunWriter`, with no stage identity, captures the code state on
-    entry and refuses to commit after a source edit in its body.
-- **Cache use:** an unchanged rerun in one process reuses every stage. It
-  hashes only the user's dataset in full; every other hash comes from the
-  cache.
-- **Rehashing:**
-  - an atomically replaced artifact is rehashed, even at the same size and
-    mtime;
-  - an in-place edit that changes the mtime is rehashed;
-  - an in-place edit that keeps its metadata is not rehashed, which is the
-    documented limit, but strict mode sees it.
-- **User inputs:** a same-size rewrite of the user's dataset with its mtime
-  restored is detected, and `data.prepare` writes a new run.
-- **Strict mode:** cached and strict runs write byte-identical run
-  directories, and strict mode never uses the cache.
+Reports: [`m2-runs/report.json`](fixtures/evidence/m2-runs/report.json), [`m3-provenance/report.json`](fixtures/evidence/m3-provenance/report.json).
+Each case, and the contract it protects, is listed in the docstrings of [`tools/m2_runs`](../tools/m2_runs/), [`tools/m3_provenance`](../tools/m3_provenance/).

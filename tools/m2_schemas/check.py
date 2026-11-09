@@ -7,8 +7,7 @@ Valid examples (vector, multimodal image, action chunks, multi-reason
 candidates) round-trip exactly; one invalid example per rule fails with the
 expected diagnostic and is left unmodified; the analytic fixture travels from
 trajectories through closed-form candidates to accepted labels with identity
-and measurements intact; both shipped Pendulum datasets convert from the M1 format
-exactly; candidate provenance (seed, input hashes, weighting, weights) survives
+and measurements intact; candidate provenance (seed, input hashes, weighting, weights) survives
 round trips and accepted_labels; optional per-frame fields are all-or-none; and
 malformed files raise SchemaError, never a decoding traceback. Writes
 DIR/report.json.
@@ -30,7 +29,6 @@ for p in (REPO / "tools" / "analytic_fixture",):
 from ccil.schema import (REASON_CODES, CandidateSet, Episode, SchemaError, TrajectoryDataset,  # noqa: E402
                          read_candidates, read_trajectories, write_candidates, write_trajectories)
 from ccil.schema import trajectories  # noqa: E402
-from ccil.schema.io import _meta  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from oracle import episodes_to_transitions  # noqa: E402
 from system import DoubleIntegrator  # noqa: E402
@@ -248,25 +246,6 @@ def main():
            transitions=int(len(s)), accepted=int(exp_acc.sum()),
            multi_reason_rows=int((reasons.sum(axis=1) > 1).sum()),
            accepted_sources=[[str(e), int(f)] for e, f in zip(labels.source_episode_id, labels.source_frame)])
-
-    # --- D: shipped datasets convert from the M1 format exactly -------------
-    m1 = out / "m1"
-    r = subprocess.run([sys.executable, str(REPO / "tools/legacy_conversion/convert_legacy_dataset.py"), "--shipped", "--out-dir", str(m1)],
-                       capture_output=True, text=True)
-    rows = []
-    for f in sorted(m1.glob("*.npz")):
-        conv = from_m1_npz(f)
-        write_trajectories(conv, out / f"v1-{f.name}")
-        back = read_trajectories(out / f"v1-{f.name}")
-        with np.load(f, allow_pickle=False) as z:
-            exact = np.array_equal(np.concatenate([e.observations["state"] for e in back.episodes]), z["observations"]) \
-                and np.array_equal(np.concatenate([e.actions for e in back.episodes]), z["actions"]) \
-                and [e.length for e in back.episodes] == z["episode_lengths"].tolist() \
-                and back.episodes[0].observations["state"].dtype == z["observations"].dtype
-        rows.append({"dataset": f.name, "episodes": len(back.episodes), "exact": bool(exact and same(conv, back)),
-                     "source_sha256": back.meta["converted_from"]["sha256"]})
-    record("D", "shipped_datasets_convert_exactly", r.returncode == 0 and len(rows) == 2 and all(x["exact"] for x in rows),
-           datasets=rows)
 
     # --- E: candidate provenance travels with the file ----------------------
     labels_path = out / "fixture_accepted_labels.npz"

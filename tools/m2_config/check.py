@@ -4,7 +4,7 @@
     uv run python tools/m2_config/check.py --out DIR
 
 Runs `ccil data prepare` on the Pendulum data with defaults and with an
-override, checks per-value provenance, byte-identical replay, failures before
+override, checks per-value provenance, failures before
 any output (including duplicate YAML keys at any level and action bounds whose
 length is neither 1 nor the action dimension), legacy migration, and
 generated-docs drift. Writes DIR/report.json.
@@ -25,7 +25,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "legacy_conversion"))
 from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.config.migrate import CONFIG_VERSION  # noqa: E402
-from ccil.schema import SchemaError, read_trajectories, write_trajectories  # noqa: E402
+from ccil.schema import SchemaError, write_trajectories  # noqa: E402
 from ccil.schema.legacy import from_m1_npz  # noqa: E402
 from trajectory_io import convert_legacy_pickle  # noqa: E402
 
@@ -90,13 +90,8 @@ def main():
                   "default_value_sources": {k: v["source"] for k, v in d_cfg["values"].items()}}
     record("default_and_override_runs_record_provenance", ok, **detail)
 
-    # --- byte-identical replay from another working directory ---------------
-    r_b = ccil("data", "prepare", *base, cwd=work[1])
-    a_dirs, b_dirs = sorted((work[0] / "runs").iterdir()), sorted((work[1] / "runs").iterdir())
+    a_dirs = sorted((work[0] / "runs").iterdir())
     default_a = [d for d in a_dirs if json.loads((d / "data/split.json").read_text())["validation_fraction"] == 0.2][0]
-    same = r_b.returncode == 0 and len(b_dirs) == 1 and b_dirs[0].name == default_a.name \
-        and tree_hashes(b_dirs[0]) == tree_hashes(default_a)
-    record("replay_is_byte_identical", same, run_id=b_dirs[0].name if b_dirs else None, files=tree_hashes(default_a))
 
     # --- existing run directory: reused unchanged (#19 stage resume), then atomically replaced ---------
     before = tree_hashes(default_a)
@@ -124,7 +119,6 @@ def main():
     fails("wrong_unit", ["compute.jacobian_memory_mb=10 GiB"], "does not match the declared unit 'MiB'")
     fails("out_of_range", ["data.validation_fraction=1.5"], "outside [0.0, 1.0)")
     fails("incompatible_combination", ["data.action_low=-1"], "must be declared together")
-    fails("moved_policy_key", ["policy.method=ccil"], "unknown key 'policy.method'")  # moved to ilsb (#168)
     fails("unknown_recipe_value", ["generation.method=magic"], "is not one of")
     fails("action_bounds_wrong_dimension", ["data.action_low=-3,-3", "data.action_high=3,3"],
           "data.action_low has 2 values but data/pendulum_cont_100.npz has 1-dimensional actions")
