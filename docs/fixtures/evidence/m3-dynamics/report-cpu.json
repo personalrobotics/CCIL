@@ -2,69 +2,12 @@
  "all_pass": true,
  "cases": [
   {
-   "case": "legacy_worldmodel_equivalence_at_fixed_weights",
-   "pass": true,
-   "tolerance_train_mode_rel": 1e-05,
-   "torch": "2.14.1",
-   "types": {
-    "none": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": false,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 0.0,
-     "train_max_rel_diff": 0.0
-    },
-    "slack": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": false,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 0.0,
-     "train_max_rel_diff": 0.0
-    },
-    "soft_jac": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": false,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 0.0,
-     "train_max_rel_diff": 0.0
-    },
-    "soft_sampling": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": false,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 0.0,
-     "train_max_rel_diff": 0.0
-    },
-    "soft_sampling_slack": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": false,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 0.0,
-     "train_max_rel_diff": 0.0
-    },
-    "spectral_normalization": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": true,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 2.9802322387695312e-08,
-     "train_max_rel_diff": 1.4802782288825256e-07
-    },
-    "spectral_normalization_slack": {
-     "eval_bit_identical": true,
-     "legacy_eval_differs_from_train": true,
-     "legacy_torch": "2.1.0",
-     "power_iteration_buffers_max_diff": 5.960464477539063e-08,
-     "train_max_rel_diff": 1.982845532211286e-07
-    }
-   }
-  },
-  {
    "I1_accepted_finite": true,
    "I2_accepted_in_support": true,
    "I3_accounting": true,
    "acceptance_agrees_with_exact_model": 0.997,
    "accepted": 193,
-   "artifact": "<out>/analytic/runs/labels-generate-532a42b53d69/labels/candidates.npz",
+   "artifact": "<out>/analytic/runs/labels-generate-2655c7085031/labels/candidates.npz",
    "candidates": 1000,
    "case": "analytic_mlp_backward_euler_invariants",
    "correction_residual_max": 0.010193168134269029,
@@ -91,9 +34,11 @@
    },
    "residual_minus_lipschitz_bound_max": -2.5075463003084873e-05,
    "stages": {
-    "data-prepare-61ed8a3cdb13": "complete",
-    "labels-generate-532a42b53d69": "complete",
-    "transition-fit-213de982f9f8": "complete"
+    "data-prepare-faa8dfbf222b": "complete",
+    "labels-curate-45bc07226101": "complete",
+    "labels-diagnose-3a6c396aa6c8": "complete",
+    "labels-generate-2655c7085031": "complete",
+    "transition-fit-f94e871f6448": "complete"
    }
   },
   {
@@ -123,10 +68,11 @@
     "generator": {
      "name": "backward_euler",
      "params": {},
-     "params_hash": "b67b95441f18eaa9",
+     "params_hash": "7fe721c56b2dbb40",
      "version": "1"
     },
     "jacobian_chunking": null,
+    "recovery_steps": 1,
     "rejections_by_reason": {
      "action_out_of_bounds": 0,
      "generation_failed": 0,
@@ -137,9 +83,11 @@
    "pass": true,
    "settings": "recipe pendulum_cont (legacy config/pendulum_cont.yml), generation.method=backward_euler",
    "stages": {
-    "data-prepare-6bcfc3b529c8": "complete",
-    "labels-generate-a733be1afca0": "complete",
-    "transition-fit-4a3a2fa3eb9c": "complete"
+    "data-prepare-802257a835bb": "complete",
+    "labels-curate-e2b9ff26b8fc": "complete",
+    "labels-diagnose-45f3840eb675": "complete",
+    "labels-generate-a6f532440aa5": "complete",
+    "transition-fit-a268d3ccce26": "complete"
    },
    "stderr": ""
   },
@@ -232,7 +180,7 @@
    "failures": {
     "cuda_without_cuda": "RuntimeError: compute.device 'cuda' requested but CUDA is not available",
     "missing_tensor": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tMissing key(s) in state_dict: \"fc_layers.0.bias\". ",
-    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '99'; MLPTran",
+    "other_version": "CheckpointError: <out>/ck_ver.npz holds 'mlp' version '99'; MLPTransit",
     "wrong_shape": "RuntimeError: Error(s) in loading state_dict for DynamicsNet:\n\tsize mismatch for fc_layers.0.bias: copying a param with shape torch.Size([1]) from checkpoint, the shape in cu"
    },
    "meta": {
@@ -275,14 +223,14 @@
   }
  ],
  "environment": {
-  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "cuda": null,
   "device": "cpu",
   "host_load": [
-   14.5283203125,
-   16.7236328125,
-   10.45068359375
+   6.87109375,
+   4.85302734375,
+   4.47607421875
   ],
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

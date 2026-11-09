@@ -2,22 +2,22 @@
  "all_pass": true,
  "bundle_sha256": {
   "backtrack_mlp/candidates.npz": "444a97101a51287b6380184eb2e2db299e4de78976e0fc33dd0ac5d9b4e2a18d",
-  "backtrack_mlp/certificates.npz": "44fd7aa54b59d99f128ce17097752038947633c063e10d5360382274be775ffd",
+  "backtrack_mlp/certificates.npz": "ad6ae6da6fbc6af7ee9b31ae6856e3b5b190a16fe11c260f1e707de925af20f0",
   "backtrack_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
   "backtrack_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "backtrack_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
-  "continuity_linear/candidates.npz": "f09e95bc84a912cb70057c84ec3ce67b9f8b9094fc0fc4ffbdcc2109c89bcb19",
-  "continuity_linear/certificates.npz": "8dc339bba3d6eeae031cb9b986b9eb3d07f9b0ca3cd08e58ce696914025a70d0",
+  "continuity_linear/candidates.npz": "db43e89179744aa82c94fbbc369fe170cbdb0583ec453ce15dc0e791bc5ea40d",
+  "continuity_linear/certificates.npz": "a6b9786d0b4005c29813c305bce9b337e8038c1d004cba6ef5790404306a244a",
   "continuity_linear/dataset.npz": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
   "continuity_linear/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "continuity_linear/transition_model.npz": "b06ae9a025da94098ca3ad7b05aef3e564ca4a1bba1ab18c7409f3cd1d72b5a3",
-  "disturbed_action_mlp/candidates.npz": "82e2b76b650ecf3fc951868923d61ad9f5e40aac1e28e8c410c596f9c7791127",
-  "disturbed_action_mlp/certificates.npz": "e1f3162ce95ece1abd0c8c5ac316c48b8996bd24c29f056f157e84c423d03254",
+  "disturbed_action_mlp/candidates.npz": "2c7aadca28f3b3574af7c06dfcc9d5a4027296399d01d5e88773ace0766fbaa1",
+  "disturbed_action_mlp/certificates.npz": "c7fed55e3b5f75609bbca7b2754c668aa69cfb4dbb1942e5022f1b41fffdad4b",
   "disturbed_action_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
   "disturbed_action_mlp/reference.true.npz": "311887a77f4451e9bfd1a6b0b0b9e396060ced708a15b59a8f551b39819d423a",
   "disturbed_action_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
-  "legacy_label_filtering_mlp/candidates.npz": "e0f2f65b79323a63594b233ef17d0b49006942af9e322b7b8f308e87deb958df",
-  "legacy_label_filtering_mlp/certificates.npz": "38170e5fed80de01084cc46f011d91ac76d566d998b80df280f53329806888fa",
+  "legacy_label_filtering_mlp/candidates.npz": "28eef08a60111a0a13e52f0eac45fad97209dbcbcf88d553604f9b3c77d237fa",
+  "legacy_label_filtering_mlp/certificates.npz": "a84f6e10465ccdab39f5d9bfa9a60107105de3f16243562b3a7a0fd93ca95fbb",
   "legacy_label_filtering_mlp/dataset.npz": "46ecd3eec7fb6fbfb01c9ffd5b3c55ea595bc566f68a63d2153263e191663e53",
   "legacy_label_filtering_mlp/transition_model.npz": "0541623f3b64dd47962b688ac8dddabbbdbca9564552e7f763b595e75e024afe",
   "manifest.json": "303b981b23ce9afa30b40d4099ec5cf1480ae0f1165f5a34987e21f6b61c92d5"
@@ -187,29 +187,27 @@
    "radius": 0.01587118264703291
   },
   {
+   "bound_admission": {
+    "not_bound": 36,
+    "selected": 0
+   },
    "case": "admission_is_separate_from_classification",
    "pass": true,
    "require_upper_bound": {
     "continuity_provider": "accepted",
-    "empirical_score_mode": "InterfaceError: certificate (evidence_anchor_action_score, admission 'score') does not admit rows as upper bounds",
-    "empirical_upper_bound_mode": "InterfaceError: certificate (evidence_anchor_action_score, admission 'upper_bound') does not admit rows as upper bounds"
+    "empirical": "InterfaceError: certificate (evidence_anchor_action_score) does not certify its rows as upper bounds"
    },
-   "score_mode": {
-    "admissible": 27,
-    "is_upper_bound": 0,
-    "threshold": 0.022554790407403772
-   },
-   "upper_bound_mode": {
-    "admissible": 0,
-    "not_upper_bound": 36
+   "score_admission": {
+    "is_bound": false,
+    "selected": 27,
+    "tolerance": 0.022554790407403772
    }
   },
   {
    "accepted": 36,
-   "admissible": 14,
+   "admitted": 14,
    "case": "masks_follow_rules",
    "no_eligible": {
-    "admissible": 0,
     "selected": 0,
     "threshold": null
    },
@@ -263,6 +261,10 @@
      "audit": true,
      "structure": true
     },
+    "not_upper_bound_reason_flipped": {
+     "audit": false,
+     "structure": true
+    },
     "recorded_model_hash_zeroed": {
      "audit": true,
      "structure": false
@@ -270,10 +272,6 @@
     "representation_identity_changed": {
      "audit": true,
      "structure": false
-    },
-    "selected_flipped": {
-     "audit": false,
-     "structure": true
     },
     "solver_error_falsified_consistently": {
      "audit": true,
@@ -295,26 +293,48 @@
    "pass": true
   },
   {
+   "case": "selection_verified_against_inputs",
+   "clean": [],
+   "detected": {
+    "mask_flipped": [
+     "ccil.selection failed validation (mask=1, weight=1):\n  mask at selection, row 1: an unselected row needs a reason\n  weight at selection, row 1: weight must be 0 on unselected rows"
+    ],
+    "other_certificates": [
+     "certificates SHA-256 25593d8e92ad0ad4e9052985f5ae8ccbd279b237f3b500eaf57f9639cc2777da != recorded a6b9786d0b4005c29813c305bce9b337e8038c1d004cba6ef5790404306a244a"
+    ],
+    "threshold_raised": [
+     "threshold 0.01057662247460182 does not follow from the inputs (0.00528831123730091)"
+    ],
+    "tolerance_edited": [
+     "mask does not follow from the inputs and the policy"
+    ],
+    "weight_doubled": [
+     "weight does not follow from the inputs and the policy"
+    ]
+   },
+   "pass": true
+  },
+  {
    "case": "schema_ingress_enforced",
    "malformed": {
-    "admissible_unsupported_row": "SchemaError: rules=['admissible']: an unsupported row cannot be admissible",
-    "admission_null": "SchemaError: rules=['admission']: admission must be {mode: ['upper_bound', 'score'], threshold: null or finite >= 0}",
     "analytic_constant_without_provenance": "SchemaError: rules=['descriptor']: a provided constant needs provenance {provider, version, params, inputs (SHA-256)}",
     "bad_sha256": "SchemaError: rules=['inputs']: candidates_sha256 must be 64 lowercase hex",
     "classification_out_of_range": "SchemaError: rules=['format']: classification must be rank-1 integer codes into classification_codes",
     "declared_constant_with_provenance": "SchemaError: rules=['descriptor']: a declared constant has no provenance",
-    "integer_selected_mask": "SchemaError: rules=['dtype']: selected dtype int64 is not bool",
-    "is_upper_bound_inconsistent": "SchemaError: rules=['admissible', 'is_upper_bound']: is_upper_bound must be true exactly for certified, conditional, and calibrated rows",
+    "integer_neighborhood_mask": "SchemaError: rules=['dtype']: in_neighborhood dtype int64 is not bool",
+    "is_upper_bound_inconsistent": "SchemaError: rules=['is_upper_bound']: is_upper_bound must be true exactly for certified, conditional, and calibrated rows",
+    "legacy_admission_in_2_0": "SchemaError: rules=['format']: unknown meta fields ['admission']",
+    "legacy_mask_in_2_0": "SchemaError: rules=['format']: unknown field 'admissible'",
+    "legacy_reason_codes_in_2_0": "SchemaError: rules=['format']: reason_codes must be ['certificate.unsupported', 'certificate.not_upper_bound']",
     "missing_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'demonstration_residual', 'solver_error', 'state_displacement'] != declared ['action_displacement', ",
-    "negative_admission_threshold": "SchemaError: rules=['admission']: admission must be {mode: ['upper_bound', 'score'], threshold: null or finite >= 0}",
-    "next_major_version": "SchemaError: rules=['format']: major version 2 is not supported (this reader supports 1.x)",
+    "next_major_version": "SchemaError: rules=['format']: major version 3 is not supported (this reader supports 2.x)",
     "rank_2_total": "SchemaError: rules=['rank']: total_error_value has shape (36, 1); expected rank 1 ('N',)",
-    "row_count_mismatch": "SchemaError: rules=['shape']: selected axis 0 (N) is 35, expected 36",
+    "row_count_mismatch": "SchemaError: rules=['shape']: is_upper_bound axis 0 (N) is 35, expected 36",
     "scale_of_wrong_length": "SchemaError: rules=['descriptor']: coordinates must be {modality, state_dim, action_dim, state_scale, action_scale} with positive finite scales of the stated dimensions",
-    "selection_threshold_without_quantile": "SchemaError: rules=['selection']: selection must be {quantile: null or in (0, 1], threshold: null or finite >= 0, population: ['admitted', 'produced']}, with no threshold or ",
     "undeclared_term": "SchemaError: rules=['terms']: persisted terms ['action_displacement', 'anchor_model_error', 'demonstration_residual', 'extra', 'solver_error', 'state_displacement'] != de",
     "unknown_array_field": "SchemaError: rules=['format']: unknown field 'extra'",
     "unknown_meta_field": "SchemaError: rules=['format']: unknown meta fields ['note']",
+    "unsupported_row_without_reason": "SchemaError: rules=['reasons']: certificate.unsupported must be set exactly on unsupported rows",
     "writer_integer_mask": "SchemaError: rules=['dtype']: is_upper_bound dtype int64 is not bool"
    },
    "pass": true
@@ -323,23 +343,25 @@
    "case": "api_validation",
    "pass": true,
    "refused": {
+    "accepted_with_tolerance": "InterfaceError: admit accepted compares no error: it takes no tolerance or quantile",
     "declared_negative": "InterfaceError: a declared constant must be finite and >= 0, got -1.0",
     "declared_no_rationale": "InterfaceError: a declared constant needs a rationale",
     "missing_reference": "InterfaceError: linear_discrepancy needs reference artifact 'true'; given []",
     "neighborhood_zero": "InterfaceError: neighborhood radii must be finite and > 0, or None for unbounded; got 0.0",
-    "quantile_zero": "InterfaceError: selection_quantile must be in (0, 1] or None, got 0.0",
+    "population_without_quantile": "InterfaceError: a population other than admitted applies to a quantile",
+    "quantile_zero": "InterfaceError: quantile must be in (0, 1] or None, got 0.0",
     "scale_wrong_length": "InterfaceError: state_scale must be 2 finite positive values, got (1.0,)",
     "scale_zero": "InterfaceError: action_scale must be 1 finite positive values, got (0.0,)",
-    "threshold_bool": "InterfaceError: the admission threshold must be finite and >= 0 or None, got True",
-    "threshold_nan": "InterfaceError: the admission threshold must be finite and >= 0 or None, got nan",
-    "threshold_negative": "InterfaceError: the admission threshold must be finite and >= 0 or None, got -1.0",
-    "unknown_admission": "InterfaceError: admission must be 'upper_bound' or 'score', got 'maybe'",
+    "tolerance_bool": "InterfaceError: tolerance must be finite and > 0 or None, got True",
+    "tolerance_nan": "InterfaceError: tolerance must be finite and > 0 or None, got nan",
+    "tolerance_negative": "InterfaceError: tolerance must be finite and > 0 or None, got -1.0",
+    "unknown_admission": "InterfaceError: admit must be one of ['accepted', 'bound', 'score'], got 'maybe'",
     "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy', 'model_lipschitz', 'reference_lipschitz', 'reference_residual']"
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-5a44e22085a6/labels/certificates.npz",
-   "candidates_sha256": "1686c69df952ed1e2d4d4ef1f1270b6c59ef606fce0fdcf93d89e1f23b62a757",
+   "artifact": "<out>/pipeline/runs/labels-certify-711d88811a4d/labels/certificates.npz",
+   "candidates_sha256": "bbfaebfafb5a094b330a4570ce64ff322f9096875f2f053b30d49059769310d0",
    "case": "pipeline_certify_stage",
    "constants": {
     "C_a": 1.7700020475168254e-07,
@@ -350,12 +372,14 @@
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-0e85a80c153e": "complete",
-    "labels-certify-125caa6b1518": "complete",
-    "labels-certify-5a44e22085a6": "complete",
-    "labels-certify-abdfb823ab06": "complete",
-    "labels-generate-870819816257": "complete",
-    "transition-fit-f724ac841009": "complete"
+    "data-prepare-f6845509f7d6": "complete",
+    "labels-certify-2bea93b942c0": "complete",
+    "labels-certify-711d88811a4d": "complete",
+    "labels-curate-6d181876fadf": "complete",
+    "labels-curate-aa16d1a35af5": "complete",
+    "labels-diagnose-6ff15a131f91": "complete",
+    "labels-generate-2bf57caebc02": "complete",
+    "transition-fit-1f822156e724": "complete"
    },
    "usable": 27
   },
@@ -755,53 +779,13 @@
    }
   },
   {
-   "case": "pipeline_theorem_profiles",
-   "pass": true,
-   "runs": {
-    "backtrack": {
-     "classification": [
-      "certified"
-     ],
-     "coverage": {
-      "covered": true,
-      "max_bound": 0.014833831081453327,
-      "max_demonstration_residual": 5.1468360565207944e-08,
-      "max_persisted_demonstration_residual": 5.146836186606537e-08,
-      "max_true_error": 0.002999990854506979,
-      "min_slack": 0.0007889339648698116,
-      "rows": 9,
-      "violated_rows": 0
-     },
-     "run": "labels-certify-3b37f36e718c",
-     "status": "complete"
-    },
-    "disturbed_action": {
-     "classification": [
-      "certified"
-     ],
-     "coverage": {
-      "covered": true,
-      "max_bound": 0.019482930425053908,
-      "max_demonstration_residual": 5.1468360565207944e-08,
-      "max_persisted_demonstration_residual": 5.146836186606537e-08,
-      "max_true_error": 0.0033829584709624684,
-      "min_slack": 0.00010391611785743639,
-      "rows": 36,
-      "violated_rows": 0
-     },
-     "run": "labels-certify-3743be72db3f",
-     "status": "complete"
-    }
-   }
-  },
-  {
    "action_jacobian_norm": 0.16000000000000003,
    "backtrack_moved_action": {
     "action_change": 0.25,
-    "admissible": false,
     "classification": "unsupported",
     "generator": "backward_euler",
-    "row": 0
+    "row": 0,
+    "selected": false
    },
    "case": "paper_proxies_equal_definitions",
    "definitions": {
@@ -837,20 +821,6 @@
     }
    },
    "pass": true
-  },
-  {
-   "case": "scores_are_never_bounds",
-   "pass": true,
-   "require_upper_bound": "InterfaceError: certificate (disturbed_action_paper_proxy, admission 'score') does not admit rows as upper bounds",
-   "score_admission": {
-    "admissible": 22,
-    "rows": 36,
-    "threshold": 0.0834142660283126
-   },
-   "upper_bound_admission": {
-    "admissible": 0,
-    "not_upper_bound": 36
-   }
   },
   {
    "case": "selection_never_changes_acceptance",
@@ -920,25 +890,24 @@
    "integrated": "ConfigError: certificate.profile: the integrated pipeline's policy stage does not consume certificates yet (#89); certify with ccil labels generate",
    "migrated": {
     "certificate.profile": "legacy_label_filtering",
-    "certificate.score_threshold": 0.5,
-    "certificate.selection_population": "produced",
-    "certificate.selection_quantile": 0.3,
+    "curate.population": "produced",
+    "curate.quantile": 0.3,
+    "curate.tolerance": 0.5,
     "generation.model_error_threshold": 0.1
    },
    "pass": true,
    "refused": {
     "action_neighborhood_with_backtrack_paper_proxy": "ConfigError: backtrack_paper_proxy keeps the anchor's action; certificate.neighborhood_action does not apply [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.metho",
-    "bound_profile_with_score_threshold": "ConfigError: bound profile disturbed_action admits by certificate.max_total_error, not certificate.score_threshold [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation",
     "bound_profile_without_demonstration": "ConfigError: backtrack needs certificate.reference_dynamics or certificate.demonstration_residual_bound [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.method=cli",
-    "certificate_settings_without_profile": "ConfigError: ['certificate.selection_quantile'] require certificate.profile [certificate; sources: certificate.profile=default, certificate.reference_dynamics=default, generation.method=recipe:analytic_double_inte",
+    "certificate_settings_without_profile": "ConfigError: curate.tolerance and curate.quantile compare certificate errors; set certificate.profile [curate; sources: curate.tolerance=default, curate.quantile=cli, curate.population=default, certificate.profile",
     "declared_learned_source_with_backtrack_paper_proxy": "ConfigError: certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, not backtrack_paper_proxy [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=defa",
     "declared_learned_source_with_disturbed_action": "ConfigError: certificate.learned_lipschitz_source declared applies to the backtrack bound profile only, not disturbed_action [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, ",
     "declared_learned_source_without_profile": "ConfigError: ['certificate.learned_lipschitz_source'] require certificate.profile [certificate; sources: certificate.profile=default, certificate.reference_dynamics=default, generation.method=recipe:analytic_doubl",
-    "produced_population_without_quantile": "ConfigError: certificate.selection_population applies to a selection; set certificate.selection_quantile [certificate; sources: certificate.profile=cli, certificate.reference_dynamics=default, generation.method=re",
+    "produced_population_without_quantile": "ConfigError: curate.population applies to a quantile; set curate.quantile [curate; sources: curate.tolerance=default, curate.quantile=default, curate.population=cli, certificate.profile=cli, certificate.reference_",
     "profile_for_the_other_family": "ConfigError: certificate.profile backtrack_paper_proxy certifies backtrack labels; generation.method noisy_action makes disturbed_action labels [certificate; sources: certificate.profile=cli, certificate.reference",
-    "score_profile_with_bound_threshold": "ConfigError: score profile legacy_label_filtering takes no constants, reference, or bound threshold: unset ['certificate.max_total_error'] [certificate; sources: certificate.profile=cli, certificate.reference_dyna",
-    "withdrawn_label_error_quantile": "ConfigError: generation.label_error_quantile was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile and certificate.selection_quantile",
-    "withdrawn_max_label_error": "ConfigError: generation.max_label_error was withdrawn (cli): label-error filtering moved to certificates: set certificate.profile (legacy_label_filtering for the branch's score) and certificate.score_threshold, or"
+    "withdrawn_certificate_threshold": "ConfigError: certificate.score_threshold was withdrawn (cli): selection moved out of the certificate (#167): set curate.tolerance",
+    "withdrawn_label_error_quantile": "ConfigError: generation.label_error_quantile was withdrawn (cli): label-error filtering moved to certificates and curation: set certificate.profile and curate.quantile",
+    "withdrawn_max_label_error": "ConfigError: generation.max_label_error was withdrawn (cli): label-error filtering moved to certificates and curation: set certificate.profile (legacy_label_filtering for the branch's score) and curate.tolerance"
    }
   },
   {
@@ -956,6 +925,8 @@
      "stages": [
       "data.prepare",
       "labels.certify",
+      "labels.curate",
+      "labels.diagnose",
       "labels.generate",
       "transition.fit"
      ],
@@ -973,6 +944,8 @@
      "stages": [
       "data.prepare",
       "labels.certify",
+      "labels.curate",
+      "labels.diagnose",
       "labels.generate",
       "transition.fit"
      ],
@@ -984,7 +957,7 @@
   }
  ],
  "environment": {
-  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

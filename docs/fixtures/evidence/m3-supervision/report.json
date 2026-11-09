@@ -12,16 +12,7 @@
     },
     "ccil_certified": {
      "certification": {
-      "admission": {
-       "mode": "upper_bound",
-       "threshold": 0.015
-      },
       "profile": "disturbed_action",
-      "selection": {
-       "population": "admitted",
-       "quantile": 0.6,
-       "threshold": 0.010727420792587422
-      },
       "version": "2"
      },
      "demonstration_rows": 54,
@@ -61,13 +52,12 @@
    "case": "weights_and_reconciliation",
    "counts": {
     "accepted": 288,
-    "accepted_admissible_and_selected": 126,
-    "accepted_and_admissible": 210,
     "candidate_rows": 288,
     "demonstration_rows": 54,
     "demonstration_rows_held_out": 18,
     "demonstration_transitions": 72,
     "rows": 144,
+    "selected": 126,
     "synthetic_rows": 90,
     "usable_rows_held_out": 36
    },
@@ -87,22 +77,31 @@
    "case": "mismatched_artifacts_fail_closed",
    "pass": true,
    "refused": {
-    "bc_with_candidates": "SupervisionError: bc trains on the demonstrations only; it takes no candidates or certificates",
+    "bc_with_candidates": "SupervisionError: the demonstrations source trains on the demonstrations only; it takes no candidates, certificates, or selection",
     "candidate_action_width_mismatch": "SupervisionError: candidate actions have shape (2,); the demonstrations' are (1,)",
     "candidate_observation_shape_mismatch": "SupervisionError: candidate observations have shape (3,); the representation encodes demonstrations as (2,)",
     "candidates_from_another_dataset": "SupervisionError: candidates were generated from dataset 2d79fde9e42f6542325ee692b40d0df1c21ce790495dec11350b31d311273c8c, not this dataset (41b1b48506cbf31a461156ec257",
-    "ccil_without_candidates": "SupervisionError: ccil needs a candidates file",
-    "certificate_from_another_dataset": "SupervisionError: certificates were computed from dataset 0000000000000000000000000000000000000000000000000000000000000000, not this dataset",
-    "certificate_rows_reordered": "SupervisionError: certificate rows do not match the candidate rows in identity and order",
-    "certificate_selection_tampered": "SupervisionError: certificate structure: selected does not follow from the persisted terms, descriptor, and policy | certificate structure: reasons does not follow from the persisted terms, descriptor, and policy",
-    "certificates_for_other_candidates": "SupervisionError: certificates certify candidates b9ce142d776dbbacfeb1f5855b3f00b4a6b7ec3fc97a75373e04ed7b778ae80d, not this file (31b01992fe9bac0dc8ce0b18fe8d19d6f2ebf",
-    "certificates_without_candidates": "SupervisionError: certificates need the candidates file they certify",
+    "ccil_without_candidates": "SupervisionError: demonstrations_plus_selection needs a candidates file",
+    "certificate_from_another_dataset": "SupervisionError: certificates were computed from dataset 0000000000000000000000000000000000000000000000000000000000000000, not this dataset | the selection was curated from certificates c57b97564093b0d6ce99c31a9d57ca91b44908dbfe82798457a926632ab55f8d, not bfb98805de243d33b029ec3fe30789596301",
+    "certificate_rows_reordered": "SupervisionError: certificate rows do not match the candidate rows in identity and order | the selection was curated from certificates c57b97564093b0d6ce99c31a9d57ca91b44908dbfe82798457a926632ab55f8d, not 1044b0acf3c4637ab75e91b4908bcb36f38e",
+    "certificates_for_other_candidates": "SupervisionError: certificates certify candidates 14c015b9d380dc5b03b6e6921beb8c15a30024ebaf5334bdf76335e5760bc038, not this file (17e3fe90ad00a0f3f398513a7000945679289 | a 2.0 certificate selects nothing by itself; pass the selection curated from it",
+    "certificates_without_candidates": "SupervisionError: certificates and selections need the candidates file they describe",
     "chunked_candidates_refused_by_default": "SupervisionError: the candidates carry action chunks; a consumer must declare action_chunks='consume' (and train on chunks) rather than use only their first action",
     "negative_demonstration_weight": "SupervisionError: demonstration_weight must be finite and >= 0, got -1.0",
-    "noise_bc_with_certificates": "SupervisionError: noise_bc trains on the demonstrations only; it takes no candidates or certificates",
+    "noise_bc_with_certificates": "SupervisionError: the demonstrations source trains on the demonstrations only; it takes no candidates, certificates, or selection",
     "representation_cannot_encode_dataset": "SupervisionError: the representation cannot encode the dataset: 'velocity'",
     "representation_modality_mismatch": "SupervisionError: candidates hold modalities ['state'], not the representation's 'latent.other'",
+    "selection_of_other_candidates": "SupervisionError: candidates were generated from dataset 2d79fde9e42f6542325ee692b40d0df1c21ce790495dec11350b31d311273c8c, not this dataset (41b1b48506cbf31a461156ec257 | certificates certify candidates 14c015b9d380dc5b03b6e6921beb8c15a30024ebaf5334bdf76335e5760bc038, not this file (132bcb25384acee75a4ef37d4f6e20daf6ed7 | the selection selects from candidates 14c015b9d380dc5b03b6e6921beb8c15a30024ebaf5334bdf76335e5760bc038, not this file (132bcb25384acee75a4ef37d4f6e20d",
     "split_of_another_dataset": "SupervisionError: split episode ids are not the dataset's episodes"
+   }
+  },
+  {
+   "case": "invalid_source_or_perturbation_refused",
+   "pass": true,
+   "refused": {
+    "perturbation_on_selection": "SupervisionError: the noise_bc perturbation applies to the demonstrations source",
+    "unknown_perturbation": "SupervisionError: perturbation must be one of ['noise_bc'] or None, got 'gaussian'",
+    "unknown_source": "SupervisionError: source must be one of ['demonstrations', 'demonstrations_plus_selection'], got 'labels'"
    }
   },
   {
@@ -155,7 +154,7 @@
   }
  ],
  "environment": {
-  "code_commit": "c8a47122037ea446ad16677434d258e6c2b156b6",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
