@@ -23,8 +23,7 @@ Sources (what the policy learns from):
   its own selection: the candidates with accepted & admissible & selected. A
   2.0 certificate selects nothing by itself and needs a selection.
 The manifest's method records the arm as before: bc, noise_bc (demonstrations
-with the noise_bc perturbation) or ccil. The former source names bc, ccil and
-noise_bc, and method=, are refused with their replacement (#168).
+with the noise_bc perturbation) or ccil.
 A rejected or unselected candidate never appears, whatever its weight: there
 is no weight-only path into the loss.
 
@@ -59,11 +58,9 @@ from .schema import SchemaError, read_candidates, read_certificates, read_select
 METHODS = ("bc", "noise_bc", "ccil")  # the manifest's method
 SOURCES = ("demonstrations", "demonstrations_plus_selection")
 PERTURBATIONS = ("noise_bc",)
-# Each former source name (policy.method; refused, #168): its source and perturbation; and each pair's manifest method.
-FORMER_SOURCES = {"bc": ("demonstrations", None), "ccil": ("demonstrations_plus_selection", None),
-                  "noise_bc": ("demonstrations", "noise_bc")}
-_FORMER = FORMER_SOURCES
-_METHOD = {former: name for name, former in _FORMER.items()}
+# The manifest method of each (source, perturbation).
+_METHOD = {("demonstrations", None): "bc", ("demonstrations", "noise_bc"): "noise_bc",
+           ("demonstrations_plus_selection", None): "ccil"}
 CHUNK_POLICIES = ("refuse", "consume")
 DEMONSTRATION, SYNTHETIC = "demonstration", "synthetic"
 
@@ -153,13 +150,8 @@ def _valid_chunk_size(k) -> bool:
     return not isinstance(k, bool) and isinstance(k, (int, np.integer)) and k >= 1
 
 
-def _resolve_source(source, perturbation, method) -> str:
-    """The manifest method of (source, perturbation); a former name or method= is refused with its replacement."""
-    if method is not None:
-        hint = _replacement(method) if method in _FORMER else f"build_supervision(dataset, {method!r}, ...)"
-        raise SupervisionError([f"build_supervision(method={method!r}) was removed (#168): use {hint}"])
-    if source in _FORMER:
-        raise SupervisionError([f"supervision source {source!r} was renamed (#168): use {_replacement(source)}"])
+def _resolve_source(source, perturbation) -> str:
+    """The manifest method of (source, perturbation)."""
     if source not in SOURCES:
         raise SupervisionError([f"source must be one of {list(SOURCES)}, got {source!r}"])
     if perturbation is not None and perturbation not in PERTURBATIONS:
@@ -169,26 +161,21 @@ def _resolve_source(source, perturbation, method) -> str:
     return _METHOD[(source, perturbation)]
 
 
-def _replacement(former: str) -> str:
-    new, implied = _FORMER[former]
-    return f"build_supervision(dataset, {new!r}" + (f", perturbation={implied!r}" if implied else "") + ", ...)"
-
-
-def build_supervision(dataset, source: str | None = None, *, representation, candidates=None, certificates=None,
+def build_supervision(dataset, source: str, *, representation, candidates=None, certificates=None,
                       selection=None, calibration=None, split=None, perturbation: str | None = None,
                       representation_checkpoint=None, demonstration_weight: float = 1.0, action_chunks: str = "refuse",
-                      chunk_size: int | None = None, part: str = "train", method: str | None = None) -> Supervision:
+                      chunk_size: int | None = None, part: str = "train") -> Supervision:
     """Resolve the usable rows for a source from artifact files; raise SupervisionError on any inconsistency.
 
     source is demonstrations or demonstrations_plus_selection; perturbation="noise_bc" declares demonstrations
     that the consumer's trainer perturbs online. With a split, part selects its "train" episodes (the default) or
     its "validation" episodes (held-out supervision, for example for validation-based checkpoint selection); the
-    manifest records which. method= and the former source names bc, ccil and noise_bc are refused (#168).
+    manifest records which.
     """
     problems = []
     if part not in ("train", "validation"):
         raise SupervisionError([f"part must be train or validation, got {part!r}"])
-    method = _resolve_source(source, perturbation, method)
+    method = _resolve_source(source, perturbation)
     if action_chunks not in CHUNK_POLICIES:
         raise SupervisionError([f"action_chunks must be one of {list(CHUNK_POLICIES)}, got {action_chunks!r}"])
     if isinstance(demonstration_weight, bool) or not isinstance(demonstration_weight, (int, float)) or not (
@@ -404,5 +391,4 @@ def build_supervision(dataset, source: str | None = None, *, representation, can
                        arrays.get("action_chunks"), arrays.get("action_chunk_mask"))
 
 
-__all__ = ["build_supervision", "Supervision", "SupervisionError", "METHODS", "SOURCES", "PERTURBATIONS", "FORMER_SOURCES",
-           "CHUNK_POLICIES"]
+__all__ = ["build_supervision", "Supervision", "SupervisionError", "METHODS", "SOURCES", "PERTURBATIONS", "CHUNK_POLICIES"]

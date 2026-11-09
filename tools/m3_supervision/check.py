@@ -28,11 +28,8 @@ independently from the files and compared with build_supervision:
   bound to the exact representation checkpoint: a same-modality PCA whose
   parameters differ, another checkpoint, or a missing one is refused;
 - chunked supervision is handed off only through chunk_arrays();
-- the former source names bc, noise_bc and ccil, positionally or as method=,
-  are refused, each naming its replacement call (demonstrations, demonstrations
-  with perturbation noise_bc, demonstrations_plus_selection); a perturbation on
-  the selection source, an unknown perturbation or source, a former name with a
-  perturbation, and both a source and method= are refused too (#168).
+- an unknown source or perturbation, and a perturbation on the selection
+  source, are refused.
 Writes DIR/report.json and DIR/manifests/<arm>.json (the inspectable artifacts).
 """
 import argparse
@@ -303,29 +300,14 @@ def main():
            set(reason) == set(refused) and all(v.startswith("SupervisionError") and reason[k] in v for k, v in refused.items()),
            refused=refused)
 
-    # Former source names (#168): each, positionally or as method=, is refused naming its full replacement.
-    former = {"bc": "(dataset, 'demonstrations', ...)",
-              "noise_bc": "(dataset, 'demonstrations', perturbation='noise_bc', ...)",
-              "ccil": "(dataset, 'demonstrations_plus_selection', ...)"}
-    names = {}
-    for old, hint in former.items():
-        for label, call in ((old, lambda: build_supervision(P["dataset"], old, **base)),
-                            (f"method={old}", lambda: build_supervision(P["dataset"], method=old, **base))):
-            got = outcome(call)
-            names[label] = {"outcome": got, "refused": got.startswith("SupervisionError"), "names_replacement": hint in got}
     combos = {
         "perturbation_on_selection": outcome(lambda: build_supervision(
             P["dataset"], "demonstrations_plus_selection", perturbation="noise_bc", candidates=P["candidates"], **base)),
         "unknown_perturbation": outcome(lambda: build_supervision(P["dataset"], "demonstrations",
                                                                   perturbation="gaussian", **base)),
-        "former_name_with_perturbation": outcome(lambda: build_supervision(P["dataset"], "bc", perturbation="noise_bc",
-                                                                           **base)),
-        "source_and_method": outcome(lambda: build_supervision(P["dataset"], "demonstrations", method="bc", **base)),
         "unknown_source": outcome(lambda: build_supervision(P["dataset"], "labels", **base))}
-    record("former_source_names_refused",
-           all(v["refused"] and v["names_replacement"] for v in names.values())
-           and all(v.startswith("SupervisionError") for v in combos.values()),
-           names=names, refused=combos)
+    record("invalid_source_or_perturbation_refused", all(v.startswith("SupervisionError") for v in combos.values()),
+           refused=combos)
 
     # Chunks: consumed, never silently reduced.
     dsc = read_trajectories(PC["dataset"])

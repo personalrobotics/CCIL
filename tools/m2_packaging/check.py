@@ -8,8 +8,7 @@ again to confirm byte-identical artifacts, then installs the exact wheel into
 fresh virtual environments on the oldest and newest supported Python and runs
 the CLI and a data-prepare workflow from outside the repository with only the
 core dependencies. The code that moved to il-supervision-benchmarks (#168) is
-absent from the wheel except the two refusal stubs, which the installed wheel
-raises as ImportError naming the replacement. Writes DIR/report.json.
+absent from the wheel. Writes DIR/report.json.
 """
 import argparse
 import hashlib
@@ -87,12 +86,9 @@ def main():
               "ccil/schema/io.py", "ccil/config/params.py", "ccil/data/prepare.py"}
     record("wheel_contains_package_only", not bad and not sbad and not leaks and needed <= set(names),
            wheel_files=names, unexpected=bad + sbad, local_paths=leaks, missing=sorted(needed - set(names)))
-    # Moved code (#168): only the refusal stubs remain, until #169 deletes them.
-    stubs = {"ccil/training/__init__.py", "ccil/experiments/__init__.py"}
-    moved = sorted(n for n in names if not n.endswith("/") and (
-        (n.startswith(("ccil/training/", "ccil/experiments/")) and n not in stubs) or n == "ccil/pipelines/policy_harness.py"))
-    record("wheel_holds_no_moved_code", not moved and stubs <= set(names), moved_files=moved,
-           missing_stubs=sorted(stubs - set(names)))
+    moved = sorted(n for n in names if n.startswith(("ccil/training/", "ccil/experiments/"))
+                   or n == "ccil/pipelines/policy_harness.py")  # moved to il-supervision-benchmarks (#168)
+    record("wheel_holds_no_moved_code", not moved, moved_files=moved)
     requires = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Dist:"))
     pyreq = [l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Python:")]
     extras = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Provides-Extra:"))
@@ -131,20 +127,16 @@ def main():
         label_runs = sorted((work / "label_runs").iterdir()) if (work / "label_runs").exists() else []
         label_status = sorted(json.loads(run(venv / "bin" / "ccil", "run", "validate", d, cwd=work, check=False).stdout)["status"]
                               for d in label_runs)
-        refusals = {m: run(pyexe, "-I", "-c", f"import {m}", cwd=work, check=False) for m in ("ccil.training", "ccil.experiments")}
-        refused = all(r.returncode == 1 and r.stderr.strip().splitlines()[-1].startswith("ImportError: " + m)
-                      and "il-supervision-benchmarks" in r.stderr for m, r in refusals.items())
         # Imported from the venv's site-packages, not the source tree (the output dir may sit inside the repo).
         from_wheel = Path(info["file"]).resolve().is_relative_to(venv.resolve()) and "site-packages" in Path(info["file"]).parts
         record(f"clean_install_runs[python {py}]",
                set(installed) == CORE and from_wheel and help_ok and shown["schema"] == "ccil.config"
                and prep.returncode == 0 and validated == "complete"
                and (metrics.get("train_episodes"), metrics.get("validation_episodes")) == (4, 1)
-               and labels.returncode == 0 and label_status == ["complete"] * 5 and refused,
+               and labels.returncode == 0 and label_status == ["complete"] * 5,
                python=info["python"], installed=installed, imported_from_venv=from_wheel,
                prepare_stderr=prep.stderr[-300:], run_status=validated, metrics=metrics,
-               labels_generate_stages=label_status, labels_stderr=labels.stderr[-300:],
-               moved_imports_refused={m: r.stderr.strip().splitlines()[-1][:200] for m, r in refusals.items()})
+               labels_generate_stages=label_status, labels_stderr=labels.stderr[-300:])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

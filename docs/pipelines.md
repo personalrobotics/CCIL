@@ -223,12 +223,6 @@ saw the held-out episodes.
   and policy outcomes never enter it. The diagnosis records
   `evidence_mode: data_only`.
 
-## Policy training: il-supervision-benchmarks
-
-`ccil policy train` moved to il-supervision-benchmarks as `ilsb policy train`
-(#168), which runs `ccil labels generate` and trains on its supervision. The
-command now exits 2 naming it. See [policy-harness.md](policy-harness.md).
-
 ## Integrated pipeline: `ccil pipeline integrated`
 
     data.prepare → representation.fit → transition.fit → labels.diagnose → labels.generate → policy.train → policy.evaluate

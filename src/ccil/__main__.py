@@ -100,15 +100,6 @@ def _run_validate(args) -> int:
     return 0 if status == "complete" else 1
 
 
-POLICY_MOVED = ("ccil policy train moved to il-supervision-benchmarks (#168). Use: ilsb policy train CONFIG (an "
-                "ilsb.policy-train 1 configuration; personalrobotics/il-supervision-benchmarks).")
-
-
-def _policy_moved(args) -> int:
-    print(POLICY_MOVED, file=sys.stderr)
-    return 2
-
-
 def _run_pipeline(args, which) -> int:
     from .config import ConfigError
     from .core import InterfaceError
@@ -237,9 +228,6 @@ def main(argv=None) -> int:
                                 description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only supervision.* or integrated.*\n           reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(integ)
     integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
-    policy = groups.add_parser("policy", help="moved to il-supervision-benchmarks (#168)")
-    policy.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
-    policy.set_defaults(fn=_policy_moved)
     runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
     rval = runs.add_parser("validate", help="classify a run directory: complete, corrupt, incompatible, or incomplete")
     rval.add_argument("run_dir")

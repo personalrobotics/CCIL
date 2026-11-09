@@ -15,10 +15,6 @@ document defines exactly which rows such a trainer may use, and with which
 weights. [`src/ccil/supervision.py`](../src/ccil/supervision.py) implements
 it as `build_supervision`. It trains nothing and imports no trainer.
 
-The vector-policy trainers that consume this contract moved to
-il-supervision-benchmarks (#168): `ilsb policy train` and `ilsb.learners.vector`.
-Using CCIL does not require them.
-
 ## Sources
 
 `build_supervision(dataset, source, ...)` takes what the policy learns from:
@@ -32,15 +28,6 @@ Using CCIL does not require them.
 | `demonstrations_plus_selection`, legacy 1.0 certificates | The demonstrations, and every candidate with `accepted ∧ admissible ∧ selected`, the selection a 1.0 certificate stored. Recorded with `legacy: true`. |
 
 The manifest's `method` records the arm as before: `bc`, `noise_bc` or `ccil`.
-
-**Former names (#168).** The source names `bc`, `noise_bc` and `ccil`, and the
-`method=` keyword, are refused with a `SupervisionError` naming the replacement.
-
-| Former | Now |
-|---|---|
-| `bc` | `demonstrations` |
-| `noise_bc` | `demonstrations`, `perturbation="noise_bc"` |
-| `ccil` | `demonstrations_plus_selection` |
 
 **Usable rows only.** A rejected or unselected candidate never appears,
 whatever its weight. There is no weight-only path into the loss.
