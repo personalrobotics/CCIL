@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "correct_il"))
+sys.path.insert(0, str(REPO / "tools" / "legacy_conversion"))
 from ccil.config import ConfigError, resolve  # noqa: E402
 from ccil.config.migrate import CONFIG_VERSION  # noqa: E402
 from ccil.schema import SchemaError, read_trajectories, write_trajectories  # noqa: E402

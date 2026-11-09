@@ -36,7 +36,6 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "correct_il"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from convert_pendulum import RETAINED, convert_pendulum  # noqa: E402
 from trajectory_io import LegacyInputError, convert_legacy_pickle  # noqa: E402
@@ -218,7 +217,7 @@ def main():
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases, "summary": summary,
               "environment": {"code_commit": git("rev-parse", "HEAD"),
-                              "code_dirty": bool(git("status", "--porcelain", "--", "src", "tools", "correct_il", "pyproject.toml", "uv.lock")),
+                              "code_dirty": bool(git("status", "--porcelain", "--", "src", "tools", "pyproject.toml", "uv.lock")),
                               "python": platform.python_version(), "platform": platform.platform(), "numpy": np.__version__}}
     text = json.dumps(report, indent=1, sort_keys=True, default=str) + "\n"
     (out / "report.json").write_text(text.replace(str(out), "<out>").replace(str(REPO), "<repo>"))

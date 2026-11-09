@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Evidence for bounded-memory exact Jacobians (#109, first slice of #110).
 
-    uv run --group evidence --with-requirements tools/m3_pendulum/requirements.txt \\
-        python tools/m3_jacobian_chunks/check.py --out DIR [--device cuda] [--parts cpu,cuda] [--task discontinuous]
+    uv run --group evidence python tools/m3_jacobian_chunks/check.py --out DIR [--device cuda] [--parts cpu,cuda]
 
 jacobian_za runs in balanced chunks whose row count is derived from a device-memory budget
 (compute.jacobian_memory_mb) and the model's dimensions and width.
@@ -13,35 +12,23 @@ cpu (any host):
 2. Derivation: at a fixed budget the rows per chunk fall as D grows, and the chunks are balanced: every chunk
    but the last has ceil(N / chunks) rows.
 
-cuda (on the task's real labels: the ordinary pipeline at seed 501, as the #24 drivers configure it):
-3. Peak device memory of jacobian_za over every accepted label at the default budget and unchunked, with the
-   time of each; the chunked peak must be within the budget and at most a tenth of the unchunked peak.
-4. Agreement: the rows whose Jacobian differs between the two, how many and by how much. A ReLU network's exact
-   Jacobian is discontinuous where a pre-activation is 0, so a different kernel can flip a row lying within
-   rounding of a kink; this is measured, not assumed away.
-5. Certificates: labels.certify with disturbed_action_paper_proxy and its labels.curate selection (quantile 0.3),
-   at the default budget and unchunked: classification, total_error_value and the selection mask must be identical
-   for every row.
-6. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
-7. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
+cuda:
+3. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
+4. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-sys.path.insert(0, str(REPO / "tools" / "m3_pendulum"))
-SEED = 501
 
 
 def _fixture(D, A, n, seed):
@@ -109,81 +96,11 @@ def width_part(device) -> dict:
     return {"pass": all(r["ok"] for r in rows), "cases": rows}
 
 
-def cuda_part(out: Path, task: str, device: str) -> dict:
-    import study
-    import torch
-
-    from ccil.config import resolve
-    from ccil.core import IdentityRepresentation
-    from ccil.core.transition import load_transition_model
-    from ccil.models import mlp
-    from ccil.pipelines import offline
-    from ccil.schema.io import read_candidates
-    study.prepare(out)
-    data = out / "inputs" / "data" / f"{study.DATASETS[task]}.npz"
-    sets = [f"run.seed={SEED}", f"compute.device={device}", f"data.path={data}", f"run.output_dir={out / 'stages'}",
-            "supervision.exclude_validation_episodes=false", "certificate.profile=disturbed_action_paper_proxy",
-            "curate.quantile=0.3"]
-    cwd = os.getcwd()
-    os.chdir(out / "inputs")
-    config = str(out / "inputs" / "config" / study.CONFIGS[task])
-    prepared, fitted, labeled = offline.generate_offline(resolve(config=config, sets=sets[:5]))[:3]
-    model = load_transition_model(fitted.out(offline.MODEL_CHECKPOINT), device=device)
-    cands = read_candidates(labeled.out("labels/candidates.npz"))
-    acc = np.asarray(cands.accepted, bool)
-    z, act = cands.observations["state"][acc], cands.actions[acc]
-    budget = mlp.JACOBIAN_MEMORY_BYTES
-    unbounded = 1 << 60
-
-    def run_jacobian(b):
-        model.jacobian_memory_bytes = b
-        torch.cuda.synchronize()
-        torch.cuda.reset_peak_memory_stats()
-        base = torch.cuda.memory_allocated()
-        t0 = time.time()
-        j = model.jacobian_za(z, act)
-        torch.cuda.synchronize()
-        return j, time.time() - t0, (torch.cuda.max_memory_allocated() - base), dict(model.jacobian_chunking)
-    j_chunk, t_chunk, m_chunk, chunking = run_jacobian(budget)
-    j_full, t_full, m_full, _ = run_jacobian(unbounded)
-    d = np.abs(j_chunk - j_full)
-    rows = d.reshape(len(d), -1).max(axis=1) > 0
-    rel = d / np.maximum(np.abs(j_full), 1e-30)
-
-    def certify(mb, tag):
-        """labels.certify into its own output directory, so neither run reuses the other's stage."""
-        cfg = resolve(config=config, sets=[*sets[:3], f"run.output_dir={out / f'stages-{tag}'}", *sets[4:],
-                                           f"compute.jacobian_memory_mb={mb}"])
-        profile, kwargs = offline.build_certificate(cfg.values)
-        res = offline.certify_stage(cfg, prepared, fitted, labeled, IdentityRepresentation("state"), profile, **kwargs)
-        sel = offline.curate_stage(cfg, labeled, res, offline.build_policy(cfg.values))
-        with np.load(res.out("labels/certificates.npz"), allow_pickle=False) as f:
-            fields = {k: f[k] for k in ("classification", "total_error_value")}
-        with np.load(sel.out("labels/selection.npz"), allow_pickle=False) as f:
-            return {**fields, "mask": f["mask"]}
-    cert_chunk = certify(budget // 2**20, "chunked")
-    cert_full = certify(unbounded // 2**20, "unchunked")
-    os.chdir(cwd)
-    cert_diff = {k: int((~((cert_chunk[k] == cert_full[k]) | (np.isnan(cert_chunk[k]) & np.isnan(cert_full[k])))).sum())
-                 if cert_chunk[k].dtype.kind == "f" else int((cert_chunk[k] != cert_full[k]).sum()) for k in cert_chunk}
-    identical = all(v == 0 for v in cert_diff.values())
-    return {"pass": bool(m_chunk <= budget and m_chunk <= 0.1 * m_full and identical),
-            "criterion": "chunked peak within the budget and at most a tenth of the unchunked peak; every certificate "
-                         "field (classification, total_error_value) and the selection mask identical",
-            "task": task, "seed": SEED, "accepted_labels": int(acc.sum()), "budget_bytes": budget, "chunking": chunking,
-            "peak_gb": {"chunked": m_chunk / 2**30, "unchunked": m_full / 2**30},
-            "seconds": {"chunked": t_chunk, "unchunked": t_full},
-            "jacobian_rows_differing": int(rows.sum()), "jacobian_max_abs_difference": float(d.max()),
-            "jacobian_max_relative_difference_at_differing_rows": float(rel[rows].max()) if rows.any() else 0.0,
-            "certificate_fields_differing": cert_diff, "certificates_identical": identical}
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--parts", default="cpu,cuda")
-    ap.add_argument("--task", default="discontinuous")
     a = ap.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -193,7 +110,6 @@ def main():
     if "cpu" in parts:
         cases["cpu_chunk_boundaries"] = cpu_part()
     if "cuda" in parts:
-        cases["cuda_real_labels"] = cuda_part(out, a.task, a.device)
         cases["cuda_width"] = width_part(a.device)
     for name, c in cases.items():
         print(f"{'PASS' if c['pass'] else 'FAIL'} {name}", flush=True)

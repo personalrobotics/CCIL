@@ -230,7 +230,7 @@ def convert_config(src, out, manifest, fidelity: str = "corrected", dataset_map:
         "non_configurable_corrections": NON_CONFIGURABLE,
         "dataset": {"legacy_key": "data.pkl" if "data.pkl" in flat else "data.path",
                     "legacy": flat.get("data.pkl", flat.get("data.path")), "canonical": resolved["data.path"],
-                    "conversion": "correct_il/convert_legacy_dataset.py (trusted pickle -> M1), then ccil data convert"},
+                    "conversion": "tools/legacy_conversion/convert_legacy_dataset.py (trusted pickle -> M1), then ccil data convert"},
         "invocation": LEGACY_SCRIPTS,
         "resolved": dict(sorted(resolved.values.items())), "config_hash": resolved.config_hash(),
         "notes": notes,

@@ -20,15 +20,8 @@ uv run --group evidence python tools/m2_schemas/check.py --out <dir>
 ```
 
 **Legacy packaging.** The retired legacy installer (`setup.py`,
-`install_deps.txt`) is preserved at `archive/upstream-main-2026-10-22`. The M1
-legacy-harness tools (`tools/analytic_fixture`, `dynamics_checkpoint`,
-`validation_split`, `invariants`, `legacy_serialization`) keep their
-historically pinned `requirements.txt` files and run isolated from the project
-lock:
-
-```bash
-uv run --no-project --python 3.11 --with-requirements tools/<tool>/requirements.txt python tools/<tool>/...
-```
+`install_deps.txt`) is preserved at `archive/upstream-main-2026-10-22`, and the
+legacy package with its pinned oracle environments at `surface-archive-v1`.
 
 ## Evidence
 

@@ -1,11 +1,12 @@
 # CCIL: Continuity-based Data Augmentation for Imitation Learning
 
-Official repo for CCIL: Continuity-based Data Augmentation for Imitation Learning. This codebase allows you to
-- Train dynamics functions from demonstration data while enforcing some form of local Lipschitz continuity
-- Generate corrective labels using dynamics function
-- Train behavior cloning agents from demonstrations or augmented dataset
+Official repository for CCIL (Ke et al., ICLR 2024, arXiv:2310.12972). The `ccil` package:
+- trains dynamics models from demonstrations, with local Lipschitz regularization;
+- generates corrective labels from them, with their quality evidence and curation;
+- hands the resulting supervision to any downstream policy learner.
 
-> **Consolidation in progress.** This repository is being rebuilt around a maintained CCIL core. State-based workflows come first; end-to-end image integration is deferred to M5 while `image_ccil` remains in active development. Scope, benchmarks and policies are set by the [migration contract](docs/migration-contract.md); history, inventory, reproducibility ledger and artifacts are under [docs/](docs/).
+Policy training, NoiseBC, evaluation and benchmark studies are in
+[il-supervision-benchmarks](https://github.com/personalrobotics/il-supervision-benchmarks) (#168).
 
 **Using CCIL:** the user contract, from demonstrations to consumable supervision, is [docs/contract.md](docs/contract.md).
 
@@ -17,93 +18,24 @@ The `ccil` core is managed with [uv](https://docs.astral.sh/uv/) and supports Py
 git clone https://github.com/personalrobotics/CCIL.git
 cd CCIL
 uv sync                     # create .venv from uv.lock
-uv run ccil --help          # schema, config, and data commands
-uv run python correct_il/convert_legacy_dataset.py --shipped   # one-time: convert the shipped datasets
+uv run ccil --help          # schema, config, data, labels and pipeline commands
 ```
 
-The legacy `correct_il` scripts below targeted Python 3.8 and lab forks of
-[d3rlpy](https://github.com/personalrobotics/d3rlpy/tree/release/CCIL) and
-[gym-pybullet-drones](https://github.com/personalrobotics/gym-pybullet-drones/tree/fix-install).
-Their installer (`setup.py`, `install_deps.txt`) was retired; it is preserved at the
-`archive/upstream-main-2026-10-22` tag, and the resolved legacy environment is recorded in
-[docs/artifacts/](docs/artifacts/README.md).
+## Legacy inputs
 
-## Running experiments
-
-**Pendulum:** `./scripts/pendulum.sh` and `tabulate_results.py` are the legacy pipeline. They score policies with a return that was later found to be defective, and exact reproduction of the paper's Pendulum figure was withdrawn. They are kept as a historical record only. What the Pendulum studies established is summarized in [the Pendulum account](https://github.com/personalrobotics/il-supervision-benchmarks/blob/main/docs/studies/pendulum.md).
-
-With additional environments installed (see below for instructions), you can try:
-```bash
-> ./scripts/mujoco.sh
-> ./scripts/metaworld.sh
-> ./scripts/drone.sh
-> ./scripts/f1.sh
-```
-
-If you need to sweep over parameters, check out:
-```bash
-./scripts/sweep.sh
-```
-
-## Configuration Files
-
-An experiment is parameterized by its configuration. Complete configuration files are given in `config/` for each task. Note that some fields, usually marked with `'...'`, are auto-populated when the config file is loaded with `utils.parse_config()`.
-
-## Data Format
-
-Datasets are read from non-executable `.npz` files (format `ccil-trajectories/1`, see
-`correct_il/trajectory_io.py`). The shipped datasets are stored as legacy pickles in `data/`; convert them once,
-which verifies each file's sha256 against `docs/artifacts/manifest.json` before unpickling it:
+Legacy datasets are pickles, which can execute code when loaded, so `ccil` never reads them. Convert one once
+through the trust boundary, which verifies its SHA-256 against
+[docs/artifacts/manifest.json](docs/artifacts/manifest.json) before unpickling it, then into the canonical schema:
 
 ```bash
-python correct_il/convert_legacy_dataset.py --shipped
+uv run python tools/legacy_conversion/convert_legacy_dataset.py --shipped   # the two Pendulum datasets in data/
+uv run ccil data convert data/pendulum_cont_100.npz pendulum_cont.npz
+uv run ccil config convert config/pendulum_cont.yml --out canon.yml --manifest canon.json
 ```
 
-Pickle files can execute code when loaded, so training and label generation never read them directly. To
-convert another pickle, pass `--expect-sha256 HEX` or explicitly acknowledge `--trust-legacy-pickle`.
+To convert another pickle, pass `--expect-sha256 HEX` or acknowledge `--trust-legacy-pickle`. The conversion
+contract is [docs/migration/legacy-conversion.md](docs/migration/legacy-conversion.md).
 
-Each legacy data file is a list of trajectories,
-where a trajectory is a dict with `"observations"` and `"actions"` keys. The respective corresponding
-values are 2D ndarrays, where the first dimension is horizon and the second dimension is state
-dimension and action dimension, respectively.
-
-For example, if `T` is the length of a trajectory, `o` is the observation dimension, and `a` is the action dimension:
-
-```
-[
-    {
-        "observations": np.ndarray of size `T x o`,
-        "actions": np.ndarray of size `T x a`
-    },
-    {
-        "observations": np.ndarray of size `T x o`,
-        "actions": np.ndarray of size `T x a`
-    },
-    ...
-]
-```
-
-## CCIL Structure
-
-End-to-end pipeline scripts are provided for each task suite in `scripts/`, but the overall sequential structure of CCIL is as follows:
-
-1. Train a dynamics model from data. This is handled in `correct_il/train_dynamics_model.py`, which reads from the supplied config file the required parameters to train the dynamics model. Lipschitz regularization is applied as specified.
-2. Augment data with corrective labels. This process happens in `correct_il/gen_aug_label.py`, again using parameters given in the config file, which dictate the label generation method and the corresponding parameters.
-3. Train behavioral cloning on the augmented dataset, which is a standard BC algorithm. This is done in `correct_il/train_bc_policy.py`.
-4. Evaluation is done in `corrective_il/eval_bc_policy.py`
-
-## Training Baselines
-
-The maintained vector BC, NoiseBC and CCIL trainers moved to [il-supervision-benchmarks](https://github.com/personalrobotics/il-supervision-benchmarks) as `ilsb policy train` (#168). The commands below are the legacy ones.
-
-Some baselines can be trained in this repository, namely vanilla BC and NoiseBC. Training vanilla bc is handled simply by overriding some parameters when training a BC model, replacing `<CONFIG PATH>` with the path to the config file:
-
-```bash
-python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true
-```
-
-Similarly, training NoiseBC is handled the same way, replacing `<NOISE>` with the appropriate noise magnitude. In our experiments we usually use `0.0001`:
-
-``` bash
-python correct_il/train_bc_policy.py <CONFIG PATH> policy.naive true policy.noise_bc <NOISE>
-```
+The legacy `correct_il` package, its scripts and configurations, and the other legacy datasets are archived at
+the `surface-archive-v1` tag (#169). Every archived dataset keeps its SHA-256 and archive locator in the manifest.
+The original installer is at `archive/upstream-main-2026-10-22`.

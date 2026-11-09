@@ -2,22 +2,13 @@
 
 This is a behavior-level oracle for corrective-label generation (#10). It
 uses a linear system whose correct labels are known in closed form, so a
-generator's output can be judged without trusting any implementation, the
-legacy one included. #11, #13, #14 and every later refactor use it as their
-acceptance check.
-
-## Reproduce
-
-```bash
-git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'   # the legacy run reads the archive tag
-uv run --no-project --python 3.11 --with-requirements tools/analytic_fixture/requirements.txt \
-  python tools/analytic_fixture/run.py --impl {legacy,current,reference} --out <new-dir>
-uv run ... python tools/analytic_fixture/run.py --check <artifact-dir>   # re-evaluate saved candidates
-```
-
-The run uses the CPU only, one versioned config
-([`tools/analytic_fixture/config.json`](../../tools/analytic_fixture/config.json)),
-and a fixed seed. It exits 0 only if every invariant passes.
+generator's output can be judged without trusting any implementation.
+[`tools/analytic_fixture/system.py`](../../tools/analytic_fixture/system.py)
+holds the system, [`oracle.py`](../../tools/analytic_fixture/oracle.py) the
+invariants, and [`config.json`](../../tools/analytic_fixture/config.json) the
+fixture's data and methods; the tools under `tools/` check ccil against them.
+The runs that showed the legacy implementation failing it, and passing after
+#11, are at `surface-archive-v1`.
 
 ## System
 
@@ -103,98 +94,3 @@ implementation's draws; each run records its own.
 | I5 | Each accept or reject decision matches the expected class, and each rejected candidate's reason equals that class. Boundary candidates are exempt. |
 | I6 | Transitions equal the exact rollout, in order. No transition crosses an episode boundary, and there are Σ(Tᵢ − 1) of them. |
 | I7 | Running the implementation twice gives byte-identical transitions and candidates. |
-
-**Pending #22:** weighting invariants. Weights must be finite, non-negative,
-recorded per accepted label, and zero or absent for rejected labels. Legacy
-`main` has no weighting, so this is not yet checked.
-
-## Implementations
-
-- **`legacy`** ([`legacy.py`](../../tools/analytic_fixture/legacy.py)) loads
-  `gen_*`, `root_finder_s` and `build_dataset` **verbatim** from
-  `archive/upstream-main-2026-10-22` with `ast`. It mirrors the legacy
-  `main()` acceptance loop (`gen_aug_label.py:250-260`): every returned row
-  is kept whenever the generator reports `count_success > 0`. Legacy counts
-  map to `accepted = count_success` and `rejected = count_fail`.
-- **`current`** ([`current.py`](../../tools/analytic_fixture/current.py)) loads
-  the working tree's generators, `choose_augmentation` and `collect_labels`
-  from `correct_il/`. It calls them as `main()` does and only regroups their
-  per-candidate output by transition.
-- **`reference`** ([`reference.py`](../../tools/analytic_fixture/reference.py))
-  is a positive control that applies the declared rule to the closed forms.
-  It shows that the oracle passes on a correct implementation.
-
-## Artifact
-
-Each run directory contains:
-
-| File | Contents |
-|---|---|
-| `config.resolved.json` | The config used. |
-| `transitions.json` | The transitions the implementation built. |
-| `candidates.json` | Every candidate, with the implementation's decision, the oracle's expected class, distance and residual. |
-| `metrics.json` | The per-invariant, per-method verdicts, with examples. |
-| `plot.png` | Per method, each candidate's distance with ε, coloured by decision and ringed when the decision contradicts the oracle. |
-| `manifest.json` | SHA-256 of every file, the code and legacy commits, and package versions. |
-
-Non-finite floats are written as JSON strings (`"nan"`). The artifact is
-byte-identical across processes on the same platform and package versions.
-
-## Pre-fix evidence (legacy)
-
-[`evidence/legacy-pre-fix/`](evidence/legacy-pre-fix/) is the legacy run that
-#10 requires to fail. It does:
-
-| Method | Failing invariants | Cause |
-|---|---|---|
-| backward_euler_fast | I1, I2, I3, I5 | Hard-coded `count_success = 1`. Every label is accepted at generation, including NaN and out-of-support ones. The `distance > 0.01` failure count is added on top of that success, so the counts don't reconcile. |
-| noisy_action | I1, I2, I3, I5 | Hard-coded `count_success = num_labels`. All candidates are accepted, including those beyond ε and the NaN ones, and the failure count is added on top. It also crashes when `aug.epsilon` is unset (`Tensor > None`). |
-| forward_euler | I3 | On success, `count_fail` is the root finder's iteration count. The code itself carries `# TODO fix the count_fail`. |
-| backward_euler | I3 | The NaN transition is counted as rejected but has no candidate record or reason. This is a provenance gap, not a wrongly accepted label. |
-
-These pass for every method: I4 (the label mathematics is correct), I6 and
-I7. The suspected stale-residual defect in `root_finder_s`, whose success
-test reads the residual from before its final update, does **not** occur
-with `max_iter = 50`. The labels converge, and I4 passes.
-
-## Post-fix evidence (#11)
-
-[`evidence/current-post-fix/`](evidence/current-post-fix/) is the `current`
-run after #11. Every invariant passes for every method. Each generator now
-returns one record per attempted candidate, with a stable reason (`non_finite`,
-`out_of_support` or `generation_failed`). `collect_labels` reconciles the
-counts, and it raises an error if they don't. `aug_data.pkl` holds only
-accepted labels and is written even when it's empty. `label_decisions.npz`
-keeps every candidate and its decision.
-
-### Effect on historical results
-
-Applying the legacy `load_demo_for_policy` filter to both implementations'
-output on this fixture gives these results:
-
-- **`aug.epsilon` set:** the labels that reach policy training are identical
-  before and after, for all four methods. Legacy already removed the same
-  labels when loading them, and a NaN distance never passes `< epsilon`.
-- **`aug.epsilon` unset** (for example `walker2d.yml`): the finite labels are
-  identical. Legacy also passed non-finite backward-Euler-fast labels to
-  training; the fix rejects them.
-- **Shipped datasets:** all 15 contain only finite values.
-
-So the fix doesn't change which labels trained the shipped results, as long as
-the dynamics model produced finite outputs. What it does change:
-
-- the success and failure counts in `statistics.txt`, which were not
-  meaningful before the fix;
-- the contents of `aug_data.pkl`, which used to include labels that training
-  later discarded.
-
-Any acceptance rate quoted from legacy statistics should be disregarded.
-
-## Verification procedure
-
-1. The `reference` run exits 0, and every invariant passes.
-2. The `legacy` run exits 1 with exactly the pre-fix pattern, and the `current` run exits 0.
-3. Two runs of each implementation give identical `manifest.json` `sha256`
-   maps.
-4. Flipping any `accepted` flag in a reference `candidates.json` and running
-   `--check` makes I3 and I5 fail.

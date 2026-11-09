@@ -1,9 +1,8 @@
 # Dependency and checkpoint security
 
-This page sets the dependency boundary of the `ccil` package, the policy for
-loading checkpoints, and the advisories accepted in the pinned legacy-oracle
-environments (#84). [`tools/dependency_gate/`](../tools/dependency_gate/) enforces the
-supported side.
+This page sets the dependency boundary of the `ccil` package and the policy for
+loading checkpoints (#84). [`tools/dependency_gate/`](../tools/dependency_gate/)
+enforces them.
 
 ## Supported environments
 
@@ -37,60 +36,12 @@ supported side.
   same way: its `state_dict` is converted to numpy arrays. ccil never calls
   `torch.load` or `torch.save`. A checkpoint from an untrusted source can
   therefore fail to load, but it can't run code.
-- **Pickle-based checkpoints and TorchScript archives are trusted, hashed
-  inputs only.** This covers the legacy `.pt` files read by `correct_il` and the
-  M1 tools (`torch.load`), and the TorchScript policies the legacy evaluation
-  reads (`torch.jit.load` in `correct_il/eval_bc_policy.py` and
-  `correct_il/envs/f1/src/eval_bc.py`). `weights_only=True`
-  is not a safety boundary before torch 2.6 (GHSA-53q9-r3pm-6pq6), and the
-  harness pins 2.1.0. Load only:
-  - files the harness wrote itself in the same run; or
-  - artifacts whose SHA-256 matches [`artifacts/manifest.json`](artifacts/manifest.json).
-
-  The M1 case `legacy_pickle_not_executed` shows that a naive pickle payload is
-  refused. It doesn't show that a crafted payload would be.
-
-## Pinned legacy-oracle environments: accepted advisories
-
-Six manifests keep historical torch pins. They run the legacy code for each
-component it ports, on fixtures: the stage-correctness oracle of the
-migration contract, §5. The end-to-end legacy parity run planned for #24 was
-withdrawn on 2026-10-26. They are isolated from the supported
-environments:
-- they run with `uv run --no-project --with-requirements …` and never share the
-  project lock;
-- they aren't part of the `ccil` package;
-- they process only repository fixtures and their own outputs, under the
-  checkpoint policy above.
-
-| Manifest | Pin |
-|---|---|
-| `correct_il/envs/f1/requirements.txt` | `torch==2.0.1` |
-| `tools/analytic_fixture/requirements.txt` | `torch==2.1.0` |
-| `tools/dynamics_checkpoint/requirements.txt` | `torch==2.1.0` |
-| `tools/invariants/requirements.txt` | `torch==2.1.0` |
-| `tools/legacy_serialization/requirements.txt` | `torch==2.1.0` |
-| `tools/validation_split/requirements.txt` | `torch==2.1.0` |
-
-The same 11 torch advisories apply to each manifest, giving 66 alerts. They are
-accepted under the conditions above and not dismissed. Now that no end-to-end
-parity run depends on them, retiring them is possible. Retirement means
-upgrading the pins, or freezing the fixture evidence these manifests produced,
-and is tracked separately.
-
-| Advisory | Severity | Fixed in | Why acceptable in the harness |
-|---|---|---|---|
-| GHSA-53q9-r3pm-6pq6 | critical | 2.6.0 | `torch.load(weights_only=True)` RCE. Only trusted, hashed checkpoints are loaded. |
-| GHSA-5pcm-hx3q-hm94 | high | 2.2.0 | Heap buffer overflow. It needs attacker-controlled tensors or model input, and the harness runs repository fixtures only. |
-| GHSA-pg7h-5qx3-wjr3 | high | 2.2.0 | Use-after-free. Same input boundary. |
-| GHSA-887c-mr87-cxwp | medium | 2.8.0 | Resource release. These are local, short-lived runs. |
-| GHSA-vgrw-7cvw-pwgx | medium | 2.9.1 | `unpack_sequence` memory corruption. The harness doesn't use it. |
-| GHSA-f4hp-rmr7-r7v8 | medium | none | `pad_packed_sequence` memory use. The harness doesn't use it. |
-| GHSA-3749-ghw9-m3mg | low | 2.7.1 | Local denial of service. |
-| GHSA-qfhq-4f3w-5fph | low | 2.10.0 | `lstm_cell` memory corruption. The harness doesn't use it. |
-| GHSA-rrmf-rvhw-rf47 | low | 2.13.0 | `torch.jit.script` memory corruption. The harness compiles only its own policies and loads only TorchScript it wrote (`torch.jit.load`). |
-| GHSA-c678-jfcj-6jmf | low | none | Tuple handler memory corruption. It needs crafted input. |
-| GHSA-x3gm-94wq-g975 | low | none | Quantized sigmoid initialization. The harness doesn't use it. |
+- **Legacy pickles are trusted, hashed inputs only.** The one place that
+  unpickles is `tools/legacy_conversion/trajectory_io.py`, which verifies each
+  file's SHA-256 against [`artifacts/manifest.json`](artifacts/manifest.json)
+  (or takes an explicit acknowledgement) before reading it. The legacy code
+  that loaded pickled checkpoints, and its pinned pre-2.6 torch environments,
+  are archived at `surface-archive-v1` (#169).
 
 ## Evidence
 

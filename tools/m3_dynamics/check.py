@@ -4,11 +4,6 @@
     uv run --group evidence python tools/m3_dynamics/check.py --out DIR [--device cpu|cuda] [--only CASE ...]
 
 Cases (all by default):
-- legacy: legacy WorldModel weights, exported by legacy_export.py in the pinned
-  legacy harness environment, give the same predictions in the new model:
-  delta (eval mode) bit-identical to legacy eval mode, and the network's
-  training-mode pass within 1e-5 relative, with the same power-iteration
-  buffer updates.
 - analytic: `ccil labels generate --recipe analytic_double_integrator_mlp` on a
   generated double-integrator dataset; accepted labels are finite and inside
   the support radius, accounting closes, each backward-Euler label differs from
@@ -41,7 +36,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "analytic_fixture"))
-sys.path.insert(0, str(REPO / "correct_il"))
+sys.path.insert(0, str(REPO / "tools" / "legacy_conversion"))
 import torch  # noqa: E402
 from system import DoubleIntegrator  # noqa: E402
 
@@ -50,10 +45,9 @@ from ccil.models.mlp import MLPTransitionModel  # noqa: E402
 from ccil.runs import layout, validate_run  # noqa: E402
 from ccil.schema import Episode, TrajectoryDataset, read_candidates, read_trajectories, write_trajectories  # noqa: E402
 
-CASES = ("legacy", "analytic", "pendulum", "lipschitz", "persistence", "determinism", "extra")
-LEGACY_TYPES = ("none", "spectral_normalization", "slack", "spectral_normalization_slack", "soft_sampling",
-                "soft_sampling_slack", "soft_jac")
-TRAIN_MODE_RTOL = 1e-5  # stated before running: float32 power iteration across torch 2.1 and the locked torch
+CASES = ("analytic", "pendulum", "lipschitz", "persistence", "determinism", "extra")
+LIPSCHITZ_TYPES = ("none", "spectral_normalization", "slack", "spectral_normalization_slack", "soft_sampling",
+                   "soft_sampling_slack", "soft_jac")
 
 
 def ccil(*args, cwd, python=sys.executable):
@@ -83,18 +77,6 @@ def double_integrator_dataset(path, episodes=40, frames=26, seed=11):
     return sys_
 
 
-def legacy_model(d: dict, lt: str):
-    st = json.loads(str(d["meta"]))["settings"]
-    m = MLPTransitionModel(list(st["hidden"]), epochs=1, batch_size=1, lipschitz_type=lt,
-                           lipschitz_constraint=st["lipschitz_constraint"], soft_penalty_weight=0.01,
-                           lipschitz_coordinates="raw")  # legacy's penalties were never normalized (#125)
-    m._build(2, 1)
-    state = {k[6:]: torch.from_numpy(v) for k, v in d.items() if k.startswith("state/")}
-    state.update({k[5:]: torch.from_numpy(v) for k, v in d.items() if k.startswith("norm/")})
-    m.net.load_state_dict(state, strict=True)
-    return m
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
@@ -109,44 +91,6 @@ def main():
     def record(name, ok, **detail):
         cases.append({"case": name, "pass": bool(ok), **detail})
         print(f"{'PASS' if ok else 'FAIL'} {name} {'' if ok else json.dumps(detail, default=str)[:600]}", flush=True)
-
-    # --- legacy equivalence at fixed weights ------------------------------------
-    if "legacy" in only:
-        exp = out / "legacy_export"
-        r = subprocess.run(["uv", "run", "--no-project", "--python", "3.11", "--with-requirements",
-                            str(REPO / "tools/dynamics_checkpoint/requirements.txt"), "python",
-                            str(REPO / "tools/m3_dynamics/legacy_export.py"), "--out", str(exp)],
-                           cwd=REPO, capture_output=True, text=True)
-        rows = {}
-        for lt in LEGACY_TYPES:
-            f = exp / f"{lt}.npz"
-            if not f.exists():
-                rows[lt] = {"error": r.stderr[-300:]}
-                continue
-            with np.load(f, allow_pickle=False) as z:
-                d = {k: z[k] for k in z.files}
-            m = legacy_model(d, lt)
-            f_eval = m.delta(d["z"], d["a"]).astype(np.float32)  # delta always predicts in eval mode
-            # The legacy training-mode pass, through the network directly: one power iteration, then predict.
-            m.net.train()
-            with torch.no_grad():
-                f_train = m.net.predict(torch.as_tensor(d["z"]), torch.as_tensor(d["a"])).numpy()
-            buffers = dict(m.net.named_buffers())
-            after = {k[6:]: v for k, v in d.items() if k.startswith("after/")}
-            scale = max(float(np.abs(d["f_train"]).max()), 1e-12)
-            rows[lt] = {"eval_bit_identical": bool(np.array_equal(f_eval, d["f_eval"])),
-                        "train_max_rel_diff": float(np.abs(f_train - d["f_train"]).max() / scale),
-                        "power_iteration_buffers_max_diff": max((float(np.abs(buffers[k].numpy() - v).max())
-                                                                 for k, v in after.items()), default=0.0),
-                        "legacy_eval_differs_from_train": bool(not np.array_equal(d["f_eval"], d["f_train"])),
-                        "legacy_torch": json.loads(str(d["meta"]))["torch"]}
-        ok = all("error" not in v and v["eval_bit_identical"] and v["train_max_rel_diff"] <= TRAIN_MODE_RTOL
-                 and v["power_iteration_buffers_max_diff"] <= TRAIN_MODE_RTOL for v in rows.values())
-        # The training-mode defect (#21) shows exactly in the spectral-norm variants.
-        ok = ok and {lt for lt, v in rows.items() if v.get("legacy_eval_differs_from_train")} == \
-            {"spectral_normalization", "spectral_normalization_slack"}
-        record("legacy_worldmodel_equivalence_at_fixed_weights", ok, tolerance_train_mode_rel=TRAIN_MODE_RTOL,
-               torch=torch.__version__, types=rows)
 
     # --- analytic system through the CLI -----------------------------------------
     work = out / "analytic"
@@ -204,7 +148,7 @@ def main():
 
     # --- Pendulum held-out metrics ----------------------------------------------------
     if "pendulum" in only:
-        from trajectory_io import convert_legacy_pickle  # correct_il/trajectory_io.py
+        from trajectory_io import convert_legacy_pickle  # tools/legacy_conversion/trajectory_io.py
         pw = out / f"pendulum_{args.device}"
         (pw / "data").mkdir(parents=True)
         sha = {x["path"]: x["sha256"] for x in json.loads((REPO / "docs/artifacts/manifest.json").read_text())["artifacts"]
@@ -235,7 +179,7 @@ def main():
         a = rng.uniform(-1, 1, size=(512, 1))
         sp = DoubleIntegrator(0.1).step_np(s, a)
         rows = {}
-        for lt in LEGACY_TYPES:
+        for lt in LIPSCHITZ_TYPES:
             m = MLPTransitionModel([32, 32], epochs=8, batch_size=64, lipschitz_type=lt, lipschitz_constraint=1.5,
                                    soft_penalty_weight=0.01,
                                    **({"lipschitz_coordinates": "raw"} if lt == "soft_jac" else {}))  # raw only (#125)

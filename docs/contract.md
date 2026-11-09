@@ -276,7 +276,7 @@ is constructed.
 
 - **Datasets** are validated at ingress: shapes, dtypes, finiteness, episode
   structure. Legacy pickles cross only through the offline converter
-  (`correct_il/convert_legacy_dataset.py`); CCIL itself never unpickles
+  (`tools/legacy_conversion/convert_legacy_dataset.py`); CCIL itself never unpickles
   ([security.md](security.md)).
 - **Checkpoints** load only by known kind and version, are bound by hash, and
   must match the dataset's representation, dimensions, normalization, direction

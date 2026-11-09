@@ -30,8 +30,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "tools" / "m2_schemas"))
-sys.path.insert(0, str(REPO / "correct_il"))
+sys.path.insert(0, str(REPO / "tools" / "legacy_conversion"))
+sys.path.insert(0, str(REPO / "tools" / "m2_schemas"))  # first: its check.py, not legacy_conversion's
 from check import fixture_dataset  # noqa: E402  (tools/m2_schemas/check.py)
 from system import DoubleIntegrator  # noqa: E402
 
@@ -97,7 +97,7 @@ def analytic_run(workdir: Path, overwrite=False, fail_after_partial=False) -> Pa
 
 KILLED = """
 import sys, time
-sys.path.insert(0, {tools!r}); sys.path.insert(0, {correct_il!r})
+sys.path.insert(0, {converter!r}); sys.path.insert(0, {tools!r})
 from ccil.config import resolve
 from ccil.runs import RunWriter
 cfg = resolve(overrides={{"run.seed": 0, "run.output_dir": "runs", "data.path": "fixture.npz",
@@ -203,7 +203,7 @@ def main():
     (pdir / "data").mkdir(parents=True)
     sha = {a["path"]: a["sha256"] for a in json.loads((REPO / "docs/artifacts/manifest.json").read_text())["artifacts"]
            if a.get("path")}
-    from trajectory_io import convert_legacy_pickle  # correct_il/trajectory_io.py
+    from trajectory_io import convert_legacy_pickle  # tools/legacy_conversion/trajectory_io.py
     convert_legacy_pickle(REPO / "data/pendulum_cont_100.pkl", pdir / "data/pendulum_cont_100.npz",
                           expect_sha256=sha["data/pendulum_cont_100.pkl"])
     r = subprocess.run([sys.executable, "-m", "ccil", "data", "prepare", "--recipe", "pendulum_cont",
@@ -230,7 +230,7 @@ def main():
     record("exception_leaves_previous_run_intact", raised and tree(run_a) == before and not staging, staging_left=staging)
 
     # 3b. SIGKILL mid-write: destination untouched, staging is incomplete, the next writer cleans it up.
-    script = KILLED.format(tools=str(REPO / "tools" / "m2_schemas"), correct_il=str(REPO / "correct_il"), run_id=RUN_ID)
+    script = KILLED.format(tools=str(REPO / "tools" / "m2_schemas"), converter=str(REPO / "tools" / "legacy_conversion"), run_id=RUN_ID)
     proc = subprocess.Popen([sys.executable, "-c", script], cwd=wa, stdout=subprocess.PIPE, text=True)
     ready = proc.stdout.readline().strip() == "ready"
     os.kill(proc.pid, signal.SIGKILL)
