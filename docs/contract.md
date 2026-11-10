@@ -155,7 +155,8 @@ ccil.inspect(target: str | Path) -> ccil.Inspection
 
 The public object is the **recovery segment** (#171): starting from a
 synthetic state, M actions that rejoin a demonstration at x_(t+M). One-step
-CCIL is the case M = 1.
+CCIL is the case M = 1. Its construction, bound and admission are defined in
+[recovery-segments.md](recovery-segments.md).
 
 - `generation.recovery_steps` is `auto` (default) or an integer.
 - `auto` probes a fixed ladder up to a declared cap and admits the **smallest**
