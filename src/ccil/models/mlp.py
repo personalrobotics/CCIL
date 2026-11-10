@@ -441,6 +441,8 @@ class MLPTransitionModel:
                 "verified": False}
 
     # --- persistence ---------------------------------------------------------
+    binding = None  # set by transition.fit before saving (ccil.core.transition.BINDING)
+
     def save(self, path) -> None:
         arrays = {f"dynamics/{k}": v.detach().cpu().numpy() for k, v in self.net.state_dict().items()}
         if self.lam is not None:
@@ -448,7 +450,8 @@ class MLPTransitionModel:
         meta = {"component": "transition_model", "kind": self.kind, "version": self.version,
                 "state_dim": self.net.state_dim, "act_dim": self.net.act_dim, "settings": self.settings,
                 "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM,
-                **lipschitz_record(self.settings, self.net)}  # the coordinates' descriptor (#125)
+                **lipschitz_record(self.settings, self.net),  # the coordinates' descriptor (#125)
+                **({"binding": self.binding} if self.binding is not None else {})}
         _atomic_savez(path, {**arrays, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
@@ -456,6 +459,7 @@ class MLPTransitionModel:
         meta = checkpoint_meta(path, "transition_model")
         check_identity(path, meta, cls)
         settings = dict(meta["settings"])
+        binding = meta.get("binding")
         if "lipschitz_coordinates" not in settings:  # written before #125: its penalty was in raw coordinates
             settings["lipschitz_coordinates"] = "raw"
         model = cls(**settings, device=device)
@@ -477,6 +481,7 @@ class MLPTransitionModel:
             current = lipschitz_record(model.settings, model.net).get("lipschitz")
             if current != recorded:
                 raise ValueError(f"{path}: its Lipschitz descriptor {recorded} does not match the checkpoint {current}")
+        model.binding = binding
         return model
 
 

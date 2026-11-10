@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import shutil
 
 from pathlib import Path
 
@@ -29,9 +30,10 @@ from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
 from ..core.batch import RequestError
+from ..core.transition import CheckpointError, binding_problems, checkpoint_meta
 from ..core.calibrate import calibrate, reference_audit
 from ..core.curate import CurationPolicy, curate
-from ..core.diagnose import diagnose
+from ..core.diagnose import diagnose, timing
 from ..core.quality import SourceDisplacement, demo_metric
 from ..schema import SchemaError
 from ..schema.certificates import CLASSIFICATIONS
@@ -155,6 +157,8 @@ def preflight(cfg) -> None:
                 read_reference_dynamics(v[key])
             except (OSError, SchemaError) as e:
                 errors.append(f"{key} {v[key]}: {str(e).splitlines()[-1].strip()}")
+    if v["transition_model.checkpoint"] is not None and not Path(v["transition_model.checkpoint"]).is_file():
+        errors.append(f"transition_model.checkpoint {v['transition_model.checkpoint']} does not exist")
     if v["transition_model.fit_episodes"] == "train" and not v["data.validation_fraction"]:
         errors.append("transition_model.fit_episodes train fits the label model on the train split: it needs "
                       "data.validation_fraction > 0")
@@ -270,9 +274,32 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
     if prefit is not None and v["transition_model.trainer_version"] != "2":
         raise ConfigError(["prefit transition models come from the batched engine: set transition_model.trainer_version 2"])
     inputs = transition_inputs(prepared, extra_inputs)
+    loaded = v["transition_model.checkpoint"]
+    if loaded is not None:
+        inputs["checkpoint"] = Path(loaded)
 
     def body(run):
         z, a, z_next, tr, va = transition_data(v, inputs, representation)
+        # A fitted representation (PCA) is bound by its checkpoint's hash: the same kind and shape with another
+        # mean or basis is another coordinate system. The identity representation has no parameters (None).
+        binding = {"representation": {"kind": representation.kind, "modality": v["representation.modality"],
+                                      "checkpoint_sha256": sha256(inputs["representation"])
+                                      if "representation" in inputs else None},
+                   "state_dim": int(z.shape[1]), "act_dim": int(a.shape[1]),
+                   "direction": v["transition_model.direction"],
+                   "dt_ctrl": timing(read_trajectories(inputs["dataset"]))["dt_ctrl"]}
+        if loaded is not None:  # an externally supplied model: bound to this run, scored, copied whole
+            model = _load_bound(v, inputs["checkpoint"], binding)
+            metrics = {"label_model": {"source": "loaded", "checkpoint_sha256": sha256(inputs["checkpoint"])},
+                       "fit_episodes": None}
+            if tr is not None:
+                metrics["held_out"] = model.evaluate(z[va], a[va], z_next[va])
+                metrics["held_out"]["note"] = ("the loaded model scored on the held-out episodes; whether its own fit "
+                                               "saw them is not recorded here")
+            shutil.copyfile(inputs["checkpoint"], run.path(MODEL_CHECKPOINT))
+            run.metrics(metrics)
+            run.log(f"loaded the {v['transition_model.kind']} transition model {inputs['checkpoint']}")
+            return
         clean = v["transition_model.fit_episodes"] == "train"
         if prefit is not None:
             _check_prefit(v, prefit, z, a, z_next, tr, clean)
@@ -292,12 +319,26 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
             metrics["held_out"]["note"] = note
             if not clean:
+                evaluation.binding = binding
                 evaluation.save(run.path(EVALUATION_CHECKPOINT))
+        model.binding = binding
         model.save(run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(z)} transitions")
     return run_stage("transition.fit", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v)})
+
+
+def _load_bound(v, path: Path, binding: dict):
+    """The checkpoint at path, refused (CheckpointError) unless its kind and binding match this run."""
+    meta = checkpoint_meta(path, "transition_model")
+    problems = binding_problems(meta.get("binding"), binding)
+    if meta.get("kind") != v["transition_model.kind"]:
+        problems.insert(0, f"kind: the checkpoint is {meta.get('kind')!r}, transition_model.kind is "
+                           f"{v['transition_model.kind']!r}")
+    if problems:
+        raise CheckpointError(f"{path} cannot be loaded into this run:\n  " + "\n  ".join(problems))
+    return load_transition_model(path, device=_device(v))
 
 
 @contextlib.contextmanager
