@@ -37,10 +37,17 @@ Each stage writes its own run directory.
 - **Failures.** Configuration problems are reported before any stage writes.
   A stage failure is reported with the stage name, and earlier stages stay valid.
 
-## Offline generation: `ccil labels generate`
+## Offline generation: `ccil diagnose`, `ccil generate`, `ccil curate`
 
-    data.prepare → transition.fit → labels.diagnose → labels.generate [→ labels.certify [→ labels.calibrate]]
-        → labels.curate [→ labels.audit]
+    ccil diagnose:  data.prepare → transition.fit → labels.diagnose
+    ccil generate:  ccil diagnose's stages (reused) → labels.generate [→ labels.certify]
+    ccil curate:    [labels.calibrate →] labels.curate [→ labels.audit], any number per generate result
+
+`ccil generate` writes `run.output_dir/generate-result.json` (`ccil.generate-result` 1.0), which `ccil curate`
+reads; curate first verifies every artifact it records. `ccil inspect` prints a result's configuration,
+provenance, quality, rejections and usable rows. The Python entry points are `ccil.diagnose`,
+`ccil.generate`, `ccil.curate` and `ccil.inspect` ([contract.md](contract.md#commands)). `ccil labels
+generate`, deprecated, runs generate and curate in one command and keeps `--result` (`ccil.labels-result` 1.0).
 
 `labels.calibrate` and `labels.audit` read reference dynamics as declared
 evidence ([certificates.md](certificates.md#calibration-and-the-reference-audit)).

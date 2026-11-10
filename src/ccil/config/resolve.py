@@ -80,11 +80,24 @@ def _load_yaml(path: Path, errors: list):
     return raw
 
 
-def resolve(recipe: str | None = None, config: str | Path | None = None, sets=(), overrides: dict | None = None) -> Resolved:
+def resolve(recipe: str | None = None, config: str | Path | None = None, sets=(), overrides: dict | None = None,
+            base: dict | None = None) -> Resolved:
     """Resolve and validate a configuration; raise ConfigError listing every problem."""
     values = {k: p.default for k, p in REGISTRY.items()}
     sources = {k: "default" for k in REGISTRY}
     errors, notes = [], []
+    if base is not None:  # a resolved configuration's record replaces the defaults, each value with its source
+        if base.get("schema") != SCHEMA or not isinstance(base.get("values"), dict):
+            raise ConfigError([f"a base configuration must be a {SCHEMA} record"])
+        for key, entry in base["values"].items():
+            if key not in REGISTRY:
+                errors.append(f"unknown key {key!r} in the base configuration")
+                continue
+            try:
+                values[key], sources[key] = coerce(REGISTRY[key], entry["value"]), entry["source"]
+            except (ValueError, KeyError, TypeError) as e:
+                errors.append(f"{key} in the base configuration: {e}")
+        notes += list(base.get("notes", []))
 
     def apply(flat: dict, source: str, from_text: bool = False):
         for key, raw in flat.items():

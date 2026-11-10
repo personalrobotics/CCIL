@@ -92,7 +92,40 @@ def _run_validate(args) -> int:
     return 0 if status == "complete" else 2
 
 
+def _diagnose(args) -> int:
+    from . import api
+    print(api.summary(api.diagnose(_resolve(args))))
+    return 0
+
+
+def _generate(args) -> int:
+    from . import api
+    print(api.summary(api.generate(_resolve(args), result=args.result)))
+    return 0
+
+
+def _curate(args) -> int:
+    from . import api
+    print(api.summary(api.curate(args.result, sets=args.set)))
+    return 0
+
+
+def _inspect(args) -> int:
+    from . import api
+    print(api.inspect(args.target).text)
+    return 0
+
+
+GOLDEN_HELP = """required:  data.path, generation.method (via --recipe, --config, or --set)
+resume:    a stage whose run directory is already complete is reused
+optional:  no extra dependencies (core install)
+exit:      0 success, including an empty result; 1 an unexpected failure (with its traceback);
+           2 an invalid configuration, dataset, checkpoint or artifact; 3 the code changed while it ran"""
+
+
 def _run_pipeline(args, which) -> int:
+    if which == "offline":  # the deprecated alias keeps its outputs exactly, for one minor release
+        print("ccil labels generate is deprecated: use ccil generate, then ccil curate", file=sys.stderr)
     cfg = _resolve(args)
     if which == "offline":
         from .pipelines.offline import generate_offline
@@ -199,8 +232,46 @@ def main(argv=None) -> int:
     prep = data.add_parser("prepare", help="validate a dataset, split it by episode, and write a run directory")
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
+    diag = groups.add_parser("diagnose", help="prepare, fit and diagnose: whether labels are worth generating",
+                             description="Run data.prepare -> transition.fit -> labels.diagnose. No candidates.\n\n"
+                                         "outputs:   one run directory per stage under run.output_dir; the diagnosis in\n"
+                                         "           labels-diagnose-*/diagnosis/diagnosis.json\n" + GOLDEN_HELP,
+                             formatter_class=argparse.RawDescriptionHelpFormatter)
+    _add_config_args(diag)
+    diag.set_defaults(fn=_diagnose)
+    gen_ = groups.add_parser("generate", help="diagnose, then generate candidates and their quality evidence",
+                             description="Run Diagnose, then labels.generate and, with a certificate.profile,\n"
+                                         "labels.certify. No selection: ccil curate writes those.\n\n"
+                                         "outputs:   one run directory per stage under run.output_dir, and the generate\n"
+                                         "           result (ccil.generate-result 1.0) that ccil curate reads\n"
+                                         + GOLDEN_HELP, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _add_config_args(gen_)
+    gen_.add_argument("--result", metavar="PATH", help="where to write the generate result "
+                                                       "(default: run.output_dir/generate-result.json)")
+    gen_.set_defaults(fn=_generate)
+    cur = groups.add_parser("curate", help="write one selection of a generate result's candidates",
+                            description="Verify every artifact a generate result records, then run labels.curate\n"
+                                        "(and labels.calibrate, labels.audit when configured). Any number of\n"
+                                        "selections per generate result; nothing is regenerated.\n\n"
+                                        "options:   --set may change curate.*, calibration.*, audit.*,\n"
+                                        "           generation.evidence_mode and run.overwrite\n"
+                                        "outputs:   a labels-curate-* run beside the generated ones, and curate-<id>.json\n"
+                                        "           (ccil.curate-result 1.0) beside the generate result\n"
+                                        "exit:      0 success; 1 an unexpected failure; 2 a changed or corrupted artifact,\n"
+                                        "           or an invalid setting; 3 the code changed while it ran",
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+    cur.add_argument("result", help="a generate result (generate-result.json)")
+    cur.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="a curation setting; repeatable")
+    cur.set_defaults(fn=_curate)
+    ins = groups.add_parser("inspect", help="configuration, provenance, quality, rejections and usable rows",
+                            description="Print a generate or curate result's resolved configuration (non-default\n"
+                                        "values with their sources), provenance and hashes, quality, rejections,\n"
+                                        "usable rows and next step; or a run directory's configuration,\n"
+                                        "provenance and metrics.", formatter_class=argparse.RawDescriptionHelpFormatter)
+    ins.add_argument("target", help="a generate or curate result, or a run directory")
+    ins.set_defaults(fn=_inspect)
     labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
-    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.diagnose ->\nlabels.generate -> labels.certify (with a certificate.profile) -> labels.curate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran',
+    gen = labels.add_parser("generate", help="deprecated: ccil generate, then ccil curate", description='Deprecated: use ccil generate, then ccil curate. Run offline label generation: data.prepare -> transition.fit -> labels.diagnose ->\nlabels.generate -> labels.certify (with a certificate.profile) -> labels.curate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran',
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(gen)
     gen.add_argument("--result", metavar="PATH",

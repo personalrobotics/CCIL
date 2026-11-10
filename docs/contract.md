@@ -6,8 +6,7 @@ Field encodings belong to the schemas ([`schemas/`](schemas/README.md), and
 #167 for the quality bundle). [contract-examples.md](contract-examples.md)
 works through three concrete cases.
 
-> **Status.** This contract is the target of M4.5. The commands below are
-> implemented by #170; until then, the current commands map to them as listed
+> **Status.** Implemented by #170. The former commands map to these as listed
 > in [Dispositions](#dispositions-of-the-current-surface).
 
 ## What CCIL is
@@ -295,7 +294,7 @@ is constructed.
 
 | Current | Disposition |
 |---|---|
-| `ccil labels generate` | **Rename** to `ccil generate`. Kept as a deprecated alias for one minor release. |
+| `ccil labels generate` | **Renamed** to `ccil generate` (#170). Kept for one minor release as a deprecated alias with its former outputs: it also curates, and `--result` writes `ccil.labels-result` 1.0. |
 | `labels.certify` stage | **Keep** inside Generate, as its quality evidence. Its selection keys (`certificate.max_total_error`, `score_threshold`, `selection_quantile`, `selection_population`) **move** to `curate.*`; the old keys are converted with a recorded note. |
 | — | **New:** `ccil diagnose`, `ccil curate`, `ccil inspect`, `generation.recovery_steps`, `generation.evidence_mode`, and the `curate` group. |
 | `certificate.reference_dynamics` | **Keep** as an audit input. A profile that uses it for admission or selection, as today's `labels.certify` can, runs only under `evidence_mode: reference_assisted`; a configuration converted from an older version gets that mode, with a recorded note. |

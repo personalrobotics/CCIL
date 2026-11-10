@@ -25,6 +25,12 @@
    it and completes.
    Unsupported or incomplete configurations fail before any stage writes (exit 2). An input a stage refuses
    exits 2 and completes nothing; a defect inside a stage exits 1 with its traceback, never as an input error.
+6. The golden path (#170), through the CLI on 20 double-integrator episodes: diagnose then generate reuses the
+   three diagnose stages; generate writes candidates and quality evidence, a generate result and a completion
+   summary, and no selection; two curations of one generate result write two nested selections and regenerate
+   nothing; curate refuses a Generate key and a changed candidates file (exit 2, nothing written), and so does
+   inspect; inspect reports every section with the build_supervision call; labels generate, deprecated, still
+   writes its selection and ccil.labels-result 1.0, reusing the same candidates.
 Writes DIR/report.json.
 """
 import argparse
@@ -82,6 +88,85 @@ INTEGRATED = ["--set", "representation.kind=pca", "--set", "representation.modal
               "--set", "data.path=images.npz", "--set", "run.output_dir=runs",
               # The stub tests the latent-space handoff, not admission: declare the recovery length.
               "--set", "generation.recovery_steps=1"]
+
+
+GOLDEN = ["--set", "data.path=demos.npz", "--set", "run.output_dir=runs", "--set", "compute.device=cpu",
+          "--set", "transition_model.kind=linear", "--set", "generation.method=noisy_action",
+          "--set", "generation.labels_per_transition=4", "--set", "generation.action_noise_std=3.0",
+          "--set", "certificate.profile=disturbed_action", "--set", "certificate.true_state_lipschitz=1.0",
+          "--set", "certificate.true_action_lipschitz=0.2", "--set", "certificate.demonstration_residual_bound=0.0"]
+
+
+def golden(w: Path, record) -> None:
+    from system import DoubleIntegrator
+    w.mkdir()
+    sys_, r, eps = DoubleIntegrator(0.1), np.random.default_rng(0), []
+    for e in range(20):
+        s = [r.uniform(-1, 1, size=2)]
+        a = r.uniform(-1, 1, size=(30, 1))
+        for t in range(29):
+            s.append(sys_.step_np(s[-1][None], a[t][None])[0])
+        eps.append(Episode(f"e{e}", {"state": np.array(s, np.float32)}, a.astype(np.float32)))
+    write_trajectories(TrajectoryDataset(eps), w / "demos.npz")
+
+    def status(out):
+        return {ln.split()[0]: ln.split()[1] for ln in out.splitlines() if ln.split()[:1] and ln.split()[0].count(".") == 1
+                and len(ln.split()) > 2 and ln.split()[1] in ("wrote", "reused")}
+    d = ccil("diagnose", *GOLDEN, cwd=w)
+    g = ccil("generate", *GOLDEN, cwd=w)
+    result = w / "runs" / "generate-result.json"
+    gs = status(g.stdout)
+    record("diagnose_then_generate_reuses_three_stages", d.returncode == 0 and g.returncode == 0
+           and [gs.get(k) for k in ("data.prepare", "transition.fit", "labels.diagnose")] == ["reused"] * 3
+           and gs.get("labels.generate") == "wrote", diagnose=status(d.stdout), generate=gs)
+    doc = json.loads(result.read_text()) if result.exists() else {}
+    selections = [n for n in runs(w / "runs") if n.startswith("labels-curate")]
+    record("generate_writes_candidates_and_evidence_not_a_selection", g.returncode == 0 and not selections
+           and set(doc.get("artifacts", {})) == {"dataset", "split", "transition_model", "diagnosis", "candidates",
+                                                  "certificates"}
+           and all(k in g.stdout for k in ("candidates", "rejected", "evidence", "result", "next           ccil curate")),
+           artifacts=sorted(doc.get("artifacts", {})), summary=g.stdout.splitlines()[-6:])
+    before = set(runs(w / "runs"))
+    c1 = ccil("curate", "runs/generate-result.json", "--set", "curate.tolerance=0.5", cwd=w)
+    c2 = ccil("curate", "runs/generate-result.json", "--set", "curate.tolerance=1.0", cwd=w)
+    new = sorted(set(runs(w / "runs")) - before)
+    masks = []
+    for c in (c1, c2):
+        line = next((ln for ln in c.stdout.splitlines() if ln.startswith("result")), "")
+        res = json.loads((w / line.split()[-1]).read_text()) if line else None
+        if res:
+            with np.load(w / "runs" / res["artifacts"]["selection"]["path"]) as z:
+                masks.append(z["mask"])
+    nested = len(masks) == 2 and masks[0].sum() < masks[1].sum() and not (masks[0] & ~masks[1]).any()
+    record("two_curations_of_one_generate_regenerate_nothing", c1.returncode == 0 and c2.returncode == 0
+           and len(new) == 2 and all(n.startswith("labels-curate") for n in new) and nested,
+           new_runs=new, selected=[int(m.sum()) for m in masks])
+    refused = ccil("curate", "runs/generate-result.json", "--set", "data.path=other.npz", cwd=w)
+    cands = w / "runs" / doc["artifacts"]["candidates"]["path"]
+    original = cands.read_bytes()
+    flipped = bytearray(original)
+    flipped[len(flipped) // 2] ^= 1
+    cands.write_bytes(bytes(flipped))
+    before = set(runs(w / "runs"))
+    tampered = ccil("curate", "runs/generate-result.json", "--set", "curate.tolerance=0.7", cwd=w)
+    inspected_tampered = ccil("inspect", "runs/generate-result.json", cwd=w)
+    cands.write_bytes(original)
+    record("curate_refuses_a_changed_artifact_and_generate_keys", refused.returncode == 2 and "belong to Generate"
+           in refused.stderr and tampered.returncode == 2 and "changed since Generate wrote it" in tampered.stderr
+           and inspected_tampered.returncode == 2 and set(runs(w / "runs")) == before and "Traceback" not in
+           tampered.stderr + refused.stderr, refused=refused.stderr.strip()[-200:], tampered=tampered.stderr.strip()[-200:])
+    line = next((ln for ln in c1.stdout.splitlines() if ln.startswith("result")), "")
+    i = ccil("inspect", line.split()[-1] if line else "missing", cwd=w)
+    sections = [ln for ln in i.stdout.splitlines() if ln and not ln.startswith(" ")]
+    record("inspect_reports_every_section", i.returncode == 0 and sections == [
+        "configuration", "provenance", "quality", "rejections", "selection", "usable rows", "next step"]
+        and "build_supervision(" in i.stdout and "curate.tolerance = 0.5 (cli)" in i.stdout, sections=sections)
+    alias = ccil("labels", "generate", *GOLDEN, "--set", "curate.tolerance=0.5", "--result", "alias.json", cwd=w)
+    adoc = json.loads((w / "alias.json").read_text()) if (w / "alias.json").exists() else {}
+    record("labels_generate_alias_keeps_its_outputs", alias.returncode == 0 and "deprecated" in alias.stderr
+           and adoc.get("schema") == "ccil.labels-result" and "selection" in adoc.get("artifacts", {})
+           and status(alias.stdout).get("labels.curate") in ("reused", "wrote")
+           and status(alias.stdout).get("labels.generate") == "reused", stages=status(alias.stdout))
 
 
 def main():
@@ -353,6 +438,9 @@ def main():
            and "simulated defect" in r.stderr and not any(n.startswith("labels-generate") for n in done)
            and any(n.startswith("data-prepare") for n in done), completed_before_the_defect=done,
            error=r.stderr.strip()[-300:])
+
+    # 6. The golden path (#170): diagnose, generate, curate, inspect, on 20 double-integrator episodes.
+    golden(out / "golden", record)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
