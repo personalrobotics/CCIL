@@ -27,7 +27,7 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from .batch import CandidateBatch, TransitionBatch
+from .batch import CandidateBatch, InterfaceError, TransitionBatch
 from .identity import identity_words32
 from .transition import jacobian_fd
 
@@ -210,6 +210,10 @@ def _noisy_actions(batch, seed, k, sigma, bounds=None):
 
 
 def _noise_params(k, sigma, action_bounds):
+    if isinstance(k, bool) or not isinstance(k, (int, np.integer)) or k < 1:
+        raise InterfaceError(f"labels_per_transition must be an integer >= 1, got {k!r}")
+    if isinstance(sigma, bool) or not isinstance(sigma, (int, float, np.floating)) or not np.isfinite(sigma) or sigma <= 0:
+        raise InterfaceError(f"action_noise_std must be finite and > 0, got {sigma!r}")
     params = {"labels_per_transition": int(k), "action_noise_std": float(sigma),
               "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
     if action_bounds is not None:

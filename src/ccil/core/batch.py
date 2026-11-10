@@ -5,8 +5,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ..errors import InputError
 
-class InterfaceError(RuntimeError):
+
+class InterfaceError(InputError, RuntimeError):
     """A stage returned output that violates its interface contract (a programming
     defect in that implementation, not a rejected candidate)."""
 

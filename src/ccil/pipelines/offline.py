@@ -23,6 +23,7 @@ from ..core import (TRANSITION_MODELS, ActionBounds, BackwardEuler, ExactPreimag
                     IdentityRepresentation, ModelMisfit, ModelResidual, NoisyAction, NoisyActionPreimage, SupportRadius,
                     Uniform, generate_labels, load_transition_model, transition_model_class, transitions)
 from ..data.prepare import prepare_stage
+from ..errors import InputError
 from ..runs import layout
 from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
@@ -143,8 +144,9 @@ def preflight(cfg) -> None:
         errors.append("data.path is required")
     if v["generation.method"] is None:
         errors.append("generation.method is required")
-    if v["generation.method"] in ("noisy_action", "noisy_action_fe") and not (
-            v["generation.labels_per_transition"] and v["generation.action_noise_std"]):
+    noise_missing = v["generation.method"] in ("noisy_action", "noisy_action_fe") and not (
+        v["generation.labels_per_transition"] and v["generation.action_noise_std"])
+    if noise_missing:
         errors.append(f"generation.method {v['generation.method']} requires generation.labels_per_transition and "
                       "generation.action_noise_std")
     for key in ("certificate.reference_dynamics", "audit.reference_dynamics"):
@@ -165,11 +167,14 @@ def preflight(cfg) -> None:
             errors.append(f"transition_model.trainer_version 2 fits lipschitz types {list(SUPPORTED)}; "
                           f"{v['transition_model.lipschitz_type']} needs trainer_version 1")
     for check in (build_model, build_generator):
+        if v["generation.method"] is None or (check is build_generator and noise_missing):
+            continue  # already reported
         try:
-            if v["generation.method"] is not None:
-                check(v)
+            check(v)
         except ConfigError as e:
             errors += e.errors
+        except InputError as e:
+            errors.append(str(e))
     if errors:
         raise ConfigError(errors)
 

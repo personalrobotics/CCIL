@@ -5,13 +5,15 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from ..errors import InputError
+
 STAGES = ("run", "compute", "data", "representation", "transition_model", "generation", "certificate", "curate",
           "diagnose", "calibration", "audit", "validation", "supervision", "integrated")
 TYPES = ("int", "float", "bool", "str", "path", "floats", "ints", "choice")
 STATUS = ("implemented", "declared")  # declared: validated and documented, consumed by a later milestone
 
 
-class ConfigError(ValueError):
+class ConfigError(InputError):
     """Configuration failed validation; .errors lists every problem."""
 
     def __init__(self, errors: list[str]):

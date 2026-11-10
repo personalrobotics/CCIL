@@ -10,11 +10,13 @@ import math
 
 import numpy as np
 
+from ..errors import InputError
+
 SCHEMA, VERSION = "ccil.split", "1.0"
 FIELDS = {"schema", "version", "seed", "validation_fraction", "episode_ids", "train", "validation"}
 
 
-class SplitError(ValueError):
+class SplitError(InputError):
     """A valid split cannot be formed, or a split record is malformed."""
 
 

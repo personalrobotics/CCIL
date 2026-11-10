@@ -52,6 +52,7 @@ import numpy as np
 from .core.batch import InterfaceError
 from .core.representation import transitions
 from .data.split import SplitError, check_split
+from .errors import InputError
 from .runs.provenance import sha256
 from .schema import SchemaError, read_candidates, read_certificates, read_selection, read_trajectories
 
@@ -65,7 +66,7 @@ CHUNK_POLICIES = ("refuse", "consume")
 DEMONSTRATION, SYNTHETIC = "demonstration", "synthetic"
 
 
-class SupervisionError(ValueError):
+class SupervisionError(InputError):
     """The artifacts cannot form supervision as requested; .problems lists every reason."""
 
     def __init__(self, problems: list[str]):
