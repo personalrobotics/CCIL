@@ -29,7 +29,7 @@ from ..runs import layout
 from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
-from ..core.batch import InterfaceError
+from ..core.batch import RequestError
 from ..core.transition import CheckpointError, binding_problems, checkpoint_meta
 from ..core.calibrate import calibrate, reference_audit
 from ..core.curate import CurationPolicy, curate
@@ -280,7 +280,11 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
 
     def body(run):
         z, a, z_next, tr, va = transition_data(v, inputs, representation)
-        binding = {"representation": {"kind": representation.kind, "modality": v["representation.modality"]},
+        # A fitted representation (PCA) is bound by its checkpoint's hash: the same kind and shape with another
+        # mean or basis is another coordinate system. The identity representation has no parameters (None).
+        binding = {"representation": {"kind": representation.kind, "modality": v["representation.modality"],
+                                      "checkpoint_sha256": sha256(inputs["representation"])
+                                      if "representation" in inputs else None},
                    "state_dim": int(z.shape[1]), "act_dim": int(a.shape[1]),
                    "direction": v["transition_model.direction"],
                    "dt_ctrl": timing(read_trajectories(inputs["dataset"]))["dt_ctrl"]}
@@ -495,7 +499,7 @@ def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified:
         try:
             cal = calibrate(inputs["candidates"], inputs["certificates"], inputs["reference"], split["validation"],
                             level=float(v["calibration.level"]))
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_calibration(cal, run.path(layout.CALIBRATION))
         b = cal["bound"]
@@ -525,7 +529,7 @@ def audit_stage(cfg, labeled: StageResult, certified: StageResult | None, calibr
         try:
             doc = reference_audit(inputs["selection"], inputs["candidates"], inputs["reference"],
                                   inputs.get("certificates"), inputs.get("calibration"), v["representation.modality"])
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_audit(doc, run.path(layout.AUDIT))
         run.metrics({"selected": doc["groups"]["selected"], "bounds": doc["bounds"], "tolerance": doc["tolerance"],
@@ -552,7 +556,7 @@ def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, polic
         try:
             sel = curate(inputs["candidates"], inputs.get("certificates"), policy, v["generation.evidence_mode"],
                          inputs.get("calibration"))
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_selection(sel, run.path(layout.SELECTION))
         counts = {code: int(sel.reasons[:, i].sum()) for i, code in enumerate(REASON_CODES)}

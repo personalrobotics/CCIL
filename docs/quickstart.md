@@ -81,7 +81,7 @@ candidates     runs/labels-generate-<id>/labels/candidates.npz: 936 rows, 936 ac
 rejected       none
 evidence       conditional 936
 admitted       recovery length 1
-result         runs/generate-result.json
+result         runs/generate-<id>.json (latest: runs/generate-result.json)
 next           ccil curate runs/generate-result.json --set curate.tolerance=<largest acceptable label error>
 ```
 

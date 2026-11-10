@@ -64,7 +64,7 @@ from ..schema.certificates import (BOUND_CLASSES, CLASSIFICATIONS, GLOBAL_TERMS,
                                    CertificateSet)
 from ..schema.fields import SchemaError
 from ..schema.io import _atomic_savez, _format_error, _open
-from .batch import InterfaceError
+from .batch import InterfaceError, RequestError
 from .curate import admit_rows, produced_rows
 from .generators import BackwardEuler, ExactPreimage, NoisyAction, NoisyActionPreimage
 from .representation import transitions
@@ -96,7 +96,7 @@ def _nonneg(x, name, allow_none=True):
     if x is None and allow_none:
         return
     if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or x < 0:
-        raise InterfaceError(f"{name} must be finite and >= 0{' or None' if allow_none else ''}, got {x!r}")
+        raise RequestError(f"{name} must be finite and >= 0{' or None' if allow_none else ''}, got {x!r}")
 
 
 # --- constants -------------------------------------------------------------
@@ -111,7 +111,7 @@ class Declared:
     def __post_init__(self):
         _nonneg(self.value, "a declared constant", allow_none=False)
         if not isinstance(self.rationale, str) or not self.rationale:
-            raise InterfaceError("a declared constant needs a rationale")
+            raise RequestError("a declared constant needs a rationale")
 
     def spec(self) -> dict:
         return {"declared": float(self.value), "rationale": self.rationale}
@@ -126,12 +126,12 @@ class Provided:
 
     def __post_init__(self):
         if self.provider not in PROVIDERS:
-            raise InterfaceError(f"unknown bound provider {self.provider!r}; registered: {sorted(PROVIDERS)}")
+            raise RequestError(f"unknown bound provider {self.provider!r}; registered: {sorted(PROVIDERS)}")
         needs = PROVIDERS[self.provider].needs_reference
         if needs and (not isinstance(self.reference, str) or not self.reference):
-            raise InterfaceError(f"provider {self.provider!r} needs a reference artifact name")
+            raise RequestError(f"provider {self.provider!r} needs a reference artifact name")
         if not needs and self.reference is not None:
-            raise InterfaceError(f"provider {self.provider!r} takes no reference artifact")
+            raise RequestError(f"provider {self.provider!r} takes no reference artifact")
 
     def spec(self) -> dict:
         return {"provider": self.provider, "version": PROVIDERS[self.provider].version, "reference": self.reference}
@@ -167,10 +167,10 @@ def read_reference_dynamics(path) -> tuple[np.ndarray, np.ndarray]:
 def _reference(provider, reference, ctx):
     path = ctx.references.get(reference)
     if path is None:
-        raise InterfaceError(f"{provider} needs reference artifact {reference!r}; given {sorted(ctx.references)}")
+        raise RequestError(f"{provider} needs reference artifact {reference!r}; given {sorted(ctx.references)}")
     A, B = read_reference_dynamics(path)
     if len(ctx.state_scale) != len(A) or len(ctx.action_scale) != B.shape[1]:
-        raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the coordinates "
+        raise RequestError(f"reference dynamics {A.shape}, {B.shape} do not match the coordinates "
                              f"({len(ctx.state_scale)}, {len(ctx.action_scale)})")
     return A, B
 
@@ -198,9 +198,9 @@ class LinearDiscrepancy:
         A, B = _reference(self.name, reference, ctx)
         model = ctx.model
         if getattr(model, "kind", None) != "linear":
-            raise InterfaceError(f"{self.name} needs a linear transition model, got {getattr(model, 'kind', None)!r}")
+            raise RequestError(f"{self.name} needs a linear transition model, got {getattr(model, 'kind', None)!r}")
         if A.shape != model.A.shape or B.shape != model.B.shape:
-            raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the model {model.A.shape}, {model.B.shape}")
+            raise RequestError(f"reference dynamics {A.shape}, {B.shape} do not match the model {model.A.shape}, {model.B.shape}")
         return (A, model.A) if maps == "state" else (B, model.B)
 
     def resolve(self, maps: str, reference: str, ctx: "Context") -> dict:
@@ -253,11 +253,11 @@ class ModelLipschitz:
     def resolve(self, maps: str, reference, ctx: "Context") -> dict:
         fn = getattr(ctx.model, "lipschitz_bound", None)
         if fn is None:
-            raise InterfaceError(f"transition model kind {getattr(ctx.model, 'kind', None)!r} has no lipschitz_bound")
+            raise RequestError(f"transition model kind {getattr(ctx.model, 'kind', None)!r} has no lipschitz_bound")
         try:
             b = fn(maps, ctx.state_scale, ctx.action_scale)
         except ValueError as e:
-            raise InterfaceError(f"{self.name}: {e}") from None
+            raise RequestError(f"{self.name}: {e}") from None
         verified = bool(b.get("verified"))
         rationale = ("verified operator norm of the linear model's scaled map" if verified else
                      f"product of layer operator norms of the {ctx.model.kind} model with normalization and output "
@@ -310,10 +310,10 @@ def resolve_constant(spec, role: tuple, ctx: "Context") -> dict:
     if isinstance(spec, Provided):
         provider = PROVIDERS[spec.provider]
         if provider.bounds != bounds:
-            raise InterfaceError(f"provider {spec.provider!r} bounds the {provider.bounds} dynamics; this constant "
+            raise RequestError(f"provider {spec.provider!r} bounds the {provider.bounds} dynamics; this constant "
                                  f"needs a bound on the {bounds} dynamics")
         return provider.resolve(maps, spec.reference, ctx)
-    raise InterfaceError(f"a constant must be Declared(...) or Provided(...), got {type(spec).__name__}; "
+    raise RequestError(f"a constant must be Declared(...) or Provided(...), got {type(spec).__name__}; "
                          "a value cannot be asserted as a bound")
 
 
@@ -348,21 +348,21 @@ class Profile:
 
     def __init__(self, constants: dict, neighborhood_state=None, neighborhood_action=None, demonstration=None):
         if set(constants) != set(self.roles):
-            raise InterfaceError(f"{self.name} needs constants {sorted(self.roles)}, got {sorted(constants)}")
+            raise RequestError(f"{self.name} needs constants {sorted(self.roles)}, got {sorted(constants)}")
         for role, c in constants.items():
             if not isinstance(c, (Declared, Provided)):
-                raise InterfaceError(f"constant {role} must be Declared(...) or Provided(...), got {type(c).__name__}; "
+                raise RequestError(f"constant {role} must be Declared(...) or Provided(...), got {type(c).__name__}; "
                                      "a value cannot be asserted as a bound")
         for r in (neighborhood_state, neighborhood_action):
             if r is not None and (isinstance(r, bool) or not isinstance(r, (int, float)) or not math.isfinite(r) or r <= 0):
-                raise InterfaceError(f"neighborhood radii must be finite and > 0, or None for unbounded; got {r!r}")
+                raise RequestError(f"neighborhood radii must be finite and > 0, or None for unbounded; got {r!r}")
         if self.demonstration_term:
             if not (isinstance(demonstration, Declared)
                     or (isinstance(demonstration, Provided) and PROVIDERS[demonstration.provider].bounds == "demonstration")):
-                raise InterfaceError(f"{self.name} needs demonstration=Provided('reference_residual', <reference>) or "
+                raise RequestError(f"{self.name} needs demonstration=Provided('reference_residual', <reference>) or "
                                      "Declared(<bound on every demonstration residual>, <rationale>)")
         elif demonstration is not None:
-            raise InterfaceError(f"{self.name} takes no demonstration specification")
+            raise RequestError(f"{self.name} takes no demonstration specification")
         self.constants = dict(constants)
         self.demonstration = demonstration
         self.neighborhood = {"state": neighborhood_state, "action": neighborhood_action}
@@ -673,7 +673,7 @@ def check_applies(profile, candidates) -> None:
         return
     name = (candidates.generator or {}).get("name")
     if GENERATOR_PROFILES.get(name) not in profile.applies_to:
-        raise InterfaceError(f"profile {profile.name} certifies {list(profile.applies_to)} labels; generator {name!r} "
+        raise RequestError(f"profile {profile.name} certifies {list(profile.applies_to)} labels; generator {name!r} "
                              f"produces {GENERATOR_PROFILES.get(name)!r}")
 
 
@@ -728,7 +728,7 @@ def _components(representation, model) -> dict:
 def _scales(value, dim, name) -> np.ndarray:
     s = np.ones(dim) if value is None else np.asarray(value, np.float64)
     if s.shape != (dim,) or not (np.isfinite(s).all() and (s > 0).all()):
-        raise InterfaceError(f"{name} must be {dim} finite positive values, got {value!r}")
+        raise RequestError(f"{name} must be {dim} finite positive values, got {value!r}")
     return s
 
 
@@ -834,7 +834,7 @@ def _load_model(sources: Sources):
 def certify(sources: Sources, profile: Profile, state_scale=None, action_scale=None) -> CertificateSet:
     """Certify every candidate row of sources.candidates with profile; the candidates are not modified."""
     if not isinstance(profile, Profile) or profile.constants is None:
-        raise InterfaceError("certify needs a profile built from Declared/Provided constants")
+        raise RequestError("certify needs a profile built from Declared/Provided constants")
     hashes = sources.hashes()
     dataset = read_trajectories(sources.dataset)
     candidates = read_candidates(sources.candidates, dataset)
@@ -867,9 +867,9 @@ def certify(sources: Sources, profile: Profile, state_scale=None, action_scale=N
 def _profile_of(cert: CertificateSet):
     cls = PROFILES.get(cert.descriptor.get("profile"))
     if cls is None:
-        raise InterfaceError(f"profile {cert.descriptor.get('profile')!r} is not registered")
+        raise RequestError(f"profile {cert.descriptor.get('profile')!r} is not registered")
     if cert.descriptor.get("version") != cls.version:
-        raise InterfaceError(f"profile {cls.name} version {cert.descriptor.get('version')!r} is not {cls.version!r}")
+        raise RequestError(f"profile {cls.name} version {cert.descriptor.get('version')!r} is not {cls.version!r}")
     return cls.from_descriptor(cert.descriptor)
 
 
@@ -904,7 +904,7 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
         return problems + ["certificate rows do not match the candidate rows"]
     try:
         profile = _profile_of(cert)
-    except InterfaceError as e:
+    except RequestError as e:
         return problems + [str(e)]
     d = cert.descriptor
     if set(d["constants"]) != set(profile.roles):
@@ -913,7 +913,7 @@ def verify_structure(cert: CertificateSet, candidates_path) -> list[str]:
         return problems + [f"descriptor {'lacks' if profile.demonstration_term else 'has'} a demonstration entry"]
     try:
         check_applies(profile, candidates)
-    except InterfaceError as e:
+    except RequestError as e:
         problems.append(str(e))
     for role, c in d["constants"].items():
         problems.append(_provider_problem(f"constant {role}", c, profile.roles[role][1]))
@@ -981,7 +981,7 @@ def audit_sources(cert: CertificateSet, sources: Sources) -> list[str]:
         return [f"components {_components(rep, model)} != recorded {cert.components}"]
     try:
         profile = _profile_of(cert)
-    except InterfaceError as e:
+    except RequestError as e:
         return [str(e)]
     d = cert.descriptor
     if d["model_evaluation"] != model_evaluation(model):
@@ -1048,7 +1048,7 @@ def require_upper_bound(cert: CertificateSet) -> None:
     """Raise unless every supported row is an upper bound (and, for a 1.0 set, admission admits only bounds)."""
     supported = cert.classification != "unsupported"
     if (cert.legacy and cert.admission["mode"] != "upper_bound") or not cert.is_upper_bound[supported].all():
-        raise InterfaceError(f"certificate ({cert.descriptor.get('profile')}) does not certify its rows as upper bounds")
+        raise RequestError(f"certificate ({cert.descriptor.get('profile')}) does not certify its rows as upper bounds")
 
 
 __all__ = ["Declared", "Provided", "Profile", "ContinuityProfile", "BackTrackProfile", "DisturbedActionProfile",

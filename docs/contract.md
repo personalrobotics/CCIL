@@ -65,15 +65,17 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
   contract must match this dataset and configuration, or the command fails
   with `CheckpointError` (exit 2):
   - component, kind and version are known;
-  - representation kind, modality and, for a fitted representation, its
-    checkpoint SHA-256;
-  - observation and action dimensions, and their units where either side
-    declares them;
-  - normalization identity (coordinates, constraint and normalization SHA-256);
-  - direction (forward or backward) and the action-transition convention;
-  - transition interval: equal when both the checkpoint and the data declare
+  - representation kind, modality and, for a fitted representation (PCA),
+    its checkpoint SHA-256: the same kind and shape with another fit is
+    another coordinate system;
+  - state and action dimensions;
+  - direction (forward or backward);
+  - action period: equal when both the checkpoint and the data declare
     one; both unknown is accepted and limits the run to M without H; one known
     and one unknown is refused.
+
+  A model's own input normalization is stored inside its checkpoint, and
+  loads with it.
 - **Exact dynamics** (optional, `certificate.reference_dynamics`): see
   [Reference dynamics](#reference-dynamics).
 
@@ -93,6 +95,15 @@ diagnose` with the same data, dynamics and configuration reuses the prepared
 dataset, the checkpoint and the diagnosis, and generates only at the admitted
 recovery length. Generate ends by printing the artifacts, row counts,
 rejection classes, evidence classes, and the next step.
+
+**Result files.** Generate and Curate each write an immutable result in
+`run.output_dir`, named by the SHA-256 of its content (`generate-<id>.json`,
+`curate-<id>.json`) and never replaced; `generate-result.json` is a copy of
+the latest Generate there. A curate result records the immutable generate
+result it read, with its hash. Every path a result records is relative and
+must resolve, through any symlink, inside its directory. Curate and Inspect
+refuse a result (exit 2) before writing anything when a path leaves the
+directory or any recorded file has changed.
 
 **Empty results are complete.** When no recovery length is admitted, Generate
 still writes schema-valid zero-row candidates, zero-row quality evidence, and
@@ -126,14 +137,19 @@ ccil.inspect(target: str | Path) -> ccil.Inspection
   - **`DiagnoseResult`:** the run directory of each stage, the diagnosis path,
     and the admitted M, or `None` with a reason.
   - **`GenerateResult`:** the same, plus the candidates and quality-evidence
-    paths and the row counts.
-  - **`CurateResult`:** the selection path and its counts.
+    paths, the row counts, the immutable result file (`path`) and
+    `generate-result.json` (`latest`).
+  - **`CurateResult`:** the selection path, its counts and its immutable
+    result file.
   - **`Inspection`:** the printed summary as data.
 - **Exceptions.** Every input failure raises a subclass of `ccil.InputError`,
   which itself subclasses `ValueError`. That covers configuration, schema,
   checkpoint, dataset-format, split and artifact-mismatch errors, and each one
-  lists every problem found. `CodeStateChanged` is separate. Any other
-  exception is a defect and propagates unchanged.
+  lists every problem found. Errors are classified by cause: settings or
+  artifacts a component refuses raise `ccil.core.RequestError` (an
+  `InputError`), while malformed output from a component implementation
+  raises `ccil.core.InterfaceError`, a defect. `CodeStateChanged` is separate.
+  Any other exception is a defect and propagates unchanged.
 
 ## Recovery length
 

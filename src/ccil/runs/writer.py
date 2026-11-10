@@ -27,14 +27,13 @@ import shutil
 import sys
 from pathlib import Path, PurePosixPath
 
-from ..errors import InputError
 from .layout import CONFIG, LOG, MANIFEST, MANIFEST_SCHEMA, MANIFEST_VERSION, METRICS, METRICS_SCHEMA, STAGING_MARKER
 from .provenance import (capture_code_state, code, component_schema, environment, register_artifact, sha256,
                          verify_code_state)
 from .validate import validate_run
 
 
-class RunError(InputError, RuntimeError):
+class RunError(RuntimeError):
     """A run directory could not be written or failed its own validation."""
 
 

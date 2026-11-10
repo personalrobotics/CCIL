@@ -49,7 +49,6 @@ from pathlib import Path
 
 import numpy as np
 
-from .core.batch import InterfaceError
 from .core.representation import transitions
 from .data.split import SplitError, check_split
 from .errors import InputError
@@ -203,7 +202,7 @@ def build_supervision(dataset, source: str, *, representation, candidates=None, 
     problems += _representation_problems(representation, representation_checkpoint, hashes)
     try:
         batch = transitions(ds, representation)
-    except (KeyError, ValueError, InterfaceError) as e:
+    except (KeyError, ValueError) as e:
         raise SupervisionError(problems + [f"the representation cannot encode the dataset: {e}"]) from None
     obs_shape, action_width = tuple(np.asarray(batch.z).shape[1:]), int(np.asarray(batch.a).shape[1])
 
