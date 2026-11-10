@@ -16,7 +16,11 @@ with noise in training-action standard deviations, recovery length 1), curate, a
    and ACT (n_obs_steps 1, chunk_size 1) return each requested frame as exactly its row with an unpadded action,
    read only the two observation features, and train one step with a finite loss and gradients;
 7. an existing output, another dataset's conversion, a non-unit label weight, and a changed export file are refused
-   (exit 2), and nothing is written.
+   (exit 2), and nothing is written;
+8. a recorded split is honored whatever supervision.exclude_validation_episodes says: with it false, the export
+   still holds no held-out episode and no label of a held-out transition;
+9. a joined modality concatenates vectors only: an image part is refused by the configuration (exit 2) and by the
+   representation itself when built directly.
 Writes DIR/report.json, with no paths.
 """
 import argparse
@@ -34,6 +38,7 @@ REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO / "src"))
 
+from ccil import InputError  # noqa: E402
 from ccil.core import IdentityRepresentation  # noqa: E402
 from ccil.core.representation import transitions  # noqa: E402
 from ccil.lerobot import convert, write_dataset  # noqa: E402
@@ -43,7 +48,7 @@ from ccil.supervision import build_supervision  # noqa: E402
 LEROBOT = "0.6.1"
 JOINED, REVERSED = "state+state.environment_state", "state.environment_state+state"
 SETS = ["data.path=source.npz", "data.validation_fraction=0.25", "compute.device=cpu", "transition_model.kind=mlp",
-        "transition_model.trainer_version=1", "transition_model.hidden_layers=[32,32]", "transition_model.epochs=20",
+        "transition_model.trainer_version=1", "transition_model.fit_episodes=train", "transition_model.hidden_layers=[32,32]", "transition_model.epochs=20",
         "transition_model.batch_size=64", "transition_model.lipschitz_type=spectral_normalization",
         "transition_model.lipschitz_constraint=2.0", "generation.method=noisy_action",
         "generation.labels_per_transition=2", "generation.action_noise_scale=training_std",
@@ -259,6 +264,37 @@ def main() -> int:
            and "weights other than 1" in halved.stderr and "not this conversion's output" in wrong.stderr
            and "changed since export" in ins.stderr
            and not any("Traceback" in x.stderr for x in (again_out, wrong, halved, ins)), exits=refusals)
+
+    # 8. The split is honored even when supervision.exclude_validation_episodes is false.
+    gf = ccil("generate", *sets(f"representation.modality={JOINED}", "run.output_dir=runs_flag",
+                                "supervision.exclude_validation_episodes=false"), cwd=w)
+    cf = ccil("curate", "runs_flag/generate-result.json", cwd=w)
+    flag_cur = sorted((w / "runs_flag").glob("curate-*.json"))
+    ef = ccil("export", "lerobot", str(flag_cur[0].relative_to(w)) if flag_cur else "missing", "--conversion",
+              "conversion.json", "--out", "export_flag", cwd=w)
+    ft = pq.read_table(sorted((w / "export_flag" / "data").rglob("*.parquet"))).to_pydict() \
+        if (w / "export_flag").exists() else {}
+    flag_eps = set(ft.get("ccil.source_episode", []))
+    fm = json.loads((w / "export_flag" / "ccil" / "export.json").read_text()) if (w / "export_flag").exists() else {}
+    record("recorded_split_is_honored_whatever_the_supervision_flag",
+           gf.returncode == 0 and cf.returncode == 0 and ef.returncode == 0 and bool(flag_eps) and not (flag_eps & held)
+           and fm["counts"] == manifest["counts"] and sorted(fm["episodes"]["held_out"]) == sorted(split["validation"]),
+           episodes_written=len(flag_eps), held_out_written=sorted(flag_eps & held), counts=fm.get("counts"),
+           error=(gf.stderr + cf.stderr + ef.stderr)[-300:])
+
+    # 9. Joined modalities are vectors: an image part is refused at the configuration and by the representation.
+    cfg_refusal = ccil("generate", *sets("representation.modality=state+image.top", "run.output_dir=runs_image"), cwd=w)
+    img = TrajectoryDataset([Episode("0", {"state": np.zeros((3, 2), np.float32),
+                                           "image.top": np.zeros((3, 4, 4, 3), np.uint8)}, np.zeros((3, 1), np.float32))])
+    try:
+        transitions(img, IdentityRepresentation("state+image.top"))
+        api_refusal = "accepted"
+    except InputError as err:
+        api_refusal = f"{type(err).__name__}: {err}"
+    record("joined_image_modalities_refused", cfg_refusal.returncode == 2 and "vector state modalities only"
+           in cfg_refusal.stderr and not (w / "runs_image").exists() and "concatenates vectors" in api_refusal,
+           configuration_exit=cfg_refusal.returncode, configuration_error=cfg_refusal.stderr.strip()[-200:],
+           representation=api_refusal[:200])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

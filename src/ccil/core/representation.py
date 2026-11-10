@@ -53,7 +53,11 @@ def observation(observations: dict, modality: str) -> np.ndarray:
     names = parts(modality)
     if len(names) == 1:
         return observations[modality]
-    return np.concatenate([np.asarray(observations[m]).reshape(len(observations[m]), -1) for m in names], axis=1)
+    shapes = {m: np.shape(observations[m]) for m in names}
+    if any(len(s) != 2 for s in shapes.values()):
+        from .batch import RequestError
+        raise RequestError(f"a joined modality concatenates vectors (N, d); {modality} has parts {shapes}")
+    return np.concatenate([np.asarray(observations[m]) for m in names], axis=1)
 
 
 def split(modality: str, z: np.ndarray, widths: dict) -> dict:

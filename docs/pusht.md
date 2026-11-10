@@ -35,6 +35,7 @@ compute: {device: cpu}
 representation: {modality: state+state.environment_state}   # both features, concatenated in this order
 transition_model:                      # a residual MLP with spectrally normalized layers
   kind: mlp
+  fit_episodes: train                  # never fit on the held-out episodes: their error is the held-out error
   trainer_version: "1"
   hidden_layers: [256, 256]
   activation: relu
@@ -63,8 +64,11 @@ ccil inspect runs/generate-result.json
 ccil curate runs/generate-result.json
 ```
 
-- **The model.** `ccil inspect runs/transition-fit-<id>` shows its held-out
-  error and `lipschitz_measured`: the weight-based Lipschitz bound of the
+- **The model.** It is fitted on the training episodes only
+  (`fit_episodes: train`), so `ccil inspect runs/transition-fit-<id>` shows a
+  true held-out error, and the held-out episodes, which a downstream study
+  may reserve for checkpoint selection, never inform the labels. It also
+  shows `lipschitz_measured`: the weight-based Lipschitz bound of the
   learned residual map, recomputed from the saved checkpoint with its
   normalization, output scaling and mask. The spectral constraint is a
   training method; this number is a measurement, not a certificate.

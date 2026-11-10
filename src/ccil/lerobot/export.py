@@ -9,7 +9,8 @@ ccil.synthetic, ccil.source_episode, ccil.source_frame, ccil.source_index (the s
 ccil.candidate_row (-1 for demonstration frames), which LeRobot policies ignore. A stock trainer reads no row
 weight, so every selected synthetic weight must be exactly 1. Held-out episodes are not written. The directory
 holds ccil/export.json (ccil.lerobot-export 1.0): the inputs by hash, the episode split, the counts, the hash of
-the synthetic rows' source indices (so a duplication control can match them exactly) and every file's SHA-256. It is
+the synthetic rows' source indices (so a duplication control can match them exactly) and every file's SHA-256. With
+a recorded split, held-out episodes and the labels of their transitions are never written. It is
 staged under a temporary name and moved into place, so DIR exists only once complete.
 
 A one-frame episode gives a temporal policy no real history or future: it is consumed correctly only by a policy
@@ -91,7 +92,9 @@ def export_dataset(result, conversion, out, *, revision: str | None = None) -> d
         raise ExportError(problems)
 
     split = json.loads(art["split"].read_text()) if "split" in art else None
-    exclude = split is not None and values.get("supervision.exclude_validation_episodes", True)
+    # A recorded split is honored unconditionally: the export holds training episodes only, whatever an integrated
+    # trainer's supervision.exclude_validation_episodes says.
+    exclude = split is not None
     sup = build_supervision(art["dataset"], "demonstrations_plus_selection",
                             representation=IdentityRepresentation(modality), split=art["split"] if exclude else None,
                             candidates=art["candidates"], certificates=art.get("certificates"),

@@ -308,6 +308,8 @@ def _modality(v):
         return "representation.modality: a joined list names a modality twice"
     if len(names) > 1 and v["representation.kind"] != "identity":
         return "representation.modality: only the identity representation concatenates a joined list of modalities"
+    if len(names) > 1 and any(not n.startswith("state") for n in names):
+        return "representation.modality: a joined list concatenates vector state modalities only (no image.*)"
     return None
 
 
