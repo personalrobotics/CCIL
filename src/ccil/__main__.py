@@ -206,7 +206,7 @@ def main(argv=None) -> int:
     data = groups.add_parser("data", help="dataset workflows").add_subparsers(dest="command", required=True)
     dconv = data.add_parser("convert", help="convert an M1 ccil-trajectories/1 file into ccil.trajectories (#23)",
                             description="Legacy pickles first cross the trust boundary through "
-                                        "correct_il/convert_legacy_dataset.py; ccil never unpickles.\n"
+                                        "tools/legacy_conversion/convert_legacy_dataset.py; ccil never unpickles.\n"
                                         "exit: 0 written; 2 not an M1 file or unreadable",
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     dconv.add_argument("src")

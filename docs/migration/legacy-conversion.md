@@ -27,7 +27,7 @@ It writes:
 Legacy datasets are pickles, and unpickling can execute code.
 
 1. **The trusted-input boundary, outside the `ccil` package.**
-   `correct_il/convert_legacy_dataset.py` (`trajectory_io.convert_legacy_pickle`)
+   `tools/legacy_conversion/convert_legacy_dataset.py` (`trajectory_io.convert_legacy_pickle`)
    unpickles a file only after checking its SHA-256 against
    [`docs/artifacts/manifest.json`](../artifacts/manifest.json) (`--shipped`
    or `--expect-sha256`), or after an explicit `--trust-legacy-pickle`

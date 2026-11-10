@@ -81,7 +81,7 @@ At fixed weights the network computes the same function as legacy.
   bit-identical eval-mode predictions for all seven Lipschitz types.
 - The network's training-mode pass and power-iteration buffers agree within
   2e-7 relative, across torch 2.1.0 and the locked torch
-  (`legacy_worldmodel_equivalence_at_fixed_weights`).
+  (`legacy_worldmodel_equivalence_at_fixed_weights`, archived at `surface-archive-v1`).
 
 What changed is when each mode is used, and the soft-sampling penalty. See the
 next section.
@@ -89,15 +89,9 @@ next section.
 ## Correctness changes (`mlp` version 2)
 
 Four legacy defects are corrected under contract §6. Their before-and-after
-evidence compares the port as first landed (`6074e33`, `mlp` version 1) with
-the corrected code, using the same seeds:
-
-```bash
-uv run --group evidence python tools/m3_dynamics/correctness.py --out <new-dir>
-```
-
-The report is at
-[`../fixtures/evidence/m3-dynamics/correctness-cpu.json`](../fixtures/evidence/m3-dynamics/correctness-cpu.json).
+evidence, comparing the port as first landed (`6074e33`, `mlp` version 1) with
+the corrected code on the same seeds, is at `surface-archive-v1`
+(`tools/m3_dynamics/correctness.py`).
 Version-1 checkpoints are refused (`CheckpointError`).
 
 1. **Eval-mode inference.** Legacy never calls `eval()`, so a
@@ -181,7 +175,7 @@ Version-1 checkpoints are refused (`CheckpointError`).
    - The pre-fix expression has shape `(8, 40)` for B = 8 and n = 5.
 
 **Legacy behavior** stays available only at the pinned pre-fix commit
-`6074e33`. `correctness.py` runs that commit as the "before" side.
+`6074e33`.
 
 ## Evidence
 
@@ -193,9 +187,9 @@ The reports are in [`../fixtures/evidence/m3-dynamics/`](../fixtures/evidence/m3
 
 | Report | What it covers |
 |---|---|
-| `report-cpu.json` | All seven cases on CPU. |
+| `report-cpu.json` | The cases on CPU. |
 | `report-cuda.json` | The Pendulum case on CUDA (siddh, RTX PRO 6000 Blackwell, torch 2.14.1+cu130). |
 
-The legacy-equivalence case runs `tools/m3_dynamics/legacy_export.py` in the
-pinned legacy environment (`tools/dynamics_checkpoint/requirements.txt`). It
-exchanges only numpy arrays with the new code.
+The legacy-equivalence case, which compared the port with the legacy
+WorldModel at fixed weights in the pinned legacy environment, is at
+`surface-archive-v1`.

@@ -7,8 +7,7 @@ Needs network access (PyPI, OSV). Checks that uv.lock is current and has no
 known vulnerability outside the accepted list in docs/security.md; that the
 evidence group is pinned exactly and limited to Python 3.11+; that the built
 wheel's ccil[torch] installs and runs at the minimum and at the locked torch on
-3.11, and installs no torch on 3.10; that ccil never unpickles; and that every
-legacy manifest pinning a pre-2.6 torch is documented and outside the lock.
+3.11, and installs no torch on 3.10; and that ccil never unpickles.
 Writes DIR/report.json.
 """
 import argparse
@@ -121,21 +120,6 @@ def main():
     hits = [f"{p.relative_to(REPO)}:{i}" for p in sorted((REPO / "src" / "ccil").rglob("*.py"))
             for i, line in enumerate(p.read_text().splitlines(), 1) if pattern.search(line)]
     record("ccil_package_never_unpickles", not hits, hits=hits)
-
-    # 5. Every legacy manifest pinning torch < 2.6 is documented and outside the project lock.
-    doc = (REPO / "docs" / "security.md").read_text()
-    lock = (REPO / "uv.lock").read_text()
-    legacy = {}
-    tracked = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z"], capture_output=True, text=True, check=True).stdout
-    for req in sorted(REPO / f for f in tracked.split("\0") if re.fullmatch(r"requirements.*\.txt", Path(f).name)):
-        # the repository's manifests: untracked and ignored files (a .venv, run outputs) are not part of it
-        pin = next((l.strip() for l in req.read_text().splitlines() if l.lower().startswith("torch==")), None)
-        if pin and tuple(int(x) for x in pin.split("==")[1].split(".")[:2]) < (2, 6):
-            rel = req.relative_to(REPO).as_posix()
-            legacy[rel] = {"pin": pin, "documented": f"`{rel}` | `{pin}`" in doc,
-                           "torch_in_lock_at_this_version": f'name = "torch"\nversion = "{pin.split("==")[1]}"' in lock}
-    record("legacy_pins_documented_and_isolated", len(legacy) == 6 and all(v["documented"] and not v["torch_in_lock_at_this_version"]
-                                                                           for v in legacy.values()), manifests=legacy)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     result = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

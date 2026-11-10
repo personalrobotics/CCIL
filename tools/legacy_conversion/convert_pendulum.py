@@ -5,7 +5,7 @@
 
 The retained inputs (migration contract, sections 3 and 7) are the two
 Pendulum datasets and their configurations. Each pickle crosses the trust
-boundary through correct_il's converter, verified against the SHA-256 in
+boundary through tools/legacy_conversion's converter, verified against the SHA-256 in
 docs/artifacts/manifest.json before it is unpickled, into an M1 file; ccil data
 convert turns that into ccil.trajectories; ccil config convert turns each
 legacy YAML into a canonical configuration in both fidelities. Writes:
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "correct_il"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from trajectory_io import convert_legacy_pickle  # noqa: E402  (the trusted-input boundary, outside ccil)
 
 from ccil.config.convert import FIDELITIES, convert_config  # noqa: E402

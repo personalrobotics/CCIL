@@ -7,7 +7,7 @@ Valid examples (vector, multimodal image, action chunks, multi-reason
 candidates) round-trip exactly; one invalid example per rule fails with the
 expected diagnostic and is left unmodified; the analytic fixture travels from
 trajectories through closed-form candidates to accepted labels with identity
-and measurements intact; all 15 shipped datasets convert from the M1 format
+and measurements intact; both shipped Pendulum datasets convert from the M1 format
 exactly; candidate provenance (seed, input hashes, weighting, weights) survives
 round trips and accepted_labels; optional per-frame fields are all-or-none; and
 malformed files raise SchemaError, never a decoding traceback. Writes
@@ -251,7 +251,7 @@ def main():
 
     # --- D: shipped datasets convert from the M1 format exactly -------------
     m1 = out / "m1"
-    r = subprocess.run([sys.executable, str(REPO / "correct_il/convert_legacy_dataset.py"), "--shipped", "--out-dir", str(m1)],
+    r = subprocess.run([sys.executable, str(REPO / "tools/legacy_conversion/convert_legacy_dataset.py"), "--shipped", "--out-dir", str(m1)],
                        capture_output=True, text=True)
     rows = []
     for f in sorted(m1.glob("*.npz")):
@@ -265,7 +265,7 @@ def main():
                 and back.episodes[0].observations["state"].dtype == z["observations"].dtype
         rows.append({"dataset": f.name, "episodes": len(back.episodes), "exact": bool(exact and same(conv, back)),
                      "source_sha256": back.meta["converted_from"]["sha256"]})
-    record("D", "shipped_datasets_convert_exactly", r.returncode == 0 and len(rows) == 15 and all(x["exact"] for x in rows),
+    record("D", "shipped_datasets_convert_exactly", r.returncode == 0 and len(rows) == 2 and all(x["exact"] for x in rows),
            datasets=rows)
 
     # --- E: candidate provenance travels with the file ----------------------

@@ -3,7 +3,7 @@
     ccil data convert M1.npz OUT.npz --manifest MANIFEST.json
 
 Legacy pickles cross the trust boundary only through
-correct_il/convert_legacy_dataset.py, which verifies their SHA-256 (or takes
+tools/legacy_conversion/convert_legacy_dataset.py, which verifies their SHA-256 (or takes
 an explicit acknowledgement) before unpickling and writes the M1
 ccil-trajectories/1 file; ccil itself never unpickles. This step turns that
 file into the canonical schema, which data.prepare also reads on the fly,
