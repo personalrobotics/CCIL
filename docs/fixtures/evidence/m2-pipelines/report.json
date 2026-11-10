@@ -32,18 +32,18 @@
     }
    },
    "rerun_output": [
-    "data.prepare       reused runs/data-prepare-d2be3629efdf",
-    "transition.fit     reused runs/transition-fit-19c2c64896b4",
-    "labels.generate    reused runs/labels-generate-354bb8d90692",
-    "labels.curate      reused runs/labels-curate-046673df4c09",
-    "labels.diagnose    reused runs/labels-diagnose-0d975b45f081"
+    "data.prepare       reused runs/data-prepare-be0038eaf81f",
+    "transition.fit     reused runs/transition-fit-64e14582a32d",
+    "labels.generate    reused runs/labels-generate-28789b40e6bc",
+    "labels.curate      reused runs/labels-curate-956db32f0100",
+    "labels.diagnose    reused runs/labels-diagnose-29f36752d49d"
    ],
    "stages": {
-    "data-prepare-d2be3629efdf": "complete",
-    "labels-curate-046673df4c09": "complete",
-    "labels-diagnose-0d975b45f081": "complete",
-    "labels-generate-354bb8d90692": "complete",
-    "transition-fit-19c2c64896b4": "complete"
+    "data-prepare-be0038eaf81f": "complete",
+    "labels-curate-956db32f0100": "complete",
+    "labels-diagnose-29f36752d49d": "complete",
+    "labels-generate-28789b40e6bc": "complete",
+    "transition-fit-64e14582a32d": "complete"
    },
    "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n"
   },
@@ -95,11 +95,11 @@
   {
    "case": "changed_implementation_writes_distinct_runs",
    "new_runs": [
-    "data-prepare-183dee9f2259",
-    "labels-curate-0edab87e7a6b",
-    "labels-diagnose-46102f1a9805",
-    "labels-generate-8bea8150e7c9",
-    "transition-fit-1dde62c6fb6a"
+    "data-prepare-66b672b39d3d",
+    "labels-curate-4efee6eb7a18",
+    "labels-diagnose-558f9bbdacfd",
+    "labels-generate-85d3ffe29498",
+    "transition-fit-d2687e878887"
    ],
    "pass": true,
    "stage_status": {
@@ -114,10 +114,10 @@
   {
    "case": "component_version_change_writes_distinct_runs",
    "new_runs": [
-    "labels-curate-1ea7ef9a5b16",
-    "labels-diagnose-02ab482eedf1",
-    "labels-generate-dbbc32593beb",
-    "transition-fit-abf779ba222e"
+    "labels-curate-bae663b1fa67",
+    "labels-diagnose-7627b9a4035d",
+    "labels-generate-238ed1a6bbdc",
+    "transition-fit-43fe36737a0b"
    ],
    "pass": true,
    "stage_status": {
@@ -164,13 +164,13 @@
    "pass": true,
    "same_manifest_vocabulary": true,
    "stages": {
-    "data-prepare-c94f8fbe9ba3": "complete",
-    "labels-diagnose-8996137f7e58": "complete",
-    "labels-generate-85718129fa94": "complete",
-    "policy-evaluate-274bfb4df43e": "complete",
-    "policy-train-4baf9b3f3098": "complete",
-    "representation-fit-4ef4e6a3fe42": "complete",
-    "transition-fit-c0b8e4aca476": "complete"
+    "data-prepare-544728528af1": "complete",
+    "labels-diagnose-5d7d32b7bfd2": "complete",
+    "labels-generate-b385cb80adb4": "complete",
+    "policy-evaluate-2ceeccb51403": "complete",
+    "policy-train-074fc1b608d6": "complete",
+    "representation-fit-30b9b54a3452": "complete",
+    "transition-fit-40569e87244e": "complete"
    }
   },
   {
@@ -280,11 +280,11 @@
     ]
    ],
    "stages_after_failure": {
-    "data-prepare-c94f8fbe9ba3": "complete",
-    "labels-diagnose-8996137f7e58": "complete",
-    "labels-generate-85718129fa94": "complete",
-    "representation-fit-4ef4e6a3fe42": "complete",
-    "transition-fit-c0b8e4aca476": "complete"
+    "data-prepare-544728528af1": "complete",
+    "labels-diagnose-5d7d32b7bfd2": "complete",
+    "labels-generate-b385cb80adb4": "complete",
+    "representation-fit-30b9b54a3452": "complete",
+    "transition-fit-40569e87244e": "complete"
    },
    "staging_left": []
   },
@@ -324,7 +324,7 @@
    ],
    "resume_error": null,
    "runs_after_failure": {
-    "policy-train-4e5a2a0b085a": "complete"
+    "policy-train-145addc4cfd7": "complete"
    }
   },
   {
@@ -350,9 +350,9 @@
   {
    "case": "stage_defect_exits_1_with_its_traceback",
    "completed_before_the_defect": [
-    "data-prepare-d2be3629efdf",
-    "labels-diagnose-0d975b45f081",
-    "transition-fit-19c2c64896b4"
+    "data-prepare-be0038eaf81f",
+    "labels-diagnose-29f36752d49d",
+    "transition-fit-64e14582a32d"
    ],
    "error": "\"labels.generate\", cfg, inputs, body,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<repo>/src/ccil/pipelines/stages.py\", line 153, in run_stage\n    raise StageError(stage, e) from e\nccil.pipelines.stages.StageError: stage labels.generate failed: simulated defect",
    "pass": true
@@ -360,8 +360,8 @@
   {
    "case": "malformed_candidate_batch_exits_1_with_its_traceback",
    "completed_before_the_defect": [
-    "data-prepare-d2be3629efdf",
-    "transition-fit-19c2c64896b4"
+    "data-prepare-be0038eaf81f",
+    "transition-fit-64e14582a32d"
    ],
    "error": "^^^^^^^^^^^^^^^^^^^^^\n  File \"<repo>/src/ccil/pipelines/stages.py\", line 153, in run_stage\n    raise StageError(stage, e) from e\nccil.pipelines.stages.StageError: stage labels.diagnose failed: BackwardEuler.generate returned a malformed CandidateBatch: a (5, 0), expected float (5, 1)",
    "pass": true
@@ -394,19 +394,19 @@
    "case": "generate_writes_candidates_and_evidence_not_a_selection",
    "pass": true,
    "summary": [
-    "candidates     runs/labels-generate-7f185afb0de0/labels/candidates.npz: 2320 rows, 2320 accepted",
+    "candidates     runs/labels-generate-6ea7b7a0309a/labels/candidates.npz: 2320 rows, 2320 accepted",
     "rejected       none",
     "evidence       conditional 2320",
     "admitted       recovery length 1",
-    "result         runs/generate-154f37c0a05b.json (latest: runs/generate-result.json)",
+    "result         runs/generate-d1e4490b5bb1.json (latest: runs/generate-result.json)",
     "next           ccil curate runs/generate-result.json --set curate.tolerance=<largest acceptable label error>"
    ]
   },
   {
    "case": "two_curations_of_one_generate_regenerate_nothing",
    "new_runs": [
-    "labels-curate-6fe70e26c4fc",
-    "labels-curate-a1260c1c7a96"
+    "labels-curate-943641dcf4dd",
+    "labels-curate-fcdce6d8d12a"
    ],
    "pass": true,
    "selected": [
@@ -418,7 +418,7 @@
    "case": "curate_refuses_a_changed_artifact_and_generate_keys",
    "pass": true,
    "refused": "curate changes only ['curate.', 'calibration.', 'audit.', 'generation.evidence_mode', 'run.overwrite']; ['data.path'] belong to Generate",
-   "tampered": "1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/labels-generate-7f185afb0de0/labels/candidates.npz changed since Generate wrote it (sha256 240bc7013938, recorded b2d5836acd79)"
+   "tampered": "1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-81c9c19/m2_pipelines/golden/runs/labels-generate-6ea7b7a0309a/labels/candidates.npz changed since Generate wrote it (sha256 63e7ce21fc79, recorded f83cb3d1c84d)"
   },
   {
    "case": "inspect_reports_every_section",
@@ -461,15 +461,15 @@
   },
   {
    "case": "a_later_generate_leaves_earlier_results_intact",
-   "first": "generate-154f37c0a05b.json",
+   "first": "generate-d1e4490b5bb1.json",
    "inspect_first_curate": 0,
    "pass": true,
-   "second": "generate-5fbe1b64c8c4.json"
+   "second": "generate-e6b62ef25253.json"
   },
   {
    "case": "a_changed_generate_result_is_refused",
-   "curate": "cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/generate-154f37c0a05b.json has no immutable copy generate-aa00b0bda6f7.json beside it with the same content; run ccil generate again",
-   "inspect": "h-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/generate-154f37c0a05b.json is missing or changed since Curate recorded it (recorded sha256 154f37c0a05b)",
+   "curate": "cc-b67b-b3de8be4f1db/scratchpad/ev-81c9c19/m2_pipelines/golden/runs/generate-d1e4490b5bb1.json has no immutable copy generate-9e9527ce9886.json beside it with the same content; run ccil generate again",
+   "inspect": "h-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-81c9c19/m2_pipelines/golden/runs/generate-d1e4490b5bb1.json is missing or changed since Curate recorded it (recorded sha256 d1e4490b5bb1)",
    "pass": true
   },
   {
@@ -494,7 +494,7 @@
      "wrote": []
     },
     "generated_traversal": {
-     "error": "te-154f37c0a05b.json, outside <out>/golden/runs",
+     "error": "te-d1e4490b5bb1.json, outside <out>/golden/runs",
      "exits": [
       2
      ],
@@ -511,7 +511,7 @@
      "wrote": []
     },
     "stage_run_dir": {
-     "error": "te/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs (a run directory is a direct child)",
+     "error": "te/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-81c9c19/m2_pipelines/golden/runs (a run directory is a direct child)",
      "exits": [
       2,
       2
@@ -553,7 +553,7 @@
   }
  ],
  "environment": {
-  "code_commit": "bf4c605688955eedc18ea28eb6776f98c01b50f4",
+  "code_commit": "81c9c19683a56b8d13d747cfed2f48c990158591",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
