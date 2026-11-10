@@ -217,7 +217,7 @@ saw the held-out episodes.
   candidate set, and certification and curation follow with zero rows. Every
   run directory is complete, and supervision has no synthetic row.
 - **Also recorded:**
-  - `dt_ctrl`, from uniform timestamps, and the horizon H = M · dt_ctrl (null without timing);
+  - `dt_ctrl`, from timestamps uniform to within their storage precision (float32 LeRobot timestamps included), and the horizon H = M · dt_ctrl (null without timing);
   - the accepted probe labels counted by d_demo / τ_demo;
   - the recommended nested views for noisy generators;
   - the configured certificate's data-only evidence class.

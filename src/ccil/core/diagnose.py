@@ -88,7 +88,11 @@ def sampled_tau(metric, quantile: float, sample: int) -> tuple[float | None, dic
 
 
 def timing(dataset) -> dict:
-    """dt_ctrl from the episodes' timestamps when every episode has them and they are uniform."""
+    """dt_ctrl from the episodes' timestamps when every episode has them and they are uniform.
+
+    Uniform means every difference agrees with the median to within the timestamps' own storage precision: four
+    machine epsilons of their dtype at the largest timestamp (float32 LeRobot timestamps differ by about 2e-5
+    relative at 0.1 s), and never tighter than 1e-6 relative."""
     if any(ep.timestamps is None for ep in dataset.episodes):
         return {"dt_ctrl": None, "source": None,
                 "note": "no timestamps: recovery lengths are in dataset action intervals and the physical horizon is unknown"}
@@ -96,10 +100,16 @@ def timing(dataset) -> dict:
     if not len(dts) or not (dts > 0).all():
         return {"dt_ctrl": None, "source": "timestamps", "note": "timestamps do not increase: no action period"}
     dt = float(np.median(dts))
-    if not np.allclose(dts, dt, rtol=1e-6, atol=0.0):
+    stored = [np.asarray(ep.timestamps) for ep in dataset.episodes]
+    eps = max(np.finfo(t.dtype).eps if np.issubdtype(t.dtype, np.floating) else 0.0 for t in stored)
+    tol = 4 * eps * max(float(np.abs(t).max()) for t in stored if len(t))
+    if not np.allclose(dts, dt, rtol=1e-6, atol=tol):
         return {"dt_ctrl": None, "source": "timestamps",
-                "note": "the action period varies: no single dt_ctrl, and the physical horizon is not claimed"}
-    return {"dt_ctrl": dt, "source": "timestamps", "note": "the median timestamp difference; every difference agrees"}
+                "note": f"the action period varies beyond the timestamps' precision ({tol:.3g} s): no single dt_ctrl, "
+                        "and the physical horizon is not claimed"}
+    return {"dt_ctrl": dt, "source": "timestamps",
+            "note": f"the median timestamp difference; every difference agrees within {tol:.3g} s, the timestamps' "
+                    "storage precision"}
 
 
 def evidence_class(profile: str | None, reference: bool) -> dict:

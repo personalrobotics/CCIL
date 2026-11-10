@@ -31,6 +31,8 @@ gate recomputed independently with numpy from the dataset, the split, the
 candidates, and the evaluation checkpoint:
 - admission: with exact dynamics and a bound profile's declared assumptions, M = 1 passes every gate and labels are
   generated, with d_source on every row (and d_demo, opt-in, recomputed);
+- the action period: the same demonstrations with float32 timestamps (as LeRobot stores them) still give dt_ctrl,
+  and the completion summary prints it; a real jitter gives none, and the summary prints the diagnosis's reason;
 - refusal: a tight support radius fails displacement, a linear model of
   nonlinear dynamics fails fit, no certificate profile leaves trust without
   off-data evidence, demonstrations whose actions are an exact linear function
@@ -477,6 +479,31 @@ def main():
            and np.isclose(doc["gates"][0]["horizon_s"], DT, rtol=1e-6),
            independent=agree, rows=rows_agree, gates=doc["gates"][0], timing=doc["timing"], candidates=int(len(c.accepted)),
            bands=doc["bands"], nested_views=doc["nested_views"])
+
+    # Float32 timestamps (LeRobot's storage) differ from DT by more than 1e-6 relative, yet the period is uniform.
+    import ccil
+    from ccil.api import summary
+    periods = {}
+    for name, jitter in (("float32", 0.0), ("float32_jittered", 1e-3)):
+        eps = [Episode(e.episode_id, e.observations, e.actions, timestamps=(np.asarray(e.timestamps, np.float64)
+                       + jitter * (np.arange(e.length) >= e.length // 2)).astype(np.float32),
+                       termination_known=e.termination_known) for e in read_trajectories(exact).episodes]
+        path = diag / f"demos-{name}.npz"
+        write_trajectories(TrajectoryDataset(eps), path)
+        dts = np.concatenate([np.diff(np.asarray(e.timestamps, np.float64)) for e in read_trajectories(path).episodes])
+        r = ccil.diagnose(ccil.resolve_config(overrides={"data.path": str(path), "run.output_dir": str(diag / "runs"),
+                                                         "compute.device": "cpu", "transition_model.kind": "linear",
+                                                         "generation.method": "noisy_action",
+                                                         "generation.labels_per_transition": 4,
+                                                         "generation.action_noise_std": 1.0}))
+        line = next(ln for ln in summary(r).splitlines() if ln.startswith("action period"))
+        periods[name] = {"dt_ctrl": r.timing["dt_ctrl"], "note": r.timing["note"], "summary": line,
+                         "max_relative_deviation": float(np.abs(dts / DT - 1).max())}
+    f32, jit = periods["float32"], periods["float32_jittered"]
+    record("action_period_from_float32_timestamps", f32["max_relative_deviation"] > 1e-6 and f32["dt_ctrl"] is not None
+           and np.isclose(f32["dt_ctrl"], DT, rtol=1e-5) and f32["summary"].split()[2] == f"{f32['dt_ctrl']:g}"
+           and jit["dt_ctrl"] is None and "varies" in jit["summary"] and "no timestamps" not in jit["summary"],
+           periods=periods)
 
     # Each refusal recomputed from a declared run of the same configuration, whose candidates are persisted.
     collinear, dense = diag / "demos-collinear.npz", diag / "demos-dense.npz"
