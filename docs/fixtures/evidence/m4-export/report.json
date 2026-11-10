@@ -21,13 +21,13 @@
   {
    "case": "lipschitz_measured_from_the_saved_weights",
    "measured": {
-    "action": 0.36500887555664224,
-    "state": 0.47397400283910734
+    "action": 0.2958592708717553,
+    "state": 0.4171027336905083
    },
    "pass": true,
    "recomputed": {
-    "action": 0.3650088760347381,
-    "state": 0.47397400345665386
+    "action": 0.2958592712426596,
+    "state": 0.41710273420212735
    },
    "scope": "the residual map f_hat in raw state and action units, recomputed from the saved checkpoint with its normalization, output scaling and mask; a measurement, not a certificate"
   },
@@ -64,7 +64,7 @@
   {
    "act": {
     "finite_gradients": true,
-    "loss": 0.858171820640564,
+    "loss": 0.858167290687561,
     "parameters_with_gradients": 42
    },
    "case": "stock_lerobot_act_consumes_each_row",
@@ -97,10 +97,31 @@
     "other_conversion": 2
    },
    "pass": true
+  },
+  {
+   "case": "recorded_split_is_honored_whatever_the_supervision_flag",
+   "counts": {
+    "demonstration_episodes": 12,
+    "demonstration_frames": 480,
+    "episodes": 948,
+    "frames": 1416,
+    "synthetic_rows": 936
+   },
+   "episodes_written": 12,
+   "error": "",
+   "held_out_written": [],
+   "pass": true
+  },
+  {
+   "case": "joined_image_modalities_refused",
+   "configuration_error": "invalid configuration:\n  representation.modality: a joined list concatenates vector state modalities only (no image.*) [modality; sources: representation.modality=cli, representation.kind=default]",
+   "configuration_exit": 2,
+   "pass": true,
+   "representation": "RequestError: a joined modality concatenates vectors (N, d); state+image.top has parts {'state': (3, 2), 'image.top': (3, 4, 4, 3)}"
   }
  ],
  "environment": {
-  "code_commit": "81c9c19683a56b8d13d747cfed2f48c990158591",
+  "code_commit": "21af69ac62fe931dda2028ee11e0f32ef8ce9ebc",
   "code_dirty": false,
   "lerobot": "0.6.1",
   "numpy": "2.4.6",
