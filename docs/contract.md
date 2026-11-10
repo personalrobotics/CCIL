@@ -86,6 +86,7 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
 | `ccil diagnose` | dataset, dynamics source, configuration | the prepared dataset and split, the dynamics checkpoint and its held-out evaluation, and the **diagnosis**: the recovery-length frontier and the evidence class. No candidates. |
 | `ccil generate` | dataset, dynamics source, configuration | everything Diagnose writes, plus immutable **candidates** and their **quality evidence** |
 | `ccil curate` | one `generate` result, a curation policy | a **selection**: a usable-row mask and weights. Any number of selections can be made from one candidate set. |
+| `ccil export lerobot` | one curate result of a dataset converted from LeRobot, its conversion manifest | one LeRobot v3.0 dataset an unchanged trainer consumes: the training episodes plus one one-frame episode per selected label, with provenance columns and `ccil/export.json` ([lerobot.md](lerobot.md#an-augmented-dataset-for-an-unchanged-trainer-30)) |
 | `ccil inspect` | any artifact or run directory | nothing; it prints a summary: resolved configuration with each value's source, provenance and hashes, quality distributions, rejection counts, usable rows, and the next consumption step |
 
 **Durable outputs and reuse.** Every stage is a content-addressed run

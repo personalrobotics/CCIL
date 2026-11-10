@@ -49,7 +49,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .core.representation import transitions
+from .core.representation import observation, parts as modality_parts, transitions
 from .data.split import SplitError, check_split
 from .errors import InputError
 from .runs.provenance import sha256
@@ -233,11 +233,11 @@ def build_supervision(dataset, source: str, *, representation, candidates=None, 
         if cands.inputs.get("representation") != hashes.get("representation"):
             problems.append(f"candidates were generated in representation {cands.inputs.get('representation')}, not "
                             f"{hashes.get('representation')}")
-        if modality not in cands.observations:
+        if not set(modality_parts(modality)) <= set(cands.observations):
             problems.append(f"candidates hold modalities {sorted(cands.observations)}, not the representation's "
                             f"{modality!r}")
-        elif tuple(cands.observations[modality].shape[1:]) != obs_shape:
-            problems.append(f"candidate observations have shape {tuple(cands.observations[modality].shape[1:])}; the "
+        elif tuple(observation(cands.observations, modality).shape[1:]) != obs_shape:
+            problems.append(f"candidate observations have shape {tuple(observation(cands.observations, modality).shape[1:])}; the "
                             f"representation encodes demonstrations as {obs_shape}")
         if tuple(cands.actions.shape[1:]) != (action_width,):
             problems.append(f"candidate actions have shape {tuple(cands.actions.shape[1:])}; the demonstrations' are "
@@ -346,7 +346,7 @@ def build_supervision(dataset, source: str, *, representation, candidates=None, 
         in_train = np.ones(n, bool) if train_eps is None else np.isin(cands.source_episode_id.astype(str), sorted(train_eps))
         rows = np.flatnonzero(usable & in_train)
         counts.update(usable_rows_held_out=int((usable & ~in_train).sum()), synthetic_rows=int(len(rows)))
-        parts["observations"].append(np.asarray(cands.observations[modality][rows]))
+        parts["observations"].append(np.asarray(observation(cands.observations, modality)[rows]))
         parts["actions"].append(np.asarray(cands.actions[rows]))
         parts["weights"].append(weights[rows])
         parts["source"].append(np.full(len(rows), SYNTHETIC))

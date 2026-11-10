@@ -92,7 +92,9 @@ def export_overlay(source, destination, supervision, *, conversion_manifest, can
     feature = next((name for name, d in conversion.get("features", {}).items()
                     if d.get("to") == f"observations[{modality}]"), None)
     if feature is None:
-        problems.append(f"no LeRobot feature maps to the supervision's modality {modality!r}")
+        problems.append(f"no LeRobot feature maps to the supervision's modality {modality!r}"
+                        + ("; an overlay holds one feature, so export a dataset (ccil export lerobot) instead"
+                           if modality and "+" in modality else ""))
     files_now = _tree(source)
     recorded = conversion.get("source", {}).get("files", {})
     changed = sorted(k for k, v in recorded.items() if files_now.get(k) != v)

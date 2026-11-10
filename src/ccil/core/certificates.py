@@ -67,7 +67,7 @@ from ..schema.io import _atomic_savez, _format_error, _open
 from .batch import InterfaceError, RequestError
 from .curate import admit_rows, produced_rows
 from .generators import BackwardEuler, ExactPreimage, NoisyAction, NoisyActionPreimage
-from .representation import transitions
+from .representation import observation, transitions
 from .transition import load_transition_model
 from .verified import U32, U64, gamma, is_spectral_upper_bound, sum_upper, up, upper_norm, verified_spectral_norm
 
@@ -516,7 +516,7 @@ class DisturbedActionProfile(Profile):
 
     def compute_terms(self, ctx):
         _, _, zn = _anchor_rows(ctx)
-        y = np.asarray(ctx.candidates.target_observations[ctx.modality], np.float64)
+        y = np.asarray(observation(ctx.candidates.target_observations, ctx.modality), np.float64)
         return {"target_offset": _difference_norm(y, zn, ctx.state_scale)[0]}
 
     def audit_term(self, name, row):
@@ -768,9 +768,9 @@ def model_evaluation(model) -> str:
 def global_terms(ctx: Context) -> dict:
     """The global terms for every candidate row, in scaled coordinates."""
     c = ctx.candidates
-    z_g = np.asarray(c.observations[ctx.modality], np.float64)
+    z_g = np.asarray(observation(c.observations, ctx.modality), np.float64)
     a_g = np.asarray(c.actions, np.float64)
-    y = np.asarray(c.target_observations[ctx.modality], np.float64)
+    y = np.asarray(observation(c.target_observations, ctx.modality), np.float64)
     z, a, zn = _anchor_rows(ctx)
     sz, sa = ctx.state_scale, ctx.action_scale
     return {"state_displacement": _difference_norm(z_g, z, sz)[0], "action_displacement": _difference_norm(a_g, a, sa)[0],
@@ -1002,9 +1002,9 @@ def audit_sources(cert: CertificateSet, sources: Sources) -> list[str]:
         eid, t = str(cert.source_episode_id[i]), int(cert.source_frame[i])
         ep, zs = episodes[eid], encoded[eid]
         row = {"z_t": zs[t:t + 1], "z_next": zs[t + 1:t + 2], "a_t": np.asarray(ep.actions[t:t + 1], np.float64),
-               "z_g": np.asarray(candidates.observations[m][i:i + 1], np.float64),
+               "z_g": np.asarray(observation(candidates.observations, m)[i:i + 1], np.float64),
                "a_g": np.asarray(candidates.actions[i:i + 1], np.float64),
-               "y": np.asarray(candidates.target_observations[m][i:i + 1], np.float64),
+               "y": np.asarray(observation(candidates.target_observations, m)[i:i + 1], np.float64),
                "model": model, "state_scale": sz, "action_scale": sa}
         expected = {}
         for name, (x, y_, s) in (("state_displacement", (row["z_g"], row["z_t"], sz)),

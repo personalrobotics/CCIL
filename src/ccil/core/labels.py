@@ -17,7 +17,7 @@ from .batch import CandidateBatch, InterfaceError, RequestError, check_candidate
 from .chunks import SPEC as CHUNK_SPEC
 from .chunks import TARGET_FRAME_SPEC as CHUNK_TARGET_FRAME_SPEC
 from .chunks import action_chunks
-from .representation import transitions
+from .representation import split, transitions, widths
 
 
 class Uniform:
@@ -212,7 +212,8 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
         generator={"name": generator.name, "version": generator.version, "params_hash": params_hash(generator, validators),
                    "params": json.loads(json.dumps(generator.params))},
         source_episode_id=batch.episode_id[cands.source], source_frame=batch.frame[cands.source].astype(np.int64),
-        observations={modality: cands.z}, actions=cands.a, target_observations={modality: cands.target},
+        observations=split(modality, cands.z, widths(dataset, modality)), actions=cands.a,
+        target_observations=split(modality, cands.target, widths(dataset, modality)),
         accepted=accepted, reasons=reasons, weight=weight, seed=int(seed), inputs=inputs,
         weighting={"name": weighting.name, "version": weighting.version, "params": dict(weighting.params)},
         reason_codes=codes, measurements=measurements, measurement_specs=specs, **chunk_fields,

@@ -8,7 +8,7 @@ Official repository for CCIL (Ke et al., ICLR 2024, arXiv:2310.12972). The `ccil
 Policy training, NoiseBC, evaluation and benchmark studies are in
 [il-supervision-benchmarks](https://github.com/personalrobotics/il-supervision-benchmarks) (#168).
 
-**Using CCIL:** start with the [quickstart](docs/quickstart.md); the user contract, from demonstrations to consumable supervision, is [docs/contract.md](docs/contract.md).
+**Using CCIL:** start with the [quickstart](docs/quickstart.md) (and, for a LeRobot dataset and trainer, [PushT](docs/pusht.md)); the user contract, from demonstrations to consumable supervision, is [docs/contract.md](docs/contract.md).
 
 ## Setup
 

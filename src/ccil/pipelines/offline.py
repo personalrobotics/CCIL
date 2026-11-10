@@ -30,6 +30,7 @@ from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
 from ..core.batch import RequestError
+from ..core.representation import JOIN, widths
 from ..core.transition import CheckpointError, binding_problems, checkpoint_meta
 from ..core.calibrate import calibrate, reference_audit
 from ..core.curate import CurationPolicy, curate
@@ -49,19 +50,36 @@ MODEL_CHECKPOINT = f"{layout.CHECKPOINTS}/transition_model.npz"
 EVALUATION_CHECKPOINT = f"{layout.CHECKPOINTS}/evaluation_model.npz"
 
 
-def build_generator(v):
+def build_generator(v, action_noise_std=None):
+    """The configured generator; action_noise_std, when given, is the resolved per-dimension standard deviation
+    (noise_std below), otherwise generation.action_noise_std as written."""
     method = v["generation.method"]
+    sigma = v["generation.action_noise_std"] if action_noise_std is None else action_noise_std
     if method in ("backward_euler", "backward_euler_fast"):
         return BackwardEuler()
     if method == "forward_euler":
         return ExactPreimage(max_iterations=v["generation.max_iterations"] or 50, tolerance=v["generation.root_tolerance"])
     if method == "noisy_action":
-        return NoisyAction(v["generation.labels_per_transition"], v["generation.action_noise_std"])
+        return NoisyAction(v["generation.labels_per_transition"], sigma)
     if method == "noisy_action_fe":
-        return NoisyActionPreimage(v["generation.labels_per_transition"], v["generation.action_noise_std"],
+        return NoisyActionPreimage(v["generation.labels_per_transition"], sigma,
                                    max_iterations=v["generation.max_iterations"] or 50,
                                    tolerance=v["generation.root_tolerance"])
     raise ConfigError([f"generation.method {method!r} is not available yet; it is ported in #22"])
+
+
+def noise_std(v, dataset_path, split, representation):
+    """generation.action_noise_std in action units: as written, or under action_noise_scale training_std its multiple of
+    each action dimension's standard deviation over the training transitions (every episode without a split)."""
+    if v["generation.action_noise_scale"] != "training_std" or v["generation.action_noise_std"] is None:
+        return None
+    batch = transitions(read_trajectories(dataset_path), representation)
+    train = np.ones(len(batch.a), bool) if split is None else np.isin(batch.episode_id.astype(str), split["train"])
+    std = np.asarray(batch.a, np.float64)[train].std(axis=0)
+    if not (std > 0).all():
+        raise ConfigError([f"generation.action_noise_scale training_std: training action dimensions "
+                           f"{np.flatnonzero(std <= 0).tolist()} do not vary, so a multiple of their std is no noise"])
+    return [float(v["generation.action_noise_std"] * x) for x in std]
 
 
 def build_validators(v):
@@ -288,6 +306,8 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                    "state_dim": int(z.shape[1]), "act_dim": int(a.shape[1]),
                    "direction": v["transition_model.direction"],
                    "dt_ctrl": timing(read_trajectories(inputs["dataset"]))["dt_ctrl"]}
+        if JOIN in v["representation.modality"]:  # an ordered list of modalities: bound by each part's width too
+            binding["representation"]["widths"] = widths(read_trajectories(inputs["dataset"]), v["representation.modality"])
         if loaded is not None:  # an externally supplied model: bound to this run, scored, copied whole
             model = _load_bound(v, inputs["checkpoint"], binding)
             metrics = {"label_model": {"source": "loaded", "checkpoint_sha256": sha256(inputs["checkpoint"])},
@@ -297,6 +317,7 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                 metrics["held_out"]["note"] = ("the loaded model scored on the held-out episodes; whether its own fit "
                                                "saw them is not recorded here")
             shutil.copyfile(inputs["checkpoint"], run.path(MODEL_CHECKPOINT))
+            metrics |= _measured_lipschitz(v, run.path(MODEL_CHECKPOINT))
             run.metrics(metrics)
             run.log(f"loaded the {v['transition_model.kind']} transition model {inputs['checkpoint']}")
             return
@@ -323,10 +344,28 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                 evaluation.save(run.path(EVALUATION_CHECKPOINT))
         model.binding = binding
         model.save(run.path(MODEL_CHECKPOINT))
+        metrics |= _measured_lipschitz(v, run.path(MODEL_CHECKPOINT))
         run.metrics(metrics)
         run.log(f"fitted {v['transition_model.kind']} transition model on {len(z)} transitions")
     return run_stage("transition.fit", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v)})
+
+
+def _measured_lipschitz(v, path: Path) -> dict:
+    """An MLP checkpoint's weight-based Lipschitz bound of f_hat, measured from the saved weights (a measurement,
+    never a certificate); {} for other kinds."""
+    if v["transition_model.kind"] != "mlp":
+        return {}
+    model = load_transition_model(path, device="cpu")
+    out = {"scope": "the residual map f_hat in raw state and action units, recomputed from the saved checkpoint with "
+                    "its normalization, output scaling and mask; a measurement, not a certificate"}
+    for maps in ("state", "action"):
+        try:
+            b = model.lipschitz_bound(maps, np.ones(model.net.state_dim), np.ones(model.net.act_dim))
+            out[maps] = {"value": b["value"], "factors": b["factors"], "activation": b["activation"]}
+        except ValueError as e:
+            out[maps] = {"value": None, "reason": str(e)}
+    return {"lipschitz_measured": out}
 
 
 def _load_bound(v, path: Path, binding: dict):
@@ -373,6 +412,8 @@ def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representati
     if fitted.out(EVALUATION_CHECKPOINT).exists():
         inputs["evaluation_model"] = fitted.out(EVALUATION_CHECKPOINT)
 
+    sigma = noise_std(v, inputs["dataset"], split, representation)
+
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
         metric = demo_metric(dataset, split, representation)
@@ -388,7 +429,7 @@ def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representati
         params = {k.split(".", 1)[1]: v[k] for k in v if k.startswith("diagnose.")}
         requested = v["generation.recovery_steps"]
         with _jacobian_budget():
-            doc = diagnose(dataset, split, representation, model, evaluation, held_out, build_generator(v),
+            doc = diagnose(dataset, split, representation, model, evaluation, held_out, build_generator(v, sigma),
                            build_validators(v), metric, requested=requested if requested == "auto" else int(requested),
                            params=params, seed=v["run.seed"], inputs={k: sha256(p) for k, p in inputs.items()},
                            profile=v["certificate.profile"], reference=v["certificate.reference_dynamics"] is not None,
@@ -402,7 +443,7 @@ def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representati
         run.log(f"diagnosis: admitted {doc['admitted']}" + (f" ({doc['reason']})" if doc["reason"] else ""))
     return run_stage("labels.diagnose", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v),
-                                 "generator": build_generator(v)})
+                                 "generator": build_generator(v, sigma)})
 
 
 def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None,
@@ -422,6 +463,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
     if split_path is not None:
         inputs["split"] = split_path
     admitted = 1 if diagnosed is None else read_diagnosis(diagnosed.out(layout.DIAGNOSIS))["admitted"]
+    sigma = noise_std(v, inputs["dataset"], split, representation)
 
     def body(run):
         dataset = read_trajectories(inputs["dataset"])
@@ -432,7 +474,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         # d_source on every label; d_demo (NearestDemonstration) is a brute-force search, opt-in until it scales (#142).
         validators = build_validators(v) + [SourceDisplacement(metric)]
         with _jacobian_budget():
-            cands = generate_labels(dataset, representation, model, build_generator(v), validators,
+            cands = generate_labels(dataset, representation, model, build_generator(v, sigma), validators,
                                     run_id=run.run_id, seed=v["run.seed"], weighting=Uniform(),
                                     action_chunk_size=v["generation.action_chunk_size"],
                                     inputs={name: sha256(path) for name, path in inputs.items()},
@@ -448,7 +490,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
                                                             " (no recovery length admitted: an empty synthetic view)"))
     return run_stage("labels.generate", cfg, inputs, body,
                      components={"representation": representation, "transition_model": build_model(v),
-                                 "generator": build_generator(v), "weighting": Uniform()},
+                                 "generator": build_generator(v, sigma), "weighting": Uniform()},
                      parameters={"recovery_steps": admitted})
 
 

@@ -40,7 +40,7 @@ import numpy as np
 from ..schema.diagnosis import SCHEMA, STATEMENT, VERSION, check
 from .labels import generate_labels
 from .quality import DEFINITION, SourceDisplacement, nearest_distance
-from .representation import transitions
+from .representation import observation, transitions
 
 LADDER = (1,)
 BAND_EDGES = (0.0, 0.25, 0.5, 1.0, 2.0, float("inf"))
@@ -144,7 +144,7 @@ def diagnose(dataset, split, representation, model, evaluation_model, held_out, 
                             run_id="diagnose-probe", seed=seed, rows=rows, inputs={"transition_model": "0" * 64})
     accepted = np.asarray(probe.accepted, bool)
     d_source = np.asarray(probe.measurements["quality.d_source"])[accepted]
-    label_z = np.asarray(probe.observations[representation.output_modality], np.float64)[accepted]
+    label_z = np.asarray(observation(probe.observations, representation.output_modality), np.float64)[accepted]
     label_a = np.asarray(probe.actions, np.float64)[accepted]
     d_demo = nearest_distance(label_z, metric.train_states, metric.scale)
     # How far the model is queried from its data: the proposed (z_G, a_G) against the training (z, a) pairs.
