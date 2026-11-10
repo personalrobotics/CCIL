@@ -3,9 +3,15 @@
 This page is the normative mathematics of recovery segments (#171): what a
 segment is, how CCIL constructs one, what it may claim, and how the recovery
 length M is admitted. One-step CCIL is the case M = 1, and every statement
-below reduces to the current one-step definitions there. The implementation
-follows in later steps; [`tools/recovery_segments`](../tools/recovery_segments/check.py)
-verifies this page numerically on an analytic system.
+below reduces to the current one-step definitions there.
+[`tools/recovery_segments`](../tools/recovery_segments/check.py) verifies this
+page numerically on an analytic system.
+
+**Status: deferred research, not implemented.** CCIL ships M = 1 only; its
+ladder is {1}. The analytic case below found that recovery segments reaching
+beyond τ_demo can be generated but not given actionable quality evidence
+under its declared assumptions, so no product step follows from this page
+until a new, separately predeclared hypothesis changes that (#171).
 
 ## Transitions and their composition
 
