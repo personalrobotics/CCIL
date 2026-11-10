@@ -16,6 +16,9 @@ one-step operators and random streams, so M = 1 can be compared with today's gen
    smallest admitted M is intermediate, and a longer M fails the fit gate. Beside each M: pointwise novelty by
    offset, and the exact miss of its segments (in tau_demo), which no gate sees.
 4. Refining the integration step changes neither the admitted M nor, beyond a declared tolerance, any segment.
+5. The composed continuity bound, as predeclared in docs/recovery-segments.md ("The continuity case,
+   predeclared"), on each data seed: it covers every supported segment's exact miss, selects some segments at the
+   admitted M under the frozen tolerance, never selects the bad tail, and selects almost none at M = 16.
 The report holds no paths or times, so a rerun reproduces it byte for byte.
 """
 import argparse
@@ -48,6 +51,10 @@ PROBE, TAU_Q, TAU_SAMPLE, LABEL_Q, FIT_Q = 256, 0.95, 2048, 0.9, 0.95
 MIN_DISPLACEMENT, MIN_NOVELTY, FIT_RATIO = 1.0, 1.0, 0.5
 NEWTON = (50, 1e-4)
 REFINED_N_INT, REFINEMENT_TOL = 16, 1e-4
+# The continuity case, predeclared (docs/recovery-segments.md): region widening, constant margin and grid, the frozen
+# tolerance (in tau_demo), and the pass thresholds.
+WIDEN, K_MARGIN, GRID, TOLERANCE_TAU = 0.25, 1.25, (21, 21, 9), 0.5
+MIN_SELECTED_AT_ADMITTED, MAX_SELECTED_AT_16 = 0.05, 0.01
 
 
 def vector_field(x, u):
@@ -177,6 +184,95 @@ def gates(d, M):
     return g
 
 
+class Continuity:
+    """The predeclared certificate coordinates, region, and constants of one dataset."""
+
+    def __init__(self, d):
+        train = np.isin(d.batch.episode_id.astype(str), d.split["train"])
+        a = np.asarray(d.batch.a, np.float64)[train]
+        self.sz = d.metric.scale
+        sa = a.std(axis=0)
+        self.sa = np.where(sa > 0, sa, 1.0)
+        states = d.metric.train_states
+        self.lo, self.hi = self.widen(states.min(0), states.max(0))
+        self.alo, self.ahi = self.widen(a.min(0), a.max(0))
+        S = np.diag(self.sz)
+        ell = float(np.linalg.norm(np.linalg.inv(S) @ np.array([[0.0, 1.0], [G, C]]) @ S, 2))
+        self.L_T = float(np.exp(ell * DT))
+        self.K_dz, self.K_da = self.discrepancy(d.model)
+
+    @staticmethod
+    def widen(lo, hi):
+        pad = WIDEN * (hi - lo)
+        return lo - pad, hi + pad
+
+    def discrepancy(self, model):
+        """K_margin x the largest scaled norm of dDelta/dx and dDelta/du over the grid of R x A (central differences)."""
+        th, om, u = (np.linspace(lo, hi, n) for lo, hi, n in
+                     zip((self.lo[0], self.lo[1], self.alo[0]), (self.hi[0], self.hi[1], self.ahi[0]), GRID))
+        x = np.array([[a, b] for a in th for b in om for _ in u])
+        uu = np.array([[c] for _ in th for _ in om for c in u])
+        h = 1e-5
+        jx = np.stack([(exact_step(x + h * e, uu) - exact_step(x - h * e, uu)) / (2 * h) for e in np.eye(2)], axis=2)
+        ju = ((exact_step(x, uu + h) - exact_step(x, uu - h)) / (2 * h))[:, :, None]
+        dz = jx - (np.eye(2) + model.A)
+        du = ju - model.B
+        Sz, Sa = np.diag(self.sz), np.diag(self.sa)
+        kz = max(np.linalg.norm(np.linalg.inv(Sz) @ m @ Sz, 2) for m in dz)
+        ka = max(np.linalg.norm(np.linalg.inv(Sz) @ m @ Sa, 2) for m in du)
+        return K_MARGIN * float(kz), K_MARGIN * float(ka)
+
+    def inside(self, x, radius=0.0):
+        """Whether the scaled ball of radius around each x lies in R (a box: compare per coordinate)."""
+        r = radius[:, None] * self.sz if np.ndim(radius) else radius * self.sz
+        return ((x - r >= self.lo) & (x + r <= self.hi)).all(axis=-1)
+
+    def bound(self, d, seg):
+        """E_M per segment, and whether the segment is supported (docs/recovery-segments.md)."""
+        X, U, demo, dU = seg["X"], seg["U"].astype(np.float64), seg["demo"], seg["demo_U"]
+        M = U.shape[1]
+        nz = lambda v: np.linalg.norm(v / self.sz, axis=-1)  # noqa: E731
+        na = lambda v: np.linalg.norm(v / self.sa, axis=-1)  # noqa: E731
+        s_scaled = np.stack([nz(X[:, i] + d.model.delta(X[:, i], seg["U"][:, i]) - X[:, i + 1]) for i in range(M)], 1)
+        E = np.zeros(len(X))
+        supported = np.ones(len(X), bool)
+        for i in range(M):
+            supported &= self.inside(X[:, i], E) & self.inside(demo[:, i]) & self.inside(demo[:, i + 1])
+            supported &= ((U[:, i] >= self.alo) & (U[:, i] <= self.ahi)).all(1)
+            supported &= ((dU[:, i] >= self.alo) & (dU[:, i] <= self.ahi)).all(1)
+            anchor = nz(demo[:, i + 1] - (demo[:, i] + d.model.delta(demo[:, i], dU[:, i])))
+            rho = nz(exact_step(demo[:, i], dU[:, i]) - demo[:, i + 1])
+            b = anchor + rho + self.K_dz * nz(X[:, i] - demo[:, i]) + self.K_da * na(U[:, i] - dU[:, i])
+            E = self.L_T * E + b + s_scaled[:, i]
+        supported &= self.inside(X[:, M], E) & np.isfinite(E)
+        return E, supported
+
+
+def continuity_case(d):
+    """The predeclared continuity case on one dataset: per M, coverage, selection, and the bad tail."""
+    cc = Continuity(d)
+    tol = TOLERANCE_TAU * d.tau
+    out = {"constants": {"L_T": cc.L_T, "K_dz": cc.K_dz, "K_da": cc.K_da, "tolerance": tol},
+           "by_M": {}}
+    for M in LADDER:
+        seg = segments(d, d.probe(M), M)
+        E, sup = cc.bound(d, seg)
+        y = seg["X"][:, 0]
+        for i in range(M):
+            y = exact_step(y, seg["U"][:, i].astype(np.float64))
+        miss = np.linalg.norm((y - seg["demo"][:, M]) / cc.sz, axis=1)
+        selected = sup & (E <= tol)
+        bad = miss >= d.tau
+        out["by_M"][f"M{M}"] = {
+            "segments": int(len(E)), "supported": float(sup.mean()), "selected": float(selected.mean()),
+            "covered": bool((miss[sup] <= E[sup]).all()),
+            "max_miss_over_bound": float((miss[sup] / E[sup]).max()) if sup.any() else None,
+            "median_bound_over_tau": float(np.median(E[sup]) / d.tau) if sup.any() else None,
+            "bad_tail": int(bad.sum()), "bad_tail_selected": int((bad & selected).sum()),
+            "selected_exact_miss_over_tau_max": float(miss[selected].max() / d.tau) if selected.any() else None}
+    return out
+
+
 def rounded(x, n=6):
     if isinstance(x, float):
         return float(f"{x:.{n}g}")
@@ -272,6 +368,22 @@ def main() -> int:
     record("integration_refinement_preserves_segments", fine_admitted == admitted
            and all(v["states"] <= REFINEMENT_TOL and v["actions"] <= REFINEMENT_TOL for v in diffs.values()),
            n_int=[N_INT, REFINED_N_INT], tolerance=REFINEMENT_TOL, admitted=[admitted, fine_admitted], max_abs_diff=diffs)
+
+    # 5. The composed continuity bound, as predeclared, on every data seed.
+    by_seed = {}
+    for seed in REGIME_SEEDS:
+        ds = d if seed == DATA_SEED else Data(data_seed=seed)
+        c = continuity_case(ds)
+        c["admitted"] = regime[f"seed{seed}"]["admitted"]
+        bm = c["by_M"]
+        adm = f"M{c['admitted']}" if c["admitted"] else None
+        c["criteria"] = {"covers_every_supported_miss": all(v["covered"] for v in bm.values()),
+                         "useful_at_admitted_M": adm is not None and bm[adm]["selected"] >= MIN_SELECTED_AT_ADMITTED,
+                         "bad_tail_never_selected": all(v["bad_tail_selected"] == 0 for v in bm.values()),
+                         "unhelpful_at_16": bm["M16"]["selected"] <= MAX_SELECTED_AT_16}
+        by_seed[f"seed{seed}"] = c
+    record("continuity_bound_certifies_useful_segments",
+           all(all(c["criteria"].values()) for c in by_seed.values()), by_seed=by_seed)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

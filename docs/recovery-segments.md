@@ -345,6 +345,25 @@ the code that computes it), and not tuned on its outcome:
   moves segment states by at most 4e-6 and actions by at most 8e-6, within the
   declared 1e-4.
 
+**The continuity case: the stop condition is met.** Run as predeclared, the
+composed continuity bound covers every supported segment's exact miss at
+every M, never selects a segment of the bad tail, and leaves M = 16
+unsupported on every seed (criteria 1, 3 and 4). It fails criterion 2: at the
+admitted M it selects 0%, 0% and 2.0% of probe segments under the frozen
+tolerance of 0.5 τ_demo (median supported bound 16, 10 and 2.3 τ_demo at
+M = 8, 4 and 2). It certifies one-step labels (39–76% selected at M = 1) and
+a few two-step segments (2–18% at M = 2).
+
+The bound is about four orders of magnitude tighter than the
+`disturbed_action` bound, but reach still drives it, through the model
+discrepancy: K_Δz ‖x̃_i − x_(t+i)‖ supplies 73–91% of E_M at the admitted M,
+compounded by L_T ≈ 1.68. The linear model's discrepancy from the pendulum
+changes by about 0.6 of a displacement per interval across the declared
+region (0.75 with the declared margin). Under these assumptions, recovery
+segments that reach beyond τ_demo can be generated but cannot be given
+actionable quality evidence. Per the predeclared rule, the product stack
+(PRs 2–4) stops here.
+
 **What it does not establish, and the reader should weigh.**
 - **The composed `disturbed_action` bound is vacuous beyond small M.** With
   honest constants, 1 + K_z = 4.48 per interval, and the bound amplifies the
