@@ -100,7 +100,7 @@ def _diagnose(args) -> int:
 
 def _generate(args) -> int:
     from . import api
-    print(api.summary(api.generate(_resolve(args), result=args.result)))
+    print(api.summary(api.generate(_resolve(args))))
     return 0
 
 
@@ -242,12 +242,11 @@ def main(argv=None) -> int:
     gen_ = groups.add_parser("generate", help="diagnose, then generate candidates and their quality evidence",
                              description="Run Diagnose, then labels.generate and, with a certificate.profile,\n"
                                          "labels.certify. No selection: ccil curate writes those.\n\n"
-                                         "outputs:   one run directory per stage under run.output_dir, and the generate\n"
-                                         "           result (ccil.generate-result 1.0) that ccil curate reads\n"
+                                         "outputs:   one run directory per stage under run.output_dir, and in it the\n"
+                                         "           immutable generate-<id>.json (ccil.generate-result 1.0) that\n"
+                                         "           ccil curate reads, copied to generate-result.json (the latest)\n"
                                          + GOLDEN_HELP, formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(gen_)
-    gen_.add_argument("--result", metavar="PATH", help="where to write the generate result "
-                                                       "(default: run.output_dir/generate-result.json)")
     gen_.set_defaults(fn=_generate)
     cur = groups.add_parser("curate", help="write one selection of a generate result's candidates",
                             description="Verify every artifact a generate result records, then run labels.curate\n"

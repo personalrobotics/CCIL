@@ -26,7 +26,6 @@ from pathlib import Path
 import numpy as np
 
 from .. import __version__
-from ..errors import InputError
 
 PACKAGES = ("numpy", "pyyaml", "torch")
 
@@ -107,7 +106,7 @@ def _code() -> dict:
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent  # the ccil package that is running
 
 
-class ImplementationUnknown(InputError, RuntimeError):
+class ImplementationUnknown(RuntimeError):
     """The running ccil source cannot be read, so stage outputs cannot be safely reused."""
 
 
