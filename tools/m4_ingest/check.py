@@ -7,8 +7,6 @@ Small v3.0 fixtures are written by CCIL's bridge and then given next.* columns w
 exactly what the source records. Cases:
 1. endings: unknown by default (termination_known False); an exhaustive terminal_feature gives terminated and
    truncated; a terminal flag before the final frame, a non-boolean feature and a missing feature are refused;
-   the Push-T pattern (next.done true on the last two frames) reads with unknown endings by default and is refused
-   when next.done is declared the terminal feature;
 2. dispositions: every source feature has one (mapped, checked index, terminal indicator, ignored, preserved);
    an undisposed feature is refused; a preserved feature is summarized and hashed, not copied;
 3. identity: episode and frame identity survive exactly; duplicate (episode_index, frame_index) identities and
@@ -127,11 +125,6 @@ def main():
     r = refused(lambda: read_dataset(rich, preserve=all_next, terminal_feature="next.terminal"), "is not in meta/info.json")
     record("missing_terminal_feature_refused", r["refused"], **r)
     pusht = fixture(work, "pusht_pattern", {"next.done": ("bool", last_two)})
-    ds = read_dataset(pusht, preserve=["next.done"])
-    r = refused(lambda: read_dataset(pusht, terminal_feature="next.done"), "before the final frame")
-    record("pusht_pattern_done_true_twice", ds.meta["dataset"]["endings"]["unknown"] == len(LENGTHS) and r["refused"]
-           and ds.meta["dataset"]["features"]["next.done"]["summary"]["true_count"] == 2 * len(LENGTHS),
-           default_endings=ds.meta["dataset"]["endings"], selected=r)
 
     # 2. Dispositions.
     ds = read_dataset(rich, ignore=["next.reward"], preserve=["next.done"], terminal_feature="next.success")

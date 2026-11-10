@@ -4,36 +4,27 @@
   "policy": "refuse"
  },
  "certification": {
-  "admission": {
-   "mode": "upper_bound",
-   "threshold": 0.015
-  },
   "profile": "disturbed_action",
-  "selection": {
-   "population": "admitted",
-   "quantile": 0.6,
-   "threshold": 0.010727420792587422
-  },
   "version": "2"
  },
  "counts": {
   "accepted": 288,
-  "accepted_admissible_and_selected": 126,
-  "accepted_and_admissible": 210,
   "candidate_rows": 288,
   "demonstration_rows": 54,
   "demonstration_rows_held_out": 18,
   "demonstration_transitions": 72,
   "rows": 144,
+  "selected": 126,
   "synthetic_rows": 90,
   "usable_rows_held_out": 36
  },
  "demonstration_frames": "transition frames t <= T - 2 of the training episodes",
  "demonstration_weight": 1.0,
  "inputs": {
-  "candidates": "b9ce142d776dbbacfeb1f5855b3f00b4a6b7ec3fc97a75373e04ed7b778ae80d",
-  "certificates": "116393c166f9328e640d8b8a6a26bafa76588d8e462865ea515f26defb6aea1b",
+  "candidates": "14c015b9d380dc5b03b6e6921beb8c15a30024ebaf5334bdf76335e5760bc038",
+  "certificates": "c57b97564093b0d6ce99c31a9d57ca91b44908dbfe82798457a926632ab55f8d",
   "dataset": "41b1b48506cbf31a461156ec25792ea8d762353830f04272da0b176de4584dd4",
+  "selection": "c4fd36241d747203d4d3ccb980cf71a25114b9d1d14a2100d48d1466443a0f12",
   "split": "6f35ac419acade68f2cef4eaad9ebe0578f456cb68d6785ffb0563d5446d8c7f"
  },
  "method": "ccil",
@@ -44,5 +35,23 @@
   "version": "1"
  },
  "schema": "ccil.supervision-manifest",
- "version": "1.0"
+ "selection": {
+  "caveats": [
+   "fidelity only: the policy compares label error and no novelty term, so it favours labels close to the demonstrations"
+  ],
+  "evidence_allowed": "reference_assisted",
+  "evidence_mode": "reference_assisted",
+  "policy": {
+   "admit": "bound",
+   "population": "admitted",
+   "quantile": 0.6,
+   "tolerance": 0.015
+  },
+  "policy_version": "1",
+  "threshold": 0.010727420792587422,
+  "uses": [
+   "fidelity"
+  ]
+ },
+ "version": "1.1"
 }

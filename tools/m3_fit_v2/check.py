@@ -10,10 +10,10 @@
    the two engines give the same loss and gradients (float64); a rerun is identical; fit_group refuses the
    regularizers it does not support, and so does preflight for trainer_version 2; compute.deterministic is
    honored, recorded and restored.
-1b. stage_hooks (any host): fit_transition_stage(prefit=...) accepts a group's fits for their own unit and
+2. stage_hooks (any host): fit_transition_stage(prefit=...) accepts a group's fits for their own unit and
    refuses another unit's (a swapped fit), a model whose weights are not its record's, and fits run differently
    from the unit's request (a unit asking for compute.deterministic given non-deterministic fits).
-5. lipschitz (any host; #125): the model_normalized sampled Lipschitz ratio
+3. lipschitz (any host; #125): the model_normalized sampled Lipschitz ratio
    - equals a direct computation of ||g(x + dx) - g(x)|| / ||dx|| from the state dict (x the normalized input,
      g the normalized residual, dx = eps * N(0, I) in normalized space);
    - is invariant to a change of units (states, actions and residuals rescaled per coordinate, normalization

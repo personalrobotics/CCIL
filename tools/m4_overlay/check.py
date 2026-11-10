@@ -6,14 +6,14 @@
 The analytic double-integrator fixture is written as a LeRobot v3.0 dataset, converted (#27), labelled by the
 ordinary pipeline (`ccil labels generate`, once with single actions and once with 4-step action chunks), resolved
 by build_supervision, and exported as an overlay bundle. On the CCIL side:
-1. the source is unchanged, and the bundle's LeRobot portion is a byte-for-byte copy of it;
+1. the source is unchanged (the bundle's copy of it, and the exact accepted set: tools/m4_roundtrip);
 2. the overlay holds exactly the supervision's synthetic rows (values, weights, candidate rows, source frames,
-   classifications), only accepted candidates, the run ID once in ccil/meta.json, and every input hash;
+   classifications), the run ID once in ccil/meta.json, and every input hash;
 3. refusals: an existing destination, a source that differs from the conversion manifest, a supervision dataset
    with no link to the conversion, a non-CCIL supervision, a candidates file that is not the supervision's, a
    non-positive rows_per_shard; a failed export leaves nothing; on reading, a tampered shard or LeRobot portion, a
    shard path that leaves ccil/labels, a shard symlinked to an outside file (never read), malformed or
-   duplicate-key metadata, an unlisted label file, and another dataset carrying the overlay.
+   duplicate-key metadata, and an unlisted label file.
 For each LeRobot release (each in its own environment, with ccil's core wheel installed beside it):
 4. stock LeRobot loads the bundle and sees exactly the source's episodes and frames: the overlay is invisible;
 5. CCILTrainingDataset sees every usable label with its weight, the demonstration frames t <= T - 2 of the training
@@ -95,7 +95,6 @@ def ccil_side(src_tree: dict, src: Path, dest: Path, meta: dict, sup, cands) -> 
                              np.asarray(sup.action_chunks)[syn][ref].astype(rows["action_chunk"].dtype))
               if chunked else np.array_equal(rows["action"][order], np.asarray(sup.actions)[syn][ref].astype(rows["action"].dtype)))
     ok = {"source_unchanged": tree(src) == src_tree,
-          "lerobot_portion_is_the_source": tree(dest, skip="ccil") == src_tree,
           "rows_are_the_synthetic_supervision": len(rows["candidate_row"]) == int(syn.sum())
           == sup.manifest()["counts"]["synthetic_rows"],
           "values_weights_and_identity": act_ok
@@ -103,9 +102,6 @@ def ccil_side(src_tree: dict, src: Path, dest: Path, meta: dict, sup, cands) -> 
           and np.array_equal(rows["weight"][order], np.asarray(sup.weights)[syn][ref])
           and np.array_equal(rows["candidate_row"][order], np.asarray(sup.candidate_row)[syn][ref])
           and np.array_equal(rows["source_frame_index"][order], np.asarray(sup.frame)[syn][ref]),
-          "only_accepted_candidates": bool(cands.accepted[rows["candidate_row"]].all()),
-          "rejected_candidates_absent": int((~cands.accepted).sum()) > 0
-          and not np.isin(np.flatnonzero(~cands.accepted), rows["candidate_row"]).any(),
           "run_id_once": m["run_id"] == cands.run_id and "run_id" not in rows,
           "input_hashes_recorded": m["inputs"] == sup.manifest()["inputs"],
           "measurements_per_label": all(np.array_equal(rows[f"measurement.{k}"], np.asarray(v, np.float64)[rows["candidate_row"]])
@@ -114,8 +110,7 @@ def ccil_side(src_tree: dict, src: Path, dest: Path, meta: dict, sup, cands) -> 
             "classifications": m["classifications"], "columns": m["columns"]}
 
 
-def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared, dest: Path, other_cands: Path,
-             other_dataset: Path) -> dict:
+def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared, dest: Path, other_cands: Path) -> dict:
     res = {}
 
     def attempt(name, fn, expect):
@@ -177,10 +172,6 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared,
         text = (d / "ccil" / "meta.json").read_text()
         (d / "ccil" / "meta.json").write_text(text.replace('"rows":', '"rows": 0, "rows":', 1))
 
-    def mismatched_base(d):  # another LeRobot dataset carrying this overlay
-        shutil.rmtree(d)
-        shutil.copytree(other_dataset, d)
-        shutil.copytree(dest / "ccil", d / "ccil")
     for name, edit, expect in (
             ("tampered_label_shard", lambda d: _flip(next((d / "ccil" / "labels").rglob("*.parquet"))), "SHA-256"),
             ("modified_lerobot_portion", lambda d: _flip(next((d / "data").rglob("*.parquet"))), "LeRobot portion"),
@@ -189,8 +180,7 @@ def refusals(work: Path, src: Path, conv: Path, sup, cands_path: Path, prepared,
             ("malformed_metadata", meta_edit(lambda m: m.pop("shards")), "shards is missing"),
             ("duplicate_metadata_keys", duplicate_keys, "duplicate keys"),
             ("unlisted_label_file", lambda d: (d / "ccil" / "labels" / "chunk-000" / "extra.parquet").write_bytes(b"x"),
-             "unlisted"),
-            ("mismatched_base_dataset", mismatched_base, "LeRobot portion differs")):
+             "unlisted")):
         copy = work / f"read-{name}"
         shutil.copytree(dest, copy)
         edit(copy)
@@ -240,7 +230,7 @@ def main():
         r = ccil_side(src_tree, src, dest, meta, sup, cands)
         record(f"overlay_{name}", r.pop("pass"), **r)
     # Zero accepted labels is an outcome, not an error: a valid, empty overlay.
-    for name, chunk in (("none", None), ("none-chunked", CHUNK)):  # with chunks too: an empty (0, K, A) reshapes
+    for name, chunk in (("none", None),):  # chunked: tools/m4_roundtrip zero_accepted_gives_an_empty_overlay
         none = bundle(out / name, src, conv, chunk, extra=("generation.support_radius=1e-12",))
         m, rows = read_overlay(none[0])
         record(f"zero_accepted_labels_give_an_empty_overlay[{'chunked' if chunk else 'single'}]", m["rows"] == 0
@@ -252,7 +242,7 @@ def main():
     for ep in oc.episodes:
         ep.observations["state"] = ep.observations["state"] + np.float32(0.5)
     write_dataset(oc, other_src, fps=10)
-    r = refusals(out / "single", src, conv, single[2], single[5], single[4], single[0], chunked[5], other_src)
+    r = refusals(out / "single", src, conv, single[2], single[5], single[4], single[0], chunked[5])
     record("refusals", r.pop("pass"), **r)
 
     mixed = out / "mismatched-base"  # another LeRobot dataset carrying the single bundle's overlay

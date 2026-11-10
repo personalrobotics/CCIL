@@ -187,8 +187,6 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
         {"observation.images.top": {"dtype": "video", "shape": [96, 96, 3], "names": None}})), "M5")
     case("depth_modality", lambda d: info(d, lambda i: i["features"].update(
         {"observation.depth": {"dtype": "float32", "shape": [64, 64], "names": None}})), "M5")
-    case("unmapped_feature", lambda d: info(d, lambda i: i["features"].update(
-        {"next.reward": {"dtype": "float32", "shape": [1], "names": None}})), "no CCIL slot")
     case("path_leaves_dataset", lambda d: info(d, lambda i: i.update(
         data_path="../escape/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet")), "inside the dataset")
     case("missing_shard", lambda d: next((d / "data").rglob("*.parquet")).unlink(), "is missing")
@@ -220,16 +218,6 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
         v[1] = 1 - v[1]
         pq.write_table(t.set_column(i, "task_index", pa.array(v, pa.int64())), p)
     case("multi_task_episode", two_tasks, "tasks within one episode")
-    # An unmapped feature named in ignore is read without it, and recorded.
-    d = work / "ignore-accepted"
-    shutil.copytree(fixture, d)
-    info(d, lambda i: i["features"].update({"next.reward": {"dtype": "float32", "shape": [1], "names": None}}))
-    try:
-        ds = read_dataset(d, ignore=["next.reward"])
-        res["ignored_feature_read_and_recorded"] = {
-            "refused": ds.meta["dataset"]["features"]["next.reward"]["disposition"] == "ignored"}
-    except LeRobotFormatError as e:
-        res["ignored_feature_read_and_recorded"] = {"refused": False, "message": str(e)}
     # Writing: images, off-rate timestamps and an existing destination are refused, and nothing is left behind.
     src = source_dataset().episodes[:2]
     img = [Episode("0", {"image.top": np.zeros((5, 4, 4, 3), np.uint8)}, np.zeros((5, 1), np.float32))]

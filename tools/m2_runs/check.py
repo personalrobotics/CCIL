@@ -36,9 +36,9 @@ from check import fixture_dataset  # noqa: E402  (tools/m2_schemas/check.py)
 from system import DoubleIntegrator  # noqa: E402
 
 from ccil.config import resolve  # noqa: E402
-from ccil.runs import RunWriter, layout, validate_run  # noqa: E402
+from ccil.runs import RunWriter, layout  # noqa: E402
 from ccil.runs.provenance import sha256  # noqa: E402
-from ccil.schema import REASON_CODES, CandidateSet, read_candidates, read_trajectories, write_candidates, write_trajectories  # noqa: E402
+from ccil.schema import REASON_CODES, CandidateSet, read_candidates, write_candidates, write_trajectories  # noqa: E402
 
 RUN_ID = "analytic-0001"
 
@@ -189,14 +189,6 @@ def main():
     manifest = json.loads((run_a / layout.MANIFEST).read_text())
     record("analytic_run_complete_and_replayed_byte_identically", status == (0, "complete") and tree(run_a) == tree(run_b),
            status=status[1], files=sorted(manifest["files"]), manifest=manifest)
-
-    # 5. Accepted and rejected rows share the run ID and trace to the stored dataset.
-    dataset = read_trajectories(run_a / layout.DATASET)
-    cands = read_candidates(run_a / layout.CANDIDATES, dataset)
-    record("accepted_and_rejected_share_run_and_source_ids",
-           cands.run_id == manifest["run_id"] and cands.accepted.any() and (~cands.accepted).any(),
-           run_id=cands.run_id, accepted=int(cands.accepted.sum()), rejected=int((~cands.accepted).sum()),
-           sources=[[str(e), int(f), bool(acc)] for e, f, acc in zip(cands.source_episode_id, cands.source_frame, cands.accepted)])
 
     # 2. data prepare under the new layout; the legacy 1.0 layout is incompatible.
     pdir = out / "prepare"

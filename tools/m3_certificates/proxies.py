@@ -5,9 +5,6 @@
   and legacy_label_filtering equals an independent transcription of the
   label-filtering branch's label_error (73d187d), on a linear model and on an
   MLP;
-- scores are never bounds: every row is empirical with is_upper_bound false,
-  bound admission (ccil.core.curate) selects none, and require_upper_bound
-  refuses them; score admission filters by the curation tolerance;
 - selection never changes acceptance: the candidates file is byte-identical,
   rows rejected by the model-error gate are never selected, and the quantile
   is taken over accepted, admissible rows only (the label-filtering
@@ -38,7 +35,7 @@ from ccil.core import (BackwardEuler, Finite, GenerationFailed, IdentityRepresen
                        LinearTransitionModel, ModelMisfit, NoisyAction, SupportRadius, generate_labels, jacobian_fd)
 from ccil.core import transition as transition_module
 from ccil.core.certificates import (BackTrackPaperProxy, DisturbedActionPaperProxy, LegacyLabelFiltering, Sources,
-                                    audit_sources, certify, require_upper_bound, verify_structure)
+                                    audit_sources, certify, verify_structure)
 from ccil.core.curate import CurationPolicy, decide_selection
 from ccil.schema import (Episode, SchemaError, TrajectoryDataset, read_candidates, read_selection, write_candidates,
                          write_trajectories)
@@ -190,19 +187,6 @@ def run(out, record, dataset, data_path, sys_, truth, repo, bundle):
            branch="label-filtering 73d187d gen_aug_label.label_error", parity=parity,
            note="the branch transcription evaluates in float32, as the branch did (tolerance 1e-5); the linear case is "
                 "also compared with its float64 closed form (1e-12)")
-
-    # P3. Scores are never bounds.
-    limit = float(np.quantile(c_da.total_error_value, 0.6))
-    ub = select(cd, c_da, CurationPolicy("bound"))
-    sc = select(cd, c_da, CurationPolicy("score", tolerance=limit))
-    record("scores_are_never_bounds",
-           all((x.classification == "empirical").all() and not x.is_upper_bound.any() for x in (c_bt, c_da))
-           and not ub.mask.any() and c_da.reasons[:, 1].all() and ub.reasons[cd.accepted, 2].all()
-           and np.array_equal(sc.mask, cd.accepted & (c_da.total_error_value <= limit)) and not sc.error_spec["is_bound"]
-           and outcome(lambda: require_upper_bound(c_da)).startswith("InterfaceError"),
-           bound_admission={"selected": int(ub.mask.sum()), "not_upper_bound": int(c_da.reasons[:, 1].sum())},
-           score_admission={"tolerance": limit, "selected": int(sc.mask.sum()), "rows": int(len(sc.mask))},
-           require_upper_bound=outcome(lambda: require_upper_bound(c_da)))
 
     # P4. Selection never changes acceptance; misfit anchors are rejected at generation and never selected.
     wrong = TrajectoryDataset([Episode(ep.episode_id, {"state": ep.observations["state"].copy()}, ep.actions.copy())

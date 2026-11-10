@@ -147,21 +147,5 @@ argument:
 uv run --group evidence python tools/legacy_conversion/check.py --out <new-dir>
 ```
 
-The report is
-[`../fixtures/evidence/legacy-conversion/report.json`](../fixtures/evidence/legacy-conversion/report.json),
-with `report-siddh.json` from the CUDA host (converter 1, before #168). The manifests and converted
-configurations are under `artifacts/`; datasets are recorded by SHA-256 only.
-The report shows:
-- **Datasets.** Both datasets equal the unpickled legacy arrays exactly, with
-  their hash chain, and a second conversion is byte-identical.
-- **Configurations.** Every legacy key has a disposition, and supplied values
-  are preserved, as checked independently from the legacy files.
-- **Fidelities.** The two fidelities differ exactly in the implicit
-  behaviors.
-- **Recipes.** The recipes match the corrected conversions.
-- **Malformed inputs.** Twelve cases fail, each naming its problem. Nothing
-  is written, and no pickle executes.
-- **Inspection.** The converted artifacts prepare complete runs.
-- **Hold-out flag.** The historical conversion writes
-  `supervision.exclude_validation_episodes: false`. Its effect on the
-  integrated pipeline's supervision is shown by `tools/m2_pipelines`.
+Reports: [`legacy-conversion/report.json`](../fixtures/evidence/legacy-conversion/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/legacy_conversion`](../../tools/legacy_conversion/).

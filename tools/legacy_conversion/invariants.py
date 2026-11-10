@@ -87,4 +87,3 @@ def validate_trajectories(trajectories, action_low=None, action_high=None):
     if violations:
         raise DataValidationError(violations, counts)
     return dims
-

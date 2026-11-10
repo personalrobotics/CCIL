@@ -270,25 +270,5 @@ provide, and claim no image-CCIL parity:
 uv run --group evidence python tools/m2_pipelines/check.py --out <new-dir>
 ```
 
-[`fixtures/evidence/m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json)
-has 15 cases:
-
-- **Offline:** analytic generation passes the #10 oracle, replays byte for
-  byte, and is fully reused on rerun. It imports no trainer. Its labels carry
-  provenance equal to the stage manifest.
-- **Implementation identity:**
-  - each `stage.json` re-derives its run ID;
-  - a one-comment source change or a component version bump writes distinct
-    runs, leaving the old runs byte-identical;
-  - an unreadable implementation exits 2 without reusing anything.
-- **Integrated:** all six stages complete, with checkpoint handoff verified by
-  hash.
-- **Trainer swap:** reuses the four CCIL stages.
-- **Evaluation-only change:** reuses stages 1–5. The new evaluation loads the
-  reused policy and reproduces the original metrics.
-- **Failure and resume:** a `policy.train` failure leaves the earlier stages
-  intact, and the rerun resumes there. A `policy.evaluate` failure leaves
-  `policy.train` complete, and the rerun reuses it and completes.
-- **Preflight:** unsupported configurations fail before any stage writes.
-- **Help:** each command states its inputs, outputs, optional dependencies and
-  exit codes.
+Reports: [`m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m2_pipelines`](../tools/m2_pipelines/).

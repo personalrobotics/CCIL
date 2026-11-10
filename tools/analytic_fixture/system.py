@@ -5,7 +5,6 @@ f(s, a) = A s + B a, A = [[0, h], [0, 0]], B = [0, h]^T.
 Derivations are in docs/fixtures/analytic-dynamics.md.
 """
 import numpy as np
-import torch
 
 
 class DoubleIntegrator:
@@ -20,17 +19,6 @@ class DoubleIntegrator:
 
     def step_np(self, s, a):
         return s + self.f_np(s, a)
-
-    def model(self, dtype=torch.float32):
-        """Exact model exposing the legacy WorldModel.f(s, a) interface."""
-        A = torch.as_tensor(self.A, dtype=dtype)
-        B = torch.as_tensor(self.B, dtype=dtype)
-
-        class ExactModel:
-            def f(self_, s, a):
-                return s @ A.T + a @ B.T
-
-        return ExactModel()
 
     # --- closed-form candidates (float64) ---------------------------------
     def backward_euler(self, s_star, a_star):

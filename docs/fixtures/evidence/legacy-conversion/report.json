@@ -92,7 +92,7 @@
      "nothing_written": true
     },
     "dataset_already_canonical": {
-     "diagnostic": "  format at <out>/convert_a/data/pendulum_cont_100.npz: not a ccil-trajector",
+     "diagnostic": "  format at <out>/convert_a/data/pendulum_cont_100.npz: not a ccil-trajectories/1 file",
      "exit": 2,
      "names_problem": true,
      "nothing_written": true
@@ -110,7 +110,7 @@
      "nothing_written": true
     },
     "dataset_truncated": {
-     "diagnostic": "  format at <out>/malformed/truncated.npz: not a readable .npz file: File is",
+     "diagnostic": "  format at <out>/malformed/truncated.npz: not a readable .npz file: File is not a zip ",
      "exit": 2,
      "names_problem": true,
      "nothing_written": true
@@ -139,15 +139,21 @@
      "names_problem": true,
      "nothing_written": true
     },
+    "pickle_acknowledged_but_malformed": {
+     "diagnostic": "DataValidationError: dataset failed validation (length_mismatch=1):\n  length_mismatch: episode 0, frame None: 5 observations but 4 actions",
+     "exit": 2,
+     "names_problem": true,
+     "nothing_written": true
+    },
     "pickle_tampered": {
-     "diagnostic": "LegacyInputError: <out>/malformed/exploit.pkl: sha256 ",
+     "diagnostic": "LegacyInputError: <out>/malformed/exploit.pkl: sha256 6c40f01cc7d",
      "exit": 2,
      "names_problem": true,
      "nothing_written": true,
      "pickle_executed": false
     },
     "pickle_unacknowledged": {
-     "diagnostic": "LegacyInputError: refusing to unpickle <out>/malformed",
+     "diagnostic": "LegacyInputError: refusing to unpickle <out>/malformed/exploit.pk",
      "exit": 2,
      "names_problem": true,
      "nothing_written": true,
@@ -193,7 +199,7 @@
   }
  ],
  "environment": {
-  "code_commit": "8facc56ad2aa9592eb62b0a9805d43d528c1ca50",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

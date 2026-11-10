@@ -7,7 +7,8 @@ and every ref links back to an archive tag in the
 [history manifest](../history/branch-references.md). This is the M0 inventory
 for CCIL and its preserved forks. The actively changing `image_ccil` repository
 is deferred to M5 issue #31, which must capture its stable baseline before
-image code migrates.
+image code migrates. The surface after #169's removals is summarized in
+[surface-169.md](surface-169.md).
 
 To check the inventory against history:
 

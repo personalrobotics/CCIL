@@ -183,13 +183,5 @@ Version-1 checkpoints are refused (`CheckpointError`).
 uv run --group evidence python tools/m3_dynamics/check.py --out <new-dir> [--device cuda] [--only CASE ...]
 ```
 
-The reports are in [`../fixtures/evidence/m3-dynamics/`](../fixtures/evidence/m3-dynamics/):
-
-| Report | What it covers |
-|---|---|
-| `report-cpu.json` | The cases on CPU. |
-| `report-cuda.json` | The Pendulum case on CUDA (siddh, RTX PRO 6000 Blackwell, torch 2.14.1+cu130). |
-
-The legacy-equivalence case, which compared the port with the legacy
-WorldModel at fixed weights in the pinned legacy environment, is at
-`surface-archive-v1`.
+Reports: [`evidence/m3-dynamics`](../fixtures/evidence/m3-dynamics/).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m3_dynamics`](../../tools/m3_dynamics/).

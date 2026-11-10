@@ -63,38 +63,6 @@
     "refusal": "one Jacobian row needs about 7.05 MiB (D = 512, A = 7, hidden [256, 256]), more than compute.jacobian_memory_mb = 1.00 MiB; raise it to at least 8"
    }
   },
-  "cuda_real_labels": {
-   "pass": true,
-   "criterion": "chunked peak within the budget and at most a tenth of the unchunked peak; every certificate field (admissible, selected, total_error_value) identical",
-   "task": "discontinuous",
-   "seed": 501,
-   "accepted_labels": 4305936,
-   "budget_bytes": 2147483648,
-   "chunking": {
-    "budget_bytes": 2147483648,
-    "max_rows_per_chunk": 74482,
-    "rows": 4305936,
-    "chunks": 58,
-    "rows_per_chunk": 74241
-   },
-   "peak_gb": {
-    "chunked": 0.7883000373840332,
-    "unchunked": 45.64096975326538
-   },
-   "seconds": {
-    "chunked": 0.19059062004089355,
-    "unchunked": 0.2720189094543457
-   },
-   "jacobian_rows_differing": 1,
-   "jacobian_max_abs_difference": 0.0004475880414247513,
-   "jacobian_max_relative_difference_at_differing_rows": 0.13931141198514957,
-   "certificate_fields_differing": {
-    "admissible": 0,
-    "selected": 0,
-    "total_error_value": 0
-   },
-   "certificates_identical": true
-  },
   "cuda_width": {
    "pass": true,
    "cases": [
@@ -103,7 +71,7 @@
      "A": 7,
      "rows": 20000,
      "budget_bytes": 268435456,
-     "peak_bytes": 105675776,
+     "peak_bytes": 172784640,
      "chunking": {
       "budget_bytes": 268435456,
       "max_rows_per_chunk": 460,
@@ -132,7 +100,7 @@
   }
  },
  "environment": {
-  "code_commit": "1bdc8cef18dfbc180b09077a3e2ed00ede111b6a",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "torch": "2.14.1+cu130",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",

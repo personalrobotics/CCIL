@@ -19,9 +19,11 @@
     "generator": {
      "name": "backward_euler",
      "params": {},
-     "params_hash": "5d685d4c029a7da0",
+     "params_hash": "b9a6c6822ba92f0e",
      "version": "1"
     },
+    "jacobian_chunking": null,
+    "recovery_steps": 1,
     "rejections_by_reason": {
      "action_out_of_bounds": 0,
      "generation_failed": 0,
@@ -30,14 +32,18 @@
     }
    },
    "rerun_output": [
-    "data.prepare       reused runs/data-prepare-2d1800c483e0",
-    "transition.fit     reused runs/transition-fit-9bd7e4e63c95",
-    "labels.generate    reused runs/labels-generate-73864e1e43fd"
+    "data.prepare       reused runs/data-prepare-c98af8f0d016",
+    "transition.fit     reused runs/transition-fit-1f822156e724",
+    "labels.generate    reused runs/labels-generate-8b84ecdb7091",
+    "labels.curate      reused runs/labels-curate-b4dd69d27d41",
+    "labels.diagnose    reused runs/labels-diagnose-3e0991e308fa"
    ],
    "stages": {
-    "data-prepare-2d1800c483e0": "complete",
-    "labels-generate-73864e1e43fd": "complete",
-    "transition-fit-9bd7e4e63c95": "complete"
+    "data-prepare-c98af8f0d016": "complete",
+    "labels-curate-b4dd69d27d41": "complete",
+    "labels-diagnose-3e0991e308fa": "complete",
+    "labels-generate-8b84ecdb7091": "complete",
+    "transition-fit-1f822156e724": "complete"
    },
    "stderr": ""
   },
@@ -45,10 +51,12 @@
    "case": "offline_candidates_carry_provenance",
    "inputs": {
     "dataset": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+    "split": "68b6258635eff4416f962798c586bbbe9bcee82f72cbff59170413713f6c3014",
     "transition_model": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec"
    },
    "manifest_inputs": {
     "dataset": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
+    "split": "68b6258635eff4416f962798c586bbbe9bcee82f72cbff59170413713f6c3014",
     "transition_model": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec"
    },
    "pass": true,
@@ -66,59 +74,38 @@
    }
   },
   {
-   "case": "stage_identity_recorded_and_rederives_run_id",
-   "components": {
-    "data-prepare-2d1800c483e0": {},
-    "labels-generate-73864e1e43fd": {
-     "generator": {
-      "name": "backward_euler",
-      "version": "1"
-     },
-     "representation": {
-      "kind": "identity",
-      "version": "1"
-     },
-     "transition_model": {
-      "kind": "linear",
-      "version": "1"
-     },
-     "weighting": {
-      "name": "uniform",
-      "version": "1"
-     }
-    },
-    "transition-fit-9bd7e4e63c95": {
-     "representation": {
-      "kind": "identity",
-      "version": "1"
-     },
-     "transition_model": {
-      "kind": "linear",
-      "version": "1"
-     }
-    }
-   },
-   "implementation": {
-    "ccil_version": "0.1.0.dev0",
-    "dependencies": {
-     "numpy": "2.4.6",
-     "pyyaml": "6.0.3",
-     "torch": "2.14.1"
-    },
-    "source_sha256": "2c665816c874430f9c0e492e9813283de481a8f9e2384be1c0c285a5ddf05ffd"
-   },
-   "pass": true
+   "artifacts": [
+    "candidates",
+    "dataset",
+    "diagnosis",
+    "selection",
+    "split",
+    "transition_model"
+   ],
+   "case": "labels_result_names_stages_and_artifacts",
+   "pass": true,
+   "stages": [
+    "data.prepare",
+    "labels.curate",
+    "labels.diagnose",
+    "labels.generate",
+    "transition.fit"
+   ]
   },
   {
    "case": "changed_implementation_writes_distinct_runs",
    "new_runs": [
-    "data-prepare-e94aa7ded859",
-    "labels-generate-1a253ffc700b",
-    "transition-fit-59b88c47be48"
+    "data-prepare-9da64beb2d2b",
+    "labels-curate-99f7cf7a1c80",
+    "labels-diagnose-764aeeb0b913",
+    "labels-generate-cdf1425459de",
+    "transition-fit-93d59c1c7a53"
    ],
    "pass": true,
    "stage_status": {
     "data.prepare": "wrote",
+    "labels.curate": "wrote",
+    "labels.diagnose": "wrote",
     "labels.generate": "wrote",
     "transition.fit": "wrote"
    },
@@ -127,12 +114,16 @@
   {
    "case": "component_version_change_writes_distinct_runs",
    "new_runs": [
-    "labels-generate-1cc089afc368",
-    "transition-fit-39f553194332"
+    "labels-curate-4121397011c9",
+    "labels-diagnose-6bf16c00cd79",
+    "labels-generate-27f8100ba55f",
+    "transition-fit-f5e2ecad98e5"
    ],
    "pass": true,
    "stage_status": {
     "data.prepare": "reused",
+    "labels.curate": "wrote",
+    "labels.diagnose": "wrote",
     "labels.generate": "wrote",
     "transition.fit": "wrote"
    },
@@ -167,17 +158,19 @@
    "labels_inputs": [
     "dataset",
     "representation",
+    "split",
     "transition_model"
    ],
    "pass": true,
    "same_manifest_vocabulary": true,
    "stages": {
-    "data-prepare-1f341de94460": "complete",
-    "labels-generate-0f967f2ac69e": "complete",
-    "policy-evaluate-5dbc5851a4d8": "complete",
-    "policy-train-0de1baf936da": "complete",
-    "representation-fit-8a3b1031bdd5": "complete",
-    "transition-fit-df1980107338": "complete"
+    "data-prepare-17e04764fdef": "complete",
+    "labels-diagnose-946df912826a": "complete",
+    "labels-generate-bf5ed4bcb475": "complete",
+    "policy-evaluate-8f2069f419e5": "complete",
+    "policy-train-837859df29df": "complete",
+    "representation-fit-5824ab722f2c": "complete",
+    "transition-fit-18c741fa9f4f": "complete"
    }
   },
   {
@@ -185,6 +178,7 @@
    "pass": true,
    "stage_status": {
     "data.prepare": "reused",
+    "labels.diagnose": "reused",
     "labels.generate": "reused",
     "policy.evaluate": "wrote",
     "policy.train": "wrote",
@@ -193,15 +187,36 @@
    }
   },
   {
-   "case": "evaluation_only_change_reuses_trained_policy",
-   "metrics_equal_original": true,
-   "new_evaluate_runs": 1,
+   "case": "supervision_holdout_follows_the_flag",
+   "counts": {
+    "default": {
+     "accepted": 56,
+     "candidate_rows": 56,
+     "demonstration_rows": 42,
+     "demonstration_rows_held_out": 14,
+     "demonstration_transitions": 56,
+     "rows": 84,
+     "synthetic_rows": 42,
+     "usable_rows_held_out": 14
+    },
+    "false": {
+     "accepted": 56,
+     "candidate_rows": 56,
+     "demonstration_rows": 56,
+     "demonstration_rows_held_out": 0,
+     "demonstration_transitions": 56,
+     "rows": 112,
+     "synthetic_rows": 56,
+     "usable_rows_held_out": 0
+    }
+   },
    "pass": true,
    "stage_status": {
     "data.prepare": "reused",
+    "labels.diagnose": "reused",
     "labels.generate": "reused",
     "policy.evaluate": "wrote",
-    "policy.train": "reused",
+    "policy.train": "wrote",
     "representation.fit": "reused",
     "transition.fit": "reused"
    },
@@ -235,13 +250,18 @@
     [
      "policy.evaluate",
      false
+    ],
+    [
+     "labels.diagnose",
+     true
     ]
    ],
    "stages_after_failure": {
-    "data-prepare-1f341de94460": "complete",
-    "labels-generate-0f967f2ac69e": "complete",
-    "representation-fit-8a3b1031bdd5": "complete",
-    "transition-fit-df1980107338": "complete"
+    "data-prepare-17e04764fdef": "complete",
+    "labels-diagnose-946df912826a": "complete",
+    "labels-generate-bf5ed4bcb475": "complete",
+    "representation-fit-5824ab722f2c": "complete",
+    "transition-fit-18c741fa9f4f": "complete"
    },
    "staging_left": []
   },
@@ -273,11 +293,15 @@
     [
      "policy.evaluate",
      false
+    ],
+    [
+     "labels.diagnose",
+     true
     ]
    ],
    "resume_error": null,
    "runs_after_failure": {
-    "policy-train-0bf2af26b868": "complete"
+    "policy-train-247dcb577ced": "complete"
    }
   },
   {
@@ -289,18 +313,10 @@
    "case": "fails_before_any_stage[mlp_model]",
    "error": "invalid configuration:\n  transition_model.kind mlp with lipschitz_type None requires ['transition_model.hidden_layers', 'transition_model.epochs', 'transition_model.batch_size']",
    "pass": true
-  },
-  {
-   "case": "help_states_inputs_outputs_dependencies_exit_codes",
-   "help": {
-    "labels generate": "usage: ccil labels generate [-h] [--recipe RECIPE] [--config CONFIG]\n                            [--set KEY=VALUE]\n\nRun offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n",
-    "pipeline integrated": "usage: ccil pipeline integrated [-h] [--recipe RECIPE] [--config CONFIG]\n                                [--set KEY=VALUE]\n\nRun the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only policy.* reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran\n\noptions:\n  -h, --help       show this help message and exit\n  --recipe RECIPE  named recipe in src/ccil/recipes/\n  --config CONFIG  user configuration file (YAML)\n  --set KEY=VALUE  override one parameter; repeatable\n"
-   },
-   "pass": true
   }
  ],
  "environment": {
-  "code_commit": "710913f92aee582758ce38434d1ac4f800ab2f14",
+  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

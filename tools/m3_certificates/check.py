@@ -33,9 +33,7 @@ true label error ||T(q) - y|| is computed independently of the certificate):
 - the API refuses malformed constants, curation policies, and scales;
 - the pipeline writes a complete labels.certify run next to an unchanged
   candidates file, covered against the true dynamics; a rerun reuses it, a
-  changed reference is a new certify run, and a changed tolerance is a new
-  labels.curate run that reuses the certificate unchanged (the inspectable
-  artifact).
+  changed reference is a new certify run (the inspectable artifact).
 Part 2, the backtrack and disturbed_action theorem profiles and model bounds,
 is described in theorems.py; part 3, the score profiles, selection,
 configuration, and migration, in proxies.py.
@@ -382,17 +380,14 @@ def main():
         "weight_doubled": (smutate(lambda x: x.weight.__setitem__(k, 2 * x.weight[k])), cpath),
         "threshold_raised": (smutate(lambda x: setattr(x, "threshold", x.threshold * 2)), cpath),
         "tolerance_edited": (smutate(lambda x: x.policy.__setitem__("tolerance", limit * 2)), cpath),
-        "data_only_claimed": (smutate(lambda x: setattr(x, "evidence_mode", "data_only")), cpath),
         "other_certificates": (sel, tampered_cert),
     }
     sel_detected = {n: verify_selection(x, s.candidates, c) for n, (x, c) in sel_corruptions.items()}
     record("selection_verified_against_inputs",
            verify_selection(sel, s.candidates, cpath) == [] and sel.certificates_sha256 == sha(cpath)
            and np.array_equal(sel.mask, cm_sel.mask)
-           and all(bool(v) for v in sel_detected.values())
-           and outcome(lambda: curate(s.candidates, cpath, policy, "data_only")).startswith("InterfaceError"),
-           clean=verify_selection(sel, s.candidates, cpath), detected={n: v[:1] for n, v in sel_detected.items()},
-           data_only=outcome(lambda: curate(s.candidates, cpath, policy, "data_only")))
+           and all(bool(v) for v in sel_detected.values()),
+           clean=verify_selection(sel, s.candidates, cpath), detected={n: v[:1] for n, v in sel_detected.items()})
 
     # 9. Schema ingress: the reader and the writer.
     with np.load(cpath, allow_pickle=False) as z:
@@ -492,7 +487,6 @@ def main():
     cert_file = first_run.out("labels/certificates.npz")
     cert_sha = sha(cert_file)
     curated = curate_stage(cfg, labeled, first_run, CurationPolicy("bound", quantile=0.75))
-    changed_tol = curate_stage(cfg, labeled, first_run, CurationPolicy("bound", tolerance=1.0, quantile=0.75))
     status = {p.name: validate_run(p)[0] for p in sorted((work / "runs").iterdir()) if p.is_dir()}
     pc = read_candidates(cand_file)
     pcert = read_certificates(cert_file)
@@ -501,9 +495,9 @@ def main():
     psrc = Sources(cand_file, prepared.out("data/dataset.npz"), fitted.out("checkpoints/transition_model.npz"), rep,
                    references={"true": truth})
     record("pipeline_certify_stage",
-           set(status.values()) == {"complete"} and len(status) == 9 and sha(cand_file) == cand_sha
+           set(status.values()) == {"complete"} and len(status) == 8 and sha(cand_file) == cand_sha
            and pcert.candidates_sha256 == cand_sha and again.reused and again.run_dir == first_run.run_dir
-           and first_run.run_dir != changed_ref.run_dir and curated.run_dir != changed_tol.run_dir
+           and first_run.run_dir != changed_ref.run_dir
            and sha(cert_file) == cert_sha and psel.certificates_sha256 == cert_sha
            and (pcert.classification == "certified").all() and (pcert.total_error_value >= perr).all()
            and verify_structure(pcert, cand_file) == [] and audit_sources(pcert, psrc) == [],

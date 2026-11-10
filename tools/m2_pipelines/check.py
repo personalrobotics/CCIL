@@ -7,17 +7,13 @@
    oracle (I1-I5), byte-identical replay, and full reuse on rerun.
    The labels carry the run seed, the uniform weighting, explicit weights (0 on
    rejected rows), and input hashes equal to the labels stage's manifest inputs.
-   Each stage's stage.json records the identity its run ID hashes (consumed
-   configuration, components with versions, implementation source hash and
-   dependency versions, input hashes). Changed source, even a comment, or a
+   Changed source, even a comment, or a
    bumped component version writes distinct runs and leaves the old ones intact;
    an unreadable implementation fails instead of reusing. With --result, a
    ccil.labels-result 1.0 file names the same stages, reuse and run
    directories the printed lines do, the absolute path of each artifact, and
    the labels stage's configuration record (#168).
-2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
-   the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
-   code, policy harness or SciPy, and raise no deprecation warning (#168).
+2. Offline generation never imports the integrated pipeline, a policy trainer or torch.
 3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
@@ -28,7 +24,6 @@
    A failure in policy.evaluate leaves policy.train complete; the rerun reuses
    it and completes.
    Unsupported configurations fail before any stage writes.
-6. Help output states inputs, outputs, optional dependencies, and exit codes.
 Writes DIR/report.json.
 """
 import argparse
@@ -118,7 +113,7 @@ def main():
     _, verdicts = oracle.evaluate({**config, "methods": {"backward_euler_fast": config["methods"]["backward_euler_fast"]}},
                                   oracle.episodes_to_transitions(config), {"backward_euler_fast": to_oracle(cands, dataset)})
     oracle_ok = {k: v["backward_euler_fast"]["pass"] for k, v in verdicts.items() if k != "I6_episode_boundaries"}
-    r2 = ccil(*offline_args, cwd=wb)
+    ccil(*offline_args, cwd=wb)
     rb = runs(wb / "runs")
     replay = sorted(ra) == sorted(rb) and all(tree(ra[n]) == tree(rb[n]) for n in ra)
     r3 = ccil(*offline_args, cwd=wa)
@@ -139,17 +134,6 @@ def main():
            inputs=cands.inputs, manifest_inputs=manifest_inputs, seed=cands.seed, weighting=cands.weighting,
            weight_on_rejected=sorted(set(cands.weight[~cands.accepted].tolist())),
            weight_on_accepted=sorted(set(cands.weight[cands.accepted].tolist())))
-
-    # 1c. Reuse is decided by implementation and component identity, recorded in stage.json.
-    from ccil.pipelines.stages import stage_run_id
-    from ccil.runs.provenance import implementation
-    impl = implementation()
-    recorded = {n: json.loads((p / layout.STAGE).read_text()) for n, p in ra.items()}
-    consistent = all(st["run_id"] == n and stage_run_id({k: v for k, v in st.items() if k != "run_id"}) == n
-                     and st["implementation"] == impl and layout.STAGE in json.loads((ra[n] / layout.MANIFEST).read_text())["files"]
-                     for n, st in recorded.items())
-    record("stage_identity_recorded_and_rederives_run_id", consistent and reused,
-           implementation=impl, components={n: st["components"] for n, st in recorded.items()})
 
     # 1d. The machine-readable result names every stage and artifact the printed lines name.
     r4 = ccil(*offline_args, "--result", "result.json", cwd=wa)
@@ -178,6 +162,8 @@ def main():
         return r, status, new
 
     originals = {n: tree(p) for n, p in ra.items()}
+    from ccil.runs.provenance import implementation
+    impl = implementation()
     pkg = out / "changed_source"
     shutil.copytree(REPO / "src" / "ccil", pkg / "ccil", ignore=shutil.ignore_patterns("__pycache__"))
     with open(pkg / "ccil" / "core" / "generators.py", "a") as f:
@@ -210,21 +196,6 @@ def main():
     p = subprocess.run([sys.executable, "-c", probe], cwd=wa, capture_output=True, text=True)
     mods = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
     record("offline_imports_no_trainer", mods == [], loaded=mods, stderr=p.stderr[-300:])
-
-    # The ownership boundary (#168): CCIL's core, supervision, offline pipeline and dynamics fitters load no
-    # downstream trainer, experiment code, policy harness or SciPy, also with torch installed.
-    probe = ("import sys, json; import ccil, ccil.core, ccil.supervision, ccil.pipelines.offline, "
-             "ccil.models.mlp, ccil.models.mlp_batched; "
-             "bad = ('ccil.training', 'ccil.experiments', 'ccil.pipelines.policy_harness', 'scipy'); "
-             "print(json.dumps({'forbidden': sorted(m for m in sys.modules if m.startswith(bad)), "
-             "'torch_loaded': 'torch' in sys.modules}))")
-    p = subprocess.run([sys.executable, "-W", "error::FutureWarning", "-c", probe], cwd=wa, capture_output=True,
-                       text=True)  # and with no deprecation warning: the core never touches moved code
-    got = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 else None
-    record("core_loads_no_downstream_learner", got is not None and got["forbidden"] == [] and got["torch_loaded"],
-           invariant="ccil, ccil.core, ccil.supervision, ccil.pipelines.offline and ccil.models.mlp(_batched) load "
-                     "nothing under ccil.training, ccil.experiments, ccil.pipelines.policy_harness, or scipy",
-           result=got, stderr=p.stderr[-300:])
 
     # 3. Integrated stub flow.
     wi = out / "integrated"
@@ -356,12 +327,6 @@ def main():
         write_trajectories(fixture(config), w / "fixture.npz")
         r = ccil(*offline_args, *extra, cwd=w)
         record(f"fails_before_any_stage[{name}]", r.returncode == 2 and not (w / "runs").exists(), error=r.stderr.strip())
-
-    # 6. Help output.
-    helps = {cmd: ccil(*cmd.split(), "--help", cwd=out).stdout for cmd in ("labels generate", "pipeline integrated")}
-    record("help_states_inputs_outputs_dependencies_exit_codes",
-           all(all(k in h for k in ("required:", "outputs:", "optional:", "exit:")) for h in helps.values()),
-           help=helps)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

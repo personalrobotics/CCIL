@@ -180,18 +180,5 @@ Before relying on that, check two things:
 uv run --group evidence python tools/m3_supervision/check.py --out <new-dir>
 ```
 
-The report is
-[`fixtures/evidence/m3-supervision/report.json`](fixtures/evidence/m3-supervision/report.json),
-with `report-siddh.json` from the CUDA host, both produced at `c8a4712`, before
-selections; the tool now reads the certified arm through its selection. It writes each arm's manifest to
-`manifests/`. The artifacts come from the real offline pipeline. The report
-shows:
-- **Arms.** Each arm equals an independent recomputation from the files.
-- **Exclusion.** Accepted rows that are inadmissible or unselected, with
-  positive weights, never reach an instrumented trainer.
-- **Weights and splits.** Weights, splits and reconciliation hold.
-- **Failing closed.** Every mismatched-artifact case fails with its
-  own reason.
-- **Chunks.** They are consumed or refused, never reduced.
-- **Recipe.** The recipe above reproduces the usable mask.
-- **Integrated pipeline.** It trains through the contract.
+Reports: [`m3-supervision/report.json`](fixtures/evidence/m3-supervision/report.json).
+Each case, and the contract it protects, is listed in the docstring of [`tools/m3_supervision`](../tools/m3_supervision/).

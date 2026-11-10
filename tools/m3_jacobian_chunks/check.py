@@ -11,10 +11,10 @@ cpu (any host):
    rows), a budget forcing many chunks gives Jacobians bit-identical to one unchunked call on the CPU.
 2. Derivation: at a fixed budget the rows per chunk fall as D grows, and the chunks are balanced: every chunk
    but the last has ceil(N / chunks) rows.
+3. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
 
 cuda:
-3. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
-4. A budget smaller than one estimated row (D = 512 under 1 MiB) is refused, naming the minimum.
+4. Width: at D = 64 and D = 512 (A = 7, [256, 256]), a 256 MiB budget keeps the peak within the budget.
 """
 from __future__ import annotations
 

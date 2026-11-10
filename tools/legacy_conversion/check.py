@@ -13,8 +13,9 @@
   the shipped recipes resolve identically to the corrected conversions.
 - Unknown, duplicate, ambiguous, incompatible, and mistyped settings, a
   non-.pkl dataset path without a map, non-M1 and truncated datasets, and
-  unacknowledged or tampered pickles all fail with a diagnostic naming the
-  problem, write nothing, and (for pickles) execute nothing.
+  unacknowledged or tampered pickles, and an acknowledged but malformed one,
+  all fail with a diagnostic naming the problem, write nothing, and (for
+  unacknowledged pickles) execute nothing.
 - The converted dataset and configuration prepare a complete run, so they can
   be inspected before any model is trained.
 - The historical fidelity writes supervision.exclude_validation_episodes
@@ -38,6 +39,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from convert_pendulum import RETAINED, convert_pendulum  # noqa: E402
+from invariants import DataValidationError  # noqa: E402
 from trajectory_io import LegacyInputError, convert_legacy_pickle  # noqa: E402
 
 from ccil.config import resolve  # noqa: E402
@@ -190,6 +192,18 @@ def main():
         malformed[label] = {"exit": 2 if outcome != "accepted" else 0, "names_problem": "refusing to unpickle" in outcome or "sha256" in outcome,
                             "nothing_written": not (bad / f"{label}.npz").exists(), "diagnostic": outcome,
                             "pickle_executed": marker.exists()}
+    # An acknowledged pickle is still validated before anything is written.
+    benign = bad / "acknowledged-malformed.pkl"
+    with open(benign, "wb") as f:
+        pickle.dump([{"observations": np.zeros((5, 2)), "actions": np.zeros((4, 1))}], f)
+    try:
+        convert_legacy_pickle(benign, bad / "acknowledged-malformed.npz", trust=True)
+        outcome = "accepted"
+    except DataValidationError as e:
+        outcome = f"DataValidationError: {str(e)[:160]}"
+    malformed["pickle_acknowledged_but_malformed"] = {
+        "exit": 2 if outcome != "accepted" else 0, "names_problem": "length" in outcome,
+        "nothing_written": not (bad / "acknowledged-malformed.npz").exists(), "diagnostic": outcome}
     record("malformed_inputs_fail_closed",
            all(v["exit"] == 2 and v["names_problem"] and v["nothing_written"] and not v.get("pickle_executed")
                for v in malformed.values()),
