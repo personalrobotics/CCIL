@@ -280,7 +280,11 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
 
     def body(run):
         z, a, z_next, tr, va = transition_data(v, inputs, representation)
-        binding = {"representation": {"kind": representation.kind, "modality": v["representation.modality"]},
+        # A fitted representation (PCA) is bound by its checkpoint's hash: the same kind and shape with another
+        # mean or basis is another coordinate system. The identity representation has no parameters (None).
+        binding = {"representation": {"kind": representation.kind, "modality": v["representation.modality"],
+                                      "checkpoint_sha256": sha256(inputs["representation"])
+                                      if "representation" in inputs else None},
                    "state_dim": int(z.shape[1]), "act_dim": int(a.shape[1]),
                    "direction": v["transition_model.direction"],
                    "dt_ctrl": timing(read_trajectories(inputs["dataset"]))["dt_ctrl"]}

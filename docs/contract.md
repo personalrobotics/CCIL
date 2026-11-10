@@ -65,15 +65,17 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
   contract must match this dataset and configuration, or the command fails
   with `CheckpointError` (exit 2):
   - component, kind and version are known;
-  - representation kind, modality and, for a fitted representation, its
-    checkpoint SHA-256;
-  - observation and action dimensions, and their units where either side
-    declares them;
-  - normalization identity (coordinates, constraint and normalization SHA-256);
-  - direction (forward or backward) and the action-transition convention;
-  - transition interval: equal when both the checkpoint and the data declare
+  - representation kind, modality and, for a fitted representation (PCA),
+    its checkpoint SHA-256: the same kind and shape with another fit is
+    another coordinate system;
+  - state and action dimensions;
+  - direction (forward or backward);
+  - action period: equal when both the checkpoint and the data declare
     one; both unknown is accepted and limits the run to M without H; one known
     and one unknown is refused.
+
+  A model's own input normalization is stored inside its checkpoint, and
+  loads with it.
 - **Exact dynamics** (optional, `certificate.reference_dynamics`): see
   [Reference dynamics](#reference-dynamics).
 

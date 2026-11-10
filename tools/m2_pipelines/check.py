@@ -36,7 +36,8 @@
    nothing written); labels generate, deprecated, still writes its selection and ccil.labels-result 1.0, reusing
    the same candidates. transition_model.checkpoint loads the fitted model and gives identical candidates; a
    checkpoint bound to other state dimensions or another action period, or one recording no binding, exits 2
-   naming the field, before any label.
+   naming the field, before any label; in the integrated pipeline, a checkpoint loads with its own PCA fit and is
+   refused with another fit of the same kind and dimensions.
 Writes DIR/report.json.
 """
 import argparse
@@ -79,8 +80,8 @@ def runs(d: Path) -> dict:
     return {p.name: p for p in sorted(d.iterdir()) if p.is_dir() and not p.name.startswith(".")} if d.exists() else {}
 
 
-def image_dataset(path: Path) -> None:
-    rng = np.random.default_rng(7)
+def image_dataset(path: Path, seed: int = 7) -> None:
+    rng = np.random.default_rng(seed)
     render = rng.normal(size=(3, 64))
     eps = []
     for e in range(4):
@@ -428,6 +429,31 @@ def main():
                   "checkpoint_handoff_by_hash": handoff, "evaluation": ev,
                   "labels_inputs": sorted(lab_inputs)}
     record("integrated_stub_flow", ok, **detail)
+
+    # A loaded transition model is bound to the representation fit it was trained in: the same PCA fit loads,
+    # another PCA fit of the same kind and dimensions (other images) is refused before any label.
+    if ok:
+        ckpt = by_stage["transition.fit"] / "checkpoints/transition_model.npz"
+        loads = {}
+        for name, seed in (("same_fit", 7), ("other_fit", 8)):
+            d = out / f"integrated_load_{name}"
+            d.mkdir()
+            image_dataset(d / "images.npz", seed)
+            r = ccil("pipeline", "integrated", *INTEGRATED, "--set", f"transition_model.checkpoint={ckpt}", cwd=d)
+            rs = {json.loads((p / layout.MANIFEST).read_text())["workflow"]: p for p in runs(d / "runs").values()}
+            rep_ckpt = rs["representation.fit"] / "checkpoints/representation.npz" if "representation.fit" in rs else None
+            loads[name] = {"exit": r.returncode, "labels_written": "labels.generate" in rs,
+                           "loaded": "transition.fit" in rs and json.loads((rs["transition.fit"] / layout.METRICS)
+                                                                          .read_text())["values"]["label_model"]["source"] == "loaded",
+                           "representation_sha256": hashlib.sha256(rep_ckpt.read_bytes()).hexdigest()[:12] if rep_ckpt else None,
+                           "names_representation": "representation" in r.stderr and "checkpoint_sha256" in r.stderr,
+                           "error": r.stderr.strip().splitlines()[-1][:200] if r.returncode else ""}
+        fitted_rep = hashlib.sha256((by_stage["representation.fit"] / "checkpoints/representation.npz").read_bytes()).hexdigest()[:12]
+        s, o = loads["same_fit"], loads["other_fit"]
+        record("loaded_checkpoint_is_bound_to_its_representation_fit",
+               s["exit"] == 0 and s["loaded"] and s["labels_written"] and s["representation_sha256"] == fitted_rep
+               and o["exit"] == 2 and o["names_representation"] and not o["labels_written"]
+               and o["representation_sha256"] not in (None, fitted_rep), fitted_representation_sha256=fitted_rep, loads=loads)
 
     # 4. Replacing the downstream trainer reuses the four CCIL stages.
     r = ccil("pipeline", "integrated", *INTEGRATED, "--set", "integrated.trainer=mean_action", cwd=wi)
