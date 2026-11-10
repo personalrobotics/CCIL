@@ -4,6 +4,8 @@ legacy implementation where it had one, and are otherwise left for recipes to se
 (no algorithm default is invented or changed here)."""
 from __future__ import annotations
 
+import re
+
 from .spec import Param
 
 D = "declared"
@@ -48,7 +50,9 @@ PARAMS = [
     Param("representation.kind", "choice", "identity", "Representation the labels live in.",
           "identity reproduces vector CCIL; pca is the integrated pipeline's reference learned representation.",
           "representation", choices=("identity", "pca")),
-    Param("representation.modality", "str", "state", "Stored modality the representation reads.",
+    Param("representation.modality", "str", "state",
+          "Stored modality the representation reads, or an ordered \"+\"-joined list of them that identity concatenates "
+          "in that order (e.g. state+state.environment_state).",
           "Vector CCIL reads the state modality.", "representation"),
     Param("representation.dim", "int", None, "Latent dimension of a learned representation.",
           "Required by pca; unused by identity.", "representation", low=1, nullable=True),
@@ -127,6 +131,10 @@ PARAMS = [
           "Legacy literal in utils.root_finder_s.", "generation", units="state units", low=0.0, low_open=True),
     Param("generation.labels_per_transition", "int", None, "Noisy-action candidates per transition.",
           "Task-specific (10 or 20) in legacy configs.", "generation", low=1, nullable=True, legacy=("aug.num_labels",)),
+    Param("generation.action_noise_scale", "choice", "absolute",
+          "Units of generation.action_noise_std: absolute (action units) or training_std (a multiple of each action "
+          "dimension's standard deviation over the training transitions, resolved per dimension and recorded in the "
+          "generator's parameters).", "", "generation", choices=("absolute", "training_std")),
     Param("generation.action_noise_std", "float", None, "Standard deviation of the noisy-action perturbation.",
           "Task-specific in legacy configs.", "generation", units="action units", low=0.0, low_open=True, nullable=True,
           legacy=("aug.delta",)),
@@ -288,6 +296,23 @@ def _pca_dim(v):
     return None
 
 
+_MODALITY = re.compile(r"^(state|image)(\.[a-z0-9_]+)?$")
+
+
+def _modality(v):
+    names = v["representation.modality"].split("+")
+    bad = [n for n in names if not _MODALITY.match(n)]
+    if bad:
+        return f"representation.modality: {bad} are not stored modality names (state or image, optionally .<name>)"
+    if len(set(names)) != len(names):
+        return "representation.modality: a joined list names a modality twice"
+    if len(names) > 1 and v["representation.kind"] != "identity":
+        return "representation.modality: only the identity representation concatenates a joined list of modalities"
+    if len(names) > 1 and any(not n.startswith("state") for n in names):
+        return "representation.modality: a joined list concatenates vector state modalities only (no image.*)"
+    return None
+
+
 BOUND_PROFILES = ("continuity", "backtrack", "disturbed_action")
 # Generator family each profile certifies, and the family of each generation.method.
 PROFILE_FAMILY = {"backtrack": "backtrack", "backtrack_paper_proxy": "backtrack", "disturbed_action": "disturbed_action",
@@ -404,6 +429,7 @@ def mlp_settings_problem(v):
 
 RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
+    ("modality", ("representation.modality", "representation.kind"), _modality),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind",
                      "calibration.level"), _certificate),

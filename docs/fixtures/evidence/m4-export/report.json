@@ -1,0 +1,130 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "case": "labels_keep_modalities_and_supervision_concatenates_in_order",
+   "modalities": [
+    "state",
+    "state.environment_state"
+   ],
+   "pass": true,
+   "synthetic_rows": 936,
+   "width": 6
+  },
+  {
+   "case": "checkpoint_bound_to_modality_order",
+   "error": "ate+state.environment_state', 'widths': {'state': 2, 'state.environment_state': 4}}, this run {'kind': 'identity', 'modality': 'state.environment_state+state', 'checkpoint_sha256': None, 'widths': {'state.environment_state': 4, 'state': 2}}",
+   "pass": true,
+   "reversed_exit": 2,
+   "same_order_exit": 0
+  },
+  {
+   "case": "lipschitz_measured_from_the_saved_weights",
+   "measured": {
+    "action": 0.2958592708717553,
+    "state": 0.4171027336905083
+   },
+   "pass": true,
+   "recomputed": {
+    "action": 0.2958592712426596,
+    "state": 0.41710273420212735
+   },
+   "scope": "the residual map f_hat in raw state and action units, recomputed from the saved checkpoint with its normalization, output scaling and mask; a measurement, not a certificate"
+  },
+  {
+   "case": "noise_resolved_from_training_action_std",
+   "pass": true,
+   "sigma": [
+    31.98824500362995,
+    27.173375760019148
+   ],
+   "training_std": [
+    63.9764900072599,
+    54.346751520038296
+   ]
+  },
+  {
+   "case": "export_holds_the_source_frames_and_the_labels",
+   "counts": {
+    "demonstration_episodes": 12,
+    "demonstration_frames": 480,
+    "episodes": 948,
+    "frames": 1416,
+    "synthetic_rows": 936
+   },
+   "error": "",
+   "held_out_episodes": [
+    6,
+    10,
+    11,
+    15
+   ],
+   "pass": true
+  },
+  {
+   "act": {
+    "finite_gradients": true,
+    "loss": 0.858167290687561,
+    "parameters_with_gradients": 42
+   },
+   "case": "stock_lerobot_act_consumes_each_row",
+   "delta_timestamps": {
+    "action": [
+     0.0
+    ]
+   },
+   "error": "",
+   "input_features": [
+    "observation.environment_state",
+    "observation.state"
+   ],
+   "lerobot": "0.6.1",
+   "pass": true,
+   "picks": [
+    0,
+    5,
+    480,
+    481,
+    1415
+   ]
+  },
+  {
+   "case": "refusals_write_nothing",
+   "exits": {
+    "changed_file": 2,
+    "existing_output": 2,
+    "non_unit_weight": 2,
+    "other_conversion": 2
+   },
+   "pass": true
+  },
+  {
+   "case": "recorded_split_is_honored_whatever_the_supervision_flag",
+   "counts": {
+    "demonstration_episodes": 12,
+    "demonstration_frames": 480,
+    "episodes": 948,
+    "frames": 1416,
+    "synthetic_rows": 936
+   },
+   "episodes_written": 12,
+   "error": "",
+   "held_out_written": [],
+   "pass": true
+  },
+  {
+   "case": "joined_image_modalities_refused",
+   "configuration_error": "invalid configuration:\n  representation.modality: a joined list concatenates vector state modalities only (no image.*) [modality; sources: representation.modality=cli, representation.kind=default]",
+   "configuration_exit": 2,
+   "pass": true,
+   "representation": "RequestError: a joined modality concatenates vectors (N, d); state+image.top has parts {'state': (3, 2), 'image.top': (3, 4, 4, 3)}"
+  }
+ ],
+ "environment": {
+  "code_commit": "21af69ac62fe931dda2028ee11e0f32ef8ce9ebc",
+  "code_dirty": false,
+  "lerobot": "0.6.1",
+  "numpy": "2.4.6",
+  "python": "3.11.16"
+ }
+}

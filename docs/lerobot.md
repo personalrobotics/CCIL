@@ -166,6 +166,27 @@ uv run --group evidence --extra lerobot python tools/m4_overlay/check.py --out <
 For each supported release, the evidence checks three things: a stock load that sees exactly the source, a
 CCIL-aware load that sees every label and weight, and the temporal windows.
 
+## An augmented dataset for an unchanged trainer (#30)
+
+An overlay is invisible to a stock LeRobot loader, and LeRobot can neither
+concatenate datasets nor read row weights. So for a stock training command,
+`ccil export lerobot` (`ccil.lerobot.export.export_dataset`) writes the
+ordinary CCIL product as one new v3.0 dataset: the training episodes as
+converted, then one **one-frame episode** per usable selected label, with
+`ccil.*` provenance columns on every frame and `ccil/export.json`
+(`ccil.lerobot-export` 1.0) recording the inputs, the episode split, the
+counts, the labels' source-index hash and every file's SHA-256. It needs a
+curate result of a dataset converted from LeRobot, that conversion's
+manifest, and unit weights.
+
+Here labels *are* episodes, so the consumer must not read temporal context
+around them: a policy that reads one observation and predicts one action
+(ACT with `n_obs_steps 1`, `chunk_size 1`, `n_action_steps 1`) trains on
+each label exactly as on a demonstration frame. The evidence
+([m4-export](fixtures/evidence/m4-export/report.json)) loads an export with
+stock LeRobot 0.6.1 and ACT, compares each requested frame with its row, and
+trains one step. The worked example is [pusht.md](pusht.md).
+
 ## The round trip (#29)
 
 ```bash

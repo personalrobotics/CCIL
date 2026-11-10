@@ -38,7 +38,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | Key | Type | Default | Units | Domain | Status | Description | Rationale | Replaces |
 |---|---|---|---|---|---|---|---|---|
 | `representation.kind` | choice | `"identity"` | - | `identity`, `pca` | implemented | Representation the labels live in. | identity reproduces vector CCIL; pca is the integrated pipeline's reference learned representation. | - |
-| `representation.modality` | str | `"state"` | - | - | implemented | Stored modality the representation reads. | Vector CCIL reads the state modality. | - |
+| `representation.modality` | str | `"state"` | - | - | implemented | Stored modality the representation reads, or an ordered "+"-joined list of them that identity concatenates in that order (e.g. state+state.environment_state). | Vector CCIL reads the state modality. | - |
 | `representation.dim` | int | `null` | - | [1, inf] | implemented | Latent dimension of a learned representation. | Required by pca; unused by identity. | - |
 
 ## transition_model
@@ -72,6 +72,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 | `generation.max_iterations` | int | `null` | - | [1, inf] | implemented | Root-finder iterations. | Task-specific (30 or 50) in legacy configs. | `aug.max_iter` |
 | `generation.root_tolerance` | float | `0.0001` | state units | (0.0, inf] | implemented | Residual norm at which the root finder stops. | Legacy literal in utils.root_finder_s. | - |
 | `generation.labels_per_transition` | int | `null` | - | [1, inf] | implemented | Noisy-action candidates per transition. | Task-specific (10 or 20) in legacy configs. | `aug.num_labels` |
+| `generation.action_noise_scale` | choice | `"absolute"` | - | `absolute`, `training_std` | implemented | Units of generation.action_noise_std: absolute (action units) or training_std (a multiple of each action dimension's standard deviation over the training transitions, resolved per dimension and recorded in the generator's parameters). |  | - |
 | `generation.action_noise_std` | float | `null` | action units | (0.0, inf] | implemented | Standard deviation of the noisy-action perturbation. | Task-specific in legacy configs. | `aug.delta` |
 | `generation.action_chunk_size` | int | `null` | actions | [1, inf] | implemented | Add action chunks of this size to every label: the label action, then the demonstration's continuation. | Legacy aug.chunk_size (label-filtering), whose inverted condition ignored a configured value (#22). | `aug.chunk_size` |
 | `generation.model_error_threshold` | float | `null` | representation units | (0.0, inf] | implemented | Reject the candidates of transitions whose one-step model error is not below this. | Legacy aug.model_err_thresh (label-filtering). | `aug.model_err_thresh` |
@@ -146,6 +147,7 @@ Values in files are YAML; numbers with units may be written `"<n> <unit>"` with 
 ## Cross-field rules
 
 - `pca_dim`: `representation.kind`, `representation.dim`
+- `modality`: `representation.modality`, `representation.kind`
 - `action_bounds`: `data.action_low`, `data.action_high`
 - `certificate`: `certificate.profile`, `certificate.reference_dynamics`, `generation.method`, `transition_model.kind`, `calibration.level`
 - `calibration`: `calibration.level`, `certificate.profile`, `certificate.reference_dynamics`, `transition_model.fit_episodes`, `data.validation_fraction`, `generation.recovery_steps`

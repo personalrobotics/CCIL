@@ -212,9 +212,12 @@ def _noisy_actions(batch, seed, k, sigma, bounds=None):
 def _noise_params(k, sigma, action_bounds):
     if isinstance(k, bool) or not isinstance(k, (int, np.integer)) or k < 1:
         raise RequestError(f"labels_per_transition must be an integer >= 1, got {k!r}")
-    if isinstance(sigma, bool) or not isinstance(sigma, (int, float, np.floating)) or not np.isfinite(sigma) or sigma <= 0:
-        raise RequestError(f"action_noise_std must be finite and > 0, got {sigma!r}")
-    params = {"labels_per_transition": int(k), "action_noise_std": float(sigma),
+    per_dim = isinstance(sigma, (list, tuple, np.ndarray))
+    values = list(sigma) if per_dim else [sigma]
+    if not values or any(isinstance(s, bool) or not isinstance(s, (int, float, np.floating)) or not np.isfinite(s) or s <= 0
+                         for s in values):
+        raise RequestError(f"action_noise_std must be finite and > 0 (one value, or one per action dimension), got {sigma!r}")
+    params = {"labels_per_transition": int(k), "action_noise_std": [float(s) for s in values] if per_dim else float(sigma),
               "action_noise": "normal(0, action_noise_std^2) per action dimension, action units"}
     if action_bounds is not None:
         low, high = _bounds(action_bounds)

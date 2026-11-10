@@ -116,6 +116,20 @@ def _inspect(args) -> int:
     return 0
 
 
+def _export_lerobot(args) -> int:
+    from .lerobot.export import export_dataset
+    m = export_dataset(args.result, args.conversion, args.out, revision=args.revision)
+    c = m["counts"]
+    print(f"dataset        {args.out}: {c['episodes']} episodes, {c['frames']} frames\n"
+          f"demonstrations {c['demonstration_episodes']} training episodes, {c['demonstration_frames']} frames "
+          f"({len(m['episodes']['held_out'])} held-out episodes not written)\n"
+          f"labels         {c['synthetic_rows']} one-frame episodes (ccil.synthetic = 1)\n"
+          f"manifest       {Path(args.out) / 'ccil' / 'export.json'}\n"
+          f"next           lerobot-train --dataset.repo_id=<name> --dataset.root={args.out} with a policy that reads "
+          f"one observation and predicts one action (e.g. ACT: n_obs_steps 1, chunk_size 1, n_action_steps 1)")
+    return 0
+
+
 GOLDEN_HELP = """required:  data.path, generation.method (via --recipe, --config, or --set)
 resume:    a stage whose run directory is already complete is reused
 optional:  no extra dependencies (core install)
@@ -268,8 +282,23 @@ def main(argv=None) -> int:
                                         "values with their sources), provenance and hashes, quality, rejections,\n"
                                         "usable rows and next step; or a run directory's configuration,\n"
                                         "provenance and metrics.", formatter_class=argparse.RawDescriptionHelpFormatter)
-    ins.add_argument("target", help="a generate or curate result, or a run directory")
+    ins.add_argument("target", help="a generate or curate result, a run directory, or an exported dataset")
     ins.set_defaults(fn=_inspect)
+    export = groups.add_parser("export", help="hand curated rows to other tools").add_subparsers(dest="command",
+                                                                                                 required=True)
+    exl = export.add_parser("lerobot", help="one augmented LeRobot v3.0 dataset an unchanged trainer consumes",
+                            description="Write the training episodes plus one one-frame episode per usable selected\n"
+                                        "label, with ccil.* provenance columns and ccil/export.json (ccil.lerobot-export\n"
+                                        "1.0). Needs a curate result of a dataset converted from LeRobot, its\n"
+                                        "conversion manifest, and unit label weights.\n\n"
+                                        "exit:      0 written; 2 an unusable result, conversion or weight, or an existing\n"
+                                        "           output; 1 an unexpected failure",
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+    exl.add_argument("result", help="a curate result (curate-<id>.json)")
+    exl.add_argument("--conversion", required=True, help="the conversion manifest ccil.lerobot.convert wrote")
+    exl.add_argument("--out", required=True, help="the dataset directory to create")
+    exl.add_argument("--revision", help="the source dataset's Hub revision, recorded in the manifest")
+    exl.set_defaults(fn=_export_lerobot)
     labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
     gen = labels.add_parser("generate", help="deprecated: ccil generate, then ccil curate", description='Deprecated: use ccil generate, then ccil curate. Run offline label generation: data.prepare -> transition.fit -> labels.diagnose ->\nlabels.generate -> labels.certify (with a certificate.profile) -> labels.curate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran',
                             formatter_class=argparse.RawDescriptionHelpFormatter)

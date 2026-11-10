@@ -553,7 +553,8 @@ def _aggregate(per_episode: list[dict]) -> dict:
 
 
 def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_files_size_in_mb: int = 100,
-                  chunks_size: int = 1000, robot_type: str | None = None, drop_endings: bool = False) -> Path:
+                  chunks_size: int = 1000, robot_type: str | None = None, drop_endings: bool = False,
+                  columns=None, single_frame_episodes: bool = False) -> Path:
     """Write episodes (a TrajectoryDataset or an iterable of Episode) as a LeRobotDataset v3.0 directory.
 
     Streams: each data shard is written when it reaches data_files_size_in_mb. Each streamed episode is validated
@@ -563,6 +564,9 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
     unless drop_endings=True, the documented lossy mode; an unknown or unrecorded non-terminal ending is written. Timestamps must advance by 1 / fps
     (LeRobot checks this when it loads); episodes without timestamps get frame / fps. The directory is built
     under a temporary name and moved into place, so root exists only once complete; an existing root is refused.
+    columns, when given, maps (episode number, Episode) to extra per-frame int64 columns, the same names for every
+    episode; LeRobot policies read observation.* and action, and ignore them. single_frame_episodes admits episodes of
+    one frame (valid LeRobot, but no ccil.trajectories transition): each is checked as its two-frame repetition.
     """
     pa, pq = _arrow()
     root = Path(root)
@@ -599,7 +603,11 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
             if not isinstance(ep, Episode):
                 raise LeRobotFormatError("write", [f"item {e} is a {type(ep).__name__}, not an Episode"])
             try:
-                TrajectoryDataset([ep]).validate()
+                if single_frame_episodes and ep.length == 1:
+                    TrajectoryDataset([Episode(ep.episode_id, {m: np.repeat(x, 2, axis=0) for m, x in ep.observations.items()},
+                                               np.repeat(ep.actions, 2, axis=0), task=ep.task)]).validate()
+                else:
+                    TrajectoryDataset([ep]).validate()
             except SchemaError as err:
                 raise LeRobotFormatError("write", [f"episode {e} ({ep.episode_id!r}): {err}"]) from err
             if ep.episode_id in seen_ids:
@@ -624,6 +632,9 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
                 features["action"] = {"dtype": dtypes["action"], "shape": [adim], "names": None}
                 for col in ("timestamp", *("frame_index", "episode_index", "index", "task_index")):
                     features[col] = {"dtype": "float32" if col == "timestamp" else "int64", "shape": [1], "names": None}
+                extra_names = sorted(columns(e, ep)) if columns is not None else []
+                for col in extra_names:
+                    features[col] = {"dtype": "int64", "shape": [1], "names": None}
                 hf = {k: _value_feature(v["dtype"], v["shape"][0]) for k, v in features.items()}
                 fields = [pa.field(k, pa.list_(pa.from_numpy_dtype(np.dtype(v["dtype"])), v["shape"][0])
                                    if v["shape"][0] > 1 else pa.from_numpy_dtype(np.dtype(v["dtype"])))
@@ -657,6 +668,12 @@ def write_dataset(episodes, root, fps: float, *, default_task: str = "", data_fi
             cols["episode_index"] = np.full(T, e, dtype=np.int64)
             cols["index"] = np.arange(start, start + T, dtype=np.int64)
             cols["task_index"] = np.full(T, t_index, dtype=np.int64)
+            if columns is not None:
+                extra = columns(e, ep)
+                if sorted(extra) != extra_names or any(np.shape(x) != (T,) for x in extra.values()):
+                    raise LeRobotFormatError("write", [f"episode {ep.episode_id}: extra columns {sorted(extra)} must be "
+                                                       f"{extra_names}, one int64 value per frame"])
+                cols.update({k: np.asarray(x, np.int64) for k, x in extra.items()})
             arrays = []
             for f in schema:
                 x = np.ascontiguousarray(cols[f.name])

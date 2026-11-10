@@ -28,6 +28,7 @@ from ..schema import SchemaError, read_candidates, read_certificates, read_selec
 from ..schema.audit import SCHEMA as AUDIT_SCHEMA, STATEMENT as AUDIT_STATEMENT, VERSION as AUDIT_VERSION
 from ..schema.calibration import METHOD, SCHEMA, STATEMENT, UNIT, VERSION, check
 from .batch import RequestError
+from .representation import observation
 
 POPULATION_RULE = "eligible (accepted, empirical) rows whose source episode is one of the calibration episodes"
 ERROR_DEFINITION = "||(T(z_G, a_G) - y) / state_scale|| with T(z, a) = z + A z + B a, the reference dynamics"
@@ -38,9 +39,9 @@ def observed_error(candidates, cert, reference) -> np.ndarray:
     from .certificates import read_reference_dynamics
     A, B = read_reference_dynamics(reference)
     co = cert.descriptor["coordinates"]
-    z = np.asarray(candidates.observations[co["modality"]], np.float64)
+    z = np.asarray(observation(candidates.observations, co["modality"]), np.float64)
     a = np.asarray(candidates.actions, np.float64)
-    y = np.asarray(candidates.target_observations[co["modality"]], np.float64)
+    y = np.asarray(observation(candidates.target_observations, co["modality"]), np.float64)
     if A.shape != (z.shape[1], z.shape[1]) or B.shape != (z.shape[1], a.shape[1]):
         raise RequestError(f"reference dynamics {A.shape}, {B.shape} do not match the certificate's coordinates "
                              f"({z.shape[1]} state, {a.shape[1]} action)")
@@ -182,8 +183,8 @@ def reference_audit(selection, candidates, reference, certificates=None, calibra
     if cert is None:  # an uncertified selection: the unit state scale
         from .certificates import read_reference_dynamics
         A, B = read_reference_dynamics(reference)
-        z, a, y = (np.asarray(x, np.float64) for x in (cands.observations[modality], cands.actions,
-                                                         cands.target_observations[modality]))
+        z, a, y = (np.asarray(x, np.float64) for x in (observation(cands.observations, modality), cands.actions,
+                                                         observation(cands.target_observations, modality)))
         err, units = np.linalg.norm(z + z @ A.T + a @ B.T - y, axis=1), "state units"
     else:
         err, units = observed_error(cands, cert, reference), cert.descriptor["units"]["error"]

@@ -325,6 +325,14 @@ def inspect(target: str | Path) -> Inspection:
     next step of a generate or curate result; of a run directory, its configuration, provenance and metrics."""
     t = Path(target).resolve()
     sections: dict = {}
+    if t.is_dir() and (t / "ccil" / "export.json").exists():  # a dataset ccil export lerobot wrote
+        from .lerobot.export import verify_export
+        m = verify_export(t)
+        sections["provenance"] = {"source": m["source"], "inputs": m["inputs"], "representation": m["representation"]}
+        sections["rows"] = {**m["counts"], "held_out_episodes": len(m["episodes"]["held_out"]),
+                            "synthetic_source_index_sha256": m["synthetic_source_index_sha256"]}
+        sections["next_step"] = m["consumption"]
+        return Inspection(sections, _text(sections))
     if t.is_dir():
         if not (t / layout.MANIFEST).exists():
             raise InputError(f"{t} is not a run directory (no {layout.MANIFEST})")
