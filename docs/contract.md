@@ -131,8 +131,11 @@ ccil.inspect(target: str | Path) -> ccil.Inspection
 - **Exceptions.** Every input failure raises a subclass of `ccil.InputError`,
   which itself subclasses `ValueError`. That covers configuration, schema,
   checkpoint, dataset-format, split and artifact-mismatch errors, and each one
-  lists every problem found. `CodeStateChanged` is separate. Any other
-  exception is a defect and propagates unchanged.
+  lists every problem found. Errors are classified by cause: settings or
+  artifacts a component refuses raise `ccil.core.RequestError` (an
+  `InputError`), while malformed output from a component implementation
+  raises `ccil.core.InterfaceError`, a defect. `CodeStateChanged` is separate.
+  Any other exception is a defect and propagates unchanged.
 
 ## Recovery length
 

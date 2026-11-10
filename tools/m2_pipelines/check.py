@@ -186,8 +186,8 @@ def main():
     (out / "empty_package").mkdir()
     r, status, new = variant_run("unidentifiable", f"import ccil.runs.provenance as p\n"
                                                    f"from pathlib import Path\np.PACKAGE_ROOT = Path({str(out / 'empty_package')!r})")
-    record("unidentifiable_implementation_never_reuses", r.returncode == 2 and not new and "reused" not in r.stdout
-           and "no ccil source files" in r.stderr, stage_status=status, error=r.stderr.strip()[-300:])
+    record("unidentifiable_implementation_never_reuses", r.returncode == 1 and not new and "reused" not in r.stdout
+           and "no ccil source files" in r.stderr and "Traceback" in r.stderr, stage_status=status, error=r.stderr.strip()[-300:])
 
     # 2. Offline generation imports no trainer or integrated pipeline.
     probe = ("import sys, json; from ccil.config import resolve; from ccil.pipelines.offline import generate_offline; "
@@ -353,6 +353,21 @@ def main():
            and "simulated defect" in r.stderr and not any(n.startswith("labels-generate") for n in done)
            and any(n.startswith("data-prepare") for n in done), completed_before_the_defect=done,
            error=r.stderr.strip()[-300:])
+    # A generator that returns a malformed CandidateBatch is a defect in that implementation, not a refused input.
+    w = out / "malformed_candidates"
+    w.mkdir()
+    write_trajectories(fixture(config), w / "fixture.npz")
+    prelude = ("import dataclasses, ccil.core.generators as g\n"
+               "real = g.BackwardEuler.generate\n"
+               "def broken(self, batch, model, seed):\n"
+               "    c = real(self, batch, model, seed)\n    return dataclasses.replace(c, a=c.a[:, :0])\n"
+               "g.BackwardEuler.generate = broken\n")
+    r = subprocess.run([sys.executable, "-c", prelude + "import sys\nfrom ccil.__main__ import main\nsys.exit(main(sys.argv[1:]))\n",
+                        *offline_args], cwd=w, capture_output=True, text=True)
+    done = completed(w)
+    record("malformed_candidate_batch_exits_1_with_its_traceback", r.returncode == 1 and "Traceback" in r.stderr
+           and "malformed CandidateBatch" in r.stderr and not any(n.startswith("labels-generate") for n in done),
+           completed_before_the_defect=done, error=r.stderr.strip()[-300:])
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,

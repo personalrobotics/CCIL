@@ -132,7 +132,7 @@ def outcome(fn):
     except SchemaError as e:
         return f"SchemaError: rules={sorted(e.counts)}: {e.violations[0]['detail'][:140]}"
     except InterfaceError as e:
-        return f"InterfaceError: {str(e)[:160]}"
+        return f"{type(e).__name__}: {str(e)[:160]}"
 
 
 def main():
@@ -216,7 +216,7 @@ def main():
     for k, v in rows.items():
         setattr(forged, k, v)
     record("values_cannot_be_asserted_as_bounds",
-           all(v.startswith("InterfaceError") for v in refused.values())
+           all(v.startswith("RequestError") for v in refused.values())
            and (declared.classification == "conditional").all() and violated.any()
            and (forged.classification == "certified").all() and (forged.total_error_value < err).any()
            and verify_structure(forged, s.candidates) == [] and any("recomputation" in p for p in audit_sources(forged, s)),
@@ -254,7 +254,7 @@ def main():
            and not ub_sel.mask.any() and ub_sel.reasons[cands.accepted, 2].all()
            and sc_sel.mask.any() and not sc_sel.error_spec["is_bound"]
            and np.array_equal(sc_sel.mask, cands.accepted & (ub.total_error_value <= limit))
-           and outcome(lambda: require_upper_bound(ub)).startswith("InterfaceError")
+           and outcome(lambda: require_upper_bound(ub)).startswith("RequestError")
            and outcome(lambda: require_upper_bound(cont)) == "accepted",
            bound_admission={"selected": int(ub_sel.mask.sum()), "not_bound": int(ub_sel.reasons[:, 2].sum())},
            score_admission={"tolerance": limit, "selected": int(sc_sel.mask.sum()), "is_bound": sc_sel.error_spec["is_bound"]},
@@ -464,7 +464,7 @@ def main():
         "scale_zero": outcome(lambda: certify(s, provided, action_scale=(0.0,))),
         "missing_reference": outcome(lambda: certify(Sources(s.candidates, data_path, s.transition_model, rep), provided)),
     }
-    record("api_validation", all(v.startswith("InterfaceError") for v in api.values()), refused=api)
+    record("api_validation", all(v.startswith("RequestError") for v in api.values()), refused=api)
 
     # 11. The pipeline: labels.certify next to an unchanged candidates file.
     from ccil.config import resolve

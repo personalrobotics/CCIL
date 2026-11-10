@@ -28,7 +28,7 @@ from ..runs import layout
 from ..runs.provenance import sha256
 from ..core.certificates import (PROFILES, BackTrackProfile, ContinuityProfile, Declared, DisturbedActionProfile, Provided,
                                  Sources, certify, read_reference_dynamics)
-from ..core.batch import InterfaceError
+from ..core.batch import RequestError
 from ..core.calibrate import calibrate, reference_audit
 from ..core.curate import CurationPolicy, curate
 from ..core.diagnose import diagnose
@@ -458,7 +458,7 @@ def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified:
         try:
             cal = calibrate(inputs["candidates"], inputs["certificates"], inputs["reference"], split["validation"],
                             level=float(v["calibration.level"]))
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_calibration(cal, run.path(layout.CALIBRATION))
         b = cal["bound"]
@@ -488,7 +488,7 @@ def audit_stage(cfg, labeled: StageResult, certified: StageResult | None, calibr
         try:
             doc = reference_audit(inputs["selection"], inputs["candidates"], inputs["reference"],
                                   inputs.get("certificates"), inputs.get("calibration"), v["representation.modality"])
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_audit(doc, run.path(layout.AUDIT))
         run.metrics({"selected": doc["groups"]["selected"], "bounds": doc["bounds"], "tolerance": doc["tolerance"],
@@ -515,7 +515,7 @@ def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, polic
         try:
             sel = curate(inputs["candidates"], inputs.get("certificates"), policy, v["generation.evidence_mode"],
                          inputs.get("calibration"))
-        except InterfaceError as e:
+        except RequestError as e:
             raise ConfigError([str(e)]) from None
         write_selection(sel, run.path(layout.SELECTION))
         counts = {code: int(sel.reasons[:, i].sum()) for i, code in enumerate(REASON_CODES)}
