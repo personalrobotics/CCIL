@@ -13,7 +13,7 @@ import numpy as np
 
 from ..schema import REASON_CODES, CandidateSet, TrajectoryDataset
 from ..schema.labels import canonical_reason_order, reason_code_problem
-from .batch import CandidateBatch, InterfaceError, check_candidates, concat
+from .batch import CandidateBatch, InterfaceError, RequestError, check_candidates, concat
 from .chunks import SPEC as CHUNK_SPEC
 from .chunks import TARGET_FRAME_SPEC as CHUNK_TARGET_FRAME_SPEC
 from .chunks import action_chunks
@@ -100,7 +100,7 @@ def nested_view(cands: CandidateSet, k: int, parent_sha256: str) -> CandidateSet
                     np.diff(np.asarray(cands.measurements[ATTEMPT_INDEX]).reshape(-1, k_max), axis=1) > 0).all():
                 problems.append("attempt indices do not increase within every transition")
     if problems:
-        raise InterfaceError("nested_view: " + "; ".join(problems))
+        raise RequestError("nested_view: " + "; ".join(problems))
     keep = np.asarray(cands.measurements[DRAW_INDEX]) < k
 
     def rows(x):
@@ -192,7 +192,7 @@ def generate_labels(dataset: TrajectoryDataset, representation, model, generator
     inputs = dict(inputs or {})
     if "transition_model" not in inputs:
         if not hasattr(model, "save"):
-            raise InterfaceError("pass inputs['transition_model'] or give the transition model a save() so labels "
+            raise RequestError("pass inputs['transition_model'] or give the transition model a save() so labels "
                                  "record its checkpoint hash")
         inputs["transition_model"] = checkpoint_sha256(model)
 

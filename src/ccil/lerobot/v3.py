@@ -34,6 +34,7 @@ from pathlib import Path, PurePosixPath
 
 import numpy as np
 
+from ..errors import InputError
 from ..schema import Episode, SchemaError, TrajectoryDataset
 
 CODEBASE_VERSION = "v3.0"
@@ -49,7 +50,7 @@ DEFERRED = ("image", "video", "audio")  # dtypes of modalities that arrive with 
 TIMESTAMP_TOLERANCE_S = 1e-4  # LeRobot's own tolerance when it checks timestamps against 1 / fps
 
 
-class LeRobotFormatError(ValueError):
+class LeRobotFormatError(InputError):
     """The directory is not a LeRobotDataset v3.0 dataset this bridge can read, or a dataset cannot be written."""
 
     def __init__(self, where, problems):

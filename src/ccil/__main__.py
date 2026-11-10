@@ -32,7 +32,7 @@ def _schema_validate(args) -> int:
             print(f"{args.candidates}: valid ({len(cands.accepted)} candidates, {int(cands.accepted.sum())} accepted)")
     except SchemaError as e:
         print(str(e), file=sys.stderr)
-        return 1
+        return 2
     return 0
 
 
@@ -78,16 +78,8 @@ def _config_audit(args) -> int:
 
 
 def _data_prepare(args) -> int:
-    from .config import ConfigError
     from .data.prepare import prepare
-    from .data.split import SplitError
-    from .runs import RunError
-    from .schema import SchemaError
-    try:
-        run_dir = prepare(_resolve(args))
-    except (ConfigError, SchemaError, SplitError, FileExistsError, RunError) as e:
-        print(str(e), file=sys.stderr)
-        return 2
+    run_dir = prepare(_resolve(args))
     print(f"wrote {run_dir}")
     return 0
 
@@ -97,26 +89,17 @@ def _run_validate(args) -> int:
     from .runs import validate_run
     status, problems = validate_run(args.run_dir)
     print(json.dumps({"run": args.run_dir, "status": status, "problems": problems}, indent=1))
-    return 0 if status == "complete" else 1
+    return 0 if status == "complete" else 2
 
 
 def _run_pipeline(args, which) -> int:
-    from .config import ConfigError
-    from .core import InterfaceError
-    from .pipelines.stages import StageError
-    from .schema import SchemaError
-    from .supervision import SupervisionError
-    try:
-        cfg = _resolve(args)
-        if which == "offline":
-            from .pipelines.offline import generate_offline
-            results = generate_offline(cfg)
-        else:
-            from .pipelines.integrated import run_integrated
-            results = run_integrated(cfg)
-    except (ConfigError, SchemaError, InterfaceError, StageError, SupervisionError) as e:
-        print(str(e), file=sys.stderr)
-        return 2
+    cfg = _resolve(args)
+    if which == "offline":
+        from .pipelines.offline import generate_offline
+        results = generate_offline(cfg)
+    else:
+        from .pipelines.integrated import run_integrated
+        results = run_integrated(cfg)
     for r in results:
         print(f"{r.stage:18s} {'reused' if r.reused else 'wrote '} {r.run_dir}")
     if getattr(args, "result", None):
@@ -217,7 +200,7 @@ def main(argv=None) -> int:
     _add_config_args(prep)
     prep.set_defaults(fn=_data_prepare)
     labels = groups.add_parser("labels", help="label generation").add_subparsers(dest="command", required=True)
-    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.generate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran',
+    gen = labels.add_parser("generate", help="offline label generation", description='Run offline label generation: data.prepare -> transition.fit -> labels.diagnose ->\nlabels.generate -> labels.certify (with a certificate.profile) -> labels.curate.\n\nrequired:  data.path, generation.method (via --recipe, --config, or --set)\noutputs:   one run directory per stage under run.output_dir; labels in\n           labels-generate-*/labels/candidates.npz (accepted and rejected rows)\n           and a report in its metrics.json; with --result PATH, the stages and\n           artifact paths as JSON (ccil.labels-result 1.0)\nresume:    a stage whose run directory is already complete is reused\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran',
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(gen)
     gen.add_argument("--result", metavar="PATH",
@@ -225,7 +208,7 @@ def main(argv=None) -> int:
     gen.set_defaults(fn=lambda a: _run_pipeline(a, "offline"))
     pipeline = groups.add_parser("pipeline", help="integrated pipelines").add_subparsers(dest="command", required=True)
     integ = pipeline.add_parser("integrated", help="representation, labels, and downstream policy",
-                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only supervision.* or integrated.*\n           reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 2 invalid configuration, data, or stage failure;\n           3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
+                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only supervision.* or integrated.*\n           reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(integ)
     integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
     runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
@@ -233,6 +216,8 @@ def main(argv=None) -> int:
     rval.add_argument("run_dir")
     rval.set_defaults(fn=_run_validate)
     args = ap.parse_args(argv)
+    from .errors import InputError
+    from .pipelines.stages import StageError
     from .runs.provenance import CodeStateChanged, code, verify_code_state
     code()  # the git state, captured before the command does any work (#127)
     try:
@@ -242,6 +227,14 @@ def main(argv=None) -> int:
     except CodeStateChanged as e:
         print(f"{e}; this command's outputs are not a consistent unit", file=sys.stderr)
         return 3
+    except StageError as e:
+        if not isinstance(e.error, (InputError, FileExistsError)):
+            raise  # a defect inside a stage: exit 1 with its traceback, never as an input error
+        print(str(e), file=sys.stderr)
+        return 2
+    except (InputError, FileExistsError) as e:  # every refused input exits 2 (docs/contract.md)
+        print(str(e), file=sys.stderr)
+        return 2
     return rc
 
 

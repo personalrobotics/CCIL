@@ -27,7 +27,7 @@ from ..runs.provenance import sha256
 from ..schema import SchemaError, read_candidates, read_certificates, read_selection
 from ..schema.audit import SCHEMA as AUDIT_SCHEMA, STATEMENT as AUDIT_STATEMENT, VERSION as AUDIT_VERSION
 from ..schema.calibration import METHOD, SCHEMA, STATEMENT, UNIT, VERSION, check
-from .batch import InterfaceError
+from .batch import RequestError
 
 POPULATION_RULE = "eligible (accepted, empirical) rows whose source episode is one of the calibration episodes"
 ERROR_DEFINITION = "||(T(z_G, a_G) - y) / state_scale|| with T(z, a) = z + A z + B a, the reference dynamics"
@@ -42,7 +42,7 @@ def observed_error(candidates, cert, reference) -> np.ndarray:
     a = np.asarray(candidates.actions, np.float64)
     y = np.asarray(candidates.target_observations[co["modality"]], np.float64)
     if A.shape != (z.shape[1], z.shape[1]) or B.shape != (z.shape[1], a.shape[1]):
-        raise InterfaceError(f"reference dynamics {A.shape}, {B.shape} do not match the certificate's coordinates "
+        raise RequestError(f"reference dynamics {A.shape}, {B.shape} do not match the certificate's coordinates "
                              f"({z.shape[1]} state, {a.shape[1]} action)")
     return np.linalg.norm((z + z @ A.T + a @ B.T - y) / np.asarray(co["state_scale"], np.float64), axis=1)
 
@@ -52,12 +52,12 @@ def _verified(candidates_path, certificates_path):
     from .certificates import verify_structure
     cands, cert = read_candidates(candidates_path), read_certificates(certificates_path)
     if cert.legacy:
-        raise InterfaceError("calibration needs a 2.0 certificate; certify the candidates again")
+        raise RequestError("calibration needs a 2.0 certificate; certify the candidates again")
     problems = verify_structure(cert, candidates_path)
     if problems:
-        raise InterfaceError("the certificate does not verify against these candidates: " + "; ".join(problems))
+        raise RequestError("the certificate does not verify against these candidates: " + "; ".join(problems))
     if cert.descriptor["form"] != "score":
-        raise InterfaceError(f"profile {cert.descriptor['profile']} gives bounds already; calibration bounds the "
+        raise RequestError(f"profile {cert.descriptor['profile']} gives bounds already; calibration bounds the "
                              "observed error of an empirical profile's rows")
     return cands, cert
 
@@ -70,12 +70,12 @@ def eligible(cands, cert) -> np.ndarray:
 def build_calibration(cands, cert, error, episodes, level: float, inputs: dict) -> dict:
     """The calibration document from loaded candidates, certificate, and observed errors; pure arithmetic."""
     if not (isinstance(level, float) and 0 < level < 1):
-        raise InterfaceError(f"level must be in (0, 1), got {level!r}")
+        raise RequestError(f"level must be in (0, 1), got {level!r}")
     episodes = sorted({str(e) for e in episodes})
     ep = np.asarray(cands.source_episode_id).astype(str)
     pop = eligible(cands, cert) & np.isin(ep, episodes)
     if not pop.any():
-        raise InterfaceError("no accepted, empirical rows come from the calibration episodes")
+        raise RequestError("no accepted, empirical rows come from the calibration episodes")
     scores = sorted(float(error[pop & (ep == e)].max()) for e in np.unique(ep[pop]))
     n = len(scores)
     k = math.ceil((n + 1) * level)
@@ -109,10 +109,10 @@ def calibrated_rows(cal: dict, cands, cert) -> tuple[np.ndarray, np.ndarray]:
 def matching_calibration(cal: dict, candidates_sha256: str, certificates_sha256: str | None) -> None:
     """Refuse a calibration of other candidates or another certificate file."""
     if certificates_sha256 is None:
-        raise InterfaceError("a calibration maps a certificate's scores; it needs that certificate")
+        raise RequestError("a calibration maps a certificate's scores; it needs that certificate")
     for name, sha in (("candidates", candidates_sha256), ("certificates", certificates_sha256)):
         if cal["inputs"][name] != sha:
-            raise InterfaceError(f"the calibration was made from {name} {cal['inputs'][name]}, not {sha}; a "
+            raise RequestError(f"the calibration was made from {name} {cal['inputs'][name]}, not {sha}; a "
                                  "calibration applies to its own certificate file only")
 
 
@@ -125,7 +125,7 @@ def structure_problems(cal: dict, cands, cert) -> list[str]:
     try:
         again = build_calibration(cands, cert, np.zeros(len(cert.classification)), cal["population"]["episodes"],
                                   cal["level"], cal["inputs"])
-    except InterfaceError as e:
+    except RequestError as e:
         return [str(e)]
     problems = [f"{key} does not follow from the certificate" for key in ("certificate", "population")
                 if cal[key] != again[key]]
@@ -146,7 +146,7 @@ def verify_calibration(cal: dict, candidates, certificates, reference) -> list[s
         cands, cert = _verified(candidates, certificates)
         again = build_calibration(cands, cert, observed_error(cands, cert, reference), cal["population"]["episodes"],
                                   cal["level"], given)
-    except (SchemaError, InterfaceError) as e:
+    except (SchemaError, RequestError) as e:
         return [str(e)]
     for key in ("method", "unit", "certificate", "error", "population", "statement"):
         if cal[key] != again[key]:
@@ -176,7 +176,7 @@ def reference_audit(selection, candidates, reference, certificates=None, calibra
     from .curate import verify_selection
     problems = verify_selection(read_selection(selection), candidates, certificates, calibration)
     if problems:
-        raise InterfaceError("the selection does not verify against its inputs: " + "; ".join(problems))
+        raise RequestError("the selection does not verify against its inputs: " + "; ".join(problems))
     sel, cands = read_selection(selection), read_candidates(candidates)
     cert = None if certificates is None else read_certificates(certificates)
     if cert is None:  # an uncertified selection: the unit state scale

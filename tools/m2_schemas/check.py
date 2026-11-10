@@ -372,10 +372,10 @@ def main():
         from_m1_npz(m1)
         results["legacy:meta_invalid_json"] = {"exit": 0, "traceback": False, "error": []}
     except SchemaError as e:
-        results["legacy:meta_invalid_json"] = {"exit": 1, "traceback": False, "error": str(e).splitlines()[:2]}
+        results["legacy:meta_invalid_json"] = {"exit": 2, "traceback": False, "error": str(e).splitlines()[:2]}
     except Exception as e:  # noqa: BLE001  (the defect being guarded against is a raw decoding error)
         results["legacy:meta_invalid_json"] = {"exit": None, "traceback": True, "error": [f"{type(e).__name__}: {e}"]}
-    record("G", "malformed_files_raise_schema_error", all(v["exit"] == 1 and not v["traceback"] for v in results.values()),
+    record("G", "malformed_files_raise_schema_error", all(v["exit"] == 2 and not v["traceback"] for v in results.values()),
            results=results)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731

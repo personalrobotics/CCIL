@@ -9,11 +9,13 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..errors import InputError
+
 FLOAT32_MAX = float(np.finfo(np.float32).max)
 MAX_EXAMPLES = 20  # per rule; counts stay exact
 
 
-class SchemaError(ValueError):
+class SchemaError(InputError):
     """A value violates a ccil schema; .violations lists each violation."""
 
     def __init__(self, schema: str, violations: list[dict], counts: dict[str, int]):

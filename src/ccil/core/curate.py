@@ -55,7 +55,7 @@ from ..runs.provenance import sha256
 from ..schema import SchemaError, read_candidates, read_certificates
 from ..schema.certificates import BOUND_CLASSES
 from ..schema.selection import ADMIT, EVIDENCE_MODES, POPULATIONS, REASON_CODES, SelectionSet
-from .batch import InterfaceError
+from .batch import RequestError
 
 POLICY_VERSION = "1"
 FIDELITY_CAVEAT = ("fidelity only: the policy compares label error and no novelty term, so it favours labels close to "
@@ -87,7 +87,7 @@ class CurationPolicy:
         if self.admit == "accepted" and (self.tolerance is not None or self.quantile is not None):
             problems.append("admit accepted compares no error: it takes no tolerance or quantile")
         if problems:
-            raise InterfaceError("; ".join(problems))
+            raise RequestError("; ".join(problems))
 
     def spec(self) -> dict:
         return {"admit": self.admit, "tolerance": None if self.tolerance is None else float(self.tolerance),
@@ -151,7 +151,7 @@ def reference_assisted(cert) -> bool:
     for e in entries:
         p = e.get("provenance")
         if p and p.get("provider") not in PROVIDERS:
-            raise InterfaceError(f"the certificate names an unregistered provider {p.get('provider')!r}")
+            raise RequestError(f"the certificate names an unregistered provider {p.get('provider')!r}")
     return any(e.get("provenance") and PROVIDERS[e["provenance"]["provider"]].needs_reference for e in entries)
 
 
@@ -162,25 +162,25 @@ def decide_selection(candidates, cert, policy: CurationPolicy, candidates_sha256
 
     The recorded evidence mode is the evidence's provenance; reference-assisted
     evidence (certificate constants, or any calibration) under a data_only
-    allowance raises InterfaceError.
+    allowance raises RequestError.
     """
     from .calibrate import calibrated_rows, matching_calibration, structure_problems
     if allow_evidence not in EVIDENCE_MODES:
-        raise InterfaceError(f"allow_evidence must be one of {list(EVIDENCE_MODES)}, got {allow_evidence!r}")
+        raise RequestError(f"allow_evidence must be one of {list(EVIDENCE_MODES)}, got {allow_evidence!r}")
     if calibration is not None:
         if policy.admit != "bound":
-            raise InterfaceError(f"a calibration gives bounds; it applies to admit bound, not {policy.admit}")
+            raise RequestError(f"a calibration gives bounds; it applies to admit bound, not {policy.admit}")
         matching_calibration(calibration, candidates_sha256, certificates_sha256)
         problems = structure_problems(calibration, candidates, cert)
         if problems:
-            raise InterfaceError("the calibration does not verify against its certificate: " + "; ".join(problems))
+            raise RequestError("the calibration does not verify against its certificate: " + "; ".join(problems))
         if allow_evidence == "data_only":
-            raise InterfaceError("a calibration's observed errors come from reference dynamics, which data_only curation "
+            raise RequestError("a calibration's observed errors come from reference dynamics, which data_only curation "
                                  "cannot use; allow reference_assisted evidence (generation.evidence_mode)")
     evidence_mode = ("reference_assisted" if calibration is not None or (cert is not None and reference_assisted(cert))
                      else "data_only")
     if evidence_mode == "reference_assisted" and allow_evidence == "data_only":
-        raise InterfaceError("the certificate's constants come from reference dynamics, which data_only curation cannot "
+        raise RequestError("the certificate's constants come from reference dynamics, which data_only curation cannot "
                              "use; allow reference_assisted evidence (generation.evidence_mode)")
     accepted = np.asarray(candidates.accepted, bool)
     n = len(accepted)
@@ -235,7 +235,7 @@ def curate(candidates, certificates=None, policy: CurationPolicy = CurationPolic
     """Select rows of the candidates file with policy; no input is modified.
 
     candidates, certificates, and calibration are file paths. Raises
-    InterfaceError when the policy and inputs do not fit: a certificate policy
+    RequestError when the policy and inputs do not fit: a certificate policy
     without certificates, certificates with admit accepted, a legacy 1.0
     certificate, a certificate that fails structural verification against these
     candidates, a calibration of another certificate file or without a bound
@@ -245,16 +245,16 @@ def curate(candidates, certificates=None, policy: CurationPolicy = CurationPolic
     cand_sha = sha256(Path(candidates))
     if policy.admit == "accepted":
         if certificates is not None or calibration is not None:
-            raise InterfaceError("admit accepted selects by acceptance alone; it takes no certificates or calibration")
+            raise RequestError("admit accepted selects by acceptance alone; it takes no certificates or calibration")
         return decide_selection(cands, None, policy, cand_sha, None, allow_evidence)
     if certificates is None:
-        raise InterfaceError(f"admit {policy.admit} compares certificate errors; it needs certificates")
+        raise RequestError(f"admit {policy.admit} compares certificate errors; it needs certificates")
     cert = read_certificates(certificates)
     if cert.legacy:
-        raise InterfaceError("a 1.0 certificate already carries its own selection; certify the candidates again (2.0)")
+        raise RequestError("a 1.0 certificate already carries its own selection; certify the candidates again (2.0)")
     problems = _certificate_problems(cert, candidates)
     if problems:
-        raise InterfaceError("the certificate does not verify against these candidates: " + "; ".join(problems))
+        raise RequestError("the certificate does not verify against these candidates: " + "; ".join(problems))
     cal, cal_sha = _calibration(calibration)
     return decide_selection(cands, cert, policy, cand_sha, sha256(Path(certificates)), allow_evidence, cal, cal_sha)
 
@@ -298,7 +298,7 @@ def verify_selection(sel: SelectionSet, candidates_path, certificates_path=None,
         cal, _ = _calibration(calibration_path)
         again = decide_selection(cands, cert, CurationPolicy(**sel.policy), cand_sha, cert_sha, sel.evidence_allowed,
                                  cal, cal_sha)
-    except (SchemaError, InterfaceError) as e:
+    except (SchemaError, RequestError) as e:
         return [str(e)]
     if sel.evidence_mode != again.evidence_mode:
         problems.append(f"evidence_mode {sel.evidence_mode!r} is not the certificate's provenance ({again.evidence_mode!r})")

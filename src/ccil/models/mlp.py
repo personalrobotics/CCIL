@@ -50,6 +50,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from ..core.transition import check_identity, checkpoint_meta, one_step_metrics
+from ..errors import InputError
 from ..schema.io import _atomic_savez
 from .spectral_norm import LipschitzSpectralNorm, apply_spectral_norm
 
@@ -89,7 +90,7 @@ def jacobian_row_bytes(state_dim: int, action_dim: int, hidden_layers) -> int:
     return 4 * (3 * state_dim * (state_dim + action_dim) + 4 * state_dim * h + 2 * h + state_dim + action_dim)
 
 
-class JacobianBudgetError(ValueError):
+class JacobianBudgetError(InputError):
     """compute.jacobian_memory_mb is smaller than one row of the Jacobian computation."""
 
 

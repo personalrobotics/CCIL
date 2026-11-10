@@ -5,10 +5,16 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ..errors import InputError
+
 
 class InterfaceError(RuntimeError):
     """A stage returned output that violates its interface contract (a programming
     defect in that implementation, not a rejected candidate)."""
+
+
+class RequestError(InterfaceError, InputError):
+    """An interface refused its caller's request: invalid settings or constants, or artifacts that do not match."""
 
 
 @dataclass(frozen=True)

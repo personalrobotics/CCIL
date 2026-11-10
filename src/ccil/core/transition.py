@@ -30,11 +30,12 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
+from ..errors import InputError
 from ..schema.io import _atomic_savez
 from .verified import gamma, is_spectral_upper_bound, up, verified_spectral_norm
 
 
-class CheckpointError(ValueError):
+class CheckpointError(InputError):
     """A file is not a checkpoint of a known component kind and version."""
 
 

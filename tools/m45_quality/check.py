@@ -297,7 +297,7 @@ def main():
            and as_bound.reasons[cands.accepted, 2].all()
            and as_score.mask.any() and not as_score.error_spec["is_bound"]
            and np.array_equal(as_score.mask, cands.accepted & (score.total_error_value <= limit))
-           and data_only.startswith("InterfaceError") and "reference_assisted" in data_only,
+           and data_only.startswith("RequestError") and "reference_assisted" in data_only,
            unsupported_rows=int(outside.sum()), unsupported_selected=int(snb.mask[outside].sum()),
            empirical_under_bound_policy=int(as_bound.mask.sum()), empirical_under_score_policy=int(as_score.mask.sum()),
            data_only_refusal=data_only)
@@ -319,12 +319,12 @@ def main():
             "config": outcome(lambda: resolve(recipe="analytic_double_integrator", sets=[
                 f"data.path={data_path}", "certificate.profile=disturbed_action_paper_proxy", "curate.tolerance=0"]))}
     record("boundaries_hold",
-           forged_refusal.startswith("InterfaceError") and "does not verify" in forged_refusal
+           forged_refusal.startswith("RequestError") and "does not verify" in forged_refusal
            and permitted.evidence_mode == "data_only" and permitted.evidence_allowed == "reference_assisted"
            and uncertified.evidence_mode == "data_only"
            and any("provenance" in q for q in verify_selection(claimed, cpath, scpath))
            and any("provenance" in q for q in verify_selection(disclaimed, cpath, kpath))
-           and all(v.startswith(("InterfaceError", "ConfigError")) for v in zero.values())
+           and all(v.startswith(("RequestError", "ConfigError")) for v in zero.values())
            and np.isnan(sel.ratio).sum() == int((cert.classification == "unsupported").sum()),
            forged_certificate=forged_refusal,
            data_only_certificate_under_reference_allowance={"evidence_mode": permitted.evidence_mode,
@@ -646,7 +646,7 @@ def main():
            own.any() and not sel3.calibrated[own].any() and not sel3.mask[own].any()
            and (~elig3).any() and not sel3.calibrated[~elig3].any() and not sel3.mask[~elig3].any()
            and strict["bound"]["value"] is None and not strict_sel.calibrated.any() and not strict_sel.mask.any()
-           and bound_refusal.startswith("InterfaceError") and "gives bounds already" in bound_refusal,
+           and bound_refusal.startswith("RequestError") and "gives bounds already" in bound_refusal,
            calibration_rows=int(own.sum()), calibration_rows_calibrated=int(sel3.calibrated[own].sum()),
            ineligible_rows=int((~elig3).sum()), ineligible_calibrated=int(sel3.calibrated[~elig3].sum()),
            strict={"n": strict["bound"]["n"], "k": strict["bound"]["k"], "selected": int(strict_sel.mask.sum())},
@@ -690,7 +690,7 @@ def main():
     synthetic = sup_ok.source == "synthetic"
     checks = {"selection_records_calibration": sel3.evidence_mode == "reference_assisted" and sel3.version == (1, 1)
               and sel3.calibration_sha256 == sha(calpath) and verify_selection(sel3, cpath3, kpath3, calpath) == [],
-              "refused": all(modes[k].startswith(("InterfaceError", "ConfigError", "SupervisionError"))
+              "refused": all(modes[k].startswith(("RequestError", "ConfigError", "SupervisionError"))
                              for k in modes if k != "supervision_with_calibration"),
               "reasons": "reference_assisted" in modes["data_only_library"] and "reference_assisted" in modes["data_only_config"]
               and "own certificate file" in modes["other_certificates"]

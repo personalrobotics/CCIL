@@ -208,7 +208,7 @@ def main():
         m.update(version="1.0")
         (legacy / layout.MANIFEST).write_text(json.dumps(m))
     record("data_prepare_complete_and_v1_manifest_incompatible",
-           prep is not None and ccil_validate(prep) == (0, "complete") and ccil_validate(legacy) == (1, "incompatible"),
+           prep is not None and ccil_validate(prep) == (0, "complete") and ccil_validate(legacy) == (2, "incompatible"),
            prepare_run=prep.name if prep else None, stderr=r.stderr[-300:])
 
     # 3a. An exception after partial writes leaves the previous run intact and no staging directory.
@@ -234,7 +234,7 @@ def main():
     analytic_run(wa, overwrite=True)
     left = [p.name for p in (wa / "runs").iterdir() if p.name.startswith(".")]
     record("sigkill_leaves_destination_intact_and_staging_is_reclaimed",
-           ready and intact and len(stale) == 1 and staged_status == (1, "incomplete") and not left
+           ready and intact and len(stale) == 1 and staged_status == (2, "incomplete") and not left
            and ccil_validate(run_a) == (0, "complete"),
            staging_name=stale[0].name if stale else None, staging_status=staged_status, left_after_rerun=left)
 
@@ -244,7 +244,7 @@ def main():
         shutil.copytree(run_a, d)
         damage(d)
         got = ccil_validate(d)
-        record(f"validate[{name}]", got == (1, expected), expected=expected, got=got[1])
+        record(f"validate[{name}]", got == (2, expected), expected=expected, got=got[1])
 
     def flip(d):
         p = d / layout.DATASET

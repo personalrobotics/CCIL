@@ -93,7 +93,7 @@ destination.
 ## Validation
 
 ```bash
-uv run ccil run validate RUN_DIR    # exit code 0 only when complete
+uv run ccil run validate RUN_DIR    # exit 0 when complete, 2 otherwise
 ```
 
 | Status | Meaning |

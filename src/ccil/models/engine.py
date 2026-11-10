@@ -15,8 +15,10 @@ import hashlib
 import numpy as np
 import torch
 
+from ..errors import InputError
 
-class EngineError(ValueError):
+
+class EngineError(InputError):
     """A batched group that cannot run as declared."""
 
 

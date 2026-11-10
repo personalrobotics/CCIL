@@ -253,7 +253,7 @@ def run(out, record, dataset, data_path, sys_, truth, bundle):
            all(v["covered"] for v in mlp_cases.values())
            and mlp_cases["relu_milli_action_units, scale=[1.0, 1.0]"]["naive_violated"]
            and mlp_cases["relu_masked_output, scale=[1.0, 1.0]"]["K_z"] <= mlp_cases["relu, scale=[1.0, 1.0]"]["K_z"]
-           and unsupported.startswith("InterfaceError"),
+           and unsupported.startswith("RequestError"),
            cases=mlp_cases, sampled_points=int(len(pts)), unsupported_activation=unsupported)
 
     # T5. Stale power-iteration estimates: the constraint is not a bound, the exact norm is.
@@ -326,6 +326,6 @@ def run(out, record, dataset, data_path, sys_, truth, bundle):
         "disturbed_action_on_backtrack_labels": outcome(lambda: certify(s_be, disturbed)),
     }
     record("provider_kinds_and_applicability_enforced",
-           all(v.startswith("InterfaceError") for v in refused.values())
+           all(v.startswith("RequestError") for v in refused.values())
            and any("provider" in p for p in verify_structure(forged, s_be.candidates)),
            refused=refused, forged_kind_structure=verify_structure(forged, s_be.candidates))
