@@ -222,13 +222,14 @@ def _why(gate, tau, eps) -> tuple[str, str]:
                 "check the generator and validity settings (support radius, action bounds, model misfit) and the "
                 "dynamics model's fit")
     if not gate["displacement"]["pass"]:
-        return (f"labels move {gate['displacement']['eta']:.3g} tau_demo from their sources "
+        return (f"labels move {gate['displacement']['eta']:.3g} tau_demo (the demonstrations' own spacing) from their sources "
                 f"(threshold {gate['displacement']['threshold']}): they barely leave the demonstration they correct",
                 "use a generator or settings that move labels further, where the model can be trusted")
     if not gate["novelty"]["pass"]:
-        return (f"labels lie {gate['novelty']['eta']:.3g} tau_demo from the nearest demonstration state "
+        return (f"labels lie {gate['novelty']['eta']:.3g} tau_demo (the demonstrations' own spacing) from the nearest demonstration state "
                 f"(threshold {gate['novelty']['threshold']}): the dataset already covers the states they reach",
-                "collect recovery demonstrations where the policy fails; these labels add no coverage")
+                "move labels further where the model can be trusted (for noisy_action, a larger "
+                "generation.action_noise_std), or collect recovery demonstrations where the policy fails")
     if eps is None or not gate["fit"]["pass"]:
         return ("the model's held-out error is " + ("unmeasured" if eps is None else
                 f"{gate['fit']['ratio']:.3g} of the median displacement (threshold {gate['fit']['threshold']})"),

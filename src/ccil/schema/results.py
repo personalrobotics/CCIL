@@ -1,8 +1,9 @@
 """Result schemas `ccil.generate-result` 1.0 and `ccil.curate-result` 1.0: what a Generate or a Curate wrote (#170).
 
 A JSON document written whole at the end of `ccil generate` (to
-run.output_dir/generate-result.json) or `ccil curate` (beside it, one per
-selection). It records the resolved configuration with each value's source,
+run.output_dir/generate-result.json, the latest Generate there, and to an
+immutable copy, generate-<id>.json, beside it) or `ccil curate` (one
+curate-<id>.json per selection, which names the immutable copy). It records the resolved configuration with each value's source,
 every stage's run directory and whether it was reused, and each artifact's
 path and SHA-256. Paths are relative to the document's directory, so a moved
 output directory stays readable. `ccil curate` reads a generate result and

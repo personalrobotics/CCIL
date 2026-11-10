@@ -120,8 +120,8 @@ def _artifact(path: Path, base: Path) -> dict:
 def generate(config: Config, result: str | Path | None = None) -> GenerateResult:
     """Diagnose, then generate the candidates and, with a certificate profile, their quality evidence.
 
-    Writes the generate result (run.output_dir/generate-result.json, or result) that `curate` reads. A result file
-    that records other candidates is never replaced: give another result path or run.output_dir.
+    Writes the generate result that `curate` reads: run.output_dir/generate-result.json (or result), always the
+    latest Generate there, and beside it an immutable copy, generate-<id>.json, named by the candidates' run.
     """
     results = offline.generate_candidates(config)
     path = Path(result) if result is not None else Path(config["run.output_dir"]) / GENERATE_RESULT
@@ -135,14 +135,6 @@ def generate(config: Config, result: str | Path | None = None) -> GenerateResult
     if certified is not None:
         files["certificates"] = certified.out(layout.CERTIFICATES)
     artifacts = {k: _artifact(p, base) for k, p in files.items() if p.exists()}
-    if path.exists():
-        try:
-            old = read_result(path)
-        except InputError:
-            old = None
-        if old is None or old.get("schema") != GENERATE or old["artifacts"].get("candidates", {}).get("sha256") != \
-                artifacts["candidates"]["sha256"]:
-            raise InputError(f"{path} records another Generate; give another result path or run.output_dir")
     lm, dm = _metrics(labeled), _metrics(diagnosed)
     counts = {"candidates": lm["candidates"], "accepted": lm["accepted"], "rejected_by_reason": lm["rejections_by_reason"],
               "by_classification": _metrics(certified)["by_classification"] if certified is not None else None,
@@ -156,16 +148,24 @@ def generate(config: Config, result: str | Path | None = None) -> GenerateResult
     else:
         next_step = f"ccil curate {shown}"
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_result({"schema": GENERATE, "version": f"{VERSION[0]}.{VERSION[1]}", "config": config.to_dict(),
-                  "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
-                              "reused": r.reused} for r in results],
-                  "artifacts": artifacts, "counts": counts, "next_step": next_step}, path)
+    doc = {"schema": GENERATE, "version": f"{VERSION[0]}.{VERSION[1]}", "config": config.to_dict(),
+           "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
+                       "reused": r.reused} for r in results],
+           "artifacts": artifacts, "counts": counts, "next_step": next_step}
+    write_result(doc, base / f"generate-{_run_id(labeled)}.json")  # immutable: what a curate result refers to
+    write_result(doc, path)
     return GenerateResult(_stages(results), files["diagnosis"], dm["admitted"], files["candidates"],
                           files.get("certificates"), counts, path, next_step)
 
 
+def _run_id(r) -> str:
+    return Path(r.run_dir).name.rsplit("-", 1)[-1]
+
+
 def _verified(path: Path, schema: str | None = GENERATE) -> dict:
     """A result whose every recorded artifact still has its recorded hash, or an InputError naming each."""
+    if not Path(path).exists():
+        raise InputError(f"{path} does not exist: run ccil generate first (it writes run.output_dir/generate-result.json)")
     doc = read_result(path)
     if schema is not None and doc["schema"] != schema:
         raise InputError(f"{path} is a {doc['schema']}; curate reads a {schema}")
@@ -199,8 +199,9 @@ def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None
     base = path.parent
     generated_stages = [StageResult(s["stage"], (base / s["run_dir"]).resolve(), True) for s in doc["stages"]]
     labeled = offline.stage(generated_stages, "labels.generate")
-    cfg = resolve(base=doc["config"], sets=sets,
-                  overrides={**(overrides or {}), "run.output_dir": str(labeled.run_dir.parent)})
+    recorded = Path(doc["config"]["values"]["run.output_dir"]["value"])
+    here = {} if recorded.resolve() == labeled.run_dir.parent else {"run.output_dir": str(labeled.run_dir.parent)}
+    cfg = resolve(base=doc["config"], sets=sets, overrides={**(overrides or {}), **here})
     results = offline.curate_candidates(cfg, generated_stages, policy)
     curated = offline.stage(results, "labels.curate")
     calibrated, audited = offline.stage(results, "labels.calibrate"), offline.stage(results, "labels.audit")
@@ -212,10 +213,11 @@ def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None
     m = _metrics(curated)
     counts = {"rows": m["rows"], "selected": m["selected"], "policy": m["policy"], "threshold": m["threshold"],
               "not_selected_by_reason": m["reasons"]}
-    out = base / f"curate-{curated.run_dir.name.rsplit('-', 1)[-1]}.json"
+    out = base / f"curate-{_run_id(curated)}.json"
+    generated_file = base / f"generate-{_run_id(labeled)}.json"  # the immutable copy, whatever path was given
     next_step = f"ccil inspect {_shown(out)}: the usable rows, and how to load them"
     write_result({"schema": CURATE, "version": f"{VERSION[0]}.{VERSION[1]}",
-                  "generated": {"path": os.path.relpath(path.resolve(), base.resolve()), "sha256": sha256(path)},
+                  "generated": {"path": generated_file.name, "sha256": sha256(generated_file)},
                   "config": cfg.to_dict(),
                   "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
                               "reused": r.reused} for r in results],
@@ -241,17 +243,24 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
     if isinstance(result, GenerateResult):
         rejected = {k: v for k, v in c["rejected_by_reason"].items() if v}
         lines += ["", f"candidates     {_shown(result.candidates)}: {c['candidates']} rows, {c['accepted']} accepted",
-                  f"rejected       {', '.join(f'{k} {v}' for k, v in rejected.items()) or 'none'}",
+                  f"rejected       {', '.join(f'{k} {v}' for k, v in rejected.items()) or 'none'}" if c["candidates"]
+                  else "rejected       nothing was generated (see admitted)",
                   "evidence       " + (", ".join(f"{k} {v}" for k, v in c["by_classification"].items() if v) or "none")
                   if c["by_classification"] is not None else "evidence       no certificate.profile: no quality evidence",
                   f"admitted       recovery length {c['admitted']}" if c["admitted"] is not None
                   else "admitted       nothing: an empty synthetic view",
                   f"result         {_shown(result.path)}", f"next           {result.next_step}"]
     else:
-        not_sel = {k: v for k, v in c["not_selected_by_reason"].items() if v}
+        not_sel = [f"{k} {v}" for k, v in c["not_selected_by_reason"].items() if v]
+        p = c["policy"]
+        if not c["rows"]:
+            not_sel = ["(the generate result has no candidates)"]
+        elif p["admit"] in ("bound", "score") and p.get("tolerance") is None and p.get("quantile") is None:
+            not_sel.append("(no curate.tolerance or curate.quantile: every admissible row is selected)")
         lines += ["", f"selection      {_shown(result.selection)}: {c['selected']} of {c['rows']} rows selected "
-                      f"({c['policy']['admit']}" + (f", threshold {c['threshold']:g}" if c["threshold"] is not None else "")
-                  + ")", f"not selected   {', '.join(f'{k} {v}' for k, v in not_sel.items()) or 'none'}",
+                      f"({c['policy']['admit']}" + "".join(f", {k} {c['policy'][k]:g}" for k in ("tolerance", "quantile")
+                                                          if c["policy"].get(k) is not None)
+                  + (f", threshold {c['threshold']:g}" if c["threshold"] is not None else "") + ")", f"not selected   {', '.join(not_sel) or 'none'}",
                   f"result         {_shown(result.path)}", f"next           {result.next_step}"]
     return "\n".join(lines)
 
@@ -284,9 +293,11 @@ def _load_step(gen: dict, base: Path, selection: Path) -> str:
     extra = "".join(f", {k}={art[k]!r}" for k in ("certificates",) if k in art)
     if "split" in art and gen["config"]["values"]["supervision.exclude_validation_episodes"]["value"]:
         extra += f", split={art['split']!r}"
-    return (f"load the usable rows: build_supervision({art['dataset']!r}, 'demonstrations_plus_selection', "
+    return ("load the usable rows in Python: from ccil.core import IdentityRepresentation; "
+            "from ccil.supervision import build_supervision; "
+            f"obs, actions, weights = build_supervision({art['dataset']!r}, 'demonstrations_plus_selection', "
             f"representation=IdentityRepresentation({modality!r}), candidates={art['candidates']!r}{extra}, "
-            f"selection={_shown(selection)!r}).arrays()  (ccil.supervision, ccil.core)")
+            f"selection={_shown(selection)!r}).arrays()")
 
 
 def inspect(target: str | Path) -> Inspection:
@@ -300,7 +311,8 @@ def inspect(target: str | Path) -> Inspection:
         manifest = json.loads((t / layout.MANIFEST).read_text())
         config = json.loads((t / layout.CONFIG).read_text())
         sections["configuration"] = {k: v for k, v in config["values"].items() if v["source"] != "default"}
-        sections["provenance"] = {"run_id": manifest.get("run_id"), "stage": manifest.get("stage"),
+        stage = json.loads((t / layout.STAGE).read_text()).get("stage") if (t / layout.STAGE).exists() else None
+        sections["provenance"] = {"run_id": manifest.get("run_id"), "stage": stage,
                                   "inputs": manifest.get("inputs"), "files": manifest.get("files")}
         sections["metrics"] = json.loads((t / layout.METRICS).read_text())["values"] if (t / layout.METRICS).exists() else {}
     else:
@@ -342,7 +354,7 @@ def _text(sections: dict) -> str:
             out += [f"  {k} = {json.dumps(v['value'])} ({v['source']})" for k, v in body.items()]
         elif isinstance(body, dict):
             for k, v in body.items():
-                shown = v if not isinstance(v, (dict, list)) else json.dumps(v, sort_keys=True, default=str)
+                shown = json.dumps(v, sort_keys=True, default=str) if not isinstance(v, str) else v
                 out.append(f"  {k}: {shown}")
         else:
             out.append(f"  {body}")

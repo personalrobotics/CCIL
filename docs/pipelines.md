@@ -43,8 +43,9 @@ Each stage writes its own run directory.
     ccil generate:  ccil diagnose's stages (reused) → labels.generate [→ labels.certify]
     ccil curate:    [labels.calibrate →] labels.curate [→ labels.audit], any number per generate result
 
-`ccil generate` writes `run.output_dir/generate-result.json` (`ccil.generate-result` 1.0), which `ccil curate`
-reads; curate first verifies every artifact it records. `ccil inspect` prints a result's configuration,
+`ccil generate` writes `run.output_dir/generate-result.json` (`ccil.generate-result` 1.0), the latest Generate
+there, and an immutable copy, `generate-<id>.json`; `ccil curate` reads either, first verifying every artifact
+it records. `ccil inspect` prints a result's configuration,
 provenance, quality, rejections and usable rows. The Python entry points are `ccil.diagnose`,
 `ccil.generate`, `ccil.curate` and `ccil.inspect` ([contract.md](contract.md#commands)). `ccil labels
 generate`, deprecated, runs generate and curate in one command and keeps `--result` (`ccil.labels-result` 1.0).
