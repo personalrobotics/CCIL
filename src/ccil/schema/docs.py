@@ -1,7 +1,7 @@
 """Generate the normative schema reference from the specs, its one canonical source."""
 from __future__ import annotations
 
-from . import audit, calibration, certificates, diagnosis, io, labels, selection, trajectories
+from . import audit, calibration, certificates, diagnosis, io, labels, results, selection, trajectories
 
 
 def _table(specs) -> list[str]:
@@ -87,6 +87,12 @@ def render() -> str:
         "### Fields (JSON)", "", *_fields(diagnosis.FIELDS), "",
         f"A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "
         f"\"{diagnosis.STATEMENT}\".", "",
+        f"## `{results.GENERATE}` and `{results.CURATE}` {results.VERSION[0]}.{results.VERSION[1]}",
+        "",
+        (results.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "),
+        "",
+        "### Fields (JSON)", "", *_fields(results.FIELDS), "",
+        "A JSON object with exactly these fields plus `schema` and `version`.", "",
         f"## `{calibration.SCHEMA}` {calibration.VERSION[0]}.{calibration.VERSION[1]}",
         "",
         (calibration.__doc__ or "").strip().split("\n\n", 1)[1].replace("\n", " "),

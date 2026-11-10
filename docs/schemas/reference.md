@@ -181,6 +181,23 @@ A JSON document written before generation from the demonstrations, the dynamics 
 
 A JSON object with exactly these fields plus `schema` and `version`; `statement` is always "data-only evidence supports curation; it does not establish downstream policy improvement".
 
+## `ccil.generate-result` and `ccil.curate-result` 1.0
+
+A JSON document written whole at the end of `ccil generate` or `ccil curate`, in run.output_dir. Each is immutable and named by the SHA-256 of its bytes (generate-<id>.json, curate-<id>.json); generate-result.json is a copy of the latest Generate there. It records the resolved configuration with each value's source, every stage's run directory and whether it was reused, and each artifact's path and SHA-256. Paths are relative to the document's directory and must resolve, through any symlink, inside it: a run directory is a direct child of it. `ccil curate` and `ccil inspect` refuse a result, before writing anything, unless every recorded artifact still has its recorded hash.
+
+### Fields (JSON)
+
+| Field | Type | Description |
+|---|---|---|
+| `generated` | `dict` | Curate only: path and sha256 of the generate result it curated. |
+| `config` | `dict` | The resolved configuration (ccil.config): each value with its source and units. |
+| `stages` | `list` | Each stage: stage name, run_dir (relative), and reused. |
+| `artifacts` | `dict` | By name, each with path (relative) and sha256. Generate: ['dataset', 'split', 'transition_model', 'diagnosis', 'candidates', 'certificates'] (split without held-out episodes and certificates without a certificate.profile are absent); Curate: ['calibration', 'selection', 'audit'] (calibration and audit only when configured). |
+| `counts` | `dict` | Generate: candidates, accepted, rejected by reason, certificate classifications (or null), and the admitted recovery length (or null). Curate: rows, selected, the policy, its threshold, and the rows not selected by reason. |
+| `next_step` | `str` | The command or action to take next. |
+
+A JSON object with exactly these fields plus `schema` and `version`.
+
 ## `ccil.calibration` 1.0
 
 A JSON document that bounds the label error, observed under reference dynamics, of one certificate file's eligible rows: accepted rows the certificate classifies empirical. The sampling unit is the episode, since rows of one trajectory, and the labels of one transition, are not independent. Each calibration episode with an eligible row is scored by the largest observed error over its eligible rows; the bound is the k-th smallest of those n scores, k = ceil((n + 1) * level), the split-conformal rule, or null when k > n.  What it guarantees: when the calibration episodes are a random subset of the dataset's episodes, drawn independently of the labels, and the labels and the certificate do not depend on which episodes were drawn (the label model is fitted on every episode: transition_model.fit_episodes all), the expected fraction of the other episodes whose every eligible row has observed error at most the bound is at least level. The probability is over the draw of the calibration episodes; it is not conditional on one draw, a row, or a score. Because it covers every eligible row of an episode at once, it holds for any subset of those rows, including the ones curation selects. It is not a worst-case bound, and it does not transfer to other datasets, tasks, model families, or certificate files.  A row of that certificate file is calibrated exactly when it is eligible, its episode is not a calibration episode, and the bound is not null. Every other row keeps its class.  The observed errors come from reference dynamics, so a calibration is always reference_assisted evidence.

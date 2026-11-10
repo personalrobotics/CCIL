@@ -4,10 +4,7 @@ Three worked cases of [the user contract](contract.md): direct NumPy input, a
 LeRobot dataset, and an external consumer. Each gives the input, the command,
 the resolved configuration, and the output inventory.
 
-The inventories marked **today** come from running the current CLI
-(`ccil labels generate`, the command `ccil generate` replaces) on CPU. Parts
-marked **specified** are defined by the contract and produced once #167 and
-#170 land.
+The inventories come from running the CLI on CPU.
 
 ## 1. Direct NumPy input
 
@@ -34,7 +31,7 @@ write_trajectories(TrajectoryDataset(episodes), "demos.npz")
 
 ```bash
 ccil generate --recipe analytic_double_integrator --set data.path=demos.npz --set compute.device=cpu
-# today: ccil labels generate, with the same arguments
+ccil curate runs/generate-result.json     # without a certificate.profile: every accepted row
 ```
 
 In Python: `ccil.generate(ccil.resolve_config("analytic_double_integrator", overrides={"data.path": "demos.npz", "compute.device": "cpu"}))`.
@@ -57,17 +54,20 @@ In Python: `ccil.generate(ccil.resolve_config("analytic_double_integrator", over
 
 ```
 runs/
-  data-prepare-<id>/data/dataset.npz        ccil.trajectories     today
-  data-prepare-<id>/data/split.json         ccil.split            today: 4 train, 4 validation episodes
-  transition-fit-<id>/checkpoints/          transition model      today: held-out max one-step error 6.7e-8
+  data-prepare-<id>/data/dataset.npz        ccil.trajectories
+  data-prepare-<id>/data/split.json         ccil.split            4 train, 4 validation episodes
+  transition-fit-<id>/checkpoints/          transition model      held-out max one-step error 6.7e-8
   labels-diagnose-<id>/diagnosis/diagnosis.json  ccil.diagnosis 1.0  per-M gates, admitted M, dt_ctrl 0.05 s, H 0.05 s
-  labels-generate-<id>/labels/candidates.npz  ccil.candidates 2.x today: 320 rows, 46 accepted, 274 out_of_support
+  labels-generate-<id>/labels/candidates.npz  ccil.candidates 2.x 320 rows, 46 accepted, 274 out_of_support
   labels-certify-<id>/labels/certificates.npz  ccil.certificates 2.0  with certificate.profile
-  labels-curate-<id>/labels/selection.npz   ccil.selection 1.0    today: the accepted rows, without certificates
+  generate-<id>.json                        ccil.generate-result 1.0  immutable; what curate records
+  generate-result.json                      ccil.generate-result 1.0  a copy of the latest; what curate reads
+  labels-curate-<id>/labels/selection.npz   ccil.selection 1.0    (ccil curate) the accepted rows, without certificates
+  curate-<id>.json                          ccil.curate-result 1.0
   each run directory: manifest.json, config.json, metrics.json, stage.json, logs/run.log
 ```
 
-Pointwise view (`build_supervision`, today): 160 training demonstration rows
+Pointwise view (`build_supervision`; `ccil inspect` on the curate result): 160 training demonstration rows
 plus 46 synthetic rows, 206 in all. The 160 held-out demonstration rows and
 any labels from held-out episodes are excluded and counted.
 
@@ -95,9 +95,9 @@ source format and FPS, and the SHA-256 of every source file and of the output.
 **Command and configuration.** The same as example 1, with
 `data.path=demos.npz`. `dt_ctrl` comes from the timestamps (0.1 s).
 
-**Output inventory.** As in example 1, today: 38 candidate rows, 1 accepted,
+**Output inventory.** As in example 1: 38 candidate rows, 1 accepted,
 37 `out_of_support`. Pointwise view: 16 training demonstration rows and 1
-synthetic row. Exported as an overlay (`ccil.lerobot.overlay.export_overlay`, today):
+synthetic row. Exported as an overlay (`ccil.lerobot.overlay.export_overlay`):
 
 ```
 overlay/
@@ -121,7 +121,7 @@ from ccil.schema import read_candidates
 
 c = read_candidates("labels/candidates.npz")
 train = json.loads(open("data/split.json").read())["train"]
-usable = c.accepted & np.isin(c.source_episode_id, train)   # with a selection: & selection.mask (specified)
+usable = c.accepted & np.isin(c.source_episode_id, train)   # with a selection: & selection.mask
 rows = np.flatnonzero(usable)
 obs, act, w = c.observations["state"][rows], c.actions[rows], c.weight[rows]
 ```

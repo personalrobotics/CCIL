@@ -527,35 +527,60 @@ def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, polic
     return run_stage("labels.curate", cfg, inputs, body, parameters={"policy": policy.spec()})
 
 
-def generate_offline(cfg) -> list[StageResult]:
-    """Run the offline pipeline; return the stage results (reused or new).
-
-    In order: prepare, fit, labels, [certify, [calibrate,]] curate, diagnose, [audit].
-    """
-    preflight(cfg)
+def _identity_representation(cfg):
     if cfg["representation.kind"] != "identity":
         raise ConfigError(["offline generation uses representation.kind=identity; learned representations are "
                            "fitted by the integrated pipeline (ccil pipeline integrated)"])
-    representation = IdentityRepresentation(cfg["representation.modality"])
+    return IdentityRepresentation(cfg["representation.modality"])
+
+
+def diagnose_offline(cfg) -> list[StageResult]:
+    """`ccil diagnose`: prepare, fit, diagnose; no candidates. Generate on the same configuration reuses all three."""
+    preflight(cfg)
+    representation = _identity_representation(cfg)
     prepared = prepare_stage(cfg)
     fitted = fit_transition_stage(cfg, prepared, representation)
-    diagnosed = diagnose_stage(cfg, prepared, fitted, representation)
-    labeled = labels_stage(cfg, prepared, fitted, representation, diagnosed=diagnosed)
-    stages = [prepared, fitted, labeled]
-    certified = calibrated = None
+    return [prepared, fitted, diagnose_stage(cfg, prepared, fitted, representation)]
+
+
+def generate_candidates(cfg) -> list[StageResult]:
+    """`ccil generate`: diagnose_offline's stages, then the candidates and, with a certificate profile, their
+    quality evidence. No selection: `ccil curate` writes those, any number per candidate set."""
+    prepared, fitted, diagnosed = diagnose_offline(cfg)
+    labeled = labels_stage(cfg, prepared, fitted, _identity_representation(cfg), diagnosed=diagnosed)
+    stages = [prepared, fitted, diagnosed, labeled]
     if cfg["certificate.profile"] is not None:
         profile, kwargs = build_certificate(cfg.values)
-        certified = certify_stage(cfg, prepared, fitted, labeled, representation, profile, **kwargs)
-        stages.append(certified)
+        stages.append(certify_stage(cfg, prepared, fitted, labeled, _identity_representation(cfg), profile, **kwargs))
+    return stages
+
+
+def curate_candidates(cfg, generated: list[StageResult], policy: CurationPolicy | None = None) -> list[StageResult]:
+    """`ccil curate`: on generate_candidates' stages, the calibration (calibration.level), one selection, and the
+    reference audit (audit.reference_dynamics). The policy defaults to curate.*."""
+    prepared, labeled, certified = stage(generated, "data.prepare"), stage(generated, "labels.generate"), \
+        stage(generated, "labels.certify")
+    stages, calibrated = [], None
     if cfg["calibration.level"] is not None:
         calibrated = calibrate_stage(cfg, prepared, labeled, certified)
         stages.append(calibrated)
-    curated = curate_stage(cfg, labeled, certified, build_policy(cfg.values), calibrated)
-    # labels.diagnose ran before labels.generate; it is listed after curation so the first three results keep their places.
-    stages += [curated, diagnosed]
+    curated = curate_stage(cfg, labeled, certified, policy or build_policy(cfg.values), calibrated)
+    stages.append(curated)
     if cfg["audit.reference_dynamics"] is not None:
         stages.append(audit_stage(cfg, labeled, certified, calibrated, curated))
     return stages
+
+
+def generate_offline(cfg) -> list[StageResult]:
+    """`ccil labels generate`: generate and curate in one command; return the stage results (reused or new).
+
+    In order: prepare, fit, labels, [certify, [calibrate,]] curate, diagnose, [audit].
+    """
+    prepared, fitted, diagnosed, labeled, *certified = generate_candidates(cfg)
+    curated = curate_candidates(cfg, [prepared, fitted, diagnosed, labeled, *certified])
+    # labels.diagnose ran before labels.generate; it is listed after curation so the first three results keep their places.
+    audit = [r for r in curated if r.stage == "labels.audit"]
+    return [prepared, fitted, labeled, *certified, *[r for r in curated if r.stage != "labels.audit"], diagnosed, *audit]
 
 
 def stage(results: list[StageResult], name: str) -> StageResult | None:
