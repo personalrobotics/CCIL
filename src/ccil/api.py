@@ -24,7 +24,7 @@ from .pipelines import offline
 from .pipelines.stages import StageResult
 from .runs import layout
 from .runs.provenance import sha256
-from .schema.results import CURATE, GENERATE, VERSION, read_result, write_result
+from .schema.results import CURATE, GENERATE, VERSION, immutable_name, read_result, write_once, write_result
 
 Config = Resolved
 # The keys a Curate may change on the configuration its generate result recorded.
@@ -52,7 +52,9 @@ class DiagnoseResult:
 
 @dataclass(frozen=True)
 class GenerateResult:
-    """What Generate wrote: its stages, the candidates and quality evidence, their counts, and its result file."""
+    """What Generate wrote: its stages, the candidates and quality evidence, their counts, and its result file.
+
+    path is the immutable generate-<id>.json; latest is generate-result.json, a copy of the latest Generate there."""
     stages: tuple[Stage, ...]
     diagnosis: Path
     admitted: int | None
@@ -60,6 +62,7 @@ class GenerateResult:
     certificates: Path | None
     counts: dict
     path: Path
+    latest: Path
     next_step: str
 
 
@@ -117,14 +120,14 @@ def _artifact(path: Path, base: Path) -> dict:
     return {"path": os.path.relpath(path.resolve(), base.resolve()), "sha256": sha256(path)}
 
 
-def generate(config: Config, result: str | Path | None = None) -> GenerateResult:
+def generate(config: Config) -> GenerateResult:
     """Diagnose, then generate the candidates and, with a certificate profile, their quality evidence.
 
-    Writes the generate result (run.output_dir/generate-result.json, or result) that `curate` reads. A result file
-    that records other candidates is never replaced: give another result path or run.output_dir.
+    Writes the generate result that `curate` reads: an immutable generate-<id>.json in run.output_dir, named by its
+    content, and generate-result.json beside it, a copy of the latest Generate there.
     """
     results = offline.generate_candidates(config)
-    path = Path(result) if result is not None else Path(config["run.output_dir"]) / GENERATE_RESULT
+    path = Path(config["run.output_dir"]) / GENERATE_RESULT
     base = path.parent
     prepared, fitted, diagnosed, labeled = (offline.stage(results, s) for s in
                                             ("data.prepare", "transition.fit", "labels.diagnose", "labels.generate"))
@@ -135,14 +138,6 @@ def generate(config: Config, result: str | Path | None = None) -> GenerateResult
     if certified is not None:
         files["certificates"] = certified.out(layout.CERTIFICATES)
     artifacts = {k: _artifact(p, base) for k, p in files.items() if p.exists()}
-    if path.exists():
-        try:
-            old = read_result(path)
-        except InputError:
-            old = None
-        if old is None or old.get("schema") != GENERATE or old["artifacts"].get("candidates", {}).get("sha256") != \
-                artifacts["candidates"]["sha256"]:
-            raise InputError(f"{path} records another Generate; give another result path or run.output_dir")
     lm, dm = _metrics(labeled), _metrics(diagnosed)
     counts = {"candidates": lm["candidates"], "accepted": lm["accepted"], "rejected_by_reason": lm["rejections_by_reason"],
               "by_classification": _metrics(certified)["by_classification"] if certified is not None else None,
@@ -156,16 +151,20 @@ def generate(config: Config, result: str | Path | None = None) -> GenerateResult
     else:
         next_step = f"ccil curate {shown}"
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_result({"schema": GENERATE, "version": f"{VERSION[0]}.{VERSION[1]}", "config": config.to_dict(),
-                  "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
-                              "reused": r.reused} for r in results],
-                  "artifacts": artifacts, "counts": counts, "next_step": next_step}, path)
+    doc = {"schema": GENERATE, "version": f"{VERSION[0]}.{VERSION[1]}", "config": config.to_dict(),
+           "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
+                       "reused": r.reused} for r in results],
+           "artifacts": artifacts, "counts": counts, "next_step": next_step}
+    immutable = write_once(doc, base, "generate")  # what a curate result refers to
+    write_result(doc, path)
     return GenerateResult(_stages(results), files["diagnosis"], dm["admitted"], files["candidates"],
-                          files.get("certificates"), counts, path, next_step)
+                          files.get("certificates"), counts, immutable, path, next_step)
 
 
 def _verified(path: Path, schema: str | None = GENERATE) -> dict:
     """A result whose every recorded artifact still has its recorded hash, or an InputError naming each."""
+    if not Path(path).exists():
+        raise InputError(f"{path} does not exist: run ccil generate first (it writes run.output_dir/{GENERATE_RESULT})")
     doc = read_result(path)
     if schema is not None and doc["schema"] != schema:
         raise InputError(f"{path} is a {doc['schema']}; curate reads a {schema}")
@@ -182,6 +181,26 @@ def _verified(path: Path, schema: str | None = GENERATE) -> dict:
     return doc
 
 
+def _immutable(path: Path) -> Path:
+    """The immutable generate-<id>.json whose bytes a generate result has (itself, or the one generate-result.json
+    copies), or an InputError."""
+    text = path.read_bytes()
+    immutable = path.parent / immutable_name(text, "generate")
+    if not (immutable.is_file() and not immutable.is_symlink() and immutable.read_bytes() == text):
+        raise InputError(f"{path} has no immutable copy {immutable.name} beside it with the same content; "
+                         "run ccil generate again")
+    return immutable
+
+
+def _generated(doc: dict, base: Path) -> dict:
+    """The generate result a curate result records, verified: its recorded hash, then its own artifacts."""
+    p = base / doc["generated"]["path"]
+    if not p.is_file() or sha256(p) != doc["generated"]["sha256"]:
+        raise InputError(f"{p} is missing or changed since Curate recorded it (recorded sha256 "
+                         f"{doc['generated']['sha256'][:12]})")
+    return _verified(p)
+
+
 def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None = None, *,
            overrides: dict | None = None, sets=()) -> CurateResult:
     """Write one selection of a generate result's candidates, after verifying every artifact it records.
@@ -190,8 +209,9 @@ def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None
     calibration.*, audit.*, generation.evidence_mode and run.overwrite. Writes curate-<id>.json beside the
     generate result.
     """
-    path = Path(generated.path if isinstance(generated, GenerateResult) else generated)
+    path = Path(generated.path if isinstance(generated, GenerateResult) else generated).resolve()
     doc = _verified(path)
+    generated_file = _immutable(path)
     keys = list(overrides or {}) + [s.partition("=")[0].strip() for s in sets]
     refused = sorted(k for k in keys if not k.startswith(CURATE_KEYS))
     if refused:
@@ -212,15 +232,15 @@ def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None
     m = _metrics(curated)
     counts = {"rows": m["rows"], "selected": m["selected"], "policy": m["policy"], "threshold": m["threshold"],
               "not_selected_by_reason": m["reasons"]}
-    out = base / f"curate-{curated.run_dir.name.rsplit('-', 1)[-1]}.json"
+    next_step = "ccil inspect <this curate result>: the usable rows, and how to load them"
+    out = write_once({"schema": CURATE, "version": f"{VERSION[0]}.{VERSION[1]}",
+                      "generated": {"path": generated_file.name, "sha256": sha256(generated_file)},
+                      "config": cfg.to_dict(),
+                      "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
+                                  "reused": r.reused} for r in results],
+                      "artifacts": {k: _artifact(p, base) for k, p in files.items()}, "counts": counts,
+                      "next_step": next_step}, base, "curate")
     next_step = f"ccil inspect {_shown(out)}: the usable rows, and how to load them"
-    write_result({"schema": CURATE, "version": f"{VERSION[0]}.{VERSION[1]}",
-                  "generated": {"path": os.path.relpath(path.resolve(), base.resolve()), "sha256": sha256(path)},
-                  "config": cfg.to_dict(),
-                  "stages": [{"stage": r.stage, "run_dir": os.path.relpath(r.run_dir.resolve(), base.resolve()),
-                              "reused": r.reused} for r in results],
-                  "artifacts": {k: _artifact(p, base) for k, p in files.items()}, "counts": counts,
-                  "next_step": next_step}, out)
     return CurateResult(_stages(results), files["selection"], files.get("calibration"), files.get("audit"), counts,
                         out, next_step)
 
@@ -246,7 +266,8 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
                   if c["by_classification"] is not None else "evidence       no certificate.profile: no quality evidence",
                   f"admitted       recovery length {c['admitted']}" if c["admitted"] is not None
                   else "admitted       nothing: an empty synthetic view",
-                  f"result         {_shown(result.path)}", f"next           {result.next_step}"]
+                  f"result         {_shown(result.path)} (latest: {_shown(result.latest)})",
+                  f"next           {result.next_step}"]
     else:
         not_sel = {k: v for k, v in c["not_selected_by_reason"].items() if v}
         lines += ["", f"selection      {_shown(result.selection)}: {c['selected']} of {c['rows']} rows selected "
@@ -256,10 +277,9 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
     return "\n".join(lines)
 
 
-def _usable_rows(doc: dict, base: Path, selection: Path | None) -> dict:
+def _usable_rows(doc: dict, gen: dict, base: Path, selection: Path | None) -> dict:
     from .core import IdentityRepresentation
     from .supervision import build_supervision
-    gen = doc if doc["schema"] == GENERATE else read_result(base / doc["generated"]["path"])
     art = {k: base / a["path"] for k, a in gen["artifacts"].items()}
     cfg = gen["config"]["values"]
     rep = IdentityRepresentation(cfg["representation.modality"]["value"])
@@ -292,7 +312,7 @@ def _load_step(gen: dict, base: Path, selection: Path) -> str:
 def inspect(target: str | Path) -> Inspection:
     """The resolved configuration and its sources, provenance and hashes, quality, rejections, usable rows, and the
     next step of a generate or curate result; of a run directory, its configuration, provenance and metrics."""
-    t = Path(target)
+    t = Path(target).resolve()
     sections: dict = {}
     if t.is_dir():
         if not (t / layout.MANIFEST).exists():
@@ -309,7 +329,7 @@ def inspect(target: str | Path) -> Inspection:
         sections["configuration"] = {k: v for k, v in doc["config"]["values"].items() if v["source"] != "default"}
         sections["provenance"] = {"stages": doc["stages"], "artifacts": doc["artifacts"],
                                   **({"generated": doc["generated"]} if doc["schema"] == CURATE else {})}
-        gen = doc if doc["schema"] == GENERATE else _verified(base / doc["generated"]["path"])
+        gen = doc if doc["schema"] == GENERATE else _generated(doc, base)
         diagnosis = json.loads((base / gen["artifacts"]["diagnosis"]["path"]).read_text())
         quality = {"diagnosis": {"admitted": diagnosis["admitted"], "reason": diagnosis["reason"],
                                  "evidence_class": diagnosis["evidence_class"], "dt_ctrl": diagnosis["timing"]["dt_ctrl"],
@@ -329,7 +349,7 @@ def inspect(target: str | Path) -> Inspection:
         if doc["schema"] == CURATE:
             sections["selection"] = doc["counts"]
         selection = base / doc["artifacts"]["selection"]["path"] if doc["schema"] == CURATE else None
-        sections["usable_rows"] = _usable_rows(doc, base, selection)
+        sections["usable_rows"] = _usable_rows(doc, gen, base, selection)
         sections["next_step"] = _load_step(gen, base, selection) if selection is not None else doc["next_step"]
     return Inspection(sections, _text(sections))
 

@@ -60,7 +60,8 @@ runs/
   labels-diagnose-<id>/diagnosis/diagnosis.json  ccil.diagnosis 1.0  per-M gates, admitted M, dt_ctrl 0.05 s, H 0.05 s
   labels-generate-<id>/labels/candidates.npz  ccil.candidates 2.x 320 rows, 46 accepted, 274 out_of_support
   labels-certify-<id>/labels/certificates.npz  ccil.certificates 2.0  with certificate.profile
-  generate-result.json                      ccil.generate-result 1.0  what curate reads
+  generate-<id>.json                        ccil.generate-result 1.0  immutable; what curate records
+  generate-result.json                      ccil.generate-result 1.0  a copy of the latest; what curate reads
   labels-curate-<id>/labels/selection.npz   ccil.selection 1.0    (ccil curate) the accepted rows, without certificates
   curate-<id>.json                          ccil.curate-result 1.0
   each run directory: manifest.json, config.json, metrics.json, stage.json, logs/run.log

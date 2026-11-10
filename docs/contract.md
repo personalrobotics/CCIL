@@ -92,6 +92,15 @@ dataset, the checkpoint and the diagnosis, and generates only at the admitted
 recovery length. Generate ends by printing the artifacts, row counts,
 rejection classes, evidence classes, and the next step.
 
+**Result files.** Generate and Curate each write an immutable result in
+`run.output_dir`, named by the SHA-256 of its content (`generate-<id>.json`,
+`curate-<id>.json`) and never replaced; `generate-result.json` is a copy of
+the latest Generate there. A curate result records the immutable generate
+result it read, with its hash. Every path a result records is relative and
+must resolve, through any symlink, inside its directory. Curate and Inspect
+refuse a result (exit 2) before writing anything when a path leaves the
+directory or any recorded file has changed.
+
 **Empty results are complete.** When no recovery length is admitted, Generate
 still writes schema-valid zero-row candidates, zero-row quality evidence, and
 a complete manifest recording the reason. Curate on them writes a zero-row
@@ -124,8 +133,10 @@ ccil.inspect(target: str | Path) -> ccil.Inspection
   - **`DiagnoseResult`:** the run directory of each stage, the diagnosis path,
     and the admitted M, or `None` with a reason.
   - **`GenerateResult`:** the same, plus the candidates and quality-evidence
-    paths and the row counts.
-  - **`CurateResult`:** the selection path and its counts.
+    paths, the row counts, the immutable result file (`path`) and
+    `generate-result.json` (`latest`).
+  - **`CurateResult`:** the selection path, its counts and its immutable
+    result file.
   - **`Inspection`:** the printed summary as data.
 - **Exceptions.** Every input failure raises a subclass of `ccil.InputError`,
   which itself subclasses `ValueError`. That covers configuration, schema,

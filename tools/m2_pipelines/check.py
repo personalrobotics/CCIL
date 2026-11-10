@@ -29,8 +29,12 @@
    three diagnose stages; generate writes candidates and quality evidence, a generate result and a completion
    summary, and no selection; two curations of one generate result write two nested selections and regenerate
    nothing; curate refuses a Generate key and a changed candidates file (exit 2, nothing written), and so does
-   inspect; inspect reports every section with the build_supervision call; labels generate, deprecated, still
-   writes its selection and ccil.labels-result 1.0, reusing the same candidates.
+   inspect; inspect reports every section with the build_supervision call; a later Generate with the same
+   candidates but other certificate constants leaves the earlier immutable generate result, and the curate result
+   that names it, intact; a changed generated file, and a result whose paths leave its directory (../, absolute,
+   through a symlink, a stage run_dir outside it) or are not strings, are refused by curate and inspect (exit 2,
+   nothing written); labels generate, deprecated, still writes its selection and ccil.labels-result 1.0, reusing
+   the same candidates.
 Writes DIR/report.json.
 """
 import argparse
@@ -38,6 +42,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -57,6 +62,7 @@ from ccil.pipelines.policy import LinearPolicyTrainer  # noqa: E402
 from ccil.pipelines.stages import StageError  # noqa: E402
 from ccil.runs import layout, validate_run  # noqa: E402
 from ccil.schema import Episode, TrajectoryDataset, read_candidates, read_trajectories, write_trajectories  # noqa: E402
+from ccil.schema.results import immutable_name  # noqa: E402
 
 
 def ccil(*args, cwd):
@@ -95,6 +101,10 @@ GOLDEN = ["--set", "data.path=demos.npz", "--set", "run.output_dir=runs", "--set
           "--set", "generation.labels_per_transition=4", "--set", "generation.action_noise_std=3.0",
           "--set", "certificate.profile=disturbed_action", "--set", "certificate.true_state_lipschitz=1.0",
           "--set", "certificate.true_action_lipschitz=0.2", "--set", "certificate.demonstration_residual_bound=0.0"]
+
+
+def files(root: Path) -> set:
+    return {str(p.relative_to(root)) for p in root.rglob("*")}
 
 
 def golden(w: Path, record) -> None:
@@ -161,6 +171,67 @@ def golden(w: Path, record) -> None:
     record("inspect_reports_every_section", i.returncode == 0 and sections == [
         "configuration", "provenance", "quality", "rejections", "selection", "usable rows", "next step"]
         and "build_supervision(" in i.stdout and "curate.tolerance = 0.5 (cli)" in i.stdout, sections=sections)
+
+    # Immutable results: a later Generate with the same candidates but other certificate constants.
+    gen1 = w / next((ln.split()[1] for ln in g.stdout.splitlines() if ln.startswith("result")), "missing")
+    cur1 = line.split()[-1] if line else "missing"
+    gen1_bytes = gen1.read_bytes() if gen1.is_file() else b""
+    g2 = ccil("generate", *GOLDEN, "--set", "certificate.true_action_lipschitz=0.3", cwd=w)
+    gen2 = w / next((ln.split()[1] for ln in g2.stdout.splitlines() if ln.startswith("result")), "missing")
+    i1 = ccil("inspect", cur1, cwd=w)
+    record("a_later_generate_leaves_earlier_results_intact", g2.returncode == 0 and status(g2.stdout).get("labels.generate")
+           == "reused" and re.fullmatch(r"generate-[0-9a-f]{12}\.json", gen1.name) and gen2.name != gen1.name
+           and gen1.read_bytes() == gen1_bytes and result.read_bytes() == gen2.read_bytes() and i1.returncode == 0,
+           first=gen1.name, second=gen2.name, inspect_first_curate=i1.returncode)
+    changed = json.loads(gen1_bytes)
+    changed["next_step"] = "edited"
+    gen1.write_text(json.dumps(changed, indent=1, sort_keys=True) + "\n")
+    before = files(w)
+    ci = ccil("inspect", cur1, cwd=w)
+    cc = ccil("curate", str(gen1.relative_to(w)), cwd=w)
+    record("a_changed_generate_result_is_refused", ci.returncode == 2 and "changed since Curate recorded it" in ci.stderr
+           and cc.returncode == 2 and "no immutable copy" in cc.stderr and files(w) == before
+           and "Traceback" not in ci.stderr + cc.stderr, inspect=ci.stderr.strip()[-200:], curate=cc.stderr.strip()[-200:])
+    gen1.write_bytes(gen1_bytes)
+
+    # Paths that leave the result's directory, or are not strings.
+    outside = w / "elsewhere"
+    outside.mkdir()
+    shutil.copy(cands, outside / "candidates.npz")
+    shutil.copy(gen1, outside / gen1.name)
+    (w / "runs" / "escape").symlink_to(outside, target_is_directory=True)
+
+    def crafted(src, edit):
+        d = json.loads(src.read_bytes())
+        edit(d)
+        text = (json.dumps(d, indent=1, sort_keys=True) + "\n").encode()
+        (w / "runs" / "crafted.json").write_bytes(text)
+        (w / "runs" / immutable_name(text, "generate")).write_bytes(text)  # so only the path itself is wrong
+        return "runs/crafted.json"
+
+    def stage_dir(d, rel):
+        next(x for x in d["stages"] if x["stage"] == "labels.generate")["run_dir"] = rel
+    edits = {"traversal": (gen1, lambda d: d["artifacts"]["candidates"].update(path="../elsewhere/candidates.npz")),
+             "absolute": (gen1, lambda d: d["artifacts"]["candidates"].update(path=str(outside / "candidates.npz"))),
+             "symlink": (gen1, lambda d: d["artifacts"]["candidates"].update(path="escape/candidates.npz")),
+             "stage_run_dir": (gen1, lambda d: stage_dir(d, "../elsewhere")),
+             "non_string": (gen1, lambda d: d["artifacts"]["candidates"].update(path=5)),
+             "generated_traversal": (w / cur1, lambda d: d["generated"].update(path=f"../elsewhere/{gen1.name}")),
+             "generated_non_string": (w / cur1, lambda d: d["generated"].update(path=5))}
+    refusals = {}
+    for name, (src, edit) in edits.items():
+        target = crafted(src, edit)
+        before = files(w)
+        rs = [ccil("inspect", target, cwd=w)] + ([] if name.startswith("generated") else [ccil("curate", target, cwd=w)])
+        refusals[name] = {"exits": [r.returncode for r in rs], "wrote": sorted(files(w) - before),
+                          "error": rs[0].stderr.strip().splitlines()[-1][-160:] if rs[0].stderr.strip() else "",
+                          "traceback": any("Traceback" in r.stderr for r in rs), "stderr": rs[0].stderr}
+    record("result_paths_stay_in_their_directory", all(set(v["exits"]) == {2} and not v["wrote"] and not v["traceback"]
+                                                       for v in refusals.values())
+           and all(("relative" if "non_string" in k or k == "absolute" else "outside") in v.pop("stderr")
+                   for k, v in refusals.items()), refusals=refusals)
+    (w / "runs" / "escape").unlink()
+
     alias = ccil("labels", "generate", *GOLDEN, "--set", "curate.tolerance=0.5", "--result", "alias.json", cwd=w)
     adoc = json.loads((w / "alias.json").read_text()) if (w / "alias.json").exists() else {}
     record("labels_generate_alias_keeps_its_outputs", alias.returncode == 0 and "deprecated" in alias.stderr
