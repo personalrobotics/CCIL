@@ -107,7 +107,62 @@ order. The check verifies this byte for byte.
 not be unique. CCIL keeps each draw as its own segment and claims no
 uniqueness or optimality.
 
-## The composed `disturbed_action` bound
+## The composed `continuity` bound (primary)
+
+A segment's quality question is whether the model-built segment is
+dynamically credible: does the true system, started at x̃_0 and driven by Ũ,
+follow the segment to its target? The primary certificate therefore compares
+the true rollout with the **model segment**, not with the demonstration. It
+never treats the segment's intended displacement as uncertainty.
+
+**Assumptions**, on a declared convex region R × A of states and actions
+(certificate norms throughout):
+- **True transition.** ‖T(x, u) − T(y, u)‖ ≤ L_T ‖x − y‖ for x, y in R: L_T
+  bounds the full one-interval map, not its residual.
+- **Model discrepancy.** Δ = T − T̂ satisfies
+  ‖Δ(x, u) − Δ(y, v)‖ ≤ K_Δz ‖x − y‖ + K_Δa ‖u − v‖ on R × A
+  (`certificate.discrepancy_state_lipschitz`, `discrepancy_action_lipschitz`).
+- **Demonstration residual.** ‖T(x_j, u_j) − x_(j+1)‖ ≤ ρ_j, as before. It is
+  a property of the data (recording, rounding, noise) and stays distinct
+  from the discrepancy constants.
+
+**Bound.** Let y_0 = x̃_0, y_(i+1) = T(y_i, ũ_i), and e_i = ‖y_i − x̃_i‖, so
+e_0 = 0 and e_M is the true miss of the target (x̃_M = x_(t+M)). Then
+
+    y_(i+1) − x̃_(i+1) = [T(y_i, ũ_i) − T(x̃_i, ũ_i)] + Δ(x̃_i, ũ_i) + [T̂(x̃_i, ũ_i) − x̃_(i+1)],
+
+so e_(i+1) ≤ L_T e_i + b_i + s_i, with s_i the recorded step residual and b_i
+any bound on ‖Δ(x̃_i, ũ_i)‖. From the demonstration anchor,
+
+    b_i = ē_i + K_Δz ‖x̃_i − x_(t+i)‖ + K_Δa ‖ũ_i − u_(t+i)‖,
+    ē_i = ‖x_(t+i+1) − T̂(x_(t+i), u_(t+i))‖ + ρ_(t+i)     (the observed anchor error, plus ρ),
+
+since ‖Δ(x_(t+i), u_(t+i))‖ ≤ ρ_(t+i) + ‖x_(t+i+1) − T̂(x_(t+i), u_(t+i))‖.
+Unrolling,
+
+    ‖F_M(x̃_0, Ũ) − x_(t+M)‖ = e_M ≤ E_M = Σ_(i=0)^(M-1) L_T^(M-1-i) (b_i + s_i).
+
+**Support.** The constants hold only on R × A, and the true rollout is not
+observed. A segment is **supported** when every segment and window state lies
+in R, every ũ_i and u_(t+i) in A, and, for each i, the ball of radius E_i
+(the running bound, E_0 = 0) around x̃_i lies in R. By induction, y_i is then
+within E_i of x̃_i and inside R at every step, so every inequality above is
+applied where it holds. An unsupported segment receives no bound.
+
+**M = 1.** E_1 = s_0 + ‖x_(t+1) − T̂(x_t, u_t)‖ + ρ_t + K_Δz ‖Δz‖ + K_Δa ‖Δa‖:
+today's `continuity` total (solver error, anchor model error, ρ_t, and the two
+discrepancy terms).
+
+**Evidence class.** Proven discrepancy constants and L_T give a *certified*
+bound; declared ones a *conditional* bound. A held-out error or model
+disagreement is an *empirical score*, never a bound.
+
+## The composed `disturbed_action` bound (secondary)
+
+This bound compares the true rollout with the demonstration, so it carries
+the segment's displacement d_0 as uncertainty and amplifies it. It is kept as
+a conservative secondary bound, reported beside the primary one; it is not
+the curation certificate for M > 1.
 
 **Assumptions** (declared constants, so the bound is *conditional* on them):
 - the true residual map is Lipschitz,
@@ -146,7 +201,8 @@ on the constants. It does not use the model, so the step residuals s_i are
 reported beside it and never added. It is at least (1 + K_z)^M d_0, so it
 grows with both reach and M: a segment that starts further from the
 demonstration, or runs longer, carries a larger bound by construction. Curate
-compares it with `curate.tolerance` per segment.
+compares the primary `continuity` bound, not this one, with
+`curate.tolerance`.
 
 ## Admission of M
 
@@ -163,7 +219,7 @@ probe of training windows. Every quantity is today's at M = 1:
   that never saw them. It is measured on demonstration states: necessary,
   never sufficient.
 - **trust**: unchanged; it passes only with off-data evidence, a bound profile
-  from declared or model-computed constants (for M > 1, the composed bound).
+  from declared or model-computed constants (for M > 1, the composed `continuity` bound).
 
 The admitted M is the smallest that passes every gate. If none passes, the
 result is a valid empty synthetic view with the reason; weak labels are never
@@ -241,6 +297,37 @@ training windows) and the default thresholds. These settings were chosen while
 exploring this fixture so that it exhibits the regime #171 requires; they are
 fixed in the tool and never come from a policy outcome. The report is
 [`recovery-segments/report.json`](fixtures/evidence/recovery-segments/report.json).
+
+### The continuity case, predeclared
+
+Declared before the case was run (commit history shows this section before
+the code that computes it), and not tuned on its outcome:
+
+- **Coordinates.** Certificate norms use state_scale = the training states'
+  standard deviation and action_scale = the training actions', so a
+  certificate distance is a demonstration-metric distance and comparable with
+  τ_demo.
+- **Region.** R × A is the box of the training states and actions, each
+  coordinate widened by 25% of its range on both sides.
+- **L_T** (proven): e^(ℓ Δt), with ℓ the spectral norm of the scaled
+  vector-field Jacobian bound |[[0, 1], [g, c]]| (|cos θ| ≤ 1), by Grönwall;
+  valid for the exact flow everywhere.
+- **K_Δz, K_Δa** (declared, so the bound is conditional): 1.25 × the largest
+  scaled norm of ∂Δ/∂x and ∂Δ/∂u over a 21 × 21 × 9 grid of R × A, the true
+  Jacobian by central differences of T.
+- **ρ_j**: the exact per-step residual of the recorded data under T.
+- **Frozen tolerance**: curate.tolerance = 0.5 τ_demo on each seed. A segment
+  is *selected* when it is supported and E_M ≤ tolerance.
+- **Pass criteria**, on each of the three data seeds:
+  1. every supported segment at every M has exact miss ≤ E_M;
+  2. at the admitted intermediate M, at least 5% of probe segments are
+     selected;
+  3. every segment whose exact miss is at least τ_demo (the bad tail) is
+     unselected, at every M;
+  4. at M = 16, at most 1% of probe segments are selected.
+
+  If criterion 2 fails, the stack stops: segments could be generated but not
+  given actionable quality evidence under these assumptions.
 
 **What it establishes.**
 - **M = 1 is today's generators**, byte for byte, for `noisy_action` and
