@@ -30,7 +30,9 @@
    summary, and no selection; two curations of one generate result write two nested selections and regenerate
    nothing; curate refuses a Generate key and a changed candidates file (exit 2, nothing written), and so does
    inspect; inspect reports every section with the build_supervision call; labels generate, deprecated, still
-   writes its selection and ccil.labels-result 1.0, reusing the same candidates.
+   writes its selection and ccil.labels-result 1.0, reusing the same candidates. transition_model.checkpoint
+   loads the fitted model and gives identical candidates; a checkpoint bound to other state dimensions or another
+   action period, or one recording no binding, exits 2 naming the field, before any label.
 Writes DIR/report.json.
 """
 import argparse
@@ -161,6 +163,51 @@ def golden(w: Path, record) -> None:
     record("inspect_reports_every_section", i.returncode == 0 and sections == [
         "configuration", "provenance", "quality", "rejections", "selection", "usable rows", "next step"]
         and "build_supervision(" in i.stdout and "curate.tolerance = 0.5 (cli)" in i.stdout, sections=sections)
+    # A loaded model (transition_model.checkpoint) gives the fitted run's labels; a checkpoint bound to another
+    # run's dimensions or action period, or one that records no binding, is refused before labels. (The direction
+    # is bound too; a backward model has no consumer until backward_model is ported, #22.)
+    ckpt = w / "runs" / doc["artifacts"]["transition_model"]["path"]
+    lw = w / "loaded"
+    lw.mkdir()
+    shutil.copy(w / "demos.npz", lw / "demos.npz")
+    lg = ccil("generate", *GOLDEN, "--set", f"transition_model.checkpoint={ckpt}", cwd=lw)
+    ldoc = json.loads((lw / "runs" / "generate-result.json").read_text()) if lg.returncode == 0 else {}
+    same = False
+    if ldoc:
+        with np.load(cands) as x, np.load(lw / "runs" / ldoc["artifacts"]["candidates"]["path"]) as y:
+            same = len(x["accepted"]) > 0 and x["accepted"].any() and all(
+                np.array_equal(x[k], y[k], equal_nan=x[k].dtype.kind == "f") for k in x.files if k != "meta")
+    other = {"wider_state": [Episode(e.episode_id, {"state": np.hstack([e.observations["state"],
+                                                                         e.observations["state"][:, :1]])}, e.actions)
+                             for e in eps],
+             "timed": [Episode(e.episode_id, e.observations, e.actions, timestamps=np.arange(e.length) * 0.05)
+                       for e in eps]}
+    refusals = {}
+    for name, episodes in other.items():
+        d = w / f"load_{name}"
+        d.mkdir()
+        write_trajectories(TrajectoryDataset(episodes), d / "demos.npz")
+        r = ccil("generate", *GOLDEN, "--set", f"transition_model.checkpoint={ckpt}", cwd=d)
+        refusals[name] = (r, d)
+    with np.load(ckpt) as z:
+        arrays = {k: z[k] for k in z.files}
+    meta = json.loads(str(arrays["meta"]))
+    meta.pop("binding")
+    arrays["meta"] = np.array(json.dumps(meta, sort_keys=True))
+    unbound = w / "unbound.npz"
+    np.savez(unbound, **arrays)
+    d = w / "load_unbound"
+    d.mkdir()
+    shutil.copy(w / "demos.npz", d / "demos.npz")
+    refusals["no_binding"] = (ccil("generate", *GOLDEN, "--set", f"transition_model.checkpoint={unbound}", cwd=d), d)
+    expect = {"wider_state": "state_dim", "timed": "dt_ctrl", "no_binding": "records no binding"}
+    refused = {k: {"exit": r.returncode, "names_field": expect[k] in r.stderr,
+                   "labels_written": (d / "runs").exists() and any(n.startswith("labels-generate") for n in runs(d / "runs")),
+                   "error": r.stderr.strip().splitlines()[-1][:160] if r.stderr.strip() else ""} for k, (r, d) in refusals.items()}
+    record("loaded_checkpoint_gives_the_fitted_labels_and_refuses_another_runs",
+           lg.returncode == 0 and same and ldoc["counts"]["accepted"] == doc["counts"]["accepted"]
+           and all(v["exit"] == 2 and v["names_field"] and not v["labels_written"] for v in refused.values()),
+           identical_candidates=same, accepted=ldoc.get("counts", {}).get("accepted"), refused=refused)
     alias = ccil("labels", "generate", *GOLDEN, "--set", "curate.tolerance=0.5", "--result", "alias.json", cwd=w)
     adoc = json.loads((w / "alias.json").read_text()) if (w / "alias.json").exists() else {}
     record("labels_generate_alias_keeps_its_outputs", alias.returncode == 0 and "deprecated" in alias.stderr

@@ -58,10 +58,12 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
 **Dynamics source.**
 - **Fit** (default): a transition model fitted to the demonstrations. A
   held-out evaluation on unseen episodes is always reported.
-- **Load:** a transition-model checkpoint. CCIL never unpickles. Its SHA-256
-  is recorded in every artifact built from it. Before the model is used, its
-  recorded contract must match this dataset and configuration, or the command
-  fails with `CheckpointError` (exit 2):
+- **Load** (`transition_model.checkpoint`): a transition-model checkpoint
+  that `transition.fit` wrote, which records the contract below; an older one
+  records none and is refused. CCIL never unpickles. Its SHA-256 is recorded
+  in every artifact built from it. Before the model is used, its recorded
+  contract must match this dataset and configuration, or the command fails
+  with `CheckpointError` (exit 2):
   - component, kind and version are known;
   - representation kind, modality and, for a fitted representation, its
     checkpoint SHA-256;

@@ -68,6 +68,11 @@ PARAMS = [
     Param("transition_model.direction", "choice", "forward", "Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t).",
           "Legacy dynamics.backward, absent (forward) in every config.", "transition_model",
           choices=("forward", "backward"), legacy=("dynamics.backward",)),
+    Param("transition_model.checkpoint", "path", None,
+          "A transition-model checkpoint to load instead of fitting one: an externally supplied model (a checkpoint "
+          "transition.fit wrote). Its kind, representation, dimensions, direction and action period must match the "
+          "run's, or loading fails before any label is generated; null fits the model.",
+          "New (#170); the legacy code always fitted.", "transition_model", nullable=True),
     Param("transition_model.lipschitz_type", "choice", None, "Lipschitz regularization of the transition model.",
           "Task-specific in legacy configs.", "transition_model", choices=LIPSCHITZ, nullable=True,
           legacy=("dynamics.lipschitz_type",)),

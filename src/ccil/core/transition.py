@@ -68,6 +68,19 @@ def checkpoint_meta(path, component: str) -> dict:
     return meta
 
 
+# What a fitted checkpoint is bound to, so that loading it into another run is refused unless they agree (#170).
+BINDING = ("representation", "state_dim", "act_dim", "direction", "dt_ctrl")
+
+
+def binding_problems(recorded, expected: dict) -> list[str]:
+    """Each BINDING field on which a checkpoint's recorded binding differs from the run that loads it."""
+    if not isinstance(recorded, dict):
+        return ["it records no binding (representation, dimensions, direction, action period): only checkpoints "
+                "transition.fit wrote since #170 can be loaded"]
+    return [f"{k}: the checkpoint has {recorded.get(k)!r}, this run {expected[k]!r}" for k in BINDING
+            if recorded.get(k) != expected[k]]
+
+
 def check_identity(path, meta: dict, cls) -> None:
     if (meta.get("kind"), meta.get("version")) != (cls.kind, cls.version):
         raise CheckpointError(f"{path} holds {meta.get('kind')!r} version {meta.get('version')!r}; "
@@ -145,8 +158,11 @@ class LinearTransitionModel:
     def from_config(cls, v) -> "LinearTransitionModel":
         return cls()
 
+    binding = None  # set by transition.fit before saving (BINDING)
+
     def save(self, path) -> None:
-        meta = {"component": "transition_model", "kind": self.kind, "version": self.version}
+        meta = {"component": "transition_model", "kind": self.kind, "version": self.version,
+                **({"binding": self.binding} if self.binding is not None else {})}
         _atomic_savez(path, {"A": self.A, "B": self.B, "c": self.c, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
     @classmethod
@@ -155,7 +171,9 @@ class LinearTransitionModel:
         if device != "cpu":
             raise ValueError("LinearTransitionModel runs on cpu only")
         with np.load(path, allow_pickle=False) as z:
-            return cls(z["A"], z["B"], z["c"])
+            model = cls(z["A"], z["B"], z["c"])
+        model.binding = checkpoint_meta(path, "transition_model").get("binding")
+        return model
 
 
 # transition_model.kind -> implementation, or "module:Class" for one that needs an
