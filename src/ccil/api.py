@@ -254,7 +254,8 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
         lines += ["", f"diagnosis      {_shown(result.diagnosis)}",
                   f"admitted       {result.admitted if result.admitted is not None else 'nothing'}"
                   + (f" ({result.reason})" if result.reason else ""),
-                  f"action period  {f'{dt:g} s' if dt is not None else 'unknown (no timestamps): H is unknown'}"]
+                  f"action period  {f'{dt:g} s' if dt is not None else 'unknown: H is unknown'}"
+                  + (f" ({result.timing['note']})" if dt is None and result.timing.get("note") else "")]
         if result.next_step:
             lines.append(f"next           {result.next_step}")
         return "\n".join(lines)
