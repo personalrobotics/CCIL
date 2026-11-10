@@ -276,7 +276,8 @@ provide, and claim no image-CCIL parity:
 
 ```bash
 uv run --group evidence python tools/m2_pipelines/check.py --out <new-dir>
+uv run python tools/golden_path/check.py --out <new-dir>     # docs/quickstart.md, from the built wheel
 ```
 
-Reports: [`m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json).
-Each case, and the contract it protects, is listed in the docstring of [`tools/m2_pipelines`](../tools/m2_pipelines/).
+Reports: [`m2-pipelines/report.json`](fixtures/evidence/m2-pipelines/report.json), [`golden-path/report.json`](fixtures/evidence/golden-path/report.json).
+Each case, and the contract it protects, is listed in the docstrings of [`tools/m2_pipelines`](../tools/m2_pipelines/), [`tools/golden_path`](../tools/golden_path/).
