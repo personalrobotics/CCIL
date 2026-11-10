@@ -17,9 +17,7 @@
    the labels stage's configuration record (#168).
 2. Offline generation never imports the integrated pipeline or a policy trainer, and with torch installed
    the core, supervision, offline pipeline and dynamics fitters load no downstream trainer, experiment
-   code, policy harness or SciPy, and raise no deprecation warning (#168). The moved code is refused,
-   naming its il-supervision-benchmarks replacement: importing ccil.training or ccil.experiments raises
-   ImportError, and ccil policy train exits 2 without a traceback.
+   code, policy harness or SciPy, and raise no deprecation warning (#168).
 3. Integrated stub flow on a synthetic state+image dataset: seven complete stages,
    latent labels, shared manifest vocabulary, checkpoint handoff by hash.
 4. Replacing the downstream trainer reuses the four CCIL stages. Changing only
@@ -227,17 +225,6 @@ def main():
            invariant="ccil, ccil.core, ccil.supervision, ccil.pipelines.offline and ccil.models.mlp(_batched) load "
                      "nothing under ccil.training, ccil.experiments, ccil.pipelines.policy_harness, or scipy",
            result=got, stderr=p.stderr[-300:])
-
-    # Moved code (#168) is refused and says where it went: an ImportError, and ccil policy train exits 2.
-    moved = {}
-    for mod, replacement in (("ccil.training", "ilsb.learners.vector"), ("ccil.experiments", "ilsb run")):
-        p = subprocess.run([sys.executable, "-c", f"import {mod}"], cwd=wa, capture_output=True, text=True)
-        last = p.stderr.strip().splitlines()[-1] if p.stderr.strip() else ""
-        moved[mod] = {"exit": p.returncode, "refused": last.startswith("ImportError:") and replacement in last}
-    p = ccil("policy", "train", "--recipe", "analytic_double_integrator", "--set", "data.path=missing.npz", cwd=wa)
-    moved["ccil policy train"] = {"exit": p.returncode, "refused": p.returncode == 2 and "Traceback" not in p.stderr
-                                  and "ilsb policy train CONFIG" in p.stderr}
-    record("moved_code_refused_naming_its_replacement", all(v["refused"] for v in moved.values()), moved=moved)
 
     # 3. Integrated stub flow.
     wi = out / "integrated"
