@@ -1,0 +1,684 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "backward_euler": {
+    "actions": true,
+    "failed": true,
+    "rows": 1024,
+    "states": true,
+    "targets": true
+   },
+   "case": "m1_is_todays_generators",
+   "newton": {
+    "actions": true,
+    "failed": true,
+    "rows": 1024,
+    "states": true,
+    "targets": true
+   },
+   "pass": true
+  },
+  {
+   "by_M": {
+    "M1": {
+     "covered": true,
+     "max_miss_over_bound": 0.449077,
+     "max_step_residual": 0.238644,
+     "median_bound": 0.268752,
+     "median_miss": 0.00758899,
+     "median_step_residual": 0.00639281,
+     "model_covered": true,
+     "segments": 1024
+    },
+    "M16": {
+     "covered": true,
+     "max_miss_over_bound": 6.75643e-09,
+     "max_step_residual": 0.589513,
+     "median_bound": 59865900000.0,
+     "median_miss": 1.27851,
+     "median_step_residual": 0.0173997,
+     "model_covered": true,
+     "segments": 1024
+    },
+    "M2": {
+     "covered": true,
+     "max_miss_over_bound": 0.165564,
+     "max_step_residual": 0.235497,
+     "median_bound": 2.1404,
+     "median_miss": 0.0158969,
+     "median_step_residual": 0.00685937,
+     "model_covered": true,
+     "segments": 1024
+    },
+    "M4": {
+     "covered": true,
+     "max_miss_over_bound": 0.018651,
+     "max_step_residual": 0.222022,
+     "median_bound": 76.4757,
+     "median_miss": 0.0373214,
+     "median_step_residual": 0.00776624,
+     "model_covered": true,
+     "segments": 1024
+    },
+    "M8": {
+     "covered": true,
+     "max_miss_over_bound": 0.000144807,
+     "max_step_residual": 0.186263,
+     "median_bound": 74552.4,
+     "median_miss": 0.118209,
+     "median_step_residual": 0.0100916,
+     "model_covered": true,
+     "segments": 1024
+    }
+   },
+   "case": "composed_bound_covers_the_exact_miss",
+   "constants": {
+    "K_a": 0.116057,
+    "K_z": 3.48173,
+    "model_lipschitz": 1.87379,
+    "vector_field_lipschitz": 30.0002
+   },
+   "pass": true
+  },
+  {
+   "by_seed": {
+    "seed0": {
+     "admitted": 8,
+     "frontier": [
+      {
+       "M": 1,
+       "admissible": false,
+       "displacement": 0.711202,
+       "epsilon_M": 0.0449946,
+       "exact_miss_over_tau": {
+        "median": 0.0757549,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 0.62635
+       },
+       "fit": 0.613722,
+       "horizon_s": 0.05,
+       "novelty": 0.42914,
+       "pass": {
+        "displacement": false,
+        "fit": false,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0439453
+        ],
+        "overall": 0.0439453
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 2,
+       "admissible": false,
+       "displacement": 1.42202,
+       "epsilon_M": 0.0714101,
+       "exact_miss_over_tau": {
+        "median": 0.136782,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 1.14471
+       },
+       "fit": 0.475207,
+       "horizon_s": 0.1,
+       "novelty": 0.567204,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0605469,
+         0.0126953
+        ],
+        "overall": 0.0366211
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 4,
+       "admissible": false,
+       "displacement": 2.73513,
+       "epsilon_M": 0.143678,
+       "exact_miss_over_tau": {
+        "median": 0.285513,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 2.11823
+       },
+       "fit": 0.46349,
+       "horizon_s": 0.2,
+       "novelty": 0.8081,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0761719,
+         0.0585938,
+         0.0371094,
+         0.00585938
+        ],
+        "overall": 0.0444336
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 8,
+       "admissible": true,
+       "displacement": 6.9612,
+       "epsilon_M": 0.377655,
+       "exact_miss_over_tau": {
+        "median": 0.831721,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 5.44644
+       },
+       "fit": 0.465692,
+       "horizon_s": 0.4,
+       "novelty": 1.46989,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.186523,
+         0.115234,
+         0.0878906,
+         0.0488281,
+         0.015625,
+         0.0078125,
+         0.000976562,
+         0.0
+        ],
+        "overall": 0.0578613
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 16,
+       "admissible": false,
+       "displacement": 35.6105,
+       "epsilon_M": 3.16106,
+       "exact_miss_over_tau": {
+        "median": 8.60544,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 60.1625
+       },
+       "fit": 0.725558,
+       "horizon_s": 0.8,
+       "novelty": 15.3426,
+       "pass": {
+        "displacement": true,
+        "fit": false,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.645508,
+         0.575195,
+         0.508789,
+         0.418945,
+         0.356445,
+         0.289062,
+         0.225586,
+         0.175781,
+         0.114258,
+         0.0693359,
+         0.0224609,
+         0.0117188,
+         0.00292969,
+         0.00195312,
+         0.0,
+         0.0
+        ],
+        "overall": 0.213623
+       },
+       "yield": 1.0
+      }
+     ],
+     "longer_fails_fit": true,
+     "m1_lacks_reach": true,
+     "tau_demo": 0.298458
+    },
+    "seed1": {
+     "admitted": 4,
+     "frontier": [
+      {
+       "M": 1,
+       "admissible": false,
+       "displacement": 0.997033,
+       "epsilon_M": 0.0406559,
+       "exact_miss_over_tau": {
+        "median": 0.11746,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 0.683843
+       },
+       "fit": 0.474593,
+       "horizon_s": 0.05,
+       "novelty": 0.586874,
+       "pass": {
+        "displacement": false,
+        "fit": true,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0605469
+        ],
+        "overall": 0.0605469
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 2,
+       "admissible": false,
+       "displacement": 2.0131,
+       "epsilon_M": 0.0741486,
+       "exact_miss_over_tau": {
+        "median": 0.215088,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 1.24102
+       },
+       "fit": 0.425385,
+       "horizon_s": 0.1,
+       "novelty": 0.845363,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0888672,
+         0.0498047
+        ],
+        "overall": 0.0693359
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 4,
+       "admissible": true,
+       "displacement": 3.97951,
+       "epsilon_M": 0.146153,
+       "exact_miss_over_tau": {
+        "median": 0.436764,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 2.42321
+       },
+       "fit": 0.427211,
+       "horizon_s": 0.2,
+       "novelty": 1.34153,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.145508,
+         0.0839844,
+         0.0488281,
+         0.0205078
+        ],
+        "overall": 0.074707
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 8,
+       "admissible": true,
+       "displacement": 10.5709,
+       "epsilon_M": 0.380558,
+       "exact_miss_over_tau": {
+        "median": 1.21869,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 6.68264
+       },
+       "fit": 0.422031,
+       "horizon_s": 0.4,
+       "novelty": 2.31725,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.28418,
+         0.202148,
+         0.163086,
+         0.117188,
+         0.0654297,
+         0.0273438,
+         0.0117188,
+         0.000976562
+        ],
+        "overall": 0.109009
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 16,
+       "admissible": false,
+       "displacement": 55.7632,
+       "epsilon_M": 3.05822,
+       "exact_miss_over_tau": {
+        "median": 12.8279,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 89.182
+       },
+       "fit": 0.608508,
+       "horizon_s": 0.8,
+       "novelty": 23.8016,
+       "pass": {
+        "displacement": true,
+        "fit": false,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.761719,
+         0.720703,
+         0.660156,
+         0.585938,
+         0.517578,
+         0.426758,
+         0.358398,
+         0.293945,
+         0.213867,
+         0.15625,
+         0.105469,
+         0.0712891,
+         0.0390625,
+         0.015625,
+         0.00195312,
+         0.0
+        ],
+        "overall": 0.308044
+       },
+       "yield": 1.0
+      }
+     ],
+     "longer_fails_fit": true,
+     "m1_lacks_reach": true,
+     "tau_demo": 0.222589
+    },
+    "seed2": {
+     "admitted": 2,
+     "frontier": [
+      {
+       "M": 1,
+       "admissible": false,
+       "displacement": 1.55991,
+       "epsilon_M": 0.0304575,
+       "exact_miss_over_tau": {
+        "median": 0.185028,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 1.28625
+       },
+       "fit": 0.395074,
+       "horizon_s": 0.05,
+       "novelty": 0.891045,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": false,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.0908203
+        ],
+        "overall": 0.0908203
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 2,
+       "admissible": true,
+       "displacement": 3.07155,
+       "epsilon_M": 0.0614674,
+       "exact_miss_over_tau": {
+        "median": 0.344439,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 2.39826
+       },
+       "fit": 0.402,
+       "horizon_s": 0.1,
+       "novelty": 1.24085,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.129883,
+         0.078125
+        ],
+        "overall": 0.104004
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 4,
+       "admissible": true,
+       "displacement": 5.78844,
+       "epsilon_M": 0.128219,
+       "exact_miss_over_tau": {
+        "median": 0.628799,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 4.38575
+       },
+       "fit": 0.417906,
+       "horizon_s": 0.2,
+       "novelty": 1.9787,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.205078,
+         0.140625,
+         0.0927734,
+         0.0429688
+        ],
+        "overall": 0.120361
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 8,
+       "admissible": true,
+       "displacement": 14.9937,
+       "epsilon_M": 0.352717,
+       "exact_miss_over_tau": {
+        "median": 1.75006,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 10.9239
+       },
+       "fit": 0.433559,
+       "horizon_s": 0.4,
+       "novelty": 3.28938,
+       "pass": {
+        "displacement": true,
+        "fit": true,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.442383,
+         0.376953,
+         0.308594,
+         0.232422,
+         0.145508,
+         0.0751953,
+         0.0380859,
+         0.00683594
+        ],
+        "overall": 0.203247
+       },
+       "yield": 1.0
+      },
+      {
+       "M": 16,
+       "admissible": false,
+       "displacement": 75.3081,
+       "epsilon_M": 2.78001,
+       "exact_miss_over_tau": {
+        "median": 19.693,
+        "note": "the true end state's distance from x_(t+M): seen by no gate",
+        "q90": 127.333
+       },
+       "fit": 0.639361,
+       "horizon_s": 0.8,
+       "novelty": 31.8826,
+       "pass": {
+        "displacement": true,
+        "fit": false,
+        "novelty": true,
+        "trust": true,
+        "yield": true
+       },
+       "pointwise_novelty": {
+        "by_offset": [
+         0.782227,
+         0.750977,
+         0.698242,
+         0.645508,
+         0.586914,
+         0.541992,
+         0.476562,
+         0.420898,
+         0.354492,
+         0.321289,
+         0.264648,
+         0.19043,
+         0.107422,
+         0.0458984,
+         0.0136719,
+         0.00195312
+        ],
+        "overall": 0.387695
+       },
+       "yield": 1.0
+      }
+     ],
+     "longer_fails_fit": true,
+     "m1_lacks_reach": true,
+     "tau_demo": 0.14668
+    }
+   },
+   "case": "intermediate_m_admitted_longer_m_fails_fit",
+   "pass": true
+  },
+  {
+   "admitted": [
+    8,
+    8
+   ],
+   "case": "integration_refinement_preserves_segments",
+   "max_abs_diff": {
+    "M1": {
+     "actions": 1.90735e-06,
+     "states": 6.7419e-07
+    },
+    "M16": {
+     "actions": 7.62939e-06,
+     "states": 4.08587e-06
+    },
+    "M2": {
+     "actions": 7.62939e-06,
+     "states": 8.5678e-07
+    },
+    "M4": {
+     "actions": 7.62939e-06,
+     "states": 7.08034e-07
+    },
+    "M8": {
+     "actions": 7.62939e-06,
+     "states": 1.84968e-06
+    }
+   },
+   "n_int": [
+    4,
+    16
+   ],
+   "pass": true,
+   "tolerance": 0.0001
+  }
+ ],
+ "environment": {
+  "code_commit": "5ac7a49f7577cd87eba2dfee41f737219cb48fdb",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "python": "3.11.16"
+ },
+ "fixture": {
+  "T": 60,
+  "c": 0.1,
+  "data_seed": 0,
+  "demo_noise": 1.0,
+  "dt": 0.05,
+  "episodes": 24,
+  "g": 30.0,
+  "gains": [
+   60.0,
+   10.9545
+  ],
+  "k": 4,
+  "ladder": [
+   1,
+   2,
+   4,
+   8,
+   16
+  ],
+  "n_int": 4,
+  "regime_seeds": [
+   0,
+   1,
+   2
+  ],
+  "seed": 0,
+  "sigma": 1.0,
+  "theta0": 1.2
+ }
+}
