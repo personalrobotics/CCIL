@@ -219,8 +219,9 @@ def curate(generated: GenerateResult | str | Path, policy: CurationPolicy | None
     base = path.parent
     generated_stages = [StageResult(s["stage"], (base / s["run_dir"]).resolve(), True) for s in doc["stages"]]
     labeled = offline.stage(generated_stages, "labels.generate")
-    cfg = resolve(base=doc["config"], sets=sets,
-                  overrides={**(overrides or {}), "run.output_dir": str(labeled.run_dir.parent)})
+    recorded = Path(doc["config"]["values"]["run.output_dir"]["value"])
+    here = {} if recorded.resolve() == labeled.run_dir.parent else {"run.output_dir": str(labeled.run_dir.parent)}
+    cfg = resolve(base=doc["config"], sets=sets, overrides={**(overrides or {}), **here})
     results = offline.curate_candidates(cfg, generated_stages, policy)
     curated = offline.stage(results, "labels.curate")
     calibrated, audited = offline.stage(results, "labels.calibrate"), offline.stage(results, "labels.audit")
@@ -261,7 +262,8 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
     if isinstance(result, GenerateResult):
         rejected = {k: v for k, v in c["rejected_by_reason"].items() if v}
         lines += ["", f"candidates     {_shown(result.candidates)}: {c['candidates']} rows, {c['accepted']} accepted",
-                  f"rejected       {', '.join(f'{k} {v}' for k, v in rejected.items()) or 'none'}",
+                  f"rejected       {', '.join(f'{k} {v}' for k, v in rejected.items()) or 'none'}" if c["candidates"]
+                  else "rejected       nothing was generated (see admitted)",
                   "evidence       " + (", ".join(f"{k} {v}" for k, v in c["by_classification"].items() if v) or "none")
                   if c["by_classification"] is not None else "evidence       no certificate.profile: no quality evidence",
                   f"admitted       recovery length {c['admitted']}" if c["admitted"] is not None
@@ -269,10 +271,16 @@ def summary(result: DiagnoseResult | GenerateResult | CurateResult) -> str:
                   f"result         {_shown(result.path)} (latest: {_shown(result.latest)})",
                   f"next           {result.next_step}"]
     else:
-        not_sel = {k: v for k, v in c["not_selected_by_reason"].items() if v}
+        not_sel = [f"{k} {v}" for k, v in c["not_selected_by_reason"].items() if v]
+        p = c["policy"]
+        if not c["rows"]:
+            not_sel = ["(the generate result has no candidates)"]
+        elif p["admit"] in ("bound", "score") and p.get("tolerance") is None and p.get("quantile") is None:
+            not_sel.append("(no curate.tolerance or curate.quantile: every admissible row is selected)")
         lines += ["", f"selection      {_shown(result.selection)}: {c['selected']} of {c['rows']} rows selected "
-                      f"({c['policy']['admit']}" + (f", threshold {c['threshold']:g}" if c["threshold"] is not None else "")
-                  + ")", f"not selected   {', '.join(f'{k} {v}' for k, v in not_sel.items()) or 'none'}",
+                      f"({c['policy']['admit']}" + "".join(f", {k} {c['policy'][k]:g}" for k in ("tolerance", "quantile")
+                                                          if c["policy"].get(k) is not None)
+                  + (f", threshold {c['threshold']:g}" if c["threshold"] is not None else "") + ")", f"not selected   {', '.join(not_sel) or 'none'}",
                   f"result         {_shown(result.path)}", f"next           {result.next_step}"]
     return "\n".join(lines)
 
@@ -304,9 +312,11 @@ def _load_step(gen: dict, base: Path, selection: Path) -> str:
     extra = "".join(f", {k}={art[k]!r}" for k in ("certificates",) if k in art)
     if "split" in art and gen["config"]["values"]["supervision.exclude_validation_episodes"]["value"]:
         extra += f", split={art['split']!r}"
-    return (f"load the usable rows: build_supervision({art['dataset']!r}, 'demonstrations_plus_selection', "
+    return ("load the usable rows in Python: from ccil.core import IdentityRepresentation; "
+            "from ccil.supervision import build_supervision; "
+            f"obs, actions, weights = build_supervision({art['dataset']!r}, 'demonstrations_plus_selection', "
             f"representation=IdentityRepresentation({modality!r}), candidates={art['candidates']!r}{extra}, "
-            f"selection={_shown(selection)!r}).arrays()  (ccil.supervision, ccil.core)")
+            f"selection={_shown(selection)!r}).arrays()")
 
 
 def inspect(target: str | Path) -> Inspection:
@@ -320,7 +330,8 @@ def inspect(target: str | Path) -> Inspection:
         manifest = json.loads((t / layout.MANIFEST).read_text())
         config = json.loads((t / layout.CONFIG).read_text())
         sections["configuration"] = {k: v for k, v in config["values"].items() if v["source"] != "default"}
-        sections["provenance"] = {"run_id": manifest.get("run_id"), "stage": manifest.get("stage"),
+        stage = json.loads((t / layout.STAGE).read_text()).get("stage") if (t / layout.STAGE).exists() else None
+        sections["provenance"] = {"run_id": manifest.get("run_id"), "stage": stage,
                                   "inputs": manifest.get("inputs"), "files": manifest.get("files")}
         sections["metrics"] = json.loads((t / layout.METRICS).read_text())["values"] if (t / layout.METRICS).exists() else {}
     else:
@@ -362,7 +373,7 @@ def _text(sections: dict) -> str:
             out += [f"  {k} = {json.dumps(v['value'])} ({v['source']})" for k, v in body.items()]
         elif isinstance(body, dict):
             for k, v in body.items():
-                shown = v if not isinstance(v, (dict, list)) else json.dumps(v, sort_keys=True, default=str)
+                shown = json.dumps(v, sort_keys=True, default=str) if not isinstance(v, str) else v
                 out.append(f"  {k}: {shown}")
         else:
             out.append(f"  {body}")

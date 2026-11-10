@@ -32,32 +32,32 @@
     }
    },
    "rerun_output": [
-    "data.prepare       reused runs/data-prepare-c98af8f0d016",
-    "transition.fit     reused runs/transition-fit-1f822156e724",
-    "labels.generate    reused runs/labels-generate-8b84ecdb7091",
-    "labels.curate      reused runs/labels-curate-b4dd69d27d41",
-    "labels.diagnose    reused runs/labels-diagnose-3e0991e308fa"
+    "data.prepare       reused runs/data-prepare-d2be3629efdf",
+    "transition.fit     reused runs/transition-fit-19c2c64896b4",
+    "labels.generate    reused runs/labels-generate-354bb8d90692",
+    "labels.curate      reused runs/labels-curate-046673df4c09",
+    "labels.diagnose    reused runs/labels-diagnose-0d975b45f081"
    ],
    "stages": {
-    "data-prepare-c98af8f0d016": "complete",
-    "labels-curate-b4dd69d27d41": "complete",
-    "labels-diagnose-3e0991e308fa": "complete",
-    "labels-generate-8b84ecdb7091": "complete",
-    "transition-fit-1f822156e724": "complete"
+    "data-prepare-d2be3629efdf": "complete",
+    "labels-curate-046673df4c09": "complete",
+    "labels-diagnose-0d975b45f081": "complete",
+    "labels-generate-354bb8d90692": "complete",
+    "transition-fit-19c2c64896b4": "complete"
    },
-   "stderr": ""
+   "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n"
   },
   {
    "case": "offline_candidates_carry_provenance",
    "inputs": {
     "dataset": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
     "split": "68b6258635eff4416f962798c586bbbe9bcee82f72cbff59170413713f6c3014",
-    "transition_model": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec"
+    "transition_model": "710e768992460294f926c1d102894205c5c0737b09f444e8ff7da52be61c11e4"
    },
    "manifest_inputs": {
     "dataset": "423f0751feab3b14df865f34012d1ffb4e8d8c1719478c352d8660977faa4d86",
     "split": "68b6258635eff4416f962798c586bbbe9bcee82f72cbff59170413713f6c3014",
-    "transition_model": "34a40344ff6022cae7bd399a8d22ce1ae45b19b9c1904b6377dbc5d098354eec"
+    "transition_model": "710e768992460294f926c1d102894205c5c0737b09f444e8ff7da52be61c11e4"
    },
    "pass": true,
    "seed": 20261023,
@@ -95,11 +95,11 @@
   {
    "case": "changed_implementation_writes_distinct_runs",
    "new_runs": [
-    "data-prepare-9da64beb2d2b",
-    "labels-curate-99f7cf7a1c80",
-    "labels-diagnose-764aeeb0b913",
-    "labels-generate-cdf1425459de",
-    "transition-fit-93d59c1c7a53"
+    "data-prepare-183dee9f2259",
+    "labels-curate-0edab87e7a6b",
+    "labels-diagnose-46102f1a9805",
+    "labels-generate-8bea8150e7c9",
+    "transition-fit-1dde62c6fb6a"
    ],
    "pass": true,
    "stage_status": {
@@ -109,15 +109,15 @@
     "labels.generate": "wrote",
     "transition.fit": "wrote"
    },
-   "stderr": ""
+   "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n"
   },
   {
    "case": "component_version_change_writes_distinct_runs",
    "new_runs": [
-    "labels-curate-4121397011c9",
-    "labels-diagnose-6bf16c00cd79",
-    "labels-generate-27f8100ba55f",
-    "transition-fit-f5e2ecad98e5"
+    "labels-curate-1ea7ef9a5b16",
+    "labels-diagnose-02ab482eedf1",
+    "labels-generate-dbbc32593beb",
+    "transition-fit-abf779ba222e"
    ],
    "pass": true,
    "stage_status": {
@@ -127,11 +127,11 @@
     "labels.generate": "wrote",
     "transition.fit": "wrote"
    },
-   "stderr": ""
+   "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n"
   },
   {
    "case": "unidentifiable_implementation_never_reuses",
-   "error": "stage data.prepare failed: no ccil source files under <out>/empty_package",
+   "error": "es/stages.py\", line 88, in stage_identity\n    raise StageError(stage, e) from e\nccil.pipelines.stages.StageError: stage data.prepare failed: no ccil source files under <out>/empty_package",
    "pass": true,
    "stage_status": {}
   },
@@ -164,14 +164,37 @@
    "pass": true,
    "same_manifest_vocabulary": true,
    "stages": {
-    "data-prepare-17e04764fdef": "complete",
-    "labels-diagnose-946df912826a": "complete",
-    "labels-generate-bf5ed4bcb475": "complete",
-    "policy-evaluate-8f2069f419e5": "complete",
-    "policy-train-837859df29df": "complete",
-    "representation-fit-5824ab722f2c": "complete",
-    "transition-fit-18c741fa9f4f": "complete"
+    "data-prepare-c94f8fbe9ba3": "complete",
+    "labels-diagnose-8996137f7e58": "complete",
+    "labels-generate-85718129fa94": "complete",
+    "policy-evaluate-274bfb4df43e": "complete",
+    "policy-train-4baf9b3f3098": "complete",
+    "representation-fit-4ef4e6a3fe42": "complete",
+    "transition-fit-c0b8e4aca476": "complete"
    }
+  },
+  {
+   "case": "loaded_checkpoint_is_bound_to_its_representation_fit",
+   "fitted_representation_sha256": "ab1dcf05c4d9",
+   "loads": {
+    "other_fit": {
+     "error": "  representation: the checkpoint has {'checkpoint_sha256': 'ab1dcf05c4d9654736c5519645977806e4c4b311b2b69e2d35cd1f42a621e978', 'kind': 'pca', 'modality': 'image.top'}, this run {'kind': 'pca', 'modali",
+     "exit": 2,
+     "labels_written": false,
+     "loaded": false,
+     "names_representation": true,
+     "representation_sha256": "a2717c58ed0c"
+    },
+    "same_fit": {
+     "error": "",
+     "exit": 0,
+     "labels_written": true,
+     "loaded": true,
+     "names_representation": false,
+     "representation_sha256": "ab1dcf05c4d9"
+    }
+   },
+   "pass": true
   },
   {
    "case": "downstream_trainer_replaceable",
@@ -257,11 +280,11 @@
     ]
    ],
    "stages_after_failure": {
-    "data-prepare-17e04764fdef": "complete",
-    "labels-diagnose-946df912826a": "complete",
-    "labels-generate-bf5ed4bcb475": "complete",
-    "representation-fit-5824ab722f2c": "complete",
-    "transition-fit-18c741fa9f4f": "complete"
+    "data-prepare-c94f8fbe9ba3": "complete",
+    "labels-diagnose-8996137f7e58": "complete",
+    "labels-generate-85718129fa94": "complete",
+    "representation-fit-4ef4e6a3fe42": "complete",
+    "transition-fit-c0b8e4aca476": "complete"
    },
    "staging_left": []
   },
@@ -301,22 +324,236 @@
    ],
    "resume_error": null,
    "runs_after_failure": {
-    "policy-train-247dcb577ced": "complete"
+    "policy-train-4e5a2a0b085a": "complete"
    }
   },
   {
    "case": "fails_before_any_stage[unsupported_method]",
-   "error": "invalid configuration:\n  generation.method 'backward_model' is not available yet; it is ported in #22",
+   "error": "ccil labels generate is deprecated: use ccil generate, then ccil curate\ninvalid configuration:\n  generation.method 'backward_model' is not available yet; it is ported in #22",
    "pass": true
   },
   {
    "case": "fails_before_any_stage[mlp_model]",
-   "error": "invalid configuration:\n  transition_model.kind mlp with lipschitz_type None requires ['transition_model.hidden_layers', 'transition_model.epochs', 'transition_model.batch_size']",
+   "error": "ccil labels generate is deprecated: use ccil generate, then ccil curate\ninvalid configuration:\n  transition_model.kind mlp with lipschitz_type None requires ['transition_model.hidden_layers', 'transition_model.epochs', 'transition_model.batch_size']",
    "pass": true
+  },
+  {
+   "case": "fails_before_any_stage[noisy_action_without_its_noise]",
+   "error": "ccil labels generate is deprecated: use ccil generate, then ccil curate\ninvalid configuration:\n  generation.method noisy_action requires generation.labels_per_transition and generation.action_noise_std",
+   "pass": true
+  },
+  {
+   "case": "stage_input_error_exits_2",
+   "error": "ccil labels generate is deprecated: use ccil generate, then ccil curate\ndataset has 2 episodes; data.validation_fraction=0.9 gives 2 validation episodes, but each split needs at least one. Use more episodes, another fraction, or 0 to skip held-out evaluation.",
+   "pass": true
+  },
+  {
+   "case": "stage_defect_exits_1_with_its_traceback",
+   "completed_before_the_defect": [
+    "data-prepare-d2be3629efdf",
+    "labels-diagnose-0d975b45f081",
+    "transition-fit-19c2c64896b4"
+   ],
+   "error": "\"labels.generate\", cfg, inputs, body,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<repo>/src/ccil/pipelines/stages.py\", line 153, in run_stage\n    raise StageError(stage, e) from e\nccil.pipelines.stages.StageError: stage labels.generate failed: simulated defect",
+   "pass": true
+  },
+  {
+   "case": "malformed_candidate_batch_exits_1_with_its_traceback",
+   "completed_before_the_defect": [
+    "data-prepare-d2be3629efdf",
+    "transition-fit-19c2c64896b4"
+   ],
+   "error": "^^^^^^^^^^^^^^^^^^^^^\n  File \"<repo>/src/ccil/pipelines/stages.py\", line 153, in run_stage\n    raise StageError(stage, e) from e\nccil.pipelines.stages.StageError: stage labels.diagnose failed: BackwardEuler.generate returned a malformed CandidateBatch: a (5, 0), expected float (5, 1)",
+   "pass": true
+  },
+  {
+   "case": "diagnose_then_generate_reuses_three_stages",
+   "diagnose": {
+    "data.prepare": "wrote",
+    "labels.diagnose": "wrote",
+    "transition.fit": "wrote"
+   },
+   "generate": {
+    "data.prepare": "reused",
+    "labels.certify": "wrote",
+    "labels.diagnose": "reused",
+    "labels.generate": "wrote",
+    "transition.fit": "reused"
+   },
+   "pass": true
+  },
+  {
+   "artifacts": [
+    "candidates",
+    "certificates",
+    "dataset",
+    "diagnosis",
+    "split",
+    "transition_model"
+   ],
+   "case": "generate_writes_candidates_and_evidence_not_a_selection",
+   "pass": true,
+   "summary": [
+    "candidates     runs/labels-generate-7f185afb0de0/labels/candidates.npz: 2320 rows, 2320 accepted",
+    "rejected       none",
+    "evidence       conditional 2320",
+    "admitted       recovery length 1",
+    "result         runs/generate-154f37c0a05b.json (latest: runs/generate-result.json)",
+    "next           ccil curate runs/generate-result.json --set curate.tolerance=<largest acceptable label error>"
+   ]
+  },
+  {
+   "case": "two_curations_of_one_generate_regenerate_nothing",
+   "new_runs": [
+    "labels-curate-6fe70e26c4fc",
+    "labels-curate-a1260c1c7a96"
+   ],
+   "pass": true,
+   "selected": [
+    756,
+    1380
+   ]
+  },
+  {
+   "case": "curate_refuses_a_changed_artifact_and_generate_keys",
+   "pass": true,
+   "refused": "curate changes only ['curate.', 'calibration.', 'audit.', 'generation.evidence_mode', 'run.overwrite']; ['data.path'] belong to Generate",
+   "tampered": "1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/labels-generate-7f185afb0de0/labels/candidates.npz changed since Generate wrote it (sha256 240bc7013938, recorded b2d5836acd79)"
+  },
+  {
+   "case": "inspect_reports_every_section",
+   "pass": true,
+   "sections": [
+    "configuration",
+    "provenance",
+    "quality",
+    "rejections",
+    "selection",
+    "usable rows",
+    "next step"
+   ]
+  },
+  {
+   "accepted": 2320,
+   "case": "loaded_checkpoint_gives_the_fitted_labels_and_refuses_another_runs",
+   "identical_candidates": true,
+   "pass": true,
+   "refused": {
+    "no_binding": {
+     "error": "  it records no binding (representation, dimensions, direction, action period): only checkpoints transition.fit wrote since #170 can be loaded",
+     "exit": 2,
+     "labels_written": false,
+     "names_field": true
+    },
+    "timed": {
+     "error": "  dt_ctrl: the checkpoint has None, this run 0.050000000000000044",
+     "exit": 2,
+     "labels_written": false,
+     "names_field": true
+    },
+    "wider_state": {
+     "error": "  state_dim: the checkpoint has 2, this run 3",
+     "exit": 2,
+     "labels_written": false,
+     "names_field": true
+    }
+   }
+  },
+  {
+   "case": "a_later_generate_leaves_earlier_results_intact",
+   "first": "generate-154f37c0a05b.json",
+   "inspect_first_curate": 0,
+   "pass": true,
+   "second": "generate-5fbe1b64c8c4.json"
+  },
+  {
+   "case": "a_changed_generate_result_is_refused",
+   "curate": "cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/generate-154f37c0a05b.json has no immutable copy generate-aa00b0bda6f7.json beside it with the same content; run ccil generate again",
+   "inspect": "h-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs/generate-154f37c0a05b.json is missing or changed since Curate recorded it (recorded sha256 154f37c0a05b)",
+   "pass": true
+  },
+  {
+   "case": "result_paths_stay_in_their_directory",
+   "pass": true,
+   "refusals": {
+    "absolute": {
+     "error": "  artifacts at ccil.generate-result: candidates must be {path (relative), sha256}",
+     "exits": [
+      2,
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "generated_non_string": {
+     "error": "  generated at ccil.curate-result: generated must be {path (relative), sha256}",
+     "exits": [
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "generated_traversal": {
+     "error": "te-154f37c0a05b.json, outside <out>/golden/runs",
+     "exits": [
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "non_string": {
+     "error": "  artifacts at ccil.generate-result: candidates must be {path (relative), sha256}",
+     "exits": [
+      2,
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "stage_run_dir": {
+     "error": "te/tmp/claude-501/-Users-siddh-code-CCIL/30bd530d-5e1a-40cc-b67b-b3de8be4f1db/scratchpad/ev-bf4c605/m2_pipelines/golden/runs (a run directory is a direct child)",
+     "exits": [
+      2,
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "symlink": {
+     "error": "where/candidates.npz, outside <out>/golden/runs",
+     "exits": [
+      2,
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    },
+    "traversal": {
+     "error": "where/candidates.npz, outside <out>/golden/runs",
+     "exits": [
+      2,
+      2
+     ],
+     "traceback": false,
+     "wrote": []
+    }
+   }
+  },
+  {
+   "case": "labels_generate_alias_keeps_its_outputs",
+   "pass": true,
+   "stages": {
+    "data.prepare": "reused",
+    "labels.certify": "reused",
+    "labels.curate": "reused",
+    "labels.diagnose": "reused",
+    "labels.generate": "reused",
+    "transition.fit": "reused"
+   }
   }
  ],
  "environment": {
-  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
+  "code_commit": "bf4c605688955eedc18ea28eb6776f98c01b50f4",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",

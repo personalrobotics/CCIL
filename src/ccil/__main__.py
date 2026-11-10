@@ -177,7 +177,8 @@ def _config_convert(args) -> int:
 
 
 def _add_config_args(p) -> None:
-    p.add_argument("--recipe", help="named recipe in src/ccil/recipes/")
+    from .config.resolve import RECIPES
+    p.add_argument("--recipe", help="a named recipe: " + ", ".join(sorted(f.stem for f in RECIPES.glob("*.yaml"))))
     p.add_argument("--config", help="user configuration file (YAML)")
     p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override one parameter; repeatable")
 

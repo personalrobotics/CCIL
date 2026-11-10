@@ -175,8 +175,8 @@
    },
    "pass": true,
    "refused": {
-    "raw_dict_claiming_analytic": "InterfaceError: constant C_z must be Declared(...) or Provided(...), got dict; a value cannot be asserted as a bound",
-    "raw_float": "InterfaceError: constant C_z must be Declared(...) or Provided(...), got float; a value cannot be asserted as a bound"
+    "raw_dict_claiming_analytic": "RequestError: constant C_z must be Declared(...) or Provided(...), got dict; a value cannot be asserted as a bound",
+    "raw_float": "RequestError: constant C_z must be Declared(...) or Provided(...), got float; a value cannot be asserted as a bound"
    }
   },
   {
@@ -195,7 +195,7 @@
    "pass": true,
    "require_upper_bound": {
     "continuity_provider": "accepted",
-    "empirical": "InterfaceError: certificate (evidence_anchor_action_score) does not certify its rows as upper bounds"
+    "empirical": "RequestError: certificate (evidence_anchor_action_score) does not certify its rows as upper bounds"
    },
    "score_admission": {
     "is_bound": false,
@@ -343,25 +343,25 @@
    "case": "api_validation",
    "pass": true,
    "refused": {
-    "accepted_with_tolerance": "InterfaceError: admit accepted compares no error: it takes no tolerance or quantile",
-    "declared_negative": "InterfaceError: a declared constant must be finite and >= 0, got -1.0",
-    "declared_no_rationale": "InterfaceError: a declared constant needs a rationale",
-    "missing_reference": "InterfaceError: linear_discrepancy needs reference artifact 'true'; given []",
-    "neighborhood_zero": "InterfaceError: neighborhood radii must be finite and > 0, or None for unbounded; got 0.0",
-    "population_without_quantile": "InterfaceError: a population other than admitted applies to a quantile",
-    "quantile_zero": "InterfaceError: quantile must be in (0, 1] or None, got 0.0",
-    "scale_wrong_length": "InterfaceError: state_scale must be 2 finite positive values, got (1.0,)",
-    "scale_zero": "InterfaceError: action_scale must be 1 finite positive values, got (0.0,)",
-    "tolerance_bool": "InterfaceError: tolerance must be finite and > 0 or None, got True",
-    "tolerance_nan": "InterfaceError: tolerance must be finite and > 0 or None, got nan",
-    "tolerance_negative": "InterfaceError: tolerance must be finite and > 0 or None, got -1.0",
-    "unknown_admission": "InterfaceError: admit must be one of ['accepted', 'bound', 'score'], got 'maybe'",
-    "unknown_provider": "InterfaceError: unknown bound provider 'guess'; registered: ['linear_discrepancy', 'model_lipschitz', 'reference_lipschitz', 'reference_residual']"
+    "accepted_with_tolerance": "RequestError: admit accepted compares no error: it takes no tolerance or quantile",
+    "declared_negative": "RequestError: a declared constant must be finite and >= 0, got -1.0",
+    "declared_no_rationale": "RequestError: a declared constant needs a rationale",
+    "missing_reference": "RequestError: linear_discrepancy needs reference artifact 'true'; given []",
+    "neighborhood_zero": "RequestError: neighborhood radii must be finite and > 0, or None for unbounded; got 0.0",
+    "population_without_quantile": "RequestError: a population other than admitted applies to a quantile",
+    "quantile_zero": "RequestError: quantile must be in (0, 1] or None, got 0.0",
+    "scale_wrong_length": "RequestError: state_scale must be 2 finite positive values, got (1.0,)",
+    "scale_zero": "RequestError: action_scale must be 1 finite positive values, got (0.0,)",
+    "tolerance_bool": "RequestError: tolerance must be finite and > 0 or None, got True",
+    "tolerance_nan": "RequestError: tolerance must be finite and > 0 or None, got nan",
+    "tolerance_negative": "RequestError: tolerance must be finite and > 0 or None, got -1.0",
+    "unknown_admission": "RequestError: admit must be one of ['accepted', 'bound', 'score'], got 'maybe'",
+    "unknown_provider": "RequestError: unknown bound provider 'guess'; registered: ['linear_discrepancy', 'model_lipschitz', 'reference_lipschitz', 'reference_residual']"
    }
   },
   {
-   "artifact": "<out>/pipeline/runs/labels-certify-711d88811a4d/labels/certificates.npz",
-   "candidates_sha256": "bbfaebfafb5a094b330a4570ce64ff322f9096875f2f053b30d49059769310d0",
+   "artifact": "<out>/pipeline/runs/labels-certify-4d1e4c26772f/labels/certificates.npz",
+   "candidates_sha256": "e0ef2a64ac370ee28151ad090b6e2cef22a6a7990471db58bd5250385f34e44b",
    "case": "pipeline_certify_stage",
    "constants": {
     "C_a": 1.7700020475168254e-07,
@@ -372,14 +372,14 @@
    "reused": true,
    "rows": 36,
    "stages": {
-    "data-prepare-f6845509f7d6": "complete",
-    "labels-certify-2bea93b942c0": "complete",
-    "labels-certify-711d88811a4d": "complete",
-    "labels-curate-6d181876fadf": "complete",
-    "labels-curate-aa16d1a35af5": "complete",
-    "labels-diagnose-6ff15a131f91": "complete",
-    "labels-generate-2bf57caebc02": "complete",
-    "transition-fit-1f822156e724": "complete"
+    "data-prepare-3b7793c04b39": "complete",
+    "labels-certify-000b996583bd": "complete",
+    "labels-certify-4d1e4c26772f": "complete",
+    "labels-curate-126c598a2658": "complete",
+    "labels-curate-99cc76adacf3": "complete",
+    "labels-diagnose-18f99320125e": "complete",
+    "labels-generate-3166f1a2b3ef": "complete",
+    "transition-fit-19c2c64896b4": "complete"
    },
    "usable": 27
   },
@@ -688,7 +688,7 @@
    },
    "pass": true,
    "sampled_points": 2000,
-   "unsupported_activation": "InterfaceError: model_lipschitz: no Lipschitz constant for activation 'gelu'; supported: relu, tanh"
+   "unsupported_activation": "RequestError: model_lipschitz: no Lipschitz constant for activation 'gelu'; supported: relu, tanh"
   },
   {
    "case": "spectral_norm_estimates_not_used",
@@ -769,13 +769,13 @@
    ],
    "pass": true,
    "refused": {
-    "backtrack_on_disturbed_action_labels": "InterfaceError: profile backtrack certifies ['backtrack'] labels; generator 'noisy_action' produces 'disturbed_action'",
-    "discrepancy_provider_for_learned_constant": "InterfaceError: provider 'linear_discrepancy' bounds the discrepancy dynamics; this constant needs a bound on the learned dynamics",
-    "disturbed_action_on_backtrack_labels": "InterfaceError: profile disturbed_action certifies ['disturbed_action'] labels; generator 'backward_euler' produces 'backtrack'",
-    "learned_provider_for_true_constant": "InterfaceError: provider 'model_lipschitz' bounds the learned dynamics; this constant needs a bound on the true dynamics",
-    "missing_demonstration": "InterfaceError: backtrack needs demonstration=Provided('reference_residual', <reference>) or Declared(<bound on every demonstration residual>, <rationale>)",
-    "reference_given_to_model_provider": "InterfaceError: provider 'model_lipschitz' takes no reference artifact",
-    "residual_provider_for_a_constant": "InterfaceError: provider 'reference_residual' bounds the demonstration dynamics; this constant needs a bound on the learned dynamics"
+    "backtrack_on_disturbed_action_labels": "RequestError: profile backtrack certifies ['backtrack'] labels; generator 'noisy_action' produces 'disturbed_action'",
+    "discrepancy_provider_for_learned_constant": "RequestError: provider 'linear_discrepancy' bounds the discrepancy dynamics; this constant needs a bound on the learned dynamics",
+    "disturbed_action_on_backtrack_labels": "RequestError: profile disturbed_action certifies ['disturbed_action'] labels; generator 'backward_euler' produces 'backtrack'",
+    "learned_provider_for_true_constant": "RequestError: provider 'model_lipschitz' bounds the learned dynamics; this constant needs a bound on the true dynamics",
+    "missing_demonstration": "RequestError: backtrack needs demonstration=Provided('reference_residual', <reference>) or Declared(<bound on every demonstration residual>, <rationale>)",
+    "reference_given_to_model_provider": "RequestError: provider 'model_lipschitz' takes no reference artifact",
+    "residual_provider_for_a_constant": "RequestError: provider 'reference_residual' bounds the demonstration dynamics; this constant needs a bound on the learned dynamics"
    }
   },
   {
@@ -931,7 +931,7 @@
       "transition.fit"
      ],
      "status": "complete",
-     "stderr": "",
+     "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n",
      "usable": 4
     },
     "legacy_label_filtering": {
@@ -950,14 +950,14 @@
       "transition.fit"
      ],
      "status": "complete",
-     "stderr": "",
+     "stderr": "ccil labels generate is deprecated: use ccil generate, then ccil curate\n",
      "usable": 11
     }
    }
   }
  ],
  "environment": {
-  "code_commit": "29fdba1bc5fd17e2a3b565d9e6d81788415aeb30",
+  "code_commit": "bf4c605688955eedc18ea28eb6776f98c01b50f4",
   "code_dirty": false,
   "numpy": "2.4.6",
   "platform": "macOS-26.6.2-arm64-arm-64bit",
