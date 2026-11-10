@@ -1,5 +1,5 @@
 """Algorithmic interfaces: representation, transition model, generator, validator, weighting."""
-from .batch import CandidateBatch, InterfaceError, TransitionBatch
+from .batch import CandidateBatch, InterfaceError, RequestError, TransitionBatch
 from .generators import BackwardEuler, ExactPreimage, Generator, NoisyAction, NoisyActionPreimage
 from .labels import Uniform, generate_labels, nested_view
 from .representation import IdentityRepresentation, Representation, transitions
@@ -8,7 +8,7 @@ from .transition import (TRANSITION_MODELS, CheckpointError, LinearTransitionMod
 from .validators import (ActionBounds, Finite, GenerationFailed, ModelMisfit, ModelResidual, SupportRadius,
                          Validator)
 
-__all__ = ["TransitionBatch", "CandidateBatch", "InterfaceError", "Representation", "IdentityRepresentation", "transitions",
+__all__ = ["TransitionBatch", "CandidateBatch", "InterfaceError", "RequestError", "Representation", "IdentityRepresentation", "transitions",
            "TransitionModel", "LinearTransitionModel", "TRANSITION_MODELS", "load_transition_model", "transition_model_class", "CheckpointError",
            "jacobian_fd", "Generator", "BackwardEuler", "ExactPreimage",
            "NoisyAction", "NoisyActionPreimage", "Validator", "Finite", "GenerationFailed", "SupportRadius", "ActionBounds", "ModelResidual", "ModelMisfit",
