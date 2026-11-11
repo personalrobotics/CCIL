@@ -13,10 +13,16 @@ constrained MLP under transition_model.structure history_shift, history_steps 2,
 3. every accepted preimage label's newest slots equal its target's older slots (the source state x_t) within
    eps_struct = max(10 root_tolerance, 10 eps32 max(1, ||x_t||_inf)), the solver's and float32's error alone; the
    same configuration without the structure is reported for contrast, its labels off by the learned shift's error;
-4. the post-fit Lipschitz measurement is the learned head's, equal to a numpy recomputation from the saved arrays,
+4. the labels hold under the reloaded checkpoint, independently of the generator: for every accepted label,
+   Phi_hat(h_G, a~) assembled from first principles (the newer slots copied from h_G, the newest from the reloaded
+   network) is within root_tolerance of its target, equal to the solver residual the generator recorded; and a Newton
+   solve from the reloaded checkpoint, with the finite-difference Jacobian disabled, uses only the structured
+   jacobian_z (exact shift rows on every call), converges for every accepted label within root_tolerance, and agrees
+   with it within eps_struct (float32 products depend on the batch's composition, so not bit for bit);
+5. the post-fit Lipschitz measurement is the learned head's, equal to a numpy recomputation from the saved arrays,
    and the known shift's is recorded apart (sqrt 2 for two slots in unit scales);
-5. an unstructured configuration is unchanged: its checkpoint settings, meta and binding carry no history entry;
-6. the structure is refused (exit 2, no labels written) with noisy_action, a certificate profile, trainer_version 2,
+6. an unstructured configuration is unchanged: its checkpoint settings, meta and binding carry no history entry;
+7. the structure is refused (exit 2, no labels written) with noisy_action, a certificate profile, trainer_version 2,
    history_steps 3 on parts of width 4 and 2, and a checkpoint whose structure is not the run's, either way.
 Writes DIR/report.json, with no paths.
 """
@@ -137,7 +143,7 @@ def main() -> int:
     if g.returncode or u.returncode:
         record("pipeline_runs", False, structured=g.stderr[-800:], unstructured=u.stderr[-800:])
         return 1
-    import torch  # noqa: F401  (the mlp extra)
+    import torch  # the mlp extra
     from ccil.models.mlp import MLPTransitionModel
     fit = latest(w / "runs", "transition-fit")
     ckpt = fit / "checkpoints" / "transition_model.npz"
@@ -181,6 +187,62 @@ def main() -> int:
            kept > 0 and bool((err <= bound).all()) and float(np.median(perr)) > float(np.median(bound)),
            accepted=kept, candidates=total, error=q(err), eps_struct=q(bound),
            unstructured_contrast={"accepted": pkept, "candidates": ptotal, "error": q(perr)})
+
+    import ccil.core.generators as gen
+    from ccil.schema import read_trajectories
+    reloaded = MLPTransitionModel.load(ckpt)  # a fresh load: the generator's in-process model is not used
+    c = read_candidates(labels, read_trajectories(dataset))
+    keep = np.asarray(c.accepted, bool)
+    names = JOINED.split("+")
+    zg = np.concatenate([np.asarray(c.observations[n]) for n in names], 1)[keep]
+    tgt = np.concatenate([np.asarray(c.target_observations[n], np.float64) for n in names], 1)[keep]
+    act = np.asarray(c.actions)[keep]
+    # Phi_hat from first principles: newer slots copied, newest slots from the network, in eval mode (a training-mode
+    # forward would run the spectral-norm power iteration and change the weights it applies)
+    was = reloaded.net.training
+    reloaded.net.eval()
+    with torch.no_grad():
+        head = reloaded.net.predict(torch.as_tensor(zg, dtype=torch.float32), torch.as_tensor(act, dtype=torch.float32))
+    reloaded.net.train(was)
+    head = head.numpy().astype(np.float64)
+    nxt = np.empty_like(tgt)
+    h = reloaded.history
+    nxt[:, h["shift_dst"]] = zg[:, h["shift_src"]]
+    nxt[:, h["learned"]] = zg[:, h["learned"]].astype(np.float64) + head
+    resid = np.linalg.norm(nxt - tgt, axis=1)
+    recorded = np.asarray(c.measurements["generator.solver_residual"], np.float64)[keep]
+    ds = read_trajectories(dataset)
+    by_id = {ep.episode_id: np.concatenate([ep.observations[n] for n in names], 1) for ep in ds.episodes}
+    init = np.stack([by_id[e][f] for e, f in zip(np.asarray(c.source_episode_id)[keep], np.asarray(c.source_frame)[keep])])
+    calls = {"n": 0, "shift_rows_exact": True}
+    jz = reloaded.jacobian_z
+
+    def checked_jacobian_z(z, a):
+        J = jz(z, a)
+        calls["n"] += 1
+        calls["shift_rows_exact"] &= bool(np.array_equal(J[:, h["shift_dst"]],
+                                                         np.broadcast_to(expect, (len(J), *expect.shape))))
+        return J
+
+    def no_fd(*_):
+        raise AssertionError("Newton fell back to finite differences")
+
+    reloaded.jacobian_z, saved = checked_jacobian_z, gen.jacobian_fd
+    gen.jacobian_fd = no_fd
+    try:
+        solved, failed, _ = gen.newton_preimage(reloaded, tgt, act, init, 50, tol, out_dtype=zg.dtype)
+    finally:
+        gen.jacobian_fd = saved
+    record("labels_hold_under_the_reloaded_checkpoint",
+           bool((resid <= tol).all()) and np.allclose(resid, recorded, rtol=0, atol=1e-9) and calls["n"] > 0
+           and calls["shift_rows_exact"] and not failed.any()
+           and bool((np.abs(solved.astype(np.float64) - zg).max(1) <= bound).all())
+           and bool((np.linalg.norm(solved + reloaded.delta(solved, act) - tgt, axis=1) <= tol).all()),
+           labels=int(keep.sum()), residual_max=float(resid.max()), root_tolerance=tol,
+           residual_vs_recorded_max_diff=float(np.abs(resid - recorded).max()), newton_jacobian_calls=calls["n"],
+           newton_shift_rows_exact=calls["shift_rows_exact"], resolved_bitwise=bool(np.array_equal(solved, zg)),
+           resolved_max_abs_diff=float(np.abs(solved.astype(np.float64) - zg).max()),
+           resolved_residual_max=float(np.linalg.norm(solved + reloaded.delta(solved, act) - tgt, axis=1).max()))
 
     metrics = json.loads((fit / "metrics.json").read_text())["values"]["lipschitz_measured"]
     rec = {m: head_bound(ckpt, m) for m in ("state", "action")}
