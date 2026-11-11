@@ -77,6 +77,20 @@ PARAMS = [
           "transition.fit wrote). Its kind, representation, dimensions, direction and action period must match the "
           "run's, or loading fails before any label is generated; null fits the model.",
           "New (#170); the legacy code always fitted.", "transition_model", nullable=True),
+    Param("transition_model.structure", "choice", "none",
+          "Known structure of the state the transition model need not learn: none, or history_shift, for a state "
+          "whose every representation part is history_steps equal contiguous slots, oldest first (e.g. "
+          "[x_{t-1}, x_t]). history_shift predicts the older slots' next values exactly as the shift they are (slot "
+          "i becomes slot i + 1) and fits the MLP only to the newest slot's next value; its Jacobian is assembled "
+          "from the exact shift and the network's.",
+          "New (#30): a generic residual MLP relearns the shift with an error larger than its error on the actual "
+          "dynamics, and a preimage label whose history is not a shift of its target's is not a transition the "
+          "system can make. mlp, trainer_version 1, forward, identity representation, generation.method "
+          "noisy_action_fe, generation.recovery_steps 1 and no certificate profile or calibration only.",
+          "transition_model", choices=("none", "history_shift")),
+    Param("transition_model.history_steps", "int", None,
+          "Slots per representation part under transition_model.structure history_shift (2 for [x_{t-1}, x_t]).",
+          "New (#30); required by history_shift, unused otherwise.", "transition_model", low=2, nullable=True),
     Param("transition_model.lipschitz_type", "choice", None, "Lipschitz regularization of the transition model.",
           "Task-specific in legacy configs.", "transition_model", choices=LIPSCHITZ, nullable=True,
           legacy=("dynamics.lipschitz_type",)),
@@ -427,8 +441,32 @@ def mlp_settings_problem(v):
     return None
 
 
+def _history_shift(v):
+    if v["transition_model.structure"] == "none":
+        return ("transition_model.history_steps applies to transition_model.structure history_shift; unset it"
+                if v["transition_model.history_steps"] is not None else None)
+    needs = {"transition_model.history_steps": v["transition_model.history_steps"] is not None,
+             "transition_model.kind mlp": v["transition_model.kind"] == "mlp",
+             "transition_model.trainer_version 1": v["transition_model.trainer_version"] == "1",
+             "transition_model.direction forward": v["transition_model.direction"] == "forward",
+             "representation.kind identity": v["representation.kind"] == "identity",
+             # noisy_action takes one residual step evaluated at the target: its label's history is not a shift of
+             # the target's even under exact dynamics; the preimage solve makes it one to solver precision.
+             "generation.method noisy_action_fe": v["generation.method"] in (None, "noisy_action_fe"),
+             "generation.recovery_steps 1": v["generation.recovery_steps"] == "1",
+             # certificate bounds are not yet shown sound for a model whose residual is part known, part learned
+             "no certificate.profile": v["certificate.profile"] is None,
+             "no calibration.level": v["calibration.level"] is None}
+    missing = [k for k, ok in needs.items() if not ok]
+    return f"transition_model.structure history_shift requires {missing}" if missing else None
+
+
 RULES = [
     ("pca_dim", ("representation.kind", "representation.dim"), _pca_dim),
+    ("history_shift", ("transition_model.structure", "transition_model.history_steps", "transition_model.kind",
+                       "transition_model.trainer_version", "transition_model.direction", "representation.kind",
+                       "generation.method", "generation.recovery_steps", "certificate.profile", "calibration.level"),
+     _history_shift),
     ("modality", ("representation.modality", "representation.kind"), _modality),
     ("action_bounds", ("data.action_low", "data.action_high"), _bounds),
     ("certificate", ("certificate.profile", "certificate.reference_dynamics", "generation.method", "transition_model.kind",

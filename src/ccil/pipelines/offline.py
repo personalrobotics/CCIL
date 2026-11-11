@@ -201,9 +201,12 @@ def preflight(cfg) -> None:
         raise ConfigError(errors)
 
 
-def _fit(v, z, a, z_next):
-    """Fit one transition model with the configured engine: (model, fit record)."""
+def _fit(v, z, a, z_next, parts=None):
+    """Fit one transition model with the configured engine: (model, fit record). parts, the representation parts'
+    widths in order, lay out a history_shift model's slots."""
     model = build_model(v)
+    if getattr(model, "structured", False):
+        model.set_parts(parts)
     if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
         from ..models.mlp_batched import FitJob, fit_group
         return fit_group([FitJob(z, a, z_next, v["run.seed"])], dict(model.settings), device=v["compute.device"],
@@ -308,6 +311,10 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
                    "dt_ctrl": timing(read_trajectories(inputs["dataset"]))["dt_ctrl"]}
         if JOIN in v["representation.modality"]:  # an ordered list of modalities: bound by each part's width too
             binding["representation"]["widths"] = widths(read_trajectories(inputs["dataset"]), v["representation.modality"])
+        parts = list(binding["representation"].get("widths", {}).values()) or [int(z.shape[1])]
+        if v["transition_model.structure"] != "none":  # bound to its slot layout: steps and each part's width
+            binding["representation"]["history"] = {"structure": v["transition_model.structure"],
+                                                    "steps": v["transition_model.history_steps"], "parts": parts}
         if loaded is not None:  # an externally supplied model: bound to this run, scored, copied whole
             model = _load_bound(v, inputs["checkpoint"], binding)
             metrics = {"label_model": {"source": "loaded", "checkpoint_sha256": sha256(inputs["checkpoint"])},
@@ -326,16 +333,16 @@ def fit_transition_stage(cfg, prepared: StageResult, representation, extra_input
             _check_prefit(v, prefit, z, a, z_next, tr, clean)
             model, record = prefit["label"]
         elif clean:
-            model, record = _fit(v, z[tr], a[tr], z_next[tr])
+            model, record = _fit(v, z[tr], a[tr], z_next[tr], parts)
         else:
-            model, record = _fit(v, z, a, z_next)
+            model, record = _fit(v, z, a, z_next, parts)
         metrics = {"label_model": record, "fit_episodes": v["transition_model.fit_episodes"]}
         if tr is not None:
             if clean:
                 evaluation, note = model, "the label model, fitted on the train split only, scored on the held-out episodes"
             else:
                 evaluation = (prefit["evaluation"][0] if prefit is not None and prefit.get("evaluation") is not None
-                              else _fit(v, z[tr], a[tr], z_next[tr])[0])
+                              else _fit(v, z[tr], a[tr], z_next[tr], parts)[0])
                 note = "evaluation model fitted on the train split; the label model saw every episode"
             metrics["held_out"] = evaluation.evaluate(z[va], a[va], z_next[va])
             metrics["held_out"]["note"] = note
@@ -359,6 +366,12 @@ def _measured_lipschitz(v, path: Path) -> dict:
     model = load_transition_model(path, device="cpu")
     out = {"scope": "the residual map f_hat in raw state and action units, recomputed from the saved checkpoint with "
                     "its normalization, output scaling and mask; a measurement, not a certificate"}
+    if getattr(model, "structured", False):
+        out["scope"] = ("the learned head of a history_shift model (the newest slots' residual) in raw state and action "
+                        "units, recomputed from the saved checkpoint with its normalization, output scaling and mask; "
+                        "a measurement, not a certificate. known_shift is the exact constant of the older slots' "
+                        "residual, which is not learned")
+        out["known_shift"] = {"state": model.shift_lipschitz(np.ones(model.net.state_dim)), "action": 0.0}
     for maps in ("state", "action"):
         try:
             b = model.lipschitz_bound(maps, np.ones(model.net.state_dim), np.ones(model.net.act_dim))

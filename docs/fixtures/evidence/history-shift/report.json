@@ -1,0 +1,159 @@
+{
+ "all_pass": true,
+ "cases": [
+  {
+   "binding_history": {
+    "parts": [
+     4,
+     2
+    ],
+    "steps": 2,
+    "structure": "history_shift"
+   },
+   "case": "only_the_newest_slots_are_trained",
+   "history": {
+    "parts": [
+     4,
+     2
+    ],
+    "steps": 2
+   },
+   "learned": [
+    2,
+    3,
+    5
+   ],
+   "network_outputs": 3,
+   "pass": true
+  },
+  {
+   "case": "shift_is_exact",
+   "learned_rows_fd_max_diff": 0.0014361292123794556,
+   "pass": true,
+   "shift_rows": [
+    0,
+    1,
+    4
+   ]
+  },
+  {
+   "accepted": 2295,
+   "candidates": 2304,
+   "case": "preimage_labels_keep_the_history",
+   "eps_struct": {
+    "50": 0.001,
+    "90": 0.001,
+    "100": 0.001
+   },
+   "error": {
+    "50": 0.0,
+    "90": 0.0,
+    "100": 0.0
+   },
+   "pass": true,
+   "unstructured_contrast": {
+    "accepted": 2304,
+    "candidates": 2304,
+    "error": {
+     "50": 3.119537353515625,
+     "90": 7.102922058105469,
+     "100": 33.98583984375
+    }
+   }
+  },
+  {
+   "case": "labels_hold_under_the_reloaded_checkpoint",
+   "labels": 2295,
+   "newton_jacobian_calls": 20,
+   "newton_shift_rows_exact": true,
+   "pass": true,
+   "residual_max": 8.040929472593705e-05,
+   "residual_vs_recorded_max_diff": 0.0,
+   "resolved_bitwise": false,
+   "resolved_max_abs_diff": 0.0001068115234375,
+   "resolved_residual_max": 8.040929472593705e-05,
+   "root_tolerance": 0.0001
+  },
+  {
+   "case": "lipschitz_is_the_learned_heads_with_the_shift_apart",
+   "known_shift": {
+    "action": 0.0,
+    "state": 1.4142135623730951
+   },
+   "measured": {
+    "action": 1.0520070976080746,
+    "state": 1.4036949462560164
+   },
+   "pass": true,
+   "recomputed": {
+    "action": 1.0520070990802108,
+    "state": 1.403694948188426
+   }
+  },
+  {
+   "binding_representation": [
+    "checkpoint_sha256",
+    "kind",
+    "modality",
+    "widths"
+   ],
+   "case": "unstructured_configuration_unchanged",
+   "pass": true,
+   "settings": [
+    "activation",
+    "batch_size",
+    "epochs",
+    "hidden_layers",
+    "learning_rate",
+    "lipschitz_constraint",
+    "lipschitz_coordinates",
+    "lipschitz_type",
+    "slack_weight",
+    "soft_penalty_weight",
+    "soft_samples",
+    "soft_sampling_eps",
+    "weight_decay"
+   ]
+  },
+  {
+   "case": "refusals",
+   "certificate_profile": {
+    "error": "  transition_model.structure history_shift requires ['no certificate.profile'] [history_shift; sources: transition_model.structure=cli, transition_model.history_steps=cli, transition_model.kind=cli, transition_model.trainer_version=cli, transition_model.direction=default, representation.kind=default, generation.method=cli, generation.recovery_steps=cli, certificate.profile=cli, calibration.level=default]",
+    "exit": 2,
+    "wrote_labels": false
+   },
+   "noisy_action": {
+    "error": "  transition_model.structure history_shift requires ['generation.method noisy_action_fe'] [history_shift; sources: transition_model.structure=cli, transition_model.history_steps=cli, transition_model.kind=cli, transition_model.trainer_version=cli, transition_model.direction=default, representation.kind=default, generation.method=cli, generation.recovery_steps=cli, certificate.profile=default, calibration.level=default]",
+    "exit": 2,
+    "wrote_labels": false
+   },
+   "pass": true,
+   "plain_checkpoint_into_structured_run": {
+    "error": "  representation: the checkpoint has {'checkpoint_sha256': None, 'kind': 'identity', 'modality': 'state+state.block', 'widths': {'state': 4, 'state.block': 2}}, this run {'kind': 'identity', 'modality': 'state+state.block', 'checkpoint_sha256': None, 'widths': {'state': 4, 'state.block': 2}, 'history': {'structure': 'history_shift', 'steps': 2, 'parts': [4, 2]}}",
+    "exit": 2,
+    "wrote_labels": false
+   },
+   "structured_checkpoint_into_plain_run": {
+    "error": "  representation: the checkpoint has {'checkpoint_sha256': None, 'history': {'parts': [4, 2], 'steps': 2, 'structure': 'history_shift'}, 'kind': 'identity', 'modality': 'state+state.block', 'widths': {'state': 4, 'state.block': 2}}, this run {'kind': 'identity', 'modality': 'state+state.block', 'checkpoint_sha256': None, 'widths': {'state': 4, 'state.block': 2}}",
+    "exit": 2,
+    "wrote_labels": false
+   },
+   "trainer_version_2": {
+    "error": "  transition_model.structure history_shift requires ['transition_model.trainer_version 1'] [history_shift; sources: transition_model.structure=cli, transition_model.history_steps=cli, transition_model.kind=cli, transition_model.trainer_version=cli, transition_model.direction=default, representation.kind=default, generation.method=cli, generation.recovery_steps=cli, certificate.profile=default, calibration.level=default]",
+    "exit": 2,
+    "wrote_labels": false
+   },
+   "uneven_slots": {
+    "error": "stage transition.fit failed: transition_model.structure history_shift: a part of width 4 is not 3 equal slots (transition_model.history_steps 3)",
+    "exit": 2,
+    "wrote_labels": false
+   }
+  }
+ ],
+ "environment": {
+  "code_commit": "f203161765327e91aaa74cebd630e6568c4d5f8d",
+  "code_dirty": false,
+  "numpy": "2.4.6",
+  "python": "3.11.16"
+ }
+}
