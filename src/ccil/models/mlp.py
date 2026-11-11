@@ -38,6 +38,13 @@ docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
   and ReLU kinks under a consistent per-coordinate rescaling). The
   penalty is a training regularizer: lipschitz_constraint is never a certified
   bound, and certificates recompute bounds from the weights.
+
+structure history_shift (#30): when every representation part is history_steps
+equal slots, oldest first, the older slots' next values are a known shift (slot
+i becomes slot i + 1). The model predicts that shift exactly and fits the
+network only to the newest slot's residual; delta and the Jacobian assemble the
+two, and the Lipschitz measurement is the learned head's, recorded apart from
+the shift's.
 """
 from __future__ import annotations
 
@@ -106,6 +113,28 @@ def jacobian_chunk_rows(state_dim: int, action_dim: int, hidden_layers, budget_b
                                   f"= {int(budget_bytes) / 2**20:.2f} MiB; raise it to at least {-(-row // 2**20)}")
     return int(budget_bytes) // row
 NORMALIZATION = ("s_shift", "s_scale", "a_shift", "a_scale", "out_shift", "out_scale")
+STRUCTURES = ("none", "history_shift")
+
+
+def history_layout(parts, steps: int) -> dict:
+    """Index sets of a history state: each part (a width) is steps equal contiguous slots, oldest first.
+
+    shift_dst[i] takes its next value from shift_src[i] (the same coordinate one slot newer); learned are the newest
+    slots' coordinates, the only ones the network predicts. Refuses a part that is not steps equal slots."""
+    dst, src, learned, off = [], [], [], 0
+    for width in parts:
+        width = int(width)
+        if width % steps:
+            raise InputError(f"transition_model.structure history_shift: a part of width {width} is not "
+                             f"{steps} equal slots (transition_model.history_steps {steps})")
+        w = width // steps
+        for slot in range(steps - 1):
+            dst += range(off + slot * w, off + (slot + 1) * w)
+            src += range(off + (slot + 1) * w, off + (slot + 2) * w)
+        learned += range(off + (steps - 1) * w, off + width)
+        off += width
+    return {"parts": [int(x) for x in parts], "steps": int(steps), "shift_dst": np.array(dst, np.int64),
+            "shift_src": np.array(src, np.int64), "learned": np.array(learned, np.int64), "state_dim": off}
 
 
 class DynamicsNet(nn.Module):
@@ -267,7 +296,7 @@ class MLPTransitionModel:
                  lipschitz_constraint=None, soft_penalty_weight=None, soft_sampling_eps=0.0003, soft_samples=5,
                  slack_weight=1.0, learning_rate=0.001, weight_decay=1e-05, lipschitz_coordinates="model_normalized",
                  device="cpu",
-                 deterministic=False):
+                 deterministic=False, structure="none", history_steps=None):
         lipschitz_type = lipschitz_type or "none"
         if lipschitz_type not in LIPSCHITZ_TYPES:
             raise ValueError(f"lipschitz_type {lipschitz_type!r} is not one of {LIPSCHITZ_TYPES}")
@@ -275,12 +304,19 @@ class MLPTransitionModel:
             raise ValueError(f"lipschitz_coordinates {lipschitz_coordinates!r} is not one of {LIPSCHITZ_COORDINATES}")
         if lipschitz_type == "soft_jac" and lipschitz_coordinates != "raw":
             raise ValueError("soft_jac has no model_normalized form yet (#125); use lipschitz_coordinates raw")
+        if structure not in STRUCTURES:
+            raise ValueError(f"structure {structure!r} is not one of {STRUCTURES}")
+        if (structure == "history_shift") != (history_steps is not None):
+            raise ValueError("structure history_shift needs history_steps, and only it takes them")
         self.settings = {"hidden_layers": [int(h) for h in hidden_layers], "activation": activation,
                          "lipschitz_type": lipschitz_type, "lipschitz_constraint": lipschitz_constraint,
                          "soft_penalty_weight": soft_penalty_weight, "soft_sampling_eps": soft_sampling_eps,
                          "soft_samples": soft_samples, "slack_weight": slack_weight, "learning_rate": learning_rate,
                          "weight_decay": weight_decay, "epochs": int(epochs), "batch_size": int(batch_size),
                          "lipschitz_coordinates": lipschitz_coordinates}
+        if structure != "none":  # absent otherwise, so an unstructured model's settings and checkpoint are unchanged
+            self.settings.update(structure=structure, history_steps=int(history_steps))
+        self.history = None  # history_layout(parts, history_steps), set by set_parts before fitting
         self.device = _check_device(device)
         self.deterministic = bool(deterministic)
         self.jacobian_memory_bytes = JACOBIAN_MEMORY_BYTES
@@ -290,12 +326,29 @@ class MLPTransitionModel:
     @classmethod
     def from_config(cls, v):
         return cls(**{k: v[f"transition_model.{k}"] for k in SETTINGS},
-                   device=v["compute.device"], deterministic=v["compute.deterministic"])
+                   device=v["compute.device"], deterministic=v["compute.deterministic"],
+                   structure=v["transition_model.structure"], history_steps=v["transition_model.history_steps"])
+
+    @property
+    def structured(self) -> bool:
+        return self.settings.get("structure", "none") == "history_shift"
+
+    def set_parts(self, parts) -> None:
+        """The representation parts' widths, in order: a structured model's history layout (#30)."""
+        if self.structured:
+            self.history = history_layout(parts, self.settings["history_steps"])
 
     # --- construction ------------------------------------------------------
     def _build(self, state_dim, act_dim):
         st = self.settings
-        self.net = DynamicsNet(state_dim, act_dim, st["hidden_layers"], activation=st["activation"]).to(self.device)
+        out_dim = None
+        if self.structured:
+            if self.history is None or self.history["state_dim"] != state_dim:
+                raise InputError(f"structure history_shift: the state has {state_dim} dimensions, the history layout "
+                                 f"{None if self.history is None else self.history['parts']}")
+            out_dim = len(self.history["learned"])  # the network predicts the newest slots only
+        self.net = DynamicsNet(state_dim, act_dim, st["hidden_layers"], out_dim=out_dim,
+                               activation=st["activation"]).to(self.device)
         if "spectral_normalization" in st["lipschitz_type"]:
             self.net.enable_spectral_normalization(st["lipschitz_constraint"])
         self.lam = None
@@ -331,11 +384,14 @@ class MLPTransitionModel:
             torch.manual_seed(seed)
             self._build(z.shape[1], a.shape[1])
             s, act, sp = (torch.as_tensor(np.asarray(x), dtype=torch.float32, device=self.device) for x in (z, a, z_next))
-            s_shift, a_shift, out_shift = s.mean(0), act.mean(0), (sp - s).mean(0)
+            res = sp - s
+            if self.structured:  # the training target is the newest slots' residual alone
+                res = res[:, torch.as_tensor(self.history["learned"], device=self.device)]
+            s_shift, a_shift, out_shift = s.mean(0), act.mean(0), res.mean(0)
             self.net.set_transformations(s_shift=s_shift, s_scale=(s - s_shift).abs().mean(0), a_shift=a_shift,
                                          a_scale=(act - a_shift).abs().mean(0), out_shift=out_shift,
-                                         out_scale=(sp - s - out_shift).abs().mean(0))
-            y = (sp - s - self.net.out_shift) / (self.net.out_scale + 1e-8)
+                                         out_scale=(res - out_shift).abs().mean(0))
+            y = (res - self.net.out_shift) / (self.net.out_scale + 1e-8)
             params = list(self.net.parameters()) + (list(self.lam.parameters()) if self.lam is not None else [])
             opt = torch.optim.Adam(params, lr=self.settings["learning_rate"], weight_decay=self.settings["weight_decay"])
             loss_fn, order, steps = self._loss_fn(), np.random.default_rng(seed), n // bs
@@ -365,7 +421,14 @@ class MLPTransitionModel:
                    for i in range(0, len(z), PREDICT_CHUNK)]
         if not out:
             return np.zeros((0, self.net.state_dim))
-        return torch.cat(out).cpu().numpy().astype(np.float64)
+        head = torch.cat(out).cpu().numpy().astype(np.float64)
+        if not self.structured:
+            return head
+        h, z = self.history, np.asarray(z, np.float64)
+        full = np.empty((len(z), self.net.state_dim))
+        full[:, h["shift_dst"]] = z[:, h["shift_src"]] - z[:, h["shift_dst"]]  # exact: slot i becomes slot i + 1
+        full[:, h["learned"]] = head
+        return full
 
     def jacobian_za(self, z, a) -> np.ndarray:
         """Exact df/d(z, a) in eval mode, (N, D, D + A).
@@ -385,11 +448,16 @@ class MLPTransitionModel:
         size = -(-len(z) // chunks) if len(z) else 1  # ceil(N / ceil(N / cap)): balanced chunks
         self.jacobian_chunking = {"budget_bytes": int(self.jacobian_memory_bytes), "max_rows_per_chunk": cap,
                                   "rows": int(len(z)), "chunks": chunks if len(z) else 0, "rows_per_chunk": size}
+        rows = self.history["learned"] if self.structured else slice(None)
+        if self.structured:  # the shift's rows are exact: +1 on the newer slot, -1 on its own
+            out[:] = 0.0
+            out[:, self.history["shift_dst"], self.history["shift_src"]] = 1.0
+            out[:, self.history["shift_dst"], self.history["shift_dst"]] = -1.0
         with _determinism(self.deterministic), _eval_mode(self.net, self.lam):
             for i in range(0, len(z), size):
                 x = torch.cat([torch.as_tensor(z[i:i + size], dtype=torch.float32, device=self.device),
                                torch.as_tensor(a[i:i + size], dtype=torch.float32, device=self.device)], -1)
-                out[i:i + size] = jac_fn(x).detach().cpu().numpy()
+                out[i:i + size, rows] = jac_fn(x).detach().cpu().numpy()
         return out
 
     def jacobian_z(self, z, a) -> np.ndarray:
@@ -417,6 +485,8 @@ class MLPTransitionModel:
         activation is refused. The value holds for the network in exact real
         arithmetic; neither the float32 evaluation of the network nor the
         float64 rounding of the norms is enclosed, so it is not "verified".
+        Under structure history_shift it is the learned head's (the newest
+        slots' residual) alone; shift_lipschitz gives the known shift's.
         """
         act = self.settings["activation"]
         if act not in ("relu", "tanh"):
@@ -431,7 +501,7 @@ class MLPTransitionModel:
         cols = slice(0, d) if maps == "state" else slice(d, d + net.act_dim)
         scale = sz if maps == "state" else sa
         first = weights[0][:, cols] * (scale / in_div)[None, :]
-        rows = (out_mul / sz)[:, None]
+        rows = (out_mul / (sz[self.history["learned"]] if self.structured else sz))[:, None]
         if len(weights) == 1:
             factors = [float(np.linalg.norm(rows * first, 2))]
         else:
@@ -439,6 +509,15 @@ class MLPTransitionModel:
                        + [float(np.linalg.norm(rows * weights[-1], 2))])
         return {"value": float(np.prod(factors)), "factors": factors, "activation": act, "activation_lipschitz": 1.0,
                 "verified": False}
+
+    def shift_lipschitz(self, state_scale) -> float:
+        """The exact Lipschitz constant, in the scaled coordinates of lipschitz_bound, of the known shift's
+        residual rows (z[src] - z[dst]) with respect to the state; it does not depend on the action."""
+        h, sz = self.history, np.asarray(state_scale, np.float64)
+        m = np.zeros((len(h["shift_dst"]), self.net.state_dim))
+        m[np.arange(len(m)), h["shift_src"]] = 1.0
+        m[np.arange(len(m)), h["shift_dst"]] -= 1.0
+        return float(np.linalg.norm(m * sz[None, :] / sz[h["shift_dst"]][:, None], 2))
 
     # --- persistence ---------------------------------------------------------
     binding = None  # set by transition.fit before saving (ccil.core.transition.BINDING)
@@ -451,6 +530,8 @@ class MLPTransitionModel:
                 "state_dim": self.net.state_dim, "act_dim": self.net.act_dim, "settings": self.settings,
                 "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM,
                 **lipschitz_record(self.settings, self.net),  # the coordinates' descriptor (#125)
+                **({"history": {"steps": self.history["steps"], "parts": self.history["parts"]}}
+                   if self.structured else {}),
                 **({"binding": self.binding} if self.binding is not None else {})}
         _atomic_savez(path, {**arrays, "meta": np.array(json.dumps(meta, sort_keys=True))})
 
@@ -463,6 +544,12 @@ class MLPTransitionModel:
         if "lipschitz_coordinates" not in settings:  # written before #125: its penalty was in raw coordinates
             settings["lipschitz_coordinates"] = "raw"
         model = cls(**settings, device=device)
+        if model.structured != ("history" in meta):
+            raise ValueError(f"{path}: its settings and its history layout disagree on structure")
+        if model.structured:
+            model.set_parts(meta["history"]["parts"])
+            if model.history["steps"] != meta["history"]["steps"]:
+                raise ValueError(f"{path}: history steps {meta['history']['steps']} do not match its settings")
         with torch.random.fork_rng(devices=[]):  # construction draws throwaway init values
             model._build(meta["state_dim"], meta["act_dim"])
         with np.load(path, allow_pickle=False) as z:

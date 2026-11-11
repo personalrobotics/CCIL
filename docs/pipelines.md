@@ -78,6 +78,25 @@ stage manifest.
   version 1, so the version is part of the stage identity. It supports
   lipschitz types `none`, `slack`, `soft_sampling` and `soft_sampling_slack`
   (preflight refuses the others), and honors `compute.deterministic`.
+- **`transition_model.structure history_shift`** (#30) is for a state that
+  carries its own history: every representation part is `history_steps` equal
+  slots, oldest first, as [x_{t−1}, x_t]. The older slots' next values are a
+  known shift (slot i becomes slot i + 1). The model predicts the shift exactly
+  and fits the MLP only to the newest slot's residual. Its Jacobian is the
+  shift's exact rows plus the network's. A generic residual MLP would relearn
+  the shift, with more error than on the real dynamics.
+  - **Labels:** generation must be `noisy_action_fe`. Its preimage solve keeps
+    each label's history a shift of its target's to solver precision.
+    `noisy_action` is refused: its one residual step, taken at the target,
+    breaks the shift even under exact dynamics.
+  - **Records:** the checkpoint and its binding record the slot layout, and a
+    checkpoint of another structure is refused. `lipschitz_measured` is the
+    learned head's, and `known_shift` records the shift's constant apart.
+  - **Refused for now:** certificate profiles and calibration, the batched
+    trainer, other model kinds and recovery lengths other than 1.
+
+  Evidence: [`history-shift/report.json`](fixtures/evidence/history-shift/report.json)
+  ([`tools/history_shift`](../tools/history_shift/check.py)).
 - **Grouped results are authenticated.** Each batched fit records a content
   identity: its exact rows, settings, seed and engine. `transition.fit` with a
   prefit model recomputes it from the unit's own inputs and refuses a mismatch.
@@ -267,6 +286,7 @@ provide, and claim no image-CCIL parity:
 | `generation.model_error_threshold` | number | Implemented (#22). It adds `ModelMisfit`, the model-error gate. |
 | `certificate.*` | profile, constants, thresholds | Implemented (#88). With `certificate.profile` set, `ccil labels generate` adds the `labels.certify` stage. `generation.max_label_error` and `generation.label_error_quantile` were withdrawn in favour of these keys; see [certificates.md](certificates.md). |
 | `generation.action_chunk_size` | int | Implemented (#22). Adds action chunks: the label action, then the demonstration's continuation, masked at the episode end. Only position 0 carries the one-step claim. See [`migration/label-methods.md`](migration/label-methods.md). |
+| `transition_model.structure` | `none`, `history_shift` (with `transition_model.history_steps`) | Implemented (#30) |
 | `transition_model.kind` | `linear` | Implemented |
 | `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |
