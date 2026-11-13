@@ -1,12 +1,13 @@
 # Packaging
 
-The `ccil` core is a uv-managed project (#20).
+The `prlccil` distribution is a uv-managed project (#20). It installs the
+`ccil` Python package and `ccil` console script.
 
 | Item | Value |
 |---|---|
-| Definition | [`pyproject.toml`](../pyproject.toml), with build backend `uv_build`, a src layout, and the `ccil` console script |
+| Definition | [`pyproject.toml`](../pyproject.toml), with build backend `uv_build`, distribution name `prlccil`, module name `ccil`, a src layout, and the `ccil` console script |
 | Lock | [`uv.lock`](../uv.lock), committed. `.python-version` selects 3.11 for development. |
-| Python | 3.10 and newer for `ccil`; 3.11 and newer for `ccil[torch]` and the `evidence` group (see [`security.md`](security.md)) |
+| Python | 3.10 and newer for `prlccil`; 3.11 and newer for `prlccil[torch]` and the `evidence` group (see [`security.md`](security.md)) |
 | Core dependencies | `numpy>=1.24`, `pyyaml>=6.0`. Nothing else installs with the core. |
 | Dependency groups | `evidence`: exact pins of matplotlib, pillow and torch, Python 3.11+, used only by the evidence tools |
 | Optional extras | `torch`: `torch>=2.9.1` on Python 3.11+, for torch-backed models (#21). `lerobot`: `pyarrow>=21.0.0`, and `huggingface_hub>=1.0.0` on Python 3.11+, CCIL's LeRobot Dataset v3.0 format bridge. It does not install the LeRobot runtime ([`lerobot.md`](lerobot.md), #26). Image models (M5) will add their own. A missing extra fails only when its feature is requested, with install guidance. |
@@ -38,8 +39,9 @@ any mismatch. Release tags are `vX.Y.ZrcN` or `vX.Y.Z`.
 
 The RC and stable tags therefore point to different commits. Publishing uses
 PyPI trusted publishing (OIDC), with no repository token or password. Configure
-the PyPI and TestPyPI publishers for owner `personalrobotics`, repository
-`CCIL`, workflow `release.yml`, and the matching environment name above.
+the PyPI and TestPyPI publishers for project `prlccil`, owner
+`personalrobotics`, repository `CCIL`, workflow `release.yml`, and the matching
+environment name above.
 
 **Legacy packaging.** The retired legacy installer (`setup.py`,
 `install_deps.txt`) is preserved at `archive/upstream-main-2026-10-22`, and the

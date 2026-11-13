@@ -31,7 +31,7 @@ them imports a policy trainer, benchmark task, simulator or statistics package.
 
 **Dataset.** One of:
 - a `ccil.trajectories` file ([schema](schemas/reference.md));
-- a LeRobot v3.0 dataset, converted by the `ccil[lerobot]` bridge into
+- a LeRobot v3.0 dataset, converted by the `prlccil[lerobot]` bridge into
   `ccil.trajectories` plus a `ccil.lerobot.conversion` manifest that records
   every feature's disposition and every source file's hash
   ([lerobot.md](lerobot.md)). Image, video, depth and audio features are refused

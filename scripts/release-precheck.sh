@@ -34,5 +34,5 @@ uv run python tools/m2_packaging/check.py --out "$out/package"
 uv run python tools/golden_path/check.py --out "$out/golden"
 uvx --from twine==6.2.0 twine check "$out"/package/dist1/*.whl "$out"/package/dist1/*.tar.gz
 
-echo "release precheck passed for ccil $(uv version --short)"
+echo "release precheck passed for prlccil $(uv version --short)"
 echo "verified distributions: $out/package/dist1"

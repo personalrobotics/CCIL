@@ -250,7 +250,7 @@ def main():
     shutil.copytree(single[0] / "ccil", mixed / "ccil")
     dist = out / "dist"
     subprocess.run(["uv", "build", "-q", "--wheel", "--out-dir", str(dist), str(REPO)], check=True)
-    wheel = next(dist.glob("ccil-*.whl"))
+    wheel = next(dist.glob("prlccil-*.whl"))
     matrix = {}
     for release in a.releases.split(","):
         python, freeze = env_for(out, release)

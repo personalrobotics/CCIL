@@ -49,8 +49,8 @@ jobs:
             echo "::error::project version '$version' does not match tag '$tag'"
             exit 1
           fi
-          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/ccil-${tag}-py3-none-any.whl"
-          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/ccil-${tag}.tar.gz"
+          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/prlccil-${tag}-py3-none-any.whl"
+          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/prlccil-${tag}.tar.gz"
 
       - name: Upload the verified distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -70,7 +70,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.publish_testpypi)
     environment:
       name: testpypi-release
-      url: https://test.pypi.org/p/ccil
+      url: https://test.pypi.org/p/prlccil
     permissions:
       id-token: write
     steps:
@@ -92,7 +92,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc')
     environment:
       name: release
-      url: https://pypi.org/p/ccil
+      url: https://pypi.org/p/prlccil
     permissions:
       id-token: write
     steps:

@@ -288,7 +288,7 @@ provide, and claim no image-CCIL parity:
 | `generation.action_chunk_size` | int | Implemented (#22). Adds action chunks: the label action, then the demonstration's continuation, masked at the episode end. Only position 0 carries the one-step claim. See [`migration/label-methods.md`](migration/label-methods.md). |
 | `transition_model.structure` | `none`, `history_shift` (with `transition_model.history_steps`) | Implemented (#30) |
 | `transition_model.kind` | `linear` | Implemented |
-| `transition_model.kind` | `mlp` (the legacy default; needs `ccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
+| `transition_model.kind` | `mlp` (the legacy default; needs `prlccil[torch]`, Python 3.11+) | Implemented (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 | `representation.kind` | `identity` (offline), `pca` (integrated) | Implemented |
 | `supervision.source` | `demonstrations_plus_selection`, `demonstrations` | Implemented (integrated pipeline). Replaces `policy.method` (#168); NoiseBC moved to il-supervision-benchmarks. |
 

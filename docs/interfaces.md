@@ -67,7 +67,7 @@ its `distance` measured.
 | Generator | `NoisyActionPreimage(k, σ)` | Newton solve of z_G + f(z_G, a + δ) = z', from z. It records `action_noise_norm`, `state_displacement_norm`, `solver_residual` and `draw_index`, and takes `action_bounds` as `NoisyAction` does. A failed proposal is rejected, never refilled. |
 | Validators | `Finite`, `GenerationFailed`, `SupportRadius(ε)`, `ActionBounds`, `ModelResidual`, `ModelMisfit(τ)` | `SupportRadius` uses the legacy rule `distance < ε`. `ModelResidual` only measures. `ModelMisfit` measures each anchor's one-step model error, and rejects the candidates of anchors with error ≥ τ. Label-error estimates, bounds and filters are certificates, a separate layer after generation: see [certificates.md](certificates.md) (#88). |
 | Weighting | `Uniform` | 1 for accepted rows, 0 for rejected. |
-| Transition model | `ccil.models.mlp.MLPTransitionModel` (`kind="mlp"`, needs `ccil[torch]`) | The legacy `WorldModel` with every Lipschitz regularizer (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
+| Transition model | `ccil.models.mlp.MLPTransitionModel` (`kind="mlp"`, needs `prlccil[torch]`) | The legacy `WorldModel` with every Lipschitz regularizer (#21). See [`migration/vector-dynamics.md`](migration/vector-dynamics.md). |
 
 M3 ports the full legacy generator set onto these interfaces (#22).
 
@@ -80,7 +80,7 @@ module outside `ccil.core`, `ccil.schema`, `ccil.supervision` and
 
 | API | Contract |
 |---|---|
-| `ccil.models.mlp_batched.FitJob(z, a, z_next, seed)`, `fit_group(jobs, settings, *, device, compile, chunk_steps, deterministic)` | Fits many `MLPTransitionModel`s of one shape as one batched program (`transition_model.trainer_version 2`, [pipelines.md](pipelines.md)). Returns `[(model, fit record)]` in job order. Needs `ccil[torch]`. A group of more than 128 fits, or an unsupported `lipschitz_type`, raises `ValueError`. |
+| `ccil.models.mlp_batched.FitJob(z, a, z_next, seed)`, `fit_group(jobs, settings, *, device, compile, chunk_steps, deterministic)` | Fits many `MLPTransitionModel`s of one shape as one batched program (`transition_model.trainer_version 2`, [pipelines.md](pipelines.md)). Returns `[(model, fit record)]` in job order. Needs `prlccil[torch]`. A group of more than 128 fits, or an unsupported `lipschitz_type`, raises `ValueError`. |
 | `ccil.models.mlp_batched.fit_identity(z, a, z_next, settings, seed)`, `model_sha256(model)` | Content identity of one fit (its rows, settings, seed and engine), and SHA-256 of a fitted model's payload. The labels stage compares both before it accepts a model fitted elsewhere. |
 | `ccil.data.split.make_split(episode_ids, validation_fraction, seed)`, `SplitError` | The `ccil.split` 1.0 record that `data.prepare` writes: whole episodes, a seeded permutation. Raises `SplitError`, a `ValueError`, when either part would be empty. |
 | `ccil.resolve_config`, `diagnose`, `generate`, `curate`, `inspect`, `ccil.InputError` | The golden path's Python entry points and the error every refused input raises ([contract.md](contract.md#commands)). |

@@ -11,7 +11,7 @@ separate, matched study in
 ## 1. The dataset
 
 ```bash
-pip install "ccil[lerobot,torch] @ git+https://github.com/personalrobotics/CCIL"
+pip install "prlccil[lerobot,torch] @ git+https://github.com/personalrobotics/CCIL"
 python -c '
 from ccil.lerobot import convert, fetch
 path, sha = fetch("lerobot/pusht_keypoints", revision="ace8c161a68bc025c21a5f29f85b86a9a2c5e64b", local_dir="hub")

@@ -161,7 +161,7 @@ class LinearTransitionModel:
 # transition_model.kind -> implementation, or "module:Class" for one that needs an
 # optional extra, imported only when that kind is used.
 TRANSITION_MODELS = {LinearTransitionModel.kind: LinearTransitionModel, "mlp": "ccil.models.mlp:MLPTransitionModel"}
-EXTRAS = {"mlp": "the ccil[torch] extra (Python 3.11+): pip install 'ccil[torch]'"}
+EXTRAS = {"mlp": "the prlccil[torch] extra (Python 3.11+): pip install 'prlccil[torch]'"}
 
 
 def transition_model_class(kind: str):

@@ -6,11 +6,12 @@
 Needs network access (PyPI, OSV). Checks that uv.lock is current and has no
 known vulnerability outside the accepted list in docs/security.md; that the
 evidence group is pinned exactly and limited to Python 3.11+; that the built
-wheel's ccil[torch] installs and runs at the minimum and at the locked torch on
+wheel's prlccil[torch] installs and runs at the minimum and at the locked torch on
 3.11, and installs no torch on 3.10; and that ccil never unpickles.
 Writes DIR/report.json.
 """
 import argparse
+import ast
 import json
 import platform
 import re
@@ -85,10 +86,10 @@ def main():
            and f"torch=={TORCH_LOCKED}" in evidence,
            evidence=evidence, evidence_requires_python=group_python)
 
-    # 3. ccil[torch] from the built wheel, at the minimum and the locked torch, and on 3.10.
+    # 3. prlccil[torch] from the built wheel, at the minimum and the locked torch, and on 3.10.
     dist = out / "dist"
     built = run("uv", "build", "--wheel", "--out-dir", dist, cwd=REPO)
-    wheel = next(dist.glob("ccil-*.whl"), None)
+    wheel = next(dist.glob("prlccil-*.whl"), None)
     for label, python, pin in (("minimum", "3.11", TORCH_MINIMUM), ("locked", "3.11", TORCH_LOCKED), ("core", "3.10", None)):
         venv = out / f"venv-{label}"
         run("uv", "venv", "--python", python, venv)
@@ -108,14 +109,35 @@ def main():
         else:
             imp = run(pyexe, "-I", "-c", "import ccil, sys; print(sys.version.split()[0])", cwd=out)
             record("python_3_10_core_installs_without_torch", inst.returncode == 0 and imp.returncode == 0
-                   and set(installed) == {"ccil", "numpy", "pyyaml"}, installed=installed, python=imp.stdout.strip())
+                   and set(installed) == {"prlccil", "numpy", "pyyaml"}, installed=installed, python=imp.stdout.strip())
     if wheel is None:
         record("wheel_built", False, stderr=built.stderr[-300:])
 
-    # 4. ccil never unpickles: no torch.load/torch.save/pickle and no allow_pickle=True in the package.
-    pattern = re.compile(r"torch\.(load|save|jit\.load)\b|\bimport pickle\b|\bpickle\.|allow_pickle\s*=\s*True")
-    hits = [f"{p.relative_to(REPO)}:{i}" for p in sorted((REPO / "src" / "ccil").rglob("*.py"))
-            for i, line in enumerate(p.read_text().splitlines(), 1) if pattern.search(line)]
+    # 4. ccil never unpickles. Inspect syntax so prose mentioning pickle is not code.
+    hits = []
+    for p in sorted((REPO / "src" / "ccil").rglob("*.py")):
+        for node in ast.walk(ast.parse(p.read_text())):
+            unsafe = (
+                isinstance(node, ast.Import) and any(a.name == "pickle" for a in node.names)
+                or isinstance(node, ast.ImportFrom) and node.module == "pickle"
+                or isinstance(node, ast.Call)
+                and (
+                    isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "torch"
+                    and node.func.attr in {"load", "save"}
+                    or isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Attribute)
+                    and isinstance(node.func.value.value, ast.Name)
+                    and node.func.value.value.id == "torch"
+                    and node.func.value.attr == "jit"
+                    and node.func.attr == "load"
+                    or any(k.arg == "allow_pickle" and isinstance(k.value, ast.Constant) and k.value.value is True
+                           for k in node.keywords)
+                )
+            )
+            if unsafe:
+                hits.append(f"{p.relative_to(REPO)}:{node.lineno}")
     record("ccil_package_never_unpickles", not hits, hits=hits)
 
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
