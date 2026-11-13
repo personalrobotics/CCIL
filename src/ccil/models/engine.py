@@ -1,13 +1,4 @@
-"""The batched engine shared by CCIL's batched transition fits (mlp_batched.py) and the policy trainer v2.
-
-Many models of one shape trained as one vmap'd program: counter-based
-splitmix64 hashing on int64 bit patterns, the keyed Feistel permutation that
-orders minibatches, content keys of data blocks, the per-model index streams,
-the group-size buckets, the compiled-or-eager step with its compilation
-record, and the float32 precision scope. Moved here from
-training/vector_bc_v2.py unchanged (#168), so the dynamics fit does not import
-the policy trainer.
-"""
+"""Shared primitives for grouped, counter-keyed, optionally compiled training."""
 from __future__ import annotations
 
 import hashlib
@@ -129,7 +120,7 @@ _COMPILED: dict = {}
 BUCKETS = (1, 2, 4, 8, 16, 32, 64, 128)  # group sizes are padded to these, so compilation specializes per bucket
 # Plain compilation (Inductor). CUDA graphs ("reduce-overhead") were measured slower here: a replay copies every
 # input that is not static into its own buffers, which for the resident table is the whole table on every step
-# (3.4 against 1.2 ms per step at D = 512, 2.6 against 1.0 at 64 models; #117).
+# (3.4 against 1.2 ms per step at D = 512, 2.6 against 1.0 at 64 models).
 COMPILE_MODE = "default"
 CUDA_GRAPHS = COMPILE_MODE in ("reduce-overhead", "max-autotune")
 
@@ -236,7 +227,7 @@ def _bucket(m: int) -> int:
 
 
 class _Precision:
-    """float32 with TF32 off for the training scope (the #108 protocol), restoring the caller's settings."""
+    """Use float32 with TF32 off for training, then restore the caller's settings."""
 
     def __enter__(self):
         self.saved = (torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32,

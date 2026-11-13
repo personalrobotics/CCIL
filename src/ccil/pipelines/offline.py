@@ -1,10 +1,7 @@
-"""Offline label generation: trajectories in, labels and a report out.
+"""Offline pipeline from trajectories to immutable candidates and selections.
 
-Stages: data.prepare -> transition.fit -> labels.diagnose -> labels.generate [-> labels.certify, with
-certificate.profile] -> labels.curate. labels.generate generates only at the recovery length the diagnosis
-admits; when none is admitted, it writes a valid zero-row candidate set. The selected rows of labels/candidates.npz (labels/selection.npz) together with the prepared
-dataset are the augmentation; dataset writers (M4) turn them into training data. This module never imports a
-policy trainer or the integrated pipeline.
+Generation uses only an admitted recovery length and writes a valid empty
+candidate set when none is admitted. This module imports no policy trainer.
 """
 from __future__ import annotations
 
@@ -65,7 +62,7 @@ def build_generator(v, action_noise_std=None):
         return NoisyActionPreimage(v["generation.labels_per_transition"], sigma,
                                    max_iterations=v["generation.max_iterations"] or 50,
                                    tolerance=v["generation.root_tolerance"])
-    raise ConfigError([f"generation.method {method!r} is not available yet; it is ported in #22"])
+    raise ConfigError([f"generation.method {method!r} is not implemented"])
 
 
 def noise_std(v, dataset_path, split, representation):
@@ -182,7 +179,7 @@ def preflight(cfg) -> None:
                       "data.validation_fraction > 0")
     if v["transition_model.direction"] == "backward" and v["generation.method"] != "backward_model":
         errors.append("transition_model.direction backward fits s_t from (s_{t+1}, a_t); only generation.method "
-                      "backward_model uses such a model, and it is ported in #22")
+                      "backward_model requires a fitted backward transition model")
     if v["transition_model.trainer_version"] == "2" and v["transition_model.kind"] == "mlp":
         from ..models.mlp_batched import SUPPORTED
         if (v["transition_model.lipschitz_type"] or "none") not in SUPPORTED:
@@ -246,7 +243,7 @@ class PrefitMismatch(RuntimeError):
 
 def requested_execution_problem(record: dict, v) -> str | None:
     """Why a group's record was not run as this unit requests (device type, determinism, and the engine its
-    group requested: never an eager fallback of a compiled one, #134), or None."""
+    group requested, never an eager fallback of a compiled one), or None."""
     import torch
     group = record.get("group") or {}
     want = (torch.device(v["compute.device"]).type, bool(v["compute.deterministic"]))
@@ -281,7 +278,7 @@ def _check_prefit(v, prefit: dict, z, a, z_next, tr, clean: bool) -> None:
 
 
 def fit_transition_stage(cfg, prepared: StageResult, representation, extra_inputs=None, prefit=None) -> StageResult:
-    """Fit the label model and score a model fitted on the train split on the held-out episodes (#13).
+    """Fit the label model and score an independently fitted model on held-out episodes.
 
     transition_model.fit_episodes all fits the label model on every episode and a separate evaluation model on
     the train split; train fits the label model on the train split only, and scores it.
@@ -415,7 +412,7 @@ def _device(v):
 
 
 def diagnose_stage(cfg, prepared: StageResult, fitted: StageResult, representation, extra_inputs=None) -> StageResult:
-    """labels.diagnose: write diagnosis/diagnosis.json, the data-only recovery-length decision (#167)."""
+    """Write the data-only recovery-length decision to ``diagnosis/diagnosis.json``."""
     v = cfg.values
     split_path, split = _split(prepared)
     inputs = {"dataset": prepared.out(layout.DATASET), "transition_model": fitted.out(MODEL_CHECKPOINT),
@@ -484,7 +481,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
         if hasattr(model, "jacobian_memory_bytes"):
             model.jacobian_memory_bytes = v["compute.jacobian_memory_mb"] * 2**20
         metric = demo_metric(dataset, split, representation)
-        # d_source on every label; d_demo (NearestDemonstration) is a brute-force search, opt-in until it scales (#142).
+        # d_source is always available; the brute-force nearest-demonstration distance is opt-in.
         validators = build_validators(v) + [SourceDisplacement(metric)]
         with _jacobian_budget():
             cands = generate_labels(dataset, representation, model, build_generator(v, sigma), validators,
@@ -509,7 +506,7 @@ def labels_stage(cfg, prepared: StageResult, fitted: StageResult, representation
 
 def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: StageResult, representation, profile,
                   references: dict | None = None, state_scale=None, action_scale=None, extra_inputs=None) -> StageResult:
-    """labels.certify: write labels/certificates.npz, the quality evidence of the labels stage's candidates (#88).
+    """Write candidate quality evidence to ``labels/certificates.npz``.
 
     The candidates are an input and are never modified; which rows to use is
     labels.curate's decision. references are artifacts bound providers compute
@@ -539,7 +536,7 @@ def certify_stage(cfg, prepared: StageResult, fitted: StageResult, labeled: Stag
 
 
 def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified: StageResult) -> StageResult:
-    """labels.calibrate: write labels/calibration.json, the episode-level bound from the held-out episodes (#167).
+    """Write the episode-level held-out calibration to ``labels/calibration.json``.
 
     Reference-assisted: the observed errors come from certificate.reference_dynamics.
     """
@@ -568,7 +565,7 @@ def calibrate_stage(cfg, prepared: StageResult, labeled: StageResult, certified:
 
 def audit_stage(cfg, labeled: StageResult, certified: StageResult | None, calibrated: StageResult | None,
                 curated: StageResult) -> StageResult:
-    """labels.audit: write labels/audit.json, reference dynamics annotating the decided selection (#167).
+    """Annotate the decided selection with reference dynamics in ``labels/audit.json``.
 
     Nothing reads it back: it is not an input of any other stage.
     """
@@ -595,7 +592,7 @@ def audit_stage(cfg, labeled: StageResult, certified: StageResult | None, calibr
 
 def curate_stage(cfg, labeled: StageResult, certified: StageResult | None, policy: CurationPolicy,
                  calibrated: StageResult | None = None) -> StageResult:
-    """labels.curate: write labels/selection.npz, one policy's selection of the candidates (#167).
+    """Write one policy's candidate selection to ``labels/selection.npz``.
 
     No input is modified, so a new tolerance writes a new selection run
     and reuses the candidate, certificate, and calibration runs unchanged.

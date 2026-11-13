@@ -1,20 +1,7 @@
-"""Representations map observations to the space where dynamics and labels live.
+"""Map observation modalities into the state where dynamics and labels live.
 
-Contract
-- encode(observations) takes a dict of modality -> (N, ...) arrays from one
-  trajectory and returns (N, D) float. It is deterministic and batch-invariant:
-  encoding frames together or separately gives the same rows.
-- output_modality names the label space: a trajectory modality such as "state"
-  (labels are real observations), an ordered "+"-joined list of trajectory
-  modalities, concatenated in that order (labels keep each part under its own
-  name), or "latent.<name>" (labels in a learned space).
-- trainable representations own their parameters; fitting them is the job of an
-  integrated pipeline (#19, M5), never of label generation. Gradients do not
-  cross this interface.
-- kind and version identify the implementation (kind is the
-  representation.kind value); a persisted representation records both in its
-  checkpoint, like TransitionModel.
-- Failures: a wrong output shape or dtype is an InterfaceError raised by the caller.
+Encoders are deterministic and batch-invariant. Kind, version, output modality,
+shape, and dtype form the boundary described in ``docs/interfaces.md``.
 """
 from __future__ import annotations
 
@@ -106,8 +93,11 @@ def transitions(dataset: TrajectoryDataset, representation) -> TransitionBatch:
         if not isinstance(x, np.ndarray) or x.ndim != 2 or len(x) != ep.length or not np.issubdtype(x.dtype, np.floating):
             raise InterfaceError(f"{type(representation).__name__}.encode returned {getattr(x, 'shape', type(x))} "
                                  f"{getattr(x, 'dtype', '')} for episode {ep.episode_id!r}; expected float ({ep.length}, D)")
-        z.append(x[:-1]); zn.append(x[1:]); a.append(ep.actions[:-1])
-        ids.append(np.full(ep.length - 1, ep.episode_id)); frames.append(np.arange(ep.length - 1))
+        z.append(x[:-1])
+        zn.append(x[1:])
+        a.append(ep.actions[:-1])
+        ids.append(np.full(ep.length - 1, ep.episode_id))
+        frames.append(np.arange(ep.length - 1))
     batch = TransitionBatch(*(np.concatenate(v) for v in (z, a, zn, ids, frames)))
     check_transitions(batch)
     return batch

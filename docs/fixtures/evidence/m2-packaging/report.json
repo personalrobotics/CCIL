@@ -4,8 +4,8 @@
   {
    "case": "builds_are_reproducible",
    "pass": true,
-   "sdist_sha256": "8f065aef3b8f9c2e574e589918aea03581881d880c9746743c7677dbc36404c1",
-   "wheel_sha256": "47538fa79f39b9b356b8921823c18f1329cfeaa10130798707de4a642bdfcb30"
+   "sdist_sha256": "a4d21559d433d87ccb4a5eb2228d8a907d263378456fb267ab6d319f6af8f186",
+   "wheel_sha256": "7cea0521dbf586925fad2b923126190bd46dce3d6561e33ac1ad04934f549c7b"
   },
   {
    "case": "wheel_contains_package_only",
@@ -55,7 +55,9 @@
     "ccil/lerobot/training.py",
     "ccil/lerobot/v3.py",
     "ccil/models/",
+    "ccil/models/LICENSE-mjrl.txt",
     "ccil/models/LICENSE-pytorch.txt",
+    "ccil/models/NOTICE",
     "ccil/models/__init__.py",
     "ccil/models/engine.py",
     "ccil/models/mlp.py",
@@ -93,11 +95,39 @@
     "ccil/schema/selection.py",
     "ccil/schema/trajectories.py",
     "ccil/supervision.py",
-    "ccil-0.1.0.dev0.dist-info/",
-    "ccil-0.1.0.dev0.dist-info/WHEEL",
-    "ccil-0.1.0.dev0.dist-info/entry_points.txt",
-    "ccil-0.1.0.dev0.dist-info/METADATA",
-    "ccil-0.1.0.dev0.dist-info/RECORD"
+    "ccil-0.1.0.dist-info/licenses/",
+    "ccil-0.1.0.dist-info/licenses/LICENSE",
+    "ccil-0.1.0.dist-info/licenses/src/",
+    "ccil-0.1.0.dist-info/licenses/src/ccil/",
+    "ccil-0.1.0.dist-info/licenses/src/ccil/models/",
+    "ccil-0.1.0.dist-info/licenses/src/ccil/models/LICENSE-mjrl.txt",
+    "ccil-0.1.0.dist-info/licenses/src/ccil/models/LICENSE-pytorch.txt",
+    "ccil-0.1.0.dist-info/licenses/src/ccil/models/NOTICE",
+    "ccil-0.1.0.dist-info/",
+    "ccil-0.1.0.dist-info/WHEEL",
+    "ccil-0.1.0.dist-info/entry_points.txt",
+    "ccil-0.1.0.dist-info/METADATA",
+    "ccil-0.1.0.dist-info/RECORD"
+   ]
+  },
+  {
+   "case": "distributions_carry_project_and_third_party_licenses",
+   "license_expression": [
+    "MIT"
+   ],
+   "license_files": [
+    "LICENSE",
+    "src/ccil/models/LICENSE-mjrl.txt",
+    "src/ccil/models/LICENSE-pytorch.txt",
+    "src/ccil/models/NOTICE"
+   ],
+   "pass": true,
+   "sdist_missing": [],
+   "wheel_license_files": [
+    "LICENSE",
+    "src/ccil/models/LICENSE-mjrl.txt",
+    "src/ccil/models/LICENSE-pytorch.txt",
+    "src/ccil/models/NOTICE"
    ]
   },
   {
@@ -108,6 +138,14 @@
     "torch"
    ],
    "pass": true,
+   "project_urls": [
+    "Documentation, https://github.com/personalrobotics/CCIL#readme",
+    "Homepage, https://personalrobotics.cs.washington.edu/CCIL/",
+    "Issues, https://github.com/personalrobotics/CCIL/issues",
+    "Paper, https://arxiv.org/abs/2310.12972",
+    "Repository, https://github.com/personalrobotics/CCIL"
+   ],
+   "relative_readme_links": [],
    "requires_dist": [
     "huggingface-hub>=1.0.0 ; python_full_version >= '3.11' and extra == 'lerobot'",
     "numpy>=1.24",
@@ -123,7 +161,7 @@
    "case": "clean_install_runs[python 3.10]",
    "imported_from_venv": true,
    "installed": {
-    "ccil": "0.1.0.dev0",
+    "ccil": "0.1.0",
     "numpy": "2.2.6",
     "pyyaml": "6.0.3"
    },
@@ -150,7 +188,7 @@
    "case": "clean_install_runs[python 3.14]",
    "imported_from_venv": true,
    "installed": {
-    "ccil": "0.1.0.dev0",
+    "ccil": "0.1.0",
     "numpy": "2.5.4",
     "pyyaml": "6.0.3"
    },
@@ -175,10 +213,13 @@
   }
  ],
  "environment": {
-  "code_commit": "81c9c19683a56b8d13d747cfed2f48c990158591",
+  "code_commit": "5f6d5d710376734664bd1617e364464bd8be6579",
   "code_dirty": false,
   "host": "macOS-26.6.2-arm64-arm-64bit",
-  "optional_dependencies": "none declared yet; adapters add extras in M3-M5",
+  "optional_dependencies": [
+   "lerobot",
+   "torch"
+  ],
   "uv": "uv 0.12.15 (Homebrew 2026-09-15 aarch64-apple-darwin)"
  }
 }

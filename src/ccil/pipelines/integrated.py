@@ -1,12 +1,7 @@
-"""Integrated pipeline: CCIL owns representation, dynamics, and labels, and
-orchestrates downstream policy training and evaluation.
+"""Reference end-to-end pipeline for exercising CCIL component interfaces.
 
-Stages: data.prepare -> representation.fit -> transition.fit -> labels.generate
--> policy.train -> policy.evaluate. Stages 1-4 are CCIL-owned and identical for
-any downstream trainer; replacing the trainer reuses them. The reference
-components here (PCA representation, linear or mean-action policy, offline
-action-error evaluation) stand in for M5's image encoders and real policies and
-claim no image-CCIL parity.
+The included representation, policy, and offline evaluation are diagnostic
+components, not a benchmark learner or an image-CCIL implementation.
 """
 from __future__ import annotations
 
@@ -87,7 +82,7 @@ def run_integrated(cfg, trainer=None):
         raise ConfigError(["the integrated pipeline fits a learned representation; set representation.kind=pca"])
     if v["certificate.profile"] is not None:
         raise ConfigError(["certificate.profile: the integrated pipeline's policy stage does not consume certificates "
-                           "yet (#89); certify with ccil labels generate"])
+                           "yet; generate quality evidence before using certified supervision"])
     if v["audit.reference_dynamics"] is not None:
         raise ConfigError(["audit.reference_dynamics: the integrated pipeline does not curate; audit with ccil labels "
                            "generate"])
@@ -142,6 +137,6 @@ def run_integrated(cfg, trainer=None):
         held = np.isin(batch.episode_id, split["validation"]) if split else np.ones(len(batch), bool)
         err = np.linalg.norm(policy.predict(batch.z[held]) - batch.a[held], axis=1)
         run.metrics({"held_out_transitions": int(held.sum()), "action_l2_mean": float(err.mean()),
-                     "action_l2_max": float(err.max()), "note": "offline action error; simulator evaluation is M7"})
+                     "action_l2_max": float(err.max()), "note": "offline action error; no simulator evaluation"})
     results.append(run_stage("policy.evaluate", cfg, eval_inputs, evaluate, components={"trainer": trainer}))
     return results + [diagnosed]  # labels.diagnose ran before labels.generate; listed last to keep the positions

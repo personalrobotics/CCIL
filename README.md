@@ -97,16 +97,14 @@ scores.
 The core supports Python 3.10 and newer and depends only on NumPy and PyYAML.
 
 ```bash
-git clone https://github.com/personalrobotics/CCIL.git
-cd CCIL
-uv sync
-uv run ccil --help
+python -m pip install ccil
+ccil --help
 ```
 
-Then follow the [quickstart](docs/quickstart.md), a complete CPU example from
+Then follow the [quickstart](https://github.com/personalrobotics/CCIL/blob/main/docs/quickstart.md), a complete CPU example from
 demonstrations to curated rows and a small downstream pilot. Its commands are run from
 the built wheel in a clean environment. For a robotics dataset and an unchanged
-LeRobot trainer, use the [PushT walkthrough](docs/pusht.md).
+LeRobot trainer, use the [PushT walkthrough](https://github.com/personalrobotics/CCIL/blob/main/docs/pusht.md).
 
 Optional extras provide the MLP dynamics model (`ccil[torch]`) and the LeRobot dataset
 bridge (`ccil[lerobot]`).
@@ -146,17 +144,17 @@ that supervision is useful for a particular learner and task.
 
 Legacy pickle datasets are never read by the package because unpickling can execute
 code. The one-time, hash-checked conversion procedure is documented in
-[legacy conversion](docs/migration/legacy-conversion.md).
+[legacy conversion](https://github.com/personalrobotics/CCIL/blob/main/docs/migration/legacy-conversion.md).
 
 ## Documentation
 
 | Task | Document |
 | --- | --- |
-| Run the complete workflow | [Quickstart](docs/quickstart.md) |
-| Use LeRobot data and a LeRobot trainer | [PushT](docs/pusht.md) and [LeRobot datasets](docs/lerobot.md) |
-| Understand commands, artifacts, and failure behavior | [User contract](docs/contract.md) |
-| Choose configuration values | [Parameter reference](docs/config/parameters.md) |
-| Interpret quality evidence | [Certificates](docs/certificates.md) |
-| Consume selected rows | [Supervision](docs/supervision.md) |
-| Implement a model, generator, or representation | [Core interfaces](docs/interfaces.md) |
-| Review schemas, run identity, or security | [Schemas](docs/schemas/reference.md), [runs](docs/runs.md), and [security](docs/security.md) |
+| Run the complete workflow | [Quickstart](https://github.com/personalrobotics/CCIL/blob/main/docs/quickstart.md) |
+| Use LeRobot data and a LeRobot trainer | [PushT](https://github.com/personalrobotics/CCIL/blob/main/docs/pusht.md) and [LeRobot datasets](https://github.com/personalrobotics/CCIL/blob/main/docs/lerobot.md) |
+| Understand commands, artifacts, and failure behavior | [User contract](https://github.com/personalrobotics/CCIL/blob/main/docs/contract.md) |
+| Choose configuration values | [Parameter reference](https://github.com/personalrobotics/CCIL/blob/main/docs/config/parameters.md) |
+| Interpret quality evidence | [Certificates](https://github.com/personalrobotics/CCIL/blob/main/docs/certificates.md) |
+| Consume selected rows | [Supervision](https://github.com/personalrobotics/CCIL/blob/main/docs/supervision.md) |
+| Implement a model, generator, or representation | [Core interfaces](https://github.com/personalrobotics/CCIL/blob/main/docs/interfaces.md) |
+| Review schemas, run identity, or security | [Schemas](https://github.com/personalrobotics/CCIL/blob/main/docs/schemas/reference.md), [runs](https://github.com/personalrobotics/CCIL/blob/main/docs/runs.md), and [security](https://github.com/personalrobotics/CCIL/blob/main/docs/security.md) |

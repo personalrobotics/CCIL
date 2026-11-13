@@ -1,37 +1,8 @@
-"""Diagnose: the data-only recovery-length decision made before generation (#167).
+"""Decide whether the demonstrations and model support label generation.
 
-    demonstrations + dynamics -> probe -> gates -> admitted M (or none, with a reason)
-
-Only the demonstrations, their split, the transition model, a model that never
-saw the held-out episodes, and the configured certificate's declared
-assumptions enter it; no environment, reward, policy, or reference dynamics.
-The ladder is {1} until recovery segments (#171) exist.
-
-The probe is a fixed sample of the training transitions, stratified by
-episode under diagnose.probe_transitions (it covers min(episodes, budget)
-episodes): the labels the configured generator and validators would produce
-there, measured in the demonstration metric (core/quality.py) and then
-discarded. Its gates are distinct questions, and M is admitted only when all
-pass:
-- yield: did generation work? accepted / produced >= diagnose.min_yield.
-- displacement: how far did labels move from their sources?
-  q(d_source) / tau_demo >= diagnose.min_displacement.
-- novelty: do they reach states the dataset does not already cover?
-  q(d_demo) / tau_demo >= diagnose.min_novelty, d_demo the exact distance to
-  the nearest training state.
-- fit: does the model fit where it has data? The held-out one-step error
-  (diagnose.fit_quantile), over the median d_source, <= diagnose.fit_ratio.
-  Necessary, never sufficient: it is measured at demonstration states.
-- trust: is the model credible at the proposed states? Data cannot show
-  that off the data, so this gate passes only with off-data evidence: a bound
-  certificate profile whose constants are declared assumptions or computed
-  from the model, never from reference dynamics. Its class is recorded. The
-  distance of each proposed query (z_G, a_G) from the nearest training (z, a)
-  pair is reported beside it, as the measure of how far the model is asked to
-  extrapolate.
-tau_demo uses a deterministic sample of at most diagnose.tau_sample held-out
-states, so its cost is linear in the training set. The document returned is
-a ccil.diagnosis (schema/diagnosis.py).
+The probe uses data-only yield, reach, novelty, fit, and trust gates. It admits
+the shortest configured recovery length whose gates pass, or explains why none
+does. Gate definitions live in ``docs/contract.md``.
 """
 from __future__ import annotations
 

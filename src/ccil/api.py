@@ -1,11 +1,8 @@
-"""The Python entry points of the golden path; the CLI is a thin wrapper over them (docs/contract.md).
+"""Python entry points for Diagnose, Generate, Curate, and Inspect.
 
-    cfg = ccil.resolve_config(recipe="analytic_double_integrator", overrides={"data.path": "demos.npz"})
-    gen = ccil.generate(cfg)                       # candidates and quality evidence; no selection
-    sel = ccil.curate(gen)                         # one selection per policy, any number per generate result
-    print(ccil.inspect(sel.path).text)
-
-Every refused input raises a ccil.InputError; any other exception is a defect.
+The CLI is a thin wrapper over this API. Refused inputs raise
+:class:`ccil.InputError`; every other exception is a defect. See
+``docs/contract.md`` for the artifact contract.
 """
 from __future__ import annotations
 

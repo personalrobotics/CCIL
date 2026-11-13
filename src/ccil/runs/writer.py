@@ -1,21 +1,8 @@
-"""Atomic run directories.
+"""Atomic run-directory writes with crash recovery and destination preservation.
 
-Components are written into a staging directory `.<run_id>.tmp-<pid>` next to
-the destination. On success the writer adds manifest.json, validates the staged
-run, and moves it into place; on any exception the staging directory is removed
-and an existing run is left untouched.
-
-Replacing an existing run atomically exchanges the staging directory with the
-destination (renameat2 RENAME_EXCHANGE on Linux, renamex_np RENAME_SWAP on
-macOS), so a valid destination exists at every instant; the old run, now under
-the staging name, is then removed. Where the filesystem cannot exchange, the
-writer falls back to two renames through `.<run_id>.old-<pid>` and restores the
-old run if the second fails.
-
-A writer killed outright cannot clean up. recover() runs before any writer or
-stage looks at a destination: for each directory left by a dead process, an
-.old-<pid> directory is restored if the destination is missing and removed
-otherwise, and a staging directory is removed.
+Writes are staged beside the destination, validated, and exchanged into place.
+Recovery removes abandoned staging directories and restores an interrupted
+fallback replacement when necessary.
 """
 from __future__ import annotations
 
@@ -104,7 +91,7 @@ class RunWriter:
         self.run_dir: Path | None = None
 
     def __enter__(self) -> "RunWriter":
-        capture_code_state()  # before the body: what the check before the commit compares against (#127)
+        capture_code_state()  # Baseline for the check immediately before commit.
         recover(self.output_dir, self.run_id)
         if self.dest.exists() and not self.overwrite:
             raise FileExistsError(f"{self.dest} exists; set run.overwrite=true to replace it")
@@ -162,7 +149,7 @@ class RunWriter:
             status, problems = validate_run(self.staging, staging=True)
             if status != "complete":
                 raise RunError(f"staged run failed validation ({status}): {problems}")
-            verify_code_state(source_only=True)  # never commit an output the edited source may have computed (#127)
+            verify_code_state(source_only=True)  # Never commit output computed by edited source.
             if not self.dest.exists():
                 os.replace(self.staging, self.dest)
             elif not _exchange(self.staging, self.dest):
@@ -173,7 +160,7 @@ class RunWriter:
         # After an exchange the staging name holds the old run.
         shutil.rmtree(self.staging, ignore_errors=True)
         self.run_dir = self.dest
-        for rel, info in manifest["files"].items():  # writer-owned artifacts: a rename keeps inode and mtime (#127)
+        for rel, info in manifest["files"].items():  # A rename preserves a writer-owned file's inode and mtime.
             register_artifact(self.dest / rel, info["sha256"])
         return False
 

@@ -1,29 +1,8 @@
-"""Versioned configuration migration.
+"""Read every supported configuration version with its original meaning.
 
-Current files declare `config_version: 4`. A file without a version is read as
-version 0, the legacy correct_il YAML, and migrated: renamed keys move to their
-canonical key; keys that never affected behavior are dropped with a note; keys
-that did affect behavior but have no supported home yet fail with guidance.
-
-Version 1 files are read with the meaning they had: version 2 (#125) changed
-the default of transition_model.lipschitz_coordinates to model_normalized, so
-a version 0 or 1 file that does not set it resolves to raw, with a note.
-
-Version 3 (#167) moved label selection out of the certificate: a version 1 or
-2 file's certificate.max_total_error or score_threshold is read as
-curate.tolerance, selection_quantile as curate.quantile, and
-selection_population as curate.population, each with a note, and a file that
-does not set generation.recovery_steps generates at 1, as it did. Such a file's
-certificate.reference_dynamics made its selection reference-assisted, so it
-resolves generation.evidence_mode to reference_assisted unless it sets it.
-
-Version 4 (#168) moved policy training and evaluation to il-supervision-benchmarks.
-An older file's policy.method is read as supervision.source (bc as
-demonstrations, ccil as demonstrations_plus_selection), its
-policy.demonstration_weight and policy.exclude_validation_episodes as their
-supervision keys, and its policy.trainer as integrated.trainer, each with a
-note. Its other policy, evaluation and environment keys are dropped with a
-note, and policy.method noise_bc fails, naming the replacement.
+Migration renames retained keys, preserves changed defaults explicitly, and
+records dropped or moved settings. Unsupported behavior fails with guidance.
+See ``docs/config/README.md`` for the version history.
 """
 from __future__ import annotations
 

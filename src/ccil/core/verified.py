@@ -1,20 +1,9 @@
-"""Rigorous floating-point helpers for certified bounds (#88).
+"""Floating-point helpers that return verified upper bounds.
 
-Values a certificate classifies as certified must be upper bounds on the exact
-real quantity, not floating-point estimates of it. Two tools provide that:
-
-- verified_spectral_norm: a float s with ||diag(1/r) M diag(c)||_2 <= s,
-  proved by checking that s^2 I - G is positive semidefinite in exact rational
-  arithmetic, where G is the exact Gram matrix of the scaled M. The entries of
-  M, r, and c are taken as the exact values of their floats.
-- forward error bounds (Higham, Accuracy and Stability of Numerical
-  Algorithms, 2nd ed., Sec. 3.1): with unit roundoff u and
-  gamma_n = n u / (1 - n u), an n-term float64 dot product or sum is within
-  gamma_n * sum |terms| of the exact value. upper_norm turns a computed vector
-  and a componentwise bound on its error into an upper bound on the exact
-  vector's norm.
-
-They assume IEEE 754 binary64 arithmetic with round-to-nearest.
+Spectral norms use an exact rational positive-semidefinite check. Norms and
+sums use standard forward-error bounds for IEEE 754 binary64 arithmetic with
+round-to-nearest (Higham, *Accuracy and Stability of Numerical Algorithms*,
+2nd ed., Sec. 3.1).
 """
 from __future__ import annotations
 

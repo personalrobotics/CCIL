@@ -1,4 +1,4 @@
-"""One-way conversion from the M1 `ccil-trajectories/1` .npz into `ccil.trajectories` 1.0.
+"""One-way conversion from ``ccil-trajectories/1`` into ``ccil.trajectories``.
 
 Legacy data has a single state modality, integer episode order, and no record
 of termination or timing, so episodes become state-only, are identified by

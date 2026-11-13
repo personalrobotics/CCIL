@@ -1,15 +1,8 @@
-"""Validators decide which candidates are valid labels.
+"""Independent candidate checks and measurements.
 
-Contract
-- check(batch, cands, model) returns (reject, measurements): reject is (n,) bool,
-  measurements maps names to (n,) float. It does not modify its inputs.
-- reason is the ccil.candidates reason code a rejection records, or None for a
-  validator that only measures.
-- Validators run independently and all of them run; a candidate is accepted only
-  if none rejects it, so one candidate can carry several reasons.
-- measurement_specs maps each measurement name a validator returns to its
-  definition, norm, and units ({} for a validator that measures nothing);
-  generate_labels raises InterfaceError when the names do not match exactly.
+Every validator runs without modifying its inputs. A candidate is accepted
+only when none rejects it, and may retain several rejection reasons.
+Measurement names must match the validator's declared specifications.
 """
 from __future__ import annotations
 
@@ -88,8 +81,8 @@ class ModelResidual:
 
 
 _REP = "representation units (state units for representation.kind=identity)"
-# Extension reason (#78) of CCIL's model-error gate; ccil.candidates 2.1+ readers accept it. Label-error
-# estimates and filtering moved to certificates (src/ccil/core/certificates.py, #88).
+# Extension reason for CCIL's model-error gate; ccil.candidates 2.1+ readers accept it.
+# Label-error estimates and filtering live in certificates.
 MODEL_MISFIT = "label_filter.model_misfit"
 
 

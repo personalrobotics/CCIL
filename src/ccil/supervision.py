@@ -1,44 +1,8 @@
-"""The trainer-neutral supervision contract (#89): which rows reach a policy loss, and with which weights.
+"""Resolve immutable artifacts into trainer-neutral rows, weights, and a manifest.
 
-CCIL's ordinary workflow ends at immutable artifacts: the prepared
-demonstrations, the candidate labels, optionally their certificates, and a
-selection (ccil.selection, written by ccil.core.curate). A
-downstream trainer of the user's choice consumes them. build_supervision
-resolves, from those files, exactly the rows a trainer may use, fails closed
-when the artifacts do not belong together, and records a manifest that
-reconciles every row count. It trains nothing and imports no trainer.
-
-Sources (what the policy learns from):
-- demonstrations: the demonstrations only. With perturbation="noise_bc", the
-  consumer's trainer perturbs them online at every draw (NoiseBC, in
-  il-supervision-benchmarks), so nothing synthetic is stored.
-- demonstrations_plus_selection with a selection: the demonstrations and the
-  candidates with accepted & selection.mask, at the selection's weights. A
-  selection of certified rows needs its certificates, and a calibrated
-  selection its calibration, which are checked with it; calibrated rows are
-  recorded as calibrated.
-- demonstrations_plus_selection without a selection or certificates: the
-  demonstrations and every accepted candidate, recorded as uncertified.
-- demonstrations_plus_selection with a legacy 1.0 certificate, which carries
-  its own selection: the candidates with accepted & admissible & selected. A
-  2.0 certificate selects nothing by itself and needs a selection.
-The manifest's method records the arm as before: bc, noise_bc (demonstrations
-with the noise_bc perturbation) or ccil.
-A rejected or unselected candidate never appears, whatever its weight: there
-is no weight-only path into the loss.
-
-Demonstration rows are the transition frames t <= T - 2 of the training
-episodes (the legacy load_data rows), weighted by an explicit, recorded
-demonstration_weight. Synthetic rows keep the weight recorded in the
-candidates file. With a split, rows whose source episode is held out are
-excluded and counted.
-
-Action chunks are consumed or refused, never silently reduced to one action:
-with action_chunks="refuse" (the default), chunked candidates raise; with
-"consume", every row carries a chunk and mask. A synthetic row's chunk is the
-stored one; a demonstration row's is a_t at position 0 and a_{t+k} at position
-k, masked past the episode end (the label-chunk alignment, ccil.core.chunks,
-with target frame t + 1).
+Rejected or unselected candidates never enter the loss. Artifact identities,
+held-out episodes, calibration, and action-chunk semantics are checked before
+arrays are returned. This module imports no trainer; see ``docs/supervision.md``.
 """
 from __future__ import annotations
 

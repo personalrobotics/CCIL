@@ -1,16 +1,7 @@
-"""Action-chunk labels: a corrective action followed by the demonstration's continuation (#22).
+"""Action chunks beginning with a corrective label action.
 
-A label (z_G, a_G) arrives at frame tau of its source episode: tau = t for
-backtrack labels (backward Euler, exact preimage) and t + 1 for
-disturbed_action labels (noisy action). Its chunk of size K holds a_G at
-position 0 and the episode's actions a_{tau + k - 1} at positions k >= 1, which
-the demonstrator took from the state the label reaches. Positions past the
-episode's last frame are masked and zero: a chunk is never padded and never
-reads another episode.
-
-Only position 0 carries the label's claim. The CCIL results are one-step
-(Ke et al., Thms. 4.2 and 4.3); positions k >= 1 are demonstration actions with
-no corrective-label guarantee.
+Later positions continue with source-episode actions and are masked at the
+episode boundary. Only position zero carries the corrective-label guarantee.
 """
 from __future__ import annotations
 

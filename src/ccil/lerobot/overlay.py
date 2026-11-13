@@ -1,21 +1,8 @@
-"""CCIL supervision as an overlay on an unchanged LeRobot dataset (#28).
+"""Attach synthetic supervision to an unchanged LeRobot dataset as a sidecar.
 
-    destination/
-      data/ meta/ videos/        an unchanged copy of the source LeRobot dataset: stock readers see exactly it
-      ccil/meta.json             schema, source identity, run, input hashes, feature mapping, generator, shard hashes
-      ccil/labels/chunk-000/file-000.parquet ...   one row per usable synthetic label
-
-A CCIL label is an independent counterfactual supervision record, not a frame of a trajectory, so labels are
-never written as LeRobot episodes. The sidecar holds exactly the synthetic rows build_supervision returns
-(accepted; and admissible and selected when certificates exist); rejected, inadmissible and unselected candidates
-stay in the run's artifacts. Each row stores its synthetic observation (in the LeRobot feature its modality came
-from), its action or action chunk and mask, its weight, its source episode, frame and global index, its candidate
-row, its measurements and its classification. The run ID is recorded once, in ccil/meta.json; version 1 holds one
-supervision run per overlay.
-
-Provenance is verified before anything is written: the LeRobot source's files hash to the conversion manifest's,
-and the supervision's dataset is the conversion's output, or the output of a data.prepare run whose input was that
-conversion. Representations other than identity are refused: their labels are not in a LeRobot feature's space.
+The overlay stores labels as independent records, not trajectory frames. It
+verifies source, conversion, and supervision identities before writing, then
+hashes every sidecar shard. See ``docs/lerobot.md``.
 """
 from __future__ import annotations
 

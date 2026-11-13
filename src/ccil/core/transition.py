@@ -1,26 +1,8 @@
-"""Transition models: residual dynamics z_next = z + f(z, a) in a representation space.
+"""Residual dynamics ``z_next = z + f(z, a)`` in a representation space.
 
-Contract
-- fit(z, a, z_next, seed) fits in place and returns metrics; the model owns its
-  parameters, optimizer, and device. Fitting is the only state-changing call.
-- delta(z, a) returns f(z, a) as (N, D) float for (N, D) and (N, A) inputs; it is
-  batched, deterministic, and has no side effects (no training-mode updates).
-- jacobian_z(z, a) is optional and returns df/dz as (N, D, D); generators fall back
-  to central finite differences (jacobian_fd) when it is absent. jacobian_za is
-  optional and returns df/d(z, a) as (N, D, D + A); label-error estimates
-  require it and have no finite-difference fallback.
-- evaluate(z, a, z_next) returns one-step error metrics without changing state.
-- kind and version identify the implementation; kind is the
-  transition_model.kind value that selects it, and version changes whenever
-  saved checkpoints or fitted results would differ. Pipelines record both in
-  provenance and stage identity.
-- save(path) writes a checkpoint whose meta records kind and version;
-  load(path, device) is a classmethod that restores it. load_transition_model
-  reads the kind from the checkpoint and dispatches through TRANSITION_MODELS.
-  A file that is not a checkpoint of a known kind and version raises
-  CheckpointError; model-specific failures (an unavailable device, for example)
-  propagate unchanged. numpy arrays cross the interface, so torch models
-  convert internally.
+Models own fitting and persistence; prediction and evaluation are deterministic
+and side-effect free. Kind, version, shapes, optional Jacobians, and checkpoint
+failure behavior are defined in ``docs/interfaces.md``.
 """
 from __future__ import annotations
 
@@ -68,7 +50,7 @@ def checkpoint_meta(path, component: str) -> dict:
     return meta
 
 
-# What a fitted checkpoint is bound to, so that loading it into another run is refused unless they agree (#170).
+# What a fitted checkpoint is bound to; a mismatch refuses reuse in another run.
 BINDING = ("representation", "state_dim", "act_dim", "direction", "dt_ctrl")
 
 
@@ -76,7 +58,7 @@ def binding_problems(recorded, expected: dict) -> list[str]:
     """Each BINDING field on which a checkpoint's recorded binding differs from the run that loads it."""
     if not isinstance(recorded, dict):
         return ["it records no binding (representation, dimensions, direction, action period): only checkpoints "
-                "transition.fit wrote since #170 can be loaded"]
+                "transition.fit wrote with binding metadata can be loaded"]
     return [f"{k}: the checkpoint has {recorded.get(k)!r}, this run {expected[k]!r}" for k in BINDING
             if recorded.get(k) != expected[k]]
 
@@ -137,7 +119,7 @@ class LinearTransitionModel:
         return one_step_metrics(self, z, a, z_next)
 
     def lipschitz_bound(self, maps: str, state_scale, action_scale) -> dict:
-        """The Lipschitz constant of f_hat in state or action, in scaled coordinates, as a verified upper bound (#88)."""
+        """Verified upper bound on the state or action Lipschitz constant in scaled coordinates."""
         sz, sa = np.asarray(state_scale, np.float64), np.asarray(action_scale, np.float64)
         M, cols = (self.A, sz) if maps == "state" else (self.B, sa)
         value = verified_spectral_norm(M, row_div=sz, col_mul=cols)

@@ -1,20 +1,7 @@
-"""Calibration and the reference audit: reference dynamics as evidence, declared as such (#167).
+"""Calibrate quality scores and audit a finished selection with reference dynamics.
 
-    certify (score) -> calibrate on held-out episodes -> curate (reference_assisted) -> audit (optional)
-
-calibrate() bounds the label error observed under reference dynamics,
-||(T(z_G, a_G) - y) / state_scale|| with T(z, a) = z + A z + B a, of one
-certificate file's eligible rows (accepted and empirical). The unit is the
-episode: each calibration episode is scored by the largest observed error over
-its eligible rows, and the bound is the split-conformal order statistic of
-those scores (schema/calibration.py states what it guarantees).
-calibrated_rows() is the only way a row becomes calibrated: an eligible row of
-that same certificate file whose episode is not a calibration episode.
-Curation uses it only under a reference_assisted allowance (core/curate.py).
-
-reference_audit() annotates a decided selection with the observed error. It
-reads the selection and never feeds back into it: an audited data_only result
-stays data_only.
+Calibration is episode-level and always reference-assisted. An audit annotates
+a decision but never feeds back into admission, generation, or selection.
 """
 from __future__ import annotations
 

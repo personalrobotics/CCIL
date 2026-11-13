@@ -227,6 +227,42 @@ def main():
     record("generated_docs_match_sources", all(r.returncode == 0 for r in drift.values()),
            output={k: (r.stdout + r.stderr).strip() for k, r in drift.items()})
 
+    # A generator intentionally changes its tracked output. It must still
+    # refuse a concurrent source edit, but the expected documentation write is
+    # not itself a code-state failure.
+    doc_repo = out / "generated-docs-repo"
+    shutil.copytree(REPO / "src", doc_repo / "src")
+    reference = doc_repo / "docs" / "schemas" / "reference.md"
+    reference.parent.mkdir(parents=True)
+    expected = (REPO / "docs" / "schemas" / "reference.md").read_text()
+    reference.write_text(expected)
+    control = doc_repo / "control.txt"
+    control.write_text("unchanged\n")
+    run = lambda *cmd: subprocess.run(cmd, cwd=doc_repo, capture_output=True, text=True)  # noqa: E731
+    setup = [run("git", "init", "-q"), run("git", "add", "."),
+             run("git", "-c", "user.name=CCIL check", "-c", "user.email=check@example.invalid",
+                 "commit", "-qm", "fixture")]
+    reference.write_text(expected + "stale\n")
+    env = {**ENV, "PYTHONPATH": str(doc_repo / "src")}
+    regenerated = subprocess.run([sys.executable, "-m", "ccil", "schema", "docs"], cwd=doc_repo, env=env,
+                                 capture_output=True, text=True)
+    regenerated_ok = (regenerated.returncode == 0 and reference.read_text() == expected
+                      and not list(reference.parent.glob(f".{reference.name}.tmp-*")))
+    concurrent_probe = subprocess.run(
+        [sys.executable, "-c",
+         "from pathlib import Path; import sys; "
+         "from ccil.runs.provenance import CodeStateChanged, capture_code_state, verify_code_state; "
+         "out, other = map(Path, sys.argv[1:]); capture_code_state(ignore_paths=[out]); "
+         "out.write_text('intended\\n'); verify_code_state(ignore_paths=[out]); other.write_text('changed\\n'); "
+         "\ntry: verify_code_state(ignore_paths=[out])\n"
+         "except CodeStateChanged: pass\n"
+         "else: raise SystemExit('unrelated change was not detected')",
+         str(reference), str(control)], cwd=doc_repo, env=env, capture_output=True, text=True)
+    record("generated_docs_update_is_a_successful_atomic_write",
+           all(r.returncode == 0 for r in setup) and regenerated_ok and concurrent_probe.returncode == 0,
+           returncode=regenerated.returncode, stdout=regenerated.stdout.strip(), stderr=regenerated.stderr.strip(),
+           concurrent_probe_stderr=concurrent_probe.stderr.strip())
+
     git = lambda *x: subprocess.run(["git", "-C", str(REPO), *x], capture_output=True, text=True).stdout.strip()  # noqa: E731
     report = {"all_pass": all(c["pass"] for c in cases), "cases": cases,
               "environment": {"code_commit": git("rev-parse", "HEAD"),

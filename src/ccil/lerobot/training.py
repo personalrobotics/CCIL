@@ -1,15 +1,8 @@
-"""CCIL supervision as one training dataset over a LeRobot dataset and its overlay (#28). Needs torch.
+"""Expose a LeRobot dataset and CCIL overlay as one weighted training dataset.
 
-CCILTrainingDataset wraps a LeRobot dataset object the caller constructs (CCIL never imports lerobot) together
-with the ccil/ overlay of the same directory, verified to have been made from that directory's dataset. Its rows are exactly CCIL's supervision: the demonstration frames
-(t <= T - 2 of the overlay's training episodes) and every usable synthetic label, each with its weight under
-"ccil.weight"; sampler() draws them by weight, optionally balancing demonstrations against labels. A stock
-LeRobot trainer that ignores ccil.weight is not CCIL-correct, and this module never claims it is.
-
-Temporal windows fail closed. Demonstration rows are the LeRobot dataset's own items, with its ordinary windows.
-A synthetic label is an independent record: an observation history for it is refused (no semantically valid
-construction exists until M5), and future actions come only from the label's stored action chunk, never from
-neighbouring labels; without a stored chunk, a future-action window is refused.
+CCIL never imports LeRobot; callers provide the base dataset object. Synthetic
+labels are independent records, so unsupported history or future-action
+windows fail closed.
 """
 from __future__ import annotations
 
@@ -56,7 +49,7 @@ class CCILTrainingDataset:
         history = {k: v for k, v in deltas.items() if k.startswith("observation.") and list(v) != [0]}
         if history:
             raise TemporalWindowRefused(f"observation windows {sorted(history)} are refused for synthetic labels: "
-                                        f"a label has no observation history (until M5 defines one)")
+                                        "a label is an independent record and has no observation history")
         self.action_deltas = deltas.get("action")
         if self.action_deltas is not None and list(self.action_deltas) != [0]:
             if "action_chunk" not in self.labels:

@@ -1,33 +1,8 @@
-"""Explicit, one-way conversion of a legacy correct_il YAML into a canonical configuration (#23).
+"""Convert a legacy ``correct_il`` YAML into a canonical configuration.
 
-    ccil config convert LEGACY.yml --out CANON.yml --manifest MANIFEST.json [--fidelity corrected|historical]
-
-resolve() already reads a legacy file by migrating it on the fly
-(ccil.config.migrate); this module writes the result as an artifact that can
-be inspected and versioned before any model is trained, with a manifest that
-records what happened to every legacy key:
-
-- renamed: the value moves unchanged to its canonical key;
-- derived: the canonical value is computed from one or more legacy keys
-  (policy.naive + policy.noise_bc -> supervision.source; no_gpu -> compute.device);
-- dropped: the key never affected behavior, or its canonical key moved to
-  il-supervision-benchmarks with policy training (#168) (with the reason);
-- unsupported or unknown: conversion fails.
-
-Every explicitly supplied value that affected behavior must appear unchanged
-in the resolved canonical configuration, or conversion fails: a historical
-value is never replaced by a new default.
-
-Legacy behavior that no legacy config spelled out, and whose canonical default
-differs, is listed in LEGACY_IMPLICIT. With fidelity "historical" the legacy
-behavior is written explicitly; with "corrected" (the default) the canonical
-default stands. Either way the manifest records both values. Corrections that
-are not configuration (#21, #22) are listed as such: they belong to the
-faithful-port arm of #24, not to a flag.
-
-Unknown, duplicate, ambiguous, or incompatible settings fail with every
-diagnostic, and nothing is written. The canonical file and the manifest are
-written atomically, after the canonical file resolves.
+The one-way conversion records every renamed, derived, dropped, and refused
+key. It preserves explicit behavior-affecting values and writes the canonical
+file and manifest atomically. See ``docs/migration/legacy-conversion.md``.
 """
 from __future__ import annotations
 
@@ -44,8 +19,8 @@ from .resolve import _load_yaml, resolve
 from .spec import ConfigError, coerce
 
 
-# Converted legacy configurations are written in the current version, with the legacy meaning of every default
-# that changed since (CHANGED_DEFAULTS) spelled out: converter 1 wrote version 1 and left those implicit (#168).
+# Write current-version files while spelling out any older default whose
+# meaning changed. Converter 1 left those defaults implicit.
 CONFIG_VERSION = 4
 
 CONVERTER = "ccil.config.convert/2"

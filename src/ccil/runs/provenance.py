@@ -1,16 +1,8 @@
-"""Provenance recorded in every run manifest. No timestamps, so replays are byte-identical.
+"""Deterministic run provenance, code-state checks, and conservative hash caching.
 
-Two costs are paid once per process rather than at every stage (#127):
-- Code state. code() and implementation() are captured at their first call. verify_code_state() recomputes both
-  and raises CodeStateChanged on any difference; the CLI calls it when a command finishes and study runners
-  before they finalize a unit's record, so a unit that saw a source edit is never finalized.
-- Content hashes of writer-owned artifacts. sha256() returns a cached hash only for a file this process's
-  RunWriter wrote, or one whose full rehash matched a complete run's manifest (register_artifact), and only while
-  its resolved path, device, inode, size and nanosecond mtime are unchanged. Any other file, user inputs included,
-  is hashed in full every time. CCIL_PROVENANCE_STRICT=1 disables the cache.
-  Outside the cache's threat model: rewriting a pipeline-owned artifact in place while preserving its size,
-  inode and nanosecond mtime. Those artifacts are write-once and atomically replaced; the strict mode covers
-  adversarial or archival verification.
+User inputs are always rehashed. Only write-once pipeline artifacts can use the
+inode-aware cache, and ``CCIL_PROVENANCE_STRICT=1`` disables it. See
+``docs/runs.md`` for the threat model.
 """
 from __future__ import annotations
 
@@ -72,6 +64,7 @@ def register_artifact(path, digest: str) -> None:
 
 _CODE: dict | None = None
 _IMPLEMENTATION: dict | None = None
+_FILTERED_CODE: dict[tuple[str, ...], dict] = {}
 
 
 class CodeStateChanged(RuntimeError):
@@ -86,14 +79,40 @@ def code() -> dict:
     return dict(_CODE)
 
 
-def _code() -> dict:
+def _ignored_paths(paths) -> tuple[str, ...]:
+    """Repository-relative paths whose intentional writes are ignored."""
+    if not paths:
+        return ()
+    src = Path(__file__).resolve().parent
+    try:
+        result = subprocess.run(["git", "-C", str(src), "rev-parse", "--show-toplevel"],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return ()
+        root = Path(result.stdout.strip()).resolve()
+        relative = []
+        for path in paths:
+            try:
+                relative.append(Path(path).resolve().relative_to(root).as_posix())
+            except ValueError:
+                pass
+        return tuple(sorted(set(relative)))
+    except (OSError, subprocess.SubprocessError):
+        return ()
+
+
+def _code(ignore_paths=()) -> dict:
     """ccil version, plus the git commit and dirty flag when the source is a git checkout."""
     src = Path(__file__).resolve().parent
     info = {"ccil_version": __version__, "git_commit": None, "git_dirty": None}
     try:
         commit = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
         if commit.returncode == 0:
-            dirty = subprocess.run(["git", "-C", str(src), "status", "--porcelain"], capture_output=True, text=True, timeout=10)
+            ignored = _ignored_paths(ignore_paths)
+            status = ["git", "-C", str(src), "status", "--porcelain"]
+            if ignored:
+                status += ["--", ":(top)**", *(f":(exclude,top,literal){path}" for path in ignored)]
+            dirty = subprocess.run(status, capture_output=True, text=True, timeout=10)
             info["git_commit"] = commit.stdout.strip()
             info["git_dirty"] = bool(dirty.stdout.strip()) if dirty.returncode == 0 else None
             info["git_status_sha256"] = (hashlib.sha256(dirty.stdout.encode()).hexdigest()
@@ -118,15 +137,18 @@ def implementation() -> dict:
     return json.loads(json.dumps(_IMPLEMENTATION))
 
 
-def capture_code_state() -> None:
+def capture_code_state(ignore_paths=()) -> None:
     """Capture the code state and the source hash now, if not yet captured: before any work they must cover.
 
     RunWriter calls it on entry, so the check before its commit always has a state to compare against."""
     code()
     implementation()
+    ignored = _ignored_paths(ignore_paths)
+    if ignored and ignored not in _FILTERED_CODE:
+        _FILTERED_CODE[ignored] = _code(ignored)
 
 
-def verify_code_state(source_only: bool = False) -> None:
+def verify_code_state(source_only: bool = False, ignore_paths=()) -> None:
     """Raise CodeStateChanged unless the code state and ccil source equal those captured at the process's start.
 
     Called when a unit is finalized (a CLI command's end, a study runner's record), so a unit that saw a source
@@ -137,9 +159,11 @@ def verify_code_state(source_only: bool = False) -> None:
         return  # nothing was captured, so nothing was recorded
     changed = []
     if _CODE is not None and not source_only:
-        now_code = _code()
-        if now_code != _CODE:
-            changed.append(f"git state {_CODE} -> {now_code}")
+        ignored = _ignored_paths(ignore_paths)
+        baseline = _FILTERED_CODE.get(ignored, _CODE)
+        now_code = _code(ignored)
+        if now_code != baseline:
+            changed.append(f"git state {baseline} -> {now_code}")
     now_impl = _implementation() if _IMPLEMENTATION is not None else None
     if now_impl is not None and now_impl["source_sha256"] != _IMPLEMENTATION["source_sha256"]:
         changed.append("the ccil source changed")
