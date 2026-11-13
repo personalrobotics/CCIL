@@ -8,7 +8,7 @@ code block below under the file name given above it, in one empty directory.
 ## Install
 
 ```bash
-pip install ccil
+pip install prlccil
 ```
 
 The core needs only numpy and PyYAML. Policy training is yours (or

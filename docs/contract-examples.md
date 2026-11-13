@@ -78,7 +78,7 @@ any labels from held-out episodes are excluded and counted.
 frames at 10 FPS, a 2-D `observation.state`, a 1-D `action`, and an 8×8 RGB
 `observation.image`.
 
-**Conversion** (`ccil[lerobot]`):
+**Conversion** (`prlccil[lerobot]`):
 
 ```python
 from ccil.lerobot import v3

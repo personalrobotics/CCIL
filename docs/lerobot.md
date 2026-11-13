@@ -1,6 +1,6 @@
 # LeRobot datasets
 
-> **`ccil[lerobot]` installs CCIL's LeRobot Dataset v3.0 format bridge. It does
+> **`prlccil[lerobot]` installs CCIL's LeRobot Dataset v3.0 format bridge. It does
 > not install the LeRobot runtime.**
 
 CCIL's product is a versioned supervision artifact. LeRobot is one ecosystem
@@ -10,7 +10,7 @@ storage format, not on the `lerobot` package. CCIL never imports `lerobot`, and
 it does not inherit LeRobot's training stack, Python floor or import paths.
 
 ```bash
-pip install 'ccil[lerobot]'      # pyarrow, and huggingface_hub on Python 3.11+; not lerobot, torch, datasets or video decoders
+pip install 'prlccil[lerobot]'   # pyarrow, and huggingface_hub on Python 3.11+; not lerobot, torch, datasets or video decoders
 ```
 
 On Python 3.10 the extra installs pyarrow only. The bridge works fully on local directories there, but `fetch`

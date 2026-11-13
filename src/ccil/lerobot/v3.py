@@ -20,7 +20,7 @@ from ..errors import InputError
 from ..schema import Episode, SchemaError, TrajectoryDataset
 
 CODEBASE_VERSION = "v3.0"
-INSTALL = ("the LeRobot format bridge needs the ccil[lerobot] extra: pip install 'ccil[lerobot]' "
+INSTALL = ("the LeRobot format bridge needs the prlccil[lerobot] extra: pip install 'prlccil[lerobot]' "
            "(it installs CCIL's LeRobot Dataset v3.0 format bridge: pyarrow, and huggingface_hub on Python 3.11+; "
            "it does not install the LeRobot runtime)")
 EPISODES_PATH = "meta/episodes/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet"

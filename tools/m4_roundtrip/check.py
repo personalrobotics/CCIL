@@ -208,7 +208,7 @@ def main():
     python, freeze = m4.env_for(out, CONSUMER)
     dist = out / "dist"
     subprocess.run(["uv", "build", "-q", "--wheel", "--out-dir", str(dist), str(REPO)], check=True)
-    subprocess.run(["uv", "pip", "install", "-q", "--python", str(python), str(next(dist.glob("ccil-*.whl")))], check=True)
+    subprocess.run(["uv", "pip", "install", "-q", "--python", str(python), str(next(dist.glob("prlccil-*.whl")))], check=True)
     transcripts = {}
     for name, run in (("labels", first), ("zero", none)):
         env = {**os.environ, "HF_HUB_OFFLINE": "1", "HF_LEROBOT_HOME": str(out / "hf-home")}

@@ -1,6 +1,6 @@
 [project]
-name = "ccil"
-version = "0.1.0"
+name = "prlccil"
+version = "0.1.0rc1"
 description = "Continuity-based corrective labels for imitation learning"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 # 2.9.1 is the lowest torch with no known critical, high, or medium advisory.
 # Python 3.11+ only: torch needs filelock, whose fixed releases (>= 4.2.1)
-# require 3.11. ccil never unpickles checkpoints. See docs/security.md.
+# require 3.11. CCIL never unpickles checkpoints. See docs/security.md.
 torch = ["torch>=2.9.1; python_version >= '3.11'"]
 # CCIL's LeRobot Dataset v3.0 bridge: PyArrow reads and writes the tabular format, and the Hub client
 # fetches it (Python 3.11+ only, for the reason torch is: see docs/security.md). It does not install the
@@ -46,7 +46,7 @@ Issues = "https://github.com/personalrobotics/CCIL/issues"
 Paper = "https://arxiv.org/abs/2310.12972"
 
 [dependency-groups]
-# Evidence tools for the ccil core (tools/), pinned exactly.
+# Evidence tools for the CCIL core (tools/), pinned exactly.
 evidence = [
     "matplotlib==3.10.9",
     "pillow==13.0.0",
@@ -55,9 +55,12 @@ evidence = [
 
 [tool.uv.dependency-groups]
 # Patched Pillow and filelock exist only for Python 3.11+, so the evidence
-# environment is 3.11+; the ccil package itself still supports 3.10.
+# environment is 3.11+; the CCIL package itself still supports 3.10.
 evidence = { requires-python = ">=3.11" }
 
 [build-system]
 requires = ["uv_build>=0.12,<0.14"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "ccil"

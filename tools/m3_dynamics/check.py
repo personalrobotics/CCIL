@@ -262,7 +262,7 @@ def main():
     if "extra" in only:
         dist = out / "dist"
         subprocess.run(["uv", "build", "--wheel", "--out-dir", str(dist)], cwd=REPO, capture_output=True, text=True)
-        wheel = next(dist.glob("ccil-*.whl"))
+        wheel = next(dist.glob("prlccil-*.whl"))
         venv = out / "venv-3.10"
         subprocess.run(["uv", "venv", "--python", "3.10", str(venv)], capture_output=True, text=True)
         subprocess.run(["uv", "pip", "install", "--python", str(venv / "bin/python"), f"{wheel}[torch]"],
@@ -273,7 +273,7 @@ def main():
         r = ccil("labels", "generate", "--recipe", "analytic_double_integrator_mlp", "--set", "data.path=di.npz",
                  "--set", "run.output_dir=runs", cwd=ew, python=venv / "bin/python")
         has_torch = subprocess.run([str(venv / "bin/python"), "-c", "import torch"], capture_output=True).returncode == 0
-        record("mlp_without_torch_fails_before_any_stage", r.returncode == 2 and "ccil[torch]" in r.stderr
+        record("mlp_without_torch_fails_before_any_stage", r.returncode == 2 and "prlccil[torch]" in r.stderr
                and not (ew / "runs").exists() and not has_torch, exit=r.returncode, error=r.stderr.strip()[-300:],
                torch_installed=has_torch)
 

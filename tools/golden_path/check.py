@@ -80,7 +80,7 @@ def main() -> int:
         print(f"{'PASS' if ok else 'FAIL'} {name}", flush=True)
 
     sh("uv", "build", "--wheel", "--out-dir", out / "dist", cwd=REPO)
-    [wheel] = glob.glob(str(out / "dist" / "ccil-*.whl"))
+    [wheel] = glob.glob(str(out / "dist" / "prlccil-*.whl"))
     sh("uv", "venv", "--python", "3.12", out / "venv")
     sh("uv", "pip", "install", "--python", out / "venv" / "bin" / "python", wheel)
     installed = sorted(p["name"].lower() for p in json.loads(
@@ -93,7 +93,7 @@ def main() -> int:
     pilot = [ln for ln in runs[-1].stdout.splitlines() if ": BC " in ln]
     first = artifacts(work)
     record("quickstart_runs_as_written_from_the_wheel", all(r.returncode == 0 for r in runs)
-           and installed == ["ccil", "numpy", "pyyaml"] and len(pilot) == 2 and "generate" in first,
+           and installed == ["numpy", "prlccil", "pyyaml"] and len(pilot) == 2 and "generate" in first,
            installed=installed, exits=[r.returncode for r in runs], pilot=pilot,
            errors=[r.stderr[-300:] for r in runs if r.returncode])
 

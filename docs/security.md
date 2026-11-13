@@ -9,17 +9,17 @@ enforces them.
 | Environment | Python | Dependencies | Gate |
 |---|---|---|---|
 | `ccil` | 3.10+ | `numpy`, `pyyaml` | no known vulnerabilities in `uv.lock` |
-| `ccil[torch]` | 3.11+ | adds `torch>=2.9.1` | same |
+| `prlccil[torch]` | 3.11+ | adds `torch>=2.9.1` | same |
 | Development (`uv sync`), and `--group evidence` | 3.11+ for `evidence` | exact pins: `matplotlib==3.10.9`, `pillow==13.0.0`, `torch==2.14.1` | same |
 
 - **Torch minimum.** 2.9.1 is the lowest release with no known critical, high
   or medium advisory. The remaining low-severity advisories need specific
   operators (`torch.jit.script`, `lstm_cell`) that ccil doesn't use. The gate
-  installs and exercises `ccil[torch]` at exactly 2.9.1 and at the locked
+  installs and exercises `prlccil[torch]` at exactly 2.9.1 and at the locked
   version.
 - **Why 3.11 for torch and evidence.** The fixed releases of `filelock`
   (≥ 4.2.1, a torch dependency) and `pillow` (≥ 13.0.0, a matplotlib
-  dependency) require Python 3.11. On 3.10, `ccil[torch]` therefore installs no
+  dependency) require Python 3.11. On 3.10, `prlccil[torch]` therefore installs no
   torch, and torch-backed features fail with install guidance when requested.
   The core never needs either package.
 - **The gate.** `uv audit` checks the whole lock, covering every group, extra

@@ -17,7 +17,7 @@ A release is supported only when all of these pass. Once, on the CCIL side:
    unmapped features, a path that leaves the dataset (lexically, or through a symlink to a data shard or a metadata
    file), a malformed path format and multi-task episodes are refused; a streamed write with a non-finite episode is
    refused; nothing partial is written or returned;
-7. the boundary: the built wheel's ccil[lerobot] installs pyarrow (and huggingface_hub on Python 3.11+) and no
+7. the boundary: the built wheel's prlccil[lerobot] installs pyarrow (and huggingface_hub on Python 3.11+) and no
    LeRobot runtime; without the extra, using the bridge fails with install guidance; at the declared minimum
    versions, on Python 3.10 (pyarrow only: fetch says it needs 3.11) and 3.12, CCIL's write and read round-trip.
 Writes DIR/report.json.
@@ -184,9 +184,11 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
     case("unknown_version", lambda d: info(d, lambda i: i.update(codebase_version="v2.1")), "not supported")
     case("future_version", lambda d: info(d, lambda i: i.update(codebase_version="v3.1")), "not supported")
     case("video_modality", lambda d: info(d, lambda i: i["features"].update(
-        {"observation.images.top": {"dtype": "video", "shape": [96, 96, 3], "names": None}})), "M5")
+        {"observation.images.top": {"dtype": "video", "shape": [96, 96, 3], "names": None}})),
+         "not supported by the tabular bridge")
     case("depth_modality", lambda d: info(d, lambda i: i["features"].update(
-        {"observation.depth": {"dtype": "float32", "shape": [64, 64], "names": None}})), "M5")
+        {"observation.depth": {"dtype": "float32", "shape": [64, 64], "names": None}})),
+         "not supported by the tabular bridge")
     case("path_leaves_dataset", lambda d: info(d, lambda i: i.update(
         data_path="../escape/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet")), "inside the dataset")
     case("missing_shard", lambda d: next((d / "data").rglob("*.parquet")).unlink(), "is missing")
@@ -227,7 +229,7 @@ def refusals(work: Path, ccil_root: Path, fixture: Path) -> dict:
     good = Episode("0", {"state": np.zeros((5, 2), np.float32)}, np.zeros((5, 1), np.float32))
     for name, eps, expect, dest in (("write_streamed_non_finite", (e for e in (good, nan)), "episode 1",
                                      work / "w-nan"),
-                                    ("write_image", img, "M5", work / "w-img"),
+                                    ("write_image", img, "not supported by the tabular bridge", work / "w-img"),
                                     ("write_off_rate_timestamps", off, "1 / fps", work / "w-off"),
                                     ("write_existing_destination", src, "exists", ccil_root)):
         before = sorted(p.name for p in dest.parent.iterdir())
@@ -279,7 +281,7 @@ print(json.dumps({"pyarrow": pyarrow.__version__, "huggingface_hub": hub, "fetch
 def boundary(work: Path, fixture: Path) -> dict:
     dist = work / "dist"
     subprocess.run(["uv", "build", "-q", "--wheel", "--out-dir", str(dist), str(REPO)], check=True)
-    wheel = next(dist.glob("ccil-*.whl"))
+    wheel = next(dist.glob("prlccil-*.whl"))
     res = {}
     for name, extra, py, pins in (("core", "", "3.12", []), ("extra", "[lerobot]", "3.12", []),
                                   ("minimum_py310", "[lerobot]", "3.10", [f"pyarrow=={MINIMUM['pyarrow']}"]),
@@ -296,7 +298,7 @@ def boundary(work: Path, fixture: Path) -> dict:
             g = subprocess.run([pyx, "-c", BOUNDARY, str(fixture)], capture_output=True, text=True, cwd=work)
             guidance = json.loads(g.stdout.strip().splitlines()[-1])["guidance"] if g.returncode == 0 else None
             entry.update(pyarrow_absent="pyarrow" not in installed, guidance=guidance,
-                         ok=bool(guidance) and "ccil[lerobot]" in guidance and "does not install the LeRobot runtime"
+                         ok=bool(guidance) and "prlccil[lerobot]" in guidance and "does not install the LeRobot runtime"
                          in guidance and "pyarrow" not in installed)
         else:
             t = subprocess.run([pyx, "-c", ROUND_TRIP, str(work / f"rt-{name}")], capture_output=True, text=True,

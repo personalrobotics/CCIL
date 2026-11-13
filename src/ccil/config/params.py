@@ -67,7 +67,7 @@ PARAMS = [
           "influence no training label (a clean holdout), and that model is the one scored.", "transition_model",
           choices=("all", "train")),
     Param("transition_model.kind", "choice", "mlp", "Transition-model family: linear (least squares) or mlp.",
-          "Legacy code used an MLP (WorldModel), ported in #21; mlp needs the ccil[torch] extra (Python 3.11+).",
+          "Legacy code used an MLP (WorldModel), ported in #21; mlp needs the prlccil[torch] extra (Python 3.11+).",
           "transition_model", choices=("linear", "mlp")),
     Param("transition_model.direction", "choice", "forward", "Fit s_{t+1} from (s_t, a_t), or s_t from (s_{t+1}, a_t).",
           "Legacy dynamics.backward, absent (forward) in every config.", "transition_model",

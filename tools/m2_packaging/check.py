@@ -13,7 +13,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 PYTHONS = ("3.10", "3.14")
-CORE = {"ccil", "numpy", "pyyaml"}
+CORE = {"prlccil", "numpy", "pyyaml"}
 FORBIDDEN = re.compile(r"(__pycache__|\.pyc$|\.npz$|\.pkl$|\.log$|manifest\.json$|^data/|\.venv)")  # caches, data, run outputs
 LOCAL_PATHS = re.compile(r"(/Users/|/home/|/private/|/tmp/)")
 

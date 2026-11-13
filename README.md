@@ -97,7 +97,7 @@ scores.
 The core supports Python 3.10 and newer and depends only on NumPy and PyYAML.
 
 ```bash
-python -m pip install ccil
+python -m pip install prlccil
 ccil --help
 ```
 
@@ -106,8 +106,9 @@ demonstrations to curated rows and a small downstream pilot. Its commands are ru
 the built wheel in a clean environment. For a robotics dataset and an unchanged
 LeRobot trainer, use the [PushT walkthrough](https://github.com/personalrobotics/CCIL/blob/main/docs/pusht.md).
 
-Optional extras provide the MLP dynamics model (`ccil[torch]`) and the LeRobot dataset
-bridge (`ccil[lerobot]`).
+Optional extras provide the MLP dynamics model (`prlccil[torch]`) and the LeRobot
+dataset bridge (`prlccil[lerobot]`). The installed Python package and command are
+both named `ccil`.
 
 ## Correct labels are not necessarily useful labels
 
