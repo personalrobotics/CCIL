@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Clean-install verification of the built ccil artifacts (#20).
-
-    uv run python tools/m2_packaging/check.py --out DIR
-
-Builds the sdist and wheel with uv, checks their contents and metadata, builds
-again to confirm byte-identical artifacts, then installs the exact wheel into
-fresh virtual environments on the oldest and newest supported Python and runs
-the CLI and a data-prepare workflow from outside the repository with only the
-core dependencies. Writes DIR/report.json.
-"""
+"""Verify reproducible distributions and clean installs of the exact wheel."""
 import argparse
 import hashlib
 import json
@@ -53,7 +44,9 @@ print(json.dumps({"python": sys.version.split()[0], "file": __import__("ccil")._
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
-    out = ap.parse_args().out.resolve()
+    ap.add_argument("--evidence", type=Path)
+    args = ap.parse_args()
+    out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = []
 
@@ -82,12 +75,33 @@ def main():
     sbad = [n for n in snames if FORBIDDEN.search(n.split("/", 1)[-1])]
     leaks = sorted({m.group(0) for t in texts for m in LOCAL_PATHS.finditer(t)})
     needed = {"ccil/__init__.py", "ccil/__main__.py", "ccil/recipes/pendulum_cont.yaml", "ccil/recipes/pendulum_disc.yaml",
-              "ccil/schema/io.py", "ccil/config/params.py", "ccil/data/prepare.py"}
+              "ccil/schema/io.py", "ccil/config/params.py", "ccil/data/prepare.py",
+              "ccil/models/LICENSE-mjrl.txt", "ccil/models/LICENSE-pytorch.txt", "ccil/models/NOTICE"}
     record("wheel_contains_package_only", not bad and not sbad and not leaks and needed <= set(names),
            wheel_files=names, unexpected=bad + sbad, local_paths=leaks, missing=sorted(needed - set(names)))
-    requires = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Dist:"))
-    pyreq = [l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Requires-Python:")]
-    extras = sorted(l.split(":", 1)[1].strip() for l in meta.splitlines() if l.startswith("Provides-Extra:"))
+    license_expression = [line.split(":", 1)[1].strip() for line in meta.splitlines()
+                          if line.startswith("License-Expression:")]
+    license_files = sorted(line.split(":", 1)[1].strip() for line in meta.splitlines()
+                           if line.startswith("License-File:"))
+    expected_licenses = ["LICENSE", "src/ccil/models/LICENSE-mjrl.txt",
+                         "src/ccil/models/LICENSE-pytorch.txt", "src/ccil/models/NOTICE"]
+    wheel_licenses = sorted(n.split(".dist-info/licenses/", 1)[1] for n in names
+                            if ".dist-info/licenses/" in n and not n.endswith("/"))
+    sdist_files = {n.split("/", 1)[1] for n in snames if "/" in n}
+    record("distributions_carry_project_and_third_party_licenses",
+           license_expression == ["MIT"] and license_files == expected_licenses
+           and wheel_licenses == expected_licenses and set(expected_licenses) <= sdist_files,
+           license_expression=license_expression, license_files=license_files,
+           wheel_license_files=wheel_licenses,
+           sdist_missing=sorted(set(expected_licenses) - sdist_files))
+    requires = sorted(line.split(":", 1)[1].strip() for line in meta.splitlines()
+                      if line.startswith("Requires-Dist:"))
+    pyreq = [line.split(":", 1)[1].strip() for line in meta.splitlines() if line.startswith("Requires-Python:")]
+    extras = sorted(line.split(":", 1)[1].strip() for line in meta.splitlines()
+                    if line.startswith("Provides-Extra:"))
+    urls = sorted(line.split(":", 1)[1].strip() for line in meta.splitlines() if line.startswith("Project-URL:"))
+    relative_links = sorted(target for target in re.findall(r"\]\(([^)]+)\)", meta)
+                            if not target.startswith(("https://", "http://", "#", "mailto:")))
     core = [r for r in requires if "extra ==" not in r]
     optional = [r for r in requires if "extra ==" in r]
     by_extra = {e: sorted(r for r in optional if f"extra == '{e}'" in r) for e in extras}
@@ -97,8 +111,10 @@ def main():
            and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", by_extra["torch"][0]) is not None
            and [r.split(" ;")[0] for r in by_extra["lerobot"]] == ["huggingface-hub>=1.0.0", "pyarrow>=21.0.0"]
            and re.search(r"python(_full)?_version >= ['\"]3\.11['\"]", by_extra["lerobot"][0]) is not None
+           and len(urls) == 5 and not relative_links
            and "ccil = ccil.__main__:main" in entry,
-           requires_dist=requires, requires_python=pyreq, extras=extras, entry_points=entry.strip())
+           requires_dist=requires, requires_python=pyreq, extras=extras, project_urls=urls,
+           relative_readme_links=relative_links, entry_points=entry.strip())
 
     for py in PYTHONS:
         venv = out / f"venv-{py}"
@@ -139,9 +155,13 @@ def main():
               "environment": {"code_commit": git("rev-parse", "HEAD"),
                               "code_dirty": bool(git("status", "--porcelain", "--", "src", "pyproject.toml", "uv.lock", "tools")),
                               "uv": run("uv", "--version").stdout.strip(), "host": platform.platform(),
-                              "optional_dependencies": "none declared yet; adapters add extras in M3-M5"}}
+                              "optional_dependencies": extras}}
     text = json.dumps(report, indent=1, sort_keys=True, default=str) + "\n"
-    (out / "report.json").write_text(text.replace(str(out), "<out>").replace(str(REPO), "<repo>"))
+    text = text.replace(str(out), "<out>").replace(str(REPO), "<repo>")
+    (out / "report.json").write_text(text)
+    if args.evidence:
+        args.evidence.parent.mkdir(parents=True, exist_ok=True)
+        args.evidence.write_text(text)
     print(f"{sum(c['pass'] for c in cases)}/{len(cases)} cases pass; report: {out / 'report.json'}")
     return 0 if report["all_pass"] else 1
 

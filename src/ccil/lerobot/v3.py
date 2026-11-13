@@ -1,26 +1,8 @@
-"""The tabular subset of LeRobotDataset v3.0, read and written with PyArrow (#26).
+"""Read and write CCIL's supported tabular subset of LeRobot Dataset v3.0.
 
-Layout: meta/info.json declares the format version, the features and the data path template; data shards are
-Parquet files at data_path.format(chunk_index=..., file_index=...); meta/episodes/chunk-XXX/file-YYY.parquet holds
-one row per episode (its data shard, its global index range, its tasks and per-episode statistics);
-meta/tasks.parquet maps task_index to the task string; meta/stats.json holds the dataset statistics.
-
-Mapping to ccil.trajectories: observation.state -> observations["state"], any other observation.<name> ->
-observations["state.<name>"]; action -> actions; timestamp -> timestamps; the episode's single task -> task.
-Index columns (index, frame_index, episode_index, task_index) are checked, not copied. Every other feature needs
-an explicit disposition from the caller: ignore, or preserve (recorded as source metadata: its schema, a summary
-and a content hash, never its values).
-
-Endings (#27): an episode boundary says that recording stopped, not why. By default no next.* feature is
-interpreted and every ending is unknown (termination_known False, terminated False). A caller may declare
-terminal_feature, an exhaustive boolean terminal-state indicator: true only on the final frame (terminated), false
-there (truncated), and true earlier refuses the episode. next.done gets no special treatment. Writing: LeRobot v3.0
-has no terminal flag, so write_dataset refuses an episode with a known ending unless drop_endings=True, the
-documented lossy mode; unknown non-terminal endings are written.
-
-Fails closed: an unknown codebase_version, a feature of an unsupported dtype or shape (images, video, depth, audio,
-strings, multi-dimensional arrays), a feature with no CCIL slot unless the caller names it in ignore, a missing
-shard, or episode offsets that disagree with the data.
+Every unused feature needs an explicit disposition. Episode boundaries do not
+imply termination, and unsupported encodings or inconsistent indexes fail
+closed. The layout and ending semantics are documented in ``docs/lerobot.md``.
 """
 from __future__ import annotations
 
@@ -46,7 +28,7 @@ DATA_PATH = "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet"
 INDEX_COLUMNS = ("index", "frame_index", "episode_index", "task_index")
 QUANTILES = {"q01": 0.01, "q10": 0.10, "q50": 0.50, "q90": 0.90, "q99": 0.99}
 FLOATS = ("float32", "float64")
-DEFERRED = ("image", "video", "audio")  # dtypes of modalities that arrive with image CCIL (M5)
+DEFERRED = ("image", "video", "audio")
 TIMESTAMP_TOLERANCE_S = 1e-4  # LeRobot's own tolerance when it checks timestamps against 1 / fps
 
 
@@ -176,7 +158,7 @@ def _plan(info: dict, ignore=(), preserve=(), terminal_feature=None) -> tuple[di
             disp[name] = {"disposition": "ignored", **schema, "rule": "named in ignore by the caller"}
         elif dtype in DEFERRED or "depth" in name:
             problems.append(f"feature {name!r} ({dtype}) is an image, video, depth or audio modality: not supported "
-                            f"until image CCIL (M5)")
+                            "by the tabular bridge")
         elif name in preserve:
             disp[name] = {"disposition": "preserved_as_source_metadata", **schema}
         elif name in INDEX_COLUMNS:
@@ -520,7 +502,7 @@ def _feature_names(ep: Episode) -> list[tuple[str, str]]:
     out = []
     for modality in sorted(ep.observations, key=lambda m: (m != "state", m)):
         if not modality.startswith("state"):
-            raise LeRobotFormatError("write", [f"modality {modality!r}: images are not supported until image CCIL (M5)"])
+            raise LeRobotFormatError("write", [f"modality {modality!r}: images are not supported by the tabular bridge"])
         out.append((modality, "observation.state" if modality == "state" else "observation." + modality[6:]))
     return out
 

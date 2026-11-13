@@ -1,25 +1,9 @@
-"""Generators propose corrective-label candidates from transitions and a model.
+"""Stateless corrective-label generators.
 
-Contract
-- generate(batch, model, seed) returns a CandidateBatch for every transition; it
-  never accepts or rejects (validators do) but marks failed candidates.
-- Generators are stateless: everything they use is in params, and params fully
-  determine the output given (batch, model, seed).
-- Randomness is drawn per transition from default_rng seeded with run.seed and
-  a 128-bit digest of (episode_id, frame) (ccil.core.identity), so splitting a
-  batch into chunks never changes any candidate and distinct transitions never
-  share a stream.
-- Measurements describe the candidate as stored: they are computed from the
-  final, dtype-cast candidate arrays, and a solved candidate's convergence is
-  judged on its stored values.
-- name/version/params identify the generator in the candidate provenance, and
-  params are written into the candidate file.
-- label_error_profile names the CCIL label-error definition its labels follow
-  (backtrack or disturbed_action); a certificate profile names the families it
-  certifies (src/ccil/core/certificates.py).
-- measurement_specs declares, for each measurement the generator returns, its
-  definition, norm, and units; generate_labels writes them into the candidate
-  file under the "generator." prefix it gives the measurements.
+Randomness is keyed by transition identity, so chunking cannot change a
+candidate. Generators report failures and measurements; validators make the
+admission decision. Stored parameters and measurement specifications travel
+with every candidate artifact.
 """
 from __future__ import annotations
 

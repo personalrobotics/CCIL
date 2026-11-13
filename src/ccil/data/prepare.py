@@ -19,7 +19,7 @@ from .split import make_split
 
 
 def load_dataset(path):
-    """Read a ccil.trajectories file or an M1 ccil-trajectories/1 file, by its declared format."""
+    """Read a canonical or legacy-intermediate trajectory file by its declared format."""
     meta = read_meta(path, "ccil.trajectories")
     if meta.get("schema") == "ccil.trajectories":
         return read_trajectories(path)

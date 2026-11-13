@@ -1,50 +1,9 @@
-"""The vector CCIL transition model: an MLP residual dynamics model with Lipschitz regularization.
+"""Torch MLP residual dynamics with optional Lipschitz regularization.
 
-Ported from correct_il/models/nn_dynamics.py (WorldModel, DynamicsNet, the
-Lipschitz losses, fit_model) at archive/upstream-main-2026-10-22; see
-docs/migration/vector-dynamics.md for the function-by-function map and every
-intentional difference. It implements ccil.core.transition.TransitionModel and
-needs the ccil[torch] extra; the core never imports this module directly.
-
-Kept from legacy:
-- inputs are normalized by their mean and mean absolute deviation; the network
-  predicts the residual s_{t+1} - s_t normalized the same way; output
-  dimensions whose scale is below 1e-8 are masked to zero;
-- losses: mean squared error on the normalized residual, plus the configured
-  Lipschitz regularizer (spectral normalization, soft sampled or Jacobian
-  penalties, and the slack variants with a learned per-sample weight);
-- Adam, minibatches drawn by a fresh permutation each epoch, dropping the last
-  partial batch.
-
-Correctness changes from legacy (migration contract section 6; evidence in
-docs/migration/vector-dynamics.md), which is why kind mlp is version 2:
-- delta and evaluate run in eval mode and restore the prior mode, so
-  prediction never updates spectral-norm power-iteration buffers and labels do
-  not depend on call order (legacy never called eval()).
-- every Lipschitz penalty constrains the residual model f, as the paper does
-  (Ke et al. 2024, Sec. 4.2, Eqs. 3-4 and 10): soft sampling uses the
-  finite-difference ratio ||f(x + dx) - f(x)|| / ||dx|| with a hinge at the
-  constraint, and soft_jac the spectral norm of df/d(s, a). Legacy soft
-  sampling compared the normalized residual with the next-state prediction and
-  divided by the unscaled noise; legacy soft_jac constrained the next-state map
-  s + f, whose Jacobian is I + df/ds.
-- soft_sampling_slack weights each sample's perturbation penalties by that
-  sample's own slack; legacy broadcast every slack against every sample's
-  perturbations.
-- the sampled penalties' coordinates are explicit (#125,
-  transition_model.lipschitz_coordinates): raw, as above, or model_normalized,
-  which perturbs the model's normalized inputs and compares its normalized
-  residuals (a dimensionless ratio, invariant up to the normalization's 1e-8
-  and ReLU kinks under a consistent per-coordinate rescaling). The
-  penalty is a training regularizer: lipschitz_constraint is never a certified
-  bound, and certificates recompute bounds from the weights.
-
-structure history_shift (#30): when every representation part is history_steps
-equal slots, oldest first, the older slots' next values are a known shift (slot
-i becomes slot i + 1). The model predicts that shift exactly and fits the
-network only to the newest slot's residual; delta and the Jacobian assemble the
-two, and the Lipschitz measurement is the learned head's, recorded apart from
-the shift's.
+The model implements :class:`ccil.core.TransitionModel` and is loaded only when
+the ``torch`` extra is requested. The exact legacy lineage and intentional
+changes are recorded in ``docs/migration/vector-dynamics.md``. Third-party
+notices are distributed beside this module.
 """
 from __future__ import annotations
 
@@ -76,9 +35,9 @@ SETTINGS = ("hidden_layers", "activation", "lipschitz_type", "lipschitz_constrai
             "batch_size", "lipschitz_coordinates")
 LIPSCHITZ_COORDINATES = ("raw", "model_normalized")
 LIPSCHITZ_UNITS = {
-    "raw": "||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||: raw residuals over raw perturbations eps * N(0, I) (#21)",
+    "raw": "||f(s + ds, a + da) - f(s, a)|| / ||(ds, da)||: raw residuals over raw perturbations eps * N(0, I)",
     "model_normalized": "||g(x + dx) - g(x)|| / ||dx||: the model's normalized residual g over its normalized inputs "
-                        "x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space (#125)",
+                        "x = (q - shift) / (scale + 1e-8), perturbed by dx = eps * N(0, I) in that space",
 }
 PREDICT_CHUNK = 65536
 JACOBIAN_MEMORY_BYTES = 2048 * 2**20  # default device-memory budget of one Jacobian chunk (compute.jacobian_memory_mb)
@@ -274,7 +233,7 @@ def normalization_sha256(net) -> str:
 
 
 def lipschitz_record(settings: dict, net) -> dict:
-    """What a fit record states about its Lipschitz penalty's coordinates (#125); empty without a sampled one.
+    """What a fit record states about its Lipschitz penalty's coordinates; empty without a sampled one.
 
     The penalty is a training regularizer, never a certificate: lipschitz_constraint is not a proven bound in
     either coordinate system, and certificates recompute model bounds from the weights."""
@@ -303,7 +262,7 @@ class MLPTransitionModel:
         if lipschitz_coordinates not in LIPSCHITZ_COORDINATES:
             raise ValueError(f"lipschitz_coordinates {lipschitz_coordinates!r} is not one of {LIPSCHITZ_COORDINATES}")
         if lipschitz_type == "soft_jac" and lipschitz_coordinates != "raw":
-            raise ValueError("soft_jac has no model_normalized form yet (#125); use lipschitz_coordinates raw")
+            raise ValueError("soft_jac supports only lipschitz_coordinates raw")
         if structure not in STRUCTURES:
             raise ValueError(f"structure {structure!r} is not one of {STRUCTURES}")
         if (structure == "history_shift") != (history_steps is not None):
@@ -334,7 +293,7 @@ class MLPTransitionModel:
         return self.settings.get("structure", "none") == "history_shift"
 
     def set_parts(self, parts) -> None:
-        """The representation parts' widths, in order: a structured model's history layout (#30)."""
+        """The representation parts' widths, in order, for a structured history layout."""
         if self.structured:
             self.history = history_layout(parts, self.settings["history_steps"])
 
@@ -434,7 +393,7 @@ class MLPTransitionModel:
         """Exact df/d(z, a) in eval mode, (N, D, D + A).
 
         Rows are processed in balanced chunks of at most jacobian_chunk_rows(D, A, hidden, jacobian_memory_bytes),
-        so peak device memory is bounded by the budget, not by N or D (#109); balanced sizes avoid a tiny final
+        so peak device memory is bounded by the budget, not by N or D; balanced sizes avoid a tiny final
         chunk, whose different kernel could move a pre-activation lying within rounding of a ReLU kink to the other
         side (the exact Jacobian of a ReLU network is discontinuous there). The chunking is kept in
         jacobian_chunking for records. The result is assembled on the host in float64.
@@ -468,7 +427,7 @@ class MLPTransitionModel:
         return one_step_metrics(self, z, a, z_next)
 
     def lipschitz_bound(self, maps: str, state_scale, action_scale) -> dict:
-        """A global Lipschitz bound of f_hat in state or action, in scaled coordinates (#88).
+        """A global Lipschitz bound of f_hat in state or action, in scaled coordinates.
 
         f_hat = m * (out_scale + 1e-8) * g(x) + out_shift with x the normalized
         input and g = W_L act(... act(W_1 x + b_1) ...) + b_L, so with respect to
@@ -529,7 +488,7 @@ class MLPTransitionModel:
         meta = {"component": "transition_model", "kind": self.kind, "version": self.version,
                 "state_dim": self.net.state_dim, "act_dim": self.net.act_dim, "settings": self.settings,
                 "training": self.net.training, "dtype": "float32", "derived_from": DERIVED_FROM,
-                **lipschitz_record(self.settings, self.net),  # the coordinates' descriptor (#125)
+                **lipschitz_record(self.settings, self.net),
                 **({"history": {"steps": self.history["steps"], "parts": self.history["parts"]}}
                    if self.structured else {}),
                 **({"binding": self.binding} if self.binding is not None else {})}
@@ -541,7 +500,7 @@ class MLPTransitionModel:
         check_identity(path, meta, cls)
         settings = dict(meta["settings"])
         binding = meta.get("binding")
-        if "lipschitz_coordinates" not in settings:  # written before #125: its penalty was in raw coordinates
+        if "lipschitz_coordinates" not in settings:  # Older checkpoints used raw coordinates.
             settings["lipschitz_coordinates"] = "raw"
         model = cls(**settings, device=device)
         if model.structured != ("history" in meta):

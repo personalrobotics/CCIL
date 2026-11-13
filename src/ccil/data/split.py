@@ -2,7 +2,7 @@
 
 Whole episodes are assigned, identified by episode_id, so no episode contributes
 frames to both splits. Ported from correct_il/validation.py with its strict
-schema checks (#13, #66).
+schema checks.
 """
 from __future__ import annotations
 

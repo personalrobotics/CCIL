@@ -41,12 +41,6 @@
   },
   "global_blockers": [
     {
-      "id": "no-license-file",
-      "summary": "No LICENSE file exists on any branch. setup.py declares license='MIT' and the GitHub API reports no license.",
-      "owner": "unknown",
-      "action": "A maintainer confirms the intended license and adds a LICENSE file before any release (M6)."
-    },
-    {
       "id": "no-designated-maintainers",
       "summary": "No capability has a designated maintainer. Authors of record come from Git history and file headers only.",
       "owner": "unknown",
@@ -69,11 +63,11 @@
         {"ref": "label-filtering", "paths": ["correct_il/models/nn_dynamics.py"], "difference": "Adds local_lipschitz_coeff() and unreduced prediction errors."},
         {"ref": "abhaybd-image", "paths": ["correct_il/models/nn_dynamics.py"], "difference": "Drops data-driven input normalization and exposes parameters() for joint training with the image encoder."}
       ],
-      "provenance": {"origin": "derived", "source": "https://github.com/aravindr93/mjrl/blob/15bf3c0ed0c97fef761a8924d1b22413beb79900/mjrl/algos/mbrl/nn_dynamics.py", "license": "unknown", "attribution": "File header: 'Inspired by' mjrl; modified by Abhay Deshpande, Kay Ke, and Yunchu Zhang."},
+      "provenance": {"origin": "derived", "source": "https://github.com/aravindr93/mjrl/blob/15bf3c0ed0c97fef761a8924d1b22413beb79900/mjrl/algos/mbrl/nn_dynamics.py", "license": "Apache-2.0; text distributed in src/ccil/models/LICENSE-mjrl.txt", "attribution": "Lineage and modifications recorded in src/ccil/models/NOTICE and docs/migration/vector-dynamics.md."},
       "authors_of_record": ["Abhay Deshpande", "Kay Ke", "Yunchu Zhang"],
       "owner": "unknown",
       "disposition": "reconcile",
-      "blockers": ["Confirm the mjrl license and whether attribution is sufficient for derived code."]
+      "blockers": []
     },
     {
       "id": "lipschitz-regularization",
@@ -95,11 +89,11 @@
       "implementations": [
         {"ref": "main", "paths": ["correct_il/models/spectral_norm.py"]}
       ],
-      "provenance": {"origin": "derived", "source": "https://pytorch.org/docs/stable/_modules/torch/nn/utils/spectral_norm.html", "license": "BSD-3-Clause (PyTorch); license text not included", "attribution": "File header: 'Modified from Pytorch'."},
+      "provenance": {"origin": "derived", "source": "https://pytorch.org/docs/stable/_modules/torch/nn/utils/spectral_norm.html", "license": "BSD-3-Clause (PyTorch); text distributed in src/ccil/models/LICENSE-pytorch.txt", "attribution": "Lineage and modifications recorded in src/ccil/models/NOTICE and the module docstring."},
       "authors_of_record": ["Abhay Deshpande"],
       "owner": "unknown",
       "disposition": "migrate",
-      "blockers": ["Include the PyTorch BSD-3-Clause notice when redistributing."]
+      "blockers": []
     },
     {
       "id": "corrective-labels",

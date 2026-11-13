@@ -1,20 +1,8 @@
-"""Stage runs: each pipeline stage is its own run directory (docs/runs.md).
+"""Content-addressed pipeline stages with validation, reuse, and resume.
 
-A stage's run ID hashes its name, the configuration keys that stage consumes
-(STAGE_KEYS), the components it uses (kind or name, and version), the running
-implementation (the ccil source hash and dependency versions), any parameters
-passed outside the configuration (such as a certificate profile's descriptor),
-and the SHA-256 of every input artifact. The full identity is written to stage.json in the run.
-Upstream checkpoints hand off through the manifest `inputs`, so a change
-upstream produces a new downstream run, while a change that only affects later
-stages (for example the policy trainer) reuses every earlier stage. Each run
-still records the full configuration in config.json. Resume is owned here: a
-stage whose run directory already exists and validates as complete is reused,
-unless run.overwrite is set. Changed code, even uncommitted, changes the source
-hash and therefore the run ID, so an output is reused only by the implementation
-that made it; if the source cannot be read, the stage fails instead of reusing.
-A stage that fails leaves no run directory, so a rerun resumes at the first
-incomplete stage.
+Stage identity includes consumed configuration, component versions, source,
+dependencies, explicit parameters, and input hashes. Failed stages leave no
+completed run directory. See ``docs/runs.md``.
 """
 from __future__ import annotations
 
@@ -147,7 +135,7 @@ def run_stage(stage: str, cfg, inputs: dict, body, components: dict | None = Non
                 run.add_input(name, path)
             dump_json({**identity, "run_id": run_id}, run.path(layout.STAGE))
             body(run)
-    except (StageError, CodeStateChanged):  # a code change is not a stage failure: the whole unit fails (#127)
+    except (StageError, CodeStateChanged):  # A code change invalidates the whole unit, not just this stage.
         raise
     except Exception as e:  # the writer has already removed the staging directory
         raise StageError(stage, e) from e

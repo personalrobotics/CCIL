@@ -1,24 +1,8 @@
-"""Batched transition-model fits: many MLPTransitionModel fits trained as one program on one device (#110).
+"""Fit compatible MLP transition models together on one device.
 
-The same models, losses and optimizer as MLPTransitionModel.fit (the legacy WorldModel protocol): the
-normalized residual MLP with per-fit input and output normalizers, the declared Lipschitz regularizer, and Adam
-with L2 weight decay, for the configured epochs and batch size. A group of fits with one architecture and
-regularizer trains as a single vmap'd, compiled step, the way policy trainer v2 (training/vector_bc_v2.py) trains
-policies, and shares its machinery: content-deduplicated shared rows with per-fit segments, counter-based
-permutations, fixed group buckets with masked padding, a guarded compiled engine, enforced float32 precision,
-and per-epoch host synchronization only.
-
-Randomness is per fit and independent of the group. Initialization is MLPTransitionModel's, under
-torch.manual_seed(seed). Minibatches come from the counter-based permutation keyed by (seed, epoch). The
-soft-sampling perturbations are counter-keyed standard normals (splitmix64 uniforms through Box-Muller) keyed
-by (seed, optimizer step, row of the minibatch, perturbation, component), where the per-fit loop drew
-torch.randn.
-
-Supported regularizers: none, slack, soft_sampling, soft_sampling_slack. The spectral-normalization and
-soft_jac variants keep MLPTransitionModel.fit (fit_group refuses them).
-
-Not bit-compatible with MLPTransitionModel.fit (the shuffle, the perturbation draws and the arithmetic order
-differ); the evidence checks engine correctness and the fits' held-out error.
+Each fit keeps independent, counter-keyed randomness. The batched engine is not
+bit-compatible with the per-model loop, so its trainer version is part of run
+identity. Unsupported regularizers fail before training.
 """
 from __future__ import annotations
 

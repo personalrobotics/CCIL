@@ -1,18 +1,7 @@
-"""Data-only label geometry: the demonstration metric, tau_demo, and novelty (#167).
+"""Data-only geometry for label displacement, novelty, and demonstration spacing.
 
-Every distance here is in one declared metric, computed from the demonstrations
-alone: the Euclidean norm of z / s, where s is the per-coordinate standard
-deviation of the training episodes' demonstration states in the
-representation (1 for a coordinate that never varies). Actions are not
-coordinates of it. The metric is recorded with every quantity it measures, so
-a distance is never read without its denominator.
-
-- d_source: the distance of a label state from the demonstration state of its
-  source transition.
-- d_demo: its distance to the nearest training demonstration state.
-- tau_demo: the demonstrations' own spacing, a quantile (0.95 by default) of
-  the distance from each held-out demonstration state to the nearest training
-  state. It needs held-out episodes.
+All distances use the same recorded, standard-deviation-scaled state metric.
+Actions are not coordinates of this geometry.
 """
 from __future__ import annotations
 

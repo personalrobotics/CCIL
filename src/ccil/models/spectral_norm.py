@@ -1,15 +1,8 @@
-"""Spectral normalization with a Lipschitz bound, ported from correct_il/models/spectral_norm.py.
+"""Spectral normalization that clips a layer to a Lipschitz bound.
 
-Derived from PyTorch's torch/nn/utils/spectral_norm.py (BSD-3-Clause; the
-license text is in LICENSE-pytorch.txt next to this file), as the legacy file
-was. The legacy modification is kept: a weight is divided by
-max(sigma / lipschitz_constraint, 1) rather than by sigma, so a layer is only
-scaled down when its estimated spectral norm exceeds the bound.
-
-As in legacy, one power iteration runs on every forward pass in training mode
-and updates the u and v buffers in place; eval mode reuses the stored vectors.
-The legacy state-dict version shims are not ported: ccil checkpoints store
-weight_orig, weight_u and weight_v directly.
+Derived from PyTorch's BSD-3-Clause implementation; see the adjacent license
+and notice. Training updates one power-iteration estimate per forward pass,
+while evaluation reuses its stored vectors.
 """
 from __future__ import annotations
 

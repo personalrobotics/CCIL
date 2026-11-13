@@ -1,4 +1,4 @@
-"""Trajectory schema `ccil.trajectories` 1.1 (1.1 adds the optional per-episode termination_known, #27).
+"""Trajectory schema ``ccil.trajectories``.
 
 An episode is T frames. Frame t has one entry per observation modality and an
 action; a transition is (frame t, action t, frame t+1), identified by
@@ -15,7 +15,7 @@ import numpy as np
 from .fields import ArraySpec, Violations
 
 SCHEMA = "ccil.trajectories"
-VERSION = (1, 1)  # 1.1 adds the optional per-episode termination_known (#27)
+VERSION = (1, 1)  # 1.1 adds optional per-episode termination_known.
 
 MODALITY = re.compile(r"^(state|image)(\.[a-z0-9_]+)?$")
 STATE = ArraySpec("observations[state*]", "float", ("T", "D"), "task-defined",
@@ -189,6 +189,9 @@ class TrajectoryDataset:
         s, a, sp, ids, frames = [], [], [], [], []
         for ep in self.episodes:
             x, T = ep.observations[modality], ep.length
-            s.append(x[:-1]); sp.append(x[1:]); a.append(ep.actions[:-1])
-            ids.append(np.full(T - 1, ep.episode_id)); frames.append(np.arange(T - 1))
+            s.append(x[:-1])
+            sp.append(x[1:])
+            a.append(ep.actions[:-1])
+            ids.append(np.full(T - 1, ep.episode_id))
+            frames.append(np.arange(T - 1))
         return tuple(np.concatenate(v) for v in (s, a, sp, ids, frames))

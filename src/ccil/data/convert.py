@@ -1,15 +1,7 @@
-"""Explicit, one-way conversion of an M1 dataset into a canonical ccil.trajectories file (#23).
+"""Convert a trusted ``ccil-trajectories/1`` intermediate to the current schema.
 
-    ccil data convert M1.npz OUT.npz --manifest MANIFEST.json
-
-Legacy pickles cross the trust boundary only through
-tools/legacy_conversion/convert_legacy_dataset.py, which verifies their SHA-256 (or takes
-an explicit acknowledgement) before unpickling and writes the M1
-ccil-trajectories/1 file; ccil itself never unpickles. This step turns that
-file into the canonical schema, which data.prepare also reads on the fly,
-as an artifact that can be inspected before any model is trained. Its
-meta.dataset keeps the provenance chain: the M1 file's SHA-256, and from the M1
-meta the legacy pickle's SHA-256, trust mode, and converter version.
+CCIL never opens the original pickle. The conversion preserves its recorded
+hash and trust metadata, verifies an exact read-back, and writes a manifest.
 """
 from __future__ import annotations
 
@@ -33,7 +25,7 @@ def _sha(path) -> str:
 
 
 def convert_m1(src, dst, manifest=None) -> dict:
-    """Convert src (M1) to dst (ccil.trajectories); write manifest atomically; return it. SchemaError if src is not M1."""
+    """Convert, verify, and atomically record a legacy-intermediate dataset."""
     src, dst = Path(src), Path(dst)
     dataset = from_m1_npz(src)
     dst.parent.mkdir(parents=True, exist_ok=True)

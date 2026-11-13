@@ -1,53 +1,8 @@
-"""Label-error certificates: a post-generation layer over candidate files (#88).
+"""Construct and verify per-candidate label-error evidence.
 
-    generate candidates -> certify candidates -> curate a selection -> train policy
-
-Candidate files are never modified; certify() writes a ccil.certificates 2.0
-set (src/ccil/schema/certificates.py) with one row per candidate row. It is
-evidence only: which rows to train on is a separate ccil.selection written by
-ccil.core.curate.
-
-Constants. A profile's constants are specified, never asserted: Declared(value,
-rationale) is an assumption and always conditional, whatever its value;
-Provided(provider[, reference]) is computed during certification by a
-registered bound provider from artifacts whose SHA-256 the certificate records,
-and the source audit recomputes it. A provider's analytic_bound is an upper
-bound verified in exact arithmetic (core/verified.py); its model_bound is a
-floating-point bound that holds for the model in exact real arithmetic and is
-therefore conditional.
-
-Demonstrations. Every bound relies on the demonstration transition
-(z_t, a_t, z_{t+1}); stored transitions are exact only up to their rounding. A
-profile that uses one adds the demonstration residual
-rho_t = ||S_z^-1 (T(z_t, a_t) - z_{t+1})|| once to its total: computed per row
-as a verified upper bound from reference dynamics (Provided("reference_residual",
-name)), or a declared bound on every rho_t (Declared), which is conditional.
-
-Terms. Every certificate persists the four global terms (displacements,
-anchor model error, solver error); a profile may declare more, with a
-computation and a per-row recomputation hook, and says which terms it
-requires. Only required terms gate support. Displacements are verified upper
-bounds; the model terms are too when the model bounds its own evaluation error
-(delta_error_bound, as the float64 linear model does); otherwise the
-descriptor records model_evaluation "assumed_exact" and a profile whose total
-uses them is at most conditional.
-
-Coordinates. Norms are taken in scaled coordinates, z / state_scale and
-a / action_scale, and errors in the scaled state coordinates; the scales and
-dimensions are part of the descriptor and the units are derived from them.
-
-Admission and selection are curation policies (core/curate.py), separate from
-classification. Legacy 1.0 certificates stored their admission and selection;
-they are still verified, with the same rules.
-
-Verification has two levels. verify_structure uses the certificate and the
-candidates file: identity, the descriptor, and every value and classification
-(and, for 1.0, every mask and threshold) recomputed from the persisted terms. audit_sources also
-takes the source artifacts: it checks each against its recorded SHA-256 and
-component identity, recomputes every term one row at a time to a row-local
-tolerance, recomputes every provided constant, and re-verifies every
-analytic_bound exactly. Hashes establish artifact identity, not mathematical
-correctness.
+Certificates never select rows. They record scaled error terms, assumptions,
+and artifact identities; :mod:`ccil.core.curate` writes the separate selection.
+See ``docs/certificates.md`` for the certificate model and guarantees.
 """
 from __future__ import annotations
 

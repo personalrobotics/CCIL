@@ -4,6 +4,22 @@ version = "0.1.0"
 description = "Continuity-based corrective labels for imitation learning"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "src/ccil/models/LICENSE-*", "src/ccil/models/NOTICE"]
+keywords = ["imitation-learning", "robotics", "data-augmentation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "numpy>=1.24",
     "pyyaml>=6.0",
@@ -14,13 +30,20 @@ dependencies = [
 # Python 3.11+ only: torch needs filelock, whose fixed releases (>= 4.2.1)
 # require 3.11. ccil never unpickles checkpoints. See docs/security.md.
 torch = ["torch>=2.9.1; python_version >= '3.11'"]
-# CCIL's LeRobot Dataset v3.0 format bridge (#26): PyArrow reads and writes the tabular format, the Hub client
+# CCIL's LeRobot Dataset v3.0 bridge: PyArrow reads and writes the tabular format, and the Hub client
 # fetches it (Python 3.11+ only, for the reason torch is: see docs/security.md). It does not install the
 # LeRobot runtime. Tested LeRobot releases: docs/lerobot.md.
 lerobot = ["pyarrow>=21.0.0", "huggingface_hub>=1.0.0; python_version >= '3.11'"]
 
 [project.scripts]
 ccil = "ccil.__main__:main"
+
+[project.urls]
+Homepage = "https://personalrobotics.cs.washington.edu/CCIL/"
+Documentation = "https://github.com/personalrobotics/CCIL#readme"
+Repository = "https://github.com/personalrobotics/CCIL"
+Issues = "https://github.com/personalrobotics/CCIL/issues"
+Paper = "https://arxiv.org/abs/2310.12972"
 
 [dependency-groups]
 # Evidence tools for the ccil core (tools/), pinned exactly.

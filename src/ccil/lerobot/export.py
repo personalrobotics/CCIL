@@ -1,20 +1,8 @@
-"""One augmented LeRobot v3.0 dataset that a stock LeRobot trainer consumes unchanged (#30).
+"""Export one curated result as an atomic LeRobot Dataset v3.0 directory.
 
-    ccil export lerobot RESULT --conversion conversion.json --out DIR
-
-From a curate result of a dataset converted from LeRobot (ccil.lerobot.convert), write one dataset: the training
-episodes as they were converted, then one one-frame episode per usable selected synthetic row, holding the label's
-observation (split back into its LeRobot features) and action at timestamp 0. Every frame carries int64 columns
-ccil.synthetic, ccil.source_episode, ccil.source_frame, ccil.source_index (the source dataset's global index) and
-ccil.candidate_row (-1 for demonstration frames), which LeRobot policies ignore. A stock trainer reads no row
-weight, so every selected synthetic weight must be exactly 1. Held-out episodes are not written. The directory
-holds ccil/export.json (ccil.lerobot-export 1.0): the inputs by hash, the episode split, the counts, the hash of
-the synthetic rows' source indices (so a duplication control can match them exactly) and every file's SHA-256. With
-a recorded split, held-out episodes and the labels of their transitions are never written. It is
-staged under a temporary name and moved into place, so DIR exists only once complete.
-
-A one-frame episode gives a temporal policy no real history or future: it is consumed correctly only by a policy
-that reads one observation and predicts one action (for example ACT with n_obs_steps 1 and chunk_size 1).
+Training episodes are copied unchanged and each selected label becomes an
+independent one-frame episode with provenance columns. Weighted labels and
+temporal-policy assumptions are refused. See ``docs/lerobot.md``.
 """
 from __future__ import annotations
 

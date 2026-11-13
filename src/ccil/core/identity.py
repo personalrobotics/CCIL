@@ -1,10 +1,7 @@
-"""Collision-resistant digests of transition identities, for deterministic per-sample randomness.
+"""Collision-resistant transition identities for deterministic randomness.
 
-A transition is identified by (episode_id, frame). Seeding randomness from a
-32-bit hash of the episode id lets distinct episodes share a stream (CRC32
-collisions are easy to find, e.g. "4300bByhudVrUGx5" and "0BZ5Gzkl9ccfsEbx"), so
-the identity is digested in full: BLAKE2b-128 over a versioned encoding of the
-UTF-8 episode id (length-prefixed) and the frame (signed 64-bit).
+The digest is BLAKE2b-128 over a versioned, unambiguous encoding of the full
+episode ID and signed frame index.
 """
 from __future__ import annotations
 

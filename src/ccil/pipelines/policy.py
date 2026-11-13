@@ -1,19 +1,7 @@
-"""Downstream policy trainers for the integrated pipeline.
+"""Minimal policy interface used by the reference integrated pipeline.
 
-Contract
-- name and version identify the trainer (name is the policy.trainer value);
-  checkpoints record both, and load refuses a checkpoint of another name or
-  version with CheckpointError.
-- fit(z, a, weights) trains on representation-space inputs (N, D), actions
-  (N, A), and per-row weights (N,) >= 0, and returns self. The trainer owns its
-  parameters, optimizer, and device; numpy crosses the interface.
-- predict(z) returns (N, A) actions without changing state.
-- save(path) persists the trained policy; load(path) restores a policy saved
-  by the same trainer kind into this object and returns it. Evaluation always
-  loads the policy.train checkpoint, so a reused training stage evaluates the
-  same policy a fresh one would.
-Any implementation can replace the reference trainers here without changing the
-CCIL stages (representation, transition model, labels).
+Trainers consume NumPy arrays and weighted rows. Checkpoints record trainer
+name and version and refuse an incompatible loader.
 """
 from __future__ import annotations
 

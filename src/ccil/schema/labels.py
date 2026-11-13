@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .fields import ArraySpec, Violations, check_finite
-from .trajectories import MODALITY, TrajectoryDataset
+from .trajectories import TrajectoryDataset
 
 # Candidates may also live in a learned representation space (latent.<name>), so
 # image methods emit labels without a new schema; trajectories never store latents.

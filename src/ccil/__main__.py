@@ -2,24 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 
 def _schema_docs(args) -> int:
     from .schema.docs import render
-    text = render()
-    if args.check:
-        current = Path(args.out).read_text() if Path(args.out).exists() else ""
-        if current != text:
-            print(f"{args.out} is out of date; run: uv run ccil schema docs", file=sys.stderr)
-            return 1
-        print(f"{args.out} is up to date")
-        return 0
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(text)
-    print(f"wrote {args.out}")
-    return 0
+    return _write_or_check(render(), args.out, args.check, "uv run ccil schema docs")
 
 
 def _schema_validate(args) -> int:
@@ -37,15 +27,22 @@ def _schema_validate(args) -> int:
 
 
 def _write_or_check(text: str, out: str, check: bool, regenerate: str) -> int:
+    path = Path(out)
     if check:
-        current = Path(out).read_text() if Path(out).exists() else ""
+        current = path.read_text() if path.exists() else ""
         if current != text:
             print(f"{out} is out of date; run: {regenerate}", file=sys.stderr)
             return 1
         print(f"{out} is up to date")
         return 0
-    Path(out).parent.mkdir(parents=True, exist_ok=True)
-    Path(out).write_text(text)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     print(f"wrote {out}")
     return 0
 
@@ -204,7 +201,7 @@ def main(argv=None) -> int:
     docs = schema.add_parser("docs", help="generate the schema reference")
     docs.add_argument("--out", default="docs/schemas/reference.md")
     docs.add_argument("--check", action="store_true", help="fail if the committed reference is out of date")
-    docs.set_defaults(fn=_schema_docs)
+    docs.set_defaults(fn=_schema_docs, generated_output="out")
     val = schema.add_parser("validate", help="validate a trajectories file and, optionally, its candidates")
     val.add_argument("trajectories")
     val.add_argument("--candidates")
@@ -216,13 +213,13 @@ def main(argv=None) -> int:
     cdocs = config.add_parser("docs", help="generate the parameter reference")
     cdocs.add_argument("--out", default="docs/config/parameters.md")
     cdocs.add_argument("--check", action="store_true")
-    cdocs.set_defaults(fn=_config_docs)
+    cdocs.set_defaults(fn=_config_docs, generated_output="out")
     audit = config.add_parser("audit", help="generate the repository-wide parameter audit")
     audit.add_argument("--ledger", default="docs/ledger/ledger.json")
     audit.add_argument("--out", default="docs/config/parameter-audit.md")
     audit.add_argument("--check", action="store_true")
-    audit.set_defaults(fn=_config_audit)
-    conv = config.add_parser("convert", help="convert a legacy correct_il YAML into a canonical configuration (#23)",
+    audit.set_defaults(fn=_config_audit, generated_output="out")
+    conv = config.add_parser("convert", help="convert a legacy correct_il YAML into a canonical configuration",
                              description="One-way conversion with a manifest of every legacy key's disposition.\n"
                                          "exit: 0 written; 2 unknown, duplicate, ambiguous, or incompatible settings "
                                          "(nothing written)", formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -235,10 +232,10 @@ def main(argv=None) -> int:
                       help="canonical dataset path for a legacy data.pkl value; repeatable")
     conv.set_defaults(fn=_config_convert)
     data = groups.add_parser("data", help="dataset workflows").add_subparsers(dest="command", required=True)
-    dconv = data.add_parser("convert", help="convert an M1 ccil-trajectories/1 file into ccil.trajectories (#23)",
+    dconv = data.add_parser("convert", help="convert a legacy ccil-trajectories/1 file into ccil.trajectories",
                             description="Legacy pickles first cross the trust boundary through "
                                         "tools/legacy_conversion/convert_legacy_dataset.py; ccil never unpickles.\n"
-                                        "exit: 0 written; 2 not an M1 file or unreadable",
+                                        "exit: 0 written; 2 not a ccil-trajectories/1 file or unreadable",
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     dconv.add_argument("src")
     dconv.add_argument("dst")
@@ -308,7 +305,7 @@ def main(argv=None) -> int:
     gen.set_defaults(fn=lambda a: _run_pipeline(a, "offline"))
     pipeline = groups.add_parser("pipeline", help="integrated pipelines").add_subparsers(dest="command", required=True)
     integ = pipeline.add_parser("integrated", help="representation, labels, and downstream policy",
-                                description='Run the integrated pipeline: data.prepare -> representation.fit ->\ntransition.fit -> labels.generate -> policy.train -> policy.evaluate.\n\nThe reference components (PCA representation, linear or mean-action policy,\noffline action-error evaluation) stand in for M5 image encoders and real\npolicies; they claim no image-CCIL parity.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only supervision.* or integrated.*\n           reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
+                                description='Run the reference integrated pipeline: data.prepare ->\nrepresentation.fit -> transition.fit -> labels.generate -> policy.train ->\npolicy.evaluate.\n\nThe included PCA representation, linear or mean-action policy, and offline\naction-error evaluation exercise the interfaces; they are not benchmark\nlearners or an image-CCIL implementation.\n\nrequired:  data.path, generation.method, representation.kind=pca, representation.dim\noutputs:   one run directory per stage under run.output_dir; the policy in\n           policy-train-*/checkpoints/policy.npz and its evaluation in\n           policy-evaluate-*/metrics.json\nresume:    complete stages are reused; changing only supervision.* or integrated.*\n           reuses stages 1-4\noptional:  no extra dependencies (core install)\nexit:      0 success; 1 an unexpected failure (with its traceback); 2 an invalid\n           configuration, dataset, checkpoint or artifact; 3 the code changed while it ran', formatter_class=argparse.RawDescriptionHelpFormatter)
     _add_config_args(integ)
     integ.set_defaults(fn=lambda a: _run_pipeline(a, "integrated"))
     runs = groups.add_parser("run", help="run directories").add_subparsers(dest="command", required=True)
@@ -318,12 +315,14 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     from .errors import InputError
     from .pipelines.stages import StageError
-    from .runs.provenance import CodeStateChanged, code, verify_code_state
-    code()  # the git state, captured before the command does any work (#127)
+    from .runs.provenance import CodeStateChanged, capture_code_state, verify_code_state
+    generated_output = getattr(args, "generated_output", None)
+    ignored = [getattr(args, generated_output)] if generated_output else []
+    capture_code_state(ignore_paths=ignored)  # Capture repository and source state before any work.
     try:
         rc = args.fn(args)
-        if rc == 0:  # a command is a unit: never finalize one that saw its code change (#127)
-            verify_code_state()
+        if rc == 0:  # Never finalize a command that saw its code change.
+            verify_code_state(ignore_paths=ignored)
     except CodeStateChanged as e:
         print(f"{e}; this command's outputs are not a consistent unit", file=sys.stderr)
         return 3

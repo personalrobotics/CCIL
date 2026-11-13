@@ -1,47 +1,8 @@
-"""Curation: a selection over a candidate set and its certificates (#167).
+"""Write a selection over immutable candidates and optional quality evidence.
 
-    generate candidates -> certify candidates -> curate a selection -> train on accepted & mask
-
-A curation policy reads the immutable candidates and, optionally, their
-certificates, and writes a separate ccil.selection (schema/selection.py). It
-never modifies either input, so changing a tolerance or policy writes a new
-selection while the candidate and certificate hashes stay the same.
-
-Policies (CurationPolicy.admit):
-- accepted: every accepted row; no certificates, no error compared.
-- bound: rows whose certificate is an upper bound (certified, conditional,
-  calibrated) and whose bound is at most the tolerance.
-- score: an explicit opt-in that admits supported rows whose empirical score
-  is at most the tolerance; its rows are never presented as bounds.
-A quantile then keeps the admitted rows whose error is at most that quantile
-of a declared population: the accepted, admitted rows (admitted), or every
-supported row a legacy run would have generated (produced), as the
-label-filtering branch did. It is a data budget, not a quality claim.
-
-Unsupported rows (outside the certificate's neighborhood or without a finite
-total) are never selected. Selection is monotone: a lower tolerance or
-quantile selects a subset. Every policy here compares one quality term, the
-certificate's error, so it records the caveat that fidelity alone favours
-labels that stay close to the demonstrations.
-
-Evidence: a certificate whose constants or demonstration residuals come from
-reference dynamics is reference_assisted evidence. curate's allowance
-(allow_evidence) says what it may use; data_only, the default, refuses
-reference-assisted evidence. The selection records both the allowance and the
-provenance of the evidence it actually used, which is data_only whenever the
-certificate is data-only or there is none.
-
-Calibration: a ccil.calibration of the same certificate file
-(core/calibrate.py) turns the eligible empirical rows outside its episodes
-into calibrated rows, whose error is the calibrated bound, for a bound policy. Its
-observed errors come from reference dynamics, so it needs a reference_assisted
-allowance and the selection records it (ccil.selection 1.1).
-
-Before deciding anything, curate verifies the certificate's structure against
-the candidates (core/certificates.py verify_structure): a certificate whose
-totals, classification, or reasons do not follow from its persisted terms
-and descriptor is refused. The source audit (audit_sources) remains the
-stronger, separate check.
+Changing a tolerance or quantile creates a new selection without changing the
+labels. Curation verifies artifact identity and refuses unsupported evidence.
+See ``docs/contract.md`` and ``docs/certificates.md`` for policy semantics.
 """
 from __future__ import annotations
 
