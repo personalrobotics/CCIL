@@ -28,9 +28,8 @@ part of this release.
 
 ## How the workflow fits together
 
-```text
-demonstrations -> dynamics model -> diagnosis -> candidates + evidence -> selection -> your trainer
-```
+**Demonstrations → dynamics model → diagnosis → candidates and evidence →
+selection → your trainer**
 
 1. **Demonstrations and dynamics.** Episodes provide ordered observations and actions,
    with transition timing when it is available. CCIL can fit a linear or MLP dynamics
