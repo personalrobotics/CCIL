@@ -1,0 +1,123 @@
+name: Release
+
+# The release protocol mirrors ssik:
+#   v*rc* -> verified artifacts published to TestPyPI
+#   v*    -> verified artifacts published to PyPI, then a GitHub Release
+#   manual -> build and verify only, unless TestPyPI is explicitly requested
+# PyPI authentication uses OIDC through protected GitHub environments.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish_testpypi:
+        description: "Also publish the verified artifacts to TestPyPI"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          enable-cache: false
+
+      - name: Build and verify the release artifacts
+        run: scripts/release-precheck.sh "${RUNNER_TEMP}/ccil-release"
+
+      - name: Tag and artifact versions agree
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(uv version --short)
+          if ! printf '%s\n' "$tag" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$'; then
+            echo "::error::release tags must be vX.Y.Z or vX.Y.ZrcN, got ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          if [[ "$version" != "$tag" ]]; then
+            echo "::error::project version '$version' does not match tag '$tag'"
+            exit 1
+          fi
+          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/ccil-${tag}-py3-none-any.whl"
+          test -f "${RUNNER_TEMP}/ccil-release/package/dist1/ccil-${tag}.tar.gz"
+
+      - name: Upload the verified distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: distributions
+          path: |
+            ${{ runner.temp }}/ccil-release/package/dist1/*.whl
+            ${{ runner.temp }}/ccil-release/package/dist1/*.tar.gz
+          if-no-files-found: error
+
+  publish_testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    if: >-
+      (startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'rc')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_testpypi)
+    environment:
+      name: testpypi-release
+      url: https://test.pypi.org/p/ccil
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the verified distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: distributions
+          path: dist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish_pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc')
+    environment:
+      name: release
+      url: https://pypi.org/p/ccil
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the verified distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: distributions
+          path: dist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+
+  create_github_release:
+    name: Create GitHub Release
+    needs: publish_pypi
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc')
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release after PyPI succeeds
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: CCIL ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
