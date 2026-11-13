@@ -56,6 +56,42 @@ selection → your trainer**
 On Diagnose and Generate results, `ccil inspect` instead explains the resolved
 configuration, provenance, evidence, and rejection reasons.
 
+### The choices that matter
+
+For a first Generate, point `data.path` at the demonstrations, choose the observation
+modalities that form the state, then either choose a transition-model kind or provide
+a compatible checkpoint. The main generation choices are:
+
+- **`generation.method`: how to propose corrections.** The usual starting point is
+  `noisy_action`: perturb a demonstrated action, then solve for a nearby state from
+  which that action reaches the same demonstrated successor.
+- **`generation.action_noise_std`: how far to explore in action space.** With
+  `action_noise_scale: absolute`, it has the dataset's action units. With
+  `training_std`, `1.0` means one training-set standard deviation in each action
+  dimension. Larger values propose more ambitious corrections but ask the dynamics
+  model to extrapolate further.
+- **`generation.labels_per_transition`: how densely to explore.** This is a count of
+  action proposals per demonstrated transition, not a quality threshold. More rows
+  improve coverage and increase downstream synthetic exposure.
+- **`generation.recovery_steps`: how long a correction may take to return.** Its unit
+  is recorded action intervals, not simulator integration steps. If data arrive at
+  10 Hz, one interval is 0.1 s. `auto` asks Diagnose to choose the shortest trusted
+  length; release 0.1 currently implements only one-step labels.
+- **`certificate.profile`: what evidence to compute.** A profile converts model
+  error, solver error, and displacement into a per-row score or bound. Bound profiles
+  require declared assumptions about the dynamics; their guarantees are conditional
+  on those assumptions.
+
+Curate interprets that evidence rather than changing the labels. A
+**`curate.tolerance`** is a maximum transition-error score in *scaled state units*:
+each state coordinate is divided by its declared scale before taking the norm. Thus
+`0.1` means one tenth in that normalized state geometry, not automatically 0.1 m or
+0.1 rad. `ccil inspect` prints the descriptor, units, and error quantiles to choose
+from. A **`curate.quantile`** is instead a unitless data budget: `0.25` keeps the
+lowest-error quarter of eligible rows, but makes no absolute quality claim. Selection
+weights are dimensionless relative loss multipliers, not probabilities or confidence
+scores.
+
 ## Start here
 
 The core supports Python 3.10 and newer and depends only on NumPy and PyYAML.
