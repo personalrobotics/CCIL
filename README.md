@@ -39,14 +39,22 @@ selection → your trainer**
    a valid empty result with an explanation rather than weak labels.
 3. **Generation and evidence.** `ccil generate` writes candidates and the evidence
    available for judging their transition error. Candidates are immutable.
-4. **Curation.** `ccil curate` writes a mask and weights over those candidates. Several
-   selections can be compared without regenerating labels.
-5. **Consumption.** `ccil.supervision.build_supervision` returns the training
-   demonstrations plus selected labels. `ccil export lerobot` writes the same
-   supervision as a LeRobot v3.0 dataset.
+4. **Curation.** `ccil curate` chooses which immutable candidates should enter
+   training. It can keep every eligible row, rows below an error tolerance, or a
+   chosen lowest-error fraction. The command prints the path to an immutable
+   `curate-<id>.json`, which records the policy and counts and points to a selection
+   file containing a mask and per-row weights. It does not copy or modify the
+   candidate labels, so several selections can be compared without regenerating
+   them.
+5. **Consumption.** `ccil inspect` on a curate result prints its selected and rejected
+   counts and the exact Python needed to load it.
+   `ccil.supervision.build_supervision` then returns arrays containing the training
+   demonstrations, selected synthetic rows, and their weights. Alternatively,
+   `ccil export lerobot` materializes the same selection as a LeRobot v3.0 dataset
+   for an unchanged LeRobot trainer.
 
-`ccil inspect` explains any result, including its resolved configuration, provenance,
-row counts, evidence, rejections, and the code needed to load selected rows.
+On Diagnose and Generate results, `ccil inspect` instead explains the resolved
+configuration, provenance, evidence, and rejection reasons.
 
 ## Start here
 
