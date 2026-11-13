@@ -19,6 +19,28 @@ uv build                             # sdist and wheel into dist/
 uv run --group evidence python tools/m2_schemas/check.py --out <dir>
 ```
 
+## Release protocol
+
+CCIL follows the same two-step release protocol as SSIK. The version in
+`pyproject.toml` and the tag must agree exactly; the release workflow refuses
+any mismatch. Release tags are `vX.Y.ZrcN` or `vX.Y.Z`.
+
+1. Set the release-candidate version with `uv version X.Y.ZrcN`, merge that
+   change, and run `scripts/release-precheck.sh` from a clean `main` checkout.
+2. Tag that commit `vX.Y.ZrcN`. The workflow rebuilds and verifies the wheel
+   and source archive, then publishes them to TestPyPI through the protected
+   `testpypi-release` environment.
+3. Exercise the TestPyPI wheel and the quickstart. Then set the stable version
+   with `uv version X.Y.Z` in a new commit, merge it, and rerun the precheck.
+4. Tag the new commit `vX.Y.Z`. The workflow publishes the same verified
+   artifacts to PyPI through the protected `release` environment. Only after
+   PyPI succeeds does it create the GitHub Release.
+
+The RC and stable tags therefore point to different commits. Publishing uses
+PyPI trusted publishing (OIDC), with no repository token or password. Configure
+the PyPI and TestPyPI publishers for owner `personalrobotics`, repository
+`CCIL`, workflow `release.yml`, and the matching environment name above.
+
 **Legacy packaging.** The retired legacy installer (`setup.py`,
 `install_deps.txt`) is preserved at `archive/upstream-main-2026-10-22`, and the
 legacy package with its pinned oracle environments at `surface-archive-v1`.
